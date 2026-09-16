@@ -4,7 +4,64 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Sidebar Clean Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Firefox support */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+/* Visible, easily-draggable scrollbar for Sidebar */
+.draggable-scrollbar {
+  overflow-y: scroll !important; /* Always keeps scrollbar visible so thumb never hides */
+  scrollbar-width: auto; /* For Firefox */
+  scrollbar-color: #94a3b8 #f1f5f9; /* thumb color | track color */
+}
+
+/* Chrome, Edge, Safari Webkit styles */
+.draggable-scrollbar::-webkit-scrollbar {
+  width: 10px !important; /* Thick enough to easily click with left mouse */
+  display: block !important;
+}
+
+.draggable-scrollbar::-webkit-scrollbar-track {
+  background-color: #f1f5f9 !important; /* Light background track to guide the mouse */
+  border-radius: 8px;
+}
+
+.draggable-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #94a3b8 !important; /* Slate-400 thumb - high contrast, always visible */
+  border-radius: 8px;
+  border: 2px solid #f1f5f9; /* Gives a clean padded pill look */
+  min-height: 40px; /* Ensures thumb never shrinks too small to click */
+}
+
+.draggable-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #64748b !important; /* Darker slate on mouse hover */
+}
+
+.draggable-scrollbar::-webkit-scrollbar-thumb:active {
+  background-color: #0090FF !important; /* Highlight blue when actively left-clicked & dragged */
+}
 :root {
+    --sidebar-width: 19rem; /* Expanded from 16rem so long titles never truncate */
+    --sidebar-width-icon: 3.5rem;
     --background: oklch(1 0 0);
     --foreground: oklch(0.148 0.004 228.8);
     --card: oklch(1 0 0);
