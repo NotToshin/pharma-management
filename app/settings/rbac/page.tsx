@@ -36,23 +36,15 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Shield,
   ShieldCheck,
-  ShieldAlert,
-  KeyRound,
-  Lock,
   UserCheck,
   Users,
   Plus,
   Download,
   Search,
   CheckCircle2,
-  AlertTriangle,
-  FileText,
-  Boxes,
-  Stethoscope,
-  Banknote,
-  Truck,
-  RotateCcw,
+  KeyRound,
   Save,
+  Lock,
 } from "lucide-react";
 
 interface RolePermission {
@@ -77,35 +69,35 @@ interface SystemRole {
 }
 
 const defaultPermissions: Record<string, RolePermission[]> = {
-  admin: [
+  SUPER_ADMIN: [
     { module: "Doctor Registry", category: "Clinical", read: true, create: true, edit: true, delete: true, specialAction: "Re-rank Category Tiers", specialGranted: true },
     { module: "FEFO Stock Control", category: "Warehouse", read: true, create: true, edit: true, delete: true, specialAction: "Quarantine / Write-off Batch", specialGranted: true },
     { module: "Sales & Dispatch", category: "Logistics", read: true, create: true, edit: true, delete: true, specialAction: "Override Credit Hold", specialGranted: true },
     { module: "Accounts & Collections", category: "Finance", read: true, create: true, edit: true, delete: true, specialAction: "Authorize Bank Release", specialGranted: true },
     { module: "Staff & Payroll", category: "Human Resources", read: true, create: true, edit: true, delete: true, specialAction: "Issue Appointment Letters", specialGranted: true },
   ],
-  rsm: [
+  RSM_EXEC: [
     { module: "Doctor Registry", category: "Clinical", read: true, create: true, edit: true, delete: false, specialAction: "Re-rank Category Tiers", specialGranted: true },
     { module: "FEFO Stock Control", category: "Warehouse", read: true, create: false, edit: false, delete: false, specialAction: "Quarantine / Write-off Batch", specialGranted: false },
     { module: "Sales & Dispatch", category: "Logistics", read: true, create: true, edit: true, delete: false, specialAction: "Override Credit Hold", specialGranted: false },
     { module: "Accounts & Collections", category: "Finance", read: true, create: false, edit: false, delete: false, specialAction: "Authorize Bank Release", specialGranted: false },
     { module: "Staff & Payroll", category: "Human Resources", read: true, create: false, edit: false, delete: false, specialAction: "Issue Appointment Letters", specialGranted: false },
   ],
-  mio: [
+  MIO_FIELD: [
     { module: "Doctor Registry", category: "Clinical", read: true, create: true, edit: true, delete: false, specialAction: "Re-rank Category Tiers", specialGranted: false },
     { module: "FEFO Stock Control", category: "Warehouse", read: true, create: false, edit: false, delete: false, specialAction: "Quarantine / Write-off Batch", specialGranted: false },
     { module: "Sales & Dispatch", category: "Logistics", read: true, create: true, edit: false, delete: false, specialAction: "Override Credit Hold", specialGranted: false },
     { module: "Accounts & Collections", category: "Finance", read: true, create: true, edit: false, delete: false, specialAction: "Authorize Bank Release", specialGranted: false },
     { module: "Staff & Payroll", category: "Human Resources", read: false, create: false, edit: false, delete: false, specialAction: "Issue Appointment Letters", specialGranted: false },
   ],
-  finance: [
+  FIN_CONTROLLER: [
     { module: "Doctor Registry", category: "Clinical", read: true, create: false, edit: false, delete: false, specialAction: "Re-rank Category Tiers", specialGranted: false },
     { module: "FEFO Stock Control", category: "Warehouse", read: true, create: false, edit: false, delete: false, specialAction: "Quarantine / Write-off Batch", specialGranted: false },
     { module: "Sales & Dispatch", category: "Logistics", read: true, create: false, edit: true, delete: false, specialAction: "Override Credit Hold", specialGranted: true },
     { module: "Accounts & Collections", category: "Finance", read: true, create: true, edit: true, delete: true, specialAction: "Authorize Bank Release", specialGranted: true },
     { module: "Staff & Payroll", category: "Human Resources", read: true, create: true, edit: true, delete: false, specialAction: "Issue Appointment Letters", specialGranted: false },
   ],
-  warehouse: [
+  WH_LOGISTICS: [
     { module: "Doctor Registry", category: "Clinical", read: false, create: false, edit: false, delete: false, specialAction: "Re-rank Category Tiers", specialGranted: false },
     { module: "FEFO Stock Control", category: "Warehouse", read: true, create: true, edit: true, delete: false, specialAction: "Quarantine / Write-off Batch", specialGranted: true },
     { module: "Sales & Dispatch", category: "Logistics", read: true, create: true, edit: true, delete: false, specialAction: "Override Credit Hold", specialGranted: false },
@@ -122,7 +114,7 @@ const initialRoles: SystemRole[] = [
     description: "Unrestricted master operational rights across statutory audits, financial releases, and user provisioning.",
     userCount: 2,
     isSystemDefault: true,
-    permissions: defaultPermissions.admin,
+    permissions: defaultPermissions.SUPER_ADMIN,
   },
   {
     id: "role-2",
@@ -131,7 +123,7 @@ const initialRoles: SystemRole[] = [
     description: "Division-level field force governance, target allocations, and doctor engagement monitoring.",
     userCount: 4,
     isSystemDefault: true,
-    permissions: defaultPermissions.rsm,
+    permissions: defaultPermissions.RSM_EXEC,
   },
   {
     id: "role-3",
@@ -140,7 +132,7 @@ const initialRoles: SystemRole[] = [
     description: "Prescription detailing logs, territory doctor calls, order booking, and field payment realization entries.",
     userCount: 28,
     isSystemDefault: true,
-    permissions: defaultPermissions.mio,
+    permissions: defaultPermissions.MIO_FIELD,
   },
   {
     id: "role-4",
@@ -149,7 +141,7 @@ const initialRoles: SystemRole[] = [
     description: "Bank reconciliations, payment vouchers, A/R collections, and payroll electronic advice authorization.",
     userCount: 5,
     isSystemDefault: true,
-    permissions: defaultPermissions.finance,
+    permissions: defaultPermissions.FIN_CONTROLLER,
   },
   {
     id: "role-5",
@@ -158,7 +150,7 @@ const initialRoles: SystemRole[] = [
     description: "FEFO bin tracking, batch quarantine locks, delivery challan verification, and temperature audits.",
     userCount: 6,
     isSystemDefault: true,
-    permissions: defaultPermissions.warehouse,
+    permissions: defaultPermissions.WH_LOGISTICS,
   },
 ];
 
@@ -166,6 +158,7 @@ interface UserAssignment {
   id: string;
   name: string;
   email: string;
+  passwordHash: string; // Stored securely in database
   roleCode: string;
   territory: string;
   status: "Active" | "Restricted";
@@ -173,11 +166,9 @@ interface UserAssignment {
 }
 
 const initialAssignments: UserAssignment[] = [
-  { id: "u-1", name: "Toshin Bin Azad", email: "toshin@akpharma.com", roleCode: "SUPER_ADMIN", territory: "Central HQ", status: "Active", lastLogin: "Just now" },
-  { id: "u-2", name: "Nazmul Huda Chowdhury", email: "nazmul.rsm@akpharma.com", roleCode: "RSM_EXEC", territory: "Central Division HQ", status: "Active", lastLogin: "2 hours ago" },
-  { id: "u-3", name: "Rafiqul Islam", email: "rafiqul.mio@akpharma.com", roleCode: "MIO_FIELD", territory: "Dhaka North Hub", status: "Active", lastLogin: "Today, 08:30 AM" },
-  { id: "u-4", name: "Tanvir Ahmed", email: "tanvir.mio@akpharma.com", roleCode: "MIO_FIELD", territory: "Dhaka South Hub", status: "Active", lastLogin: "Yesterday" },
-  { id: "u-5", name: "Mahbubur Rashid", email: "mahbub.warehouse@akpharma.com", roleCode: "WH_LOGISTICS", territory: "Central Depot", status: "Active", lastLogin: "16 Sep 2026" },
+  { id: "u-1", name: "Toshin Bin Azad", email: "toshin@akpharma.com", passwordHash: "••••••••••••", roleCode: "SUPER_ADMIN", territory: "Central HQ", status: "Active", lastLogin: "Just now" },
+  { id: "u-2", name: "Nazmul Huda Chowdhury", email: "nazmul.rsm@akpharma.com", passwordHash: "••••••••••••", roleCode: "RSM_EXEC", territory: "Central Division HQ", status: "Active", lastLogin: "2 hours ago" },
+  { id: "u-3", name: "Rafiqul Islam", email: "rafiqul.mio@akpharma.com", passwordHash: "••••••••••••", roleCode: "MIO_FIELD", territory: "Dhaka North Hub", status: "Active", lastLogin: "Today, 08:30 AM" },
 ];
 
 export default function RBACManagementPage() {
@@ -186,24 +177,18 @@ export default function RBACManagementPage() {
   const [assignments, setAssignments] = React.useState<UserAssignment[]>(initialAssignments);
   const [searchUserQuery, setSearchUserQuery] = React.useState("");
 
-  // Create Role Modal
-  const [isCreateRoleOpen, setIsCreateRoleOpen] = React.useState(false);
-  const [newRoleName, setNewRoleName] = React.useState("");
-  const [newRoleCode, setNewRoleCode] = React.useState("");
-  const [newRoleDesc, setNewRoleDesc] = React.useState("");
-
-  // Assign User Modal
-  const [isAssignOpen, setIsAssignOpen] = React.useState(false);
-  const [assignUserName, setAssignUserName] = React.useState("");
-  const [assignEmail, setAssignEmail] = React.useState("");
-  const [assignRoleCode, setAssignRoleCode] = React.useState(initialRoles[2].code);
-  const [assignTerritory, setAssignTerritory] = React.useState("Dhaka North Hub");
+  // Database Provisioning Modal State
+  const [isProvisionOpen, setIsProvisionOpen] = React.useState(false);
+  const [provName, setProvName] = React.useState("");
+  const [provEmail, setProvEmail] = React.useState("");
+  const [provPassword, setProvPassword] = React.useState("");
+  const [provRoleCode, setProvRoleCode] = React.useState("MIO_FIELD");
+  const [provTerritory, setProvTerritory] = React.useState("Dhaka North Hub");
 
   // Save changes feedback
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const [saveToast, setSaveToast] = React.useState(false);
 
-  // Toggle Permissions
   const handleTogglePermission = (
     moduleName: string,
     action: "read" | "create" | "edit" | "delete" | "specialGranted"
@@ -229,65 +214,50 @@ export default function RBACManagementPage() {
     setTimeout(() => setSaveToast(false), 2000);
   };
 
-  const handleCreateRole = (e: React.FormEvent) => {
+  // Database User Provisioning Handler
+  const handleProvisionOperator = (e: React.FormEvent) => {
     e.preventDefault();
-    const createdRole: SystemRole = {
-      id: `role-${Date.now()}`,
-      name: newRoleName,
-      code: newRoleCode.toUpperCase().replace(/\s+/g, "_"),
-      description: newRoleDesc,
-      userCount: 0,
-      isSystemDefault: false,
-      permissions: JSON.parse(JSON.stringify(defaultPermissions.mio)),
-    };
+    if (!provEmail || !provPassword || !provName) return;
 
-    setRoles((prev) => [...prev, createdRole]);
-    setSelectedRole(createdRole);
-    setNewRoleName("");
-    setNewRoleCode("");
-    setNewRoleDesc("");
-    setIsCreateRoleOpen(false);
-  };
-
-  const handleAssignUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newAssignment: UserAssignment = {
+    const newUser: UserAssignment = {
       id: `u-${Date.now()}`,
-      name: assignUserName,
-      email: assignEmail,
-      roleCode: assignRoleCode,
-      territory: assignTerritory,
+      name: provName,
+      email: provEmail,
+      passwordHash: "•".repeat(provPassword.length) + " (Hashed)",
+      roleCode: provRoleCode,
+      territory: provTerritory,
       status: "Active",
       lastLogin: "Never logged in",
     };
 
-    setAssignments((prev) => [newAssignment, ...prev]);
-    // update count
+    setAssignments((prev) => [newUser, ...prev]);
+
+    // Increment user count for that role
     setRoles((prev) =>
-      prev.map((r) =>
-        r.code === assignRoleCode ? { ...r, userCount: r.userCount + 1 } : r
-      )
+      prev.map((r) => (r.code === provRoleCode ? { ...r, userCount: r.userCount + 1 } : r))
     );
 
-    setAssignUserName("");
-    setAssignEmail("");
-    setIsAssignOpen(false);
+    // Reset Form
+    setProvName("");
+    setProvEmail("");
+    setProvPassword("");
+    setIsProvisionOpen(false);
   };
 
   const handleExportAudit = () => {
     const data = assignments.map((u) => ({
-      "User Name": u.name,
-      "Official Email": u.email,
+      "Operator Name": u.name,
+      "Database Email": u.email,
       "Assigned Role Code": u.roleCode,
-      "Territory / Hub": u.territory,
-      "Account State": u.status,
-      "Last Activity": u.lastLogin,
+      "Territory Station": u.territory,
+      "Account Status": u.status,
+      "Last Session": u.lastLogin,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "RBAC Security Audit");
-    XLSX.writeFile(workbook, `AK_Pharma_RBAC_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(workbook, `AK_Pharma_RBAC_Database_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const filteredUsers = assignments.filter((u) => {
@@ -305,10 +275,10 @@ export default function RBACManagementPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            Role-Based Access Control (RBAC) & Security Policies
+            Role-Based Access Control (RBAC) & Database Credentials
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Configure institutional user privileges, audit trails, statutory signing keys, and separation of duties.
+            Provision user login emails and encrypted passwords, configure permissions, and enforce separation of duties.
           </p>
         </div>
 
@@ -323,62 +293,99 @@ export default function RBACManagementPage() {
             Export Security Audit
           </Button>
 
-          {/* Create Custom Role Dialog */}
-          <Dialog open={isCreateRoleOpen} onOpenChange={setIsCreateRoleOpen}>
+          {/* Provision Operator Modal Button */}
+          <Dialog open={isProvisionOpen} onOpenChange={setIsProvisionOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="h-9 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs font-semibold px-3.5 rounded-lg shadow-none">
                 <Plus className="h-4 w-4" />
-                Define Custom Role
+                Provision Operator Account
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[460px] bg-white rounded-xl">
+            <DialogContent className="sm:max-w-[480px] bg-white rounded-xl">
               <DialogHeader>
-                <DialogTitle className="text-base font-bold text-slate-900">Create Security Role</DialogTitle>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Database Credential Provisioning
+                </DialogTitle>
                 <DialogDescription className="text-xs text-slate-500">
-                  Provision a new institutional role template with granular scope controls.
+                  Enter login credentials and assign an operational role to grant system access.
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleCreateRole} className="space-y-3.5 py-2">
+              <form onSubmit={handleProvisionOperator} className="space-y-3.5 py-2 text-xs">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">Role Title *</Label>
+                  <Label className="font-semibold text-slate-700">Operator Full Name *</Label>
                   <Input
-                    placeholder="e.g. Area Quality Inspector"
-                    value={newRoleName}
-                    onChange={(e) => setNewRoleName(e.target.value)}
+                    placeholder="e.g. Dr. Asif Iqbal"
+                    value={provName}
+                    onChange={(e) => setProvName(e.target.value)}
                     required
                     className="h-8 text-xs"
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">System Role Identifier Code *</Label>
-                  <Input
-                    placeholder="e.g. QA_INSPECTOR"
-                    value={newRoleCode}
-                    onChange={(e) => setNewRoleCode(e.target.value)}
-                    required
-                    className="h-8 text-xs font-mono"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-slate-700">Login Email (Username) *</Label>
+                    <Input
+                      type="email"
+                      placeholder="asif@akpharma.com"
+                      value={provEmail}
+                      onChange={(e) => setProvEmail(e.target.value)}
+                      required
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-slate-700">Database Password *</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                      <Input
+                        type="password"
+                        placeholder="••••••••"
+                        value={provPassword}
+                        onChange={(e) => setProvPassword(e.target.value)}
+                        required
+                        className="pl-8 h-8 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">Scope Description</Label>
-                  <Input
-                    placeholder="e.g. Responsible for lot release and factory GMP logs"
-                    value={newRoleDesc}
-                    onChange={(e) => setNewRoleDesc(e.target.value)}
-                    required
-                    className="h-8 text-xs"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-slate-700">Security Role *</Label>
+                    <Select value={provRoleCode} onValueChange={setProvRoleCode}>
+                      <SelectTrigger className="h-8 text-xs bg-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="text-xs">
+                        {roles.map((r) => (
+                          <SelectItem key={r.id} value={r.code}>
+                            {r.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-slate-700">Territory Station</Label>
+                    <Input
+                      placeholder="e.g. Dhaka South Hub"
+                      value={provTerritory}
+                      onChange={(e) => setProvTerritory(e.target.value)}
+                      required
+                      className="h-8 text-xs"
+                    />
+                  </div>
                 </div>
 
                 <DialogFooter className="pt-2">
-                  <Button type="button" variant="outline" onClick={() => setIsCreateRoleOpen(false)} className="h-8 text-xs">
+                  <Button type="button" variant="outline" onClick={() => setIsProvisionOpen(false)} className="h-8 text-xs">
                     Cancel
                   </Button>
                   <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white font-semibold">
-                    Register Role
+                    Save to Database & Grant Access
                   </Button>
                 </DialogFooter>
               </form>
@@ -400,7 +407,7 @@ export default function RBACManagementPage() {
             {roles.length} Roles
           </div>
           <p className="text-[11px] text-slate-400 mt-3">
-            Includes statutory default templates
+            System default templates active
           </p>
         </Card>
 
@@ -412,10 +419,10 @@ export default function RBACManagementPage() {
             </div>
           </div>
           <div className="mt-3 text-[26px] font-bold tracking-tight text-slate-900 leading-none font-mono">
-            {assignments.length} Operators
+            {assignments.length} Logins
           </div>
           <p className="text-[11px] text-slate-400 mt-3">
-            Active under 2FA enterprise domain
+            Active database credentials
           </p>
         </Card>
 
@@ -427,36 +434,35 @@ export default function RBACManagementPage() {
             </div>
           </div>
           <div className="mt-3 text-[26px] font-bold tracking-tight text-slate-900 leading-none font-mono text-emerald-600">
-            Strict Active
+            Enforced
           </div>
           <p className="text-[11px] text-emerald-600 font-medium mt-3">
-            Audit logs cannot be deleted or purged
+            Maker-checker rule active on vouchers
           </p>
         </Card>
 
         <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">High-Privilege Access</span>
+            <span className="text-xs font-medium text-slate-500">Root Authentication</span>
             <Badge variant="outline" className="text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200 px-2 py-0.5 rounded-md">
-              Audit Monitored
+              Encrypted
             </Badge>
           </div>
           <div className="mt-3 text-[26px] font-bold tracking-tight text-slate-900 leading-none font-mono">
-            2 SuperAdmins
+            Bcrypt (12)
           </div>
           <p className="text-[11px] text-slate-400 mt-3">
-            Toshin Bin Azad (Root Keyholder)
+            Secure database password hashing
           </p>
         </Card>
       </div>
 
-      {/* 3. Role Selector & Scope Matrix Section */}
+      {/* 3. Role Selector & Scope Matrix */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Role Selector Card List */}
         <div className="lg:col-span-4 space-y-3">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Institutional Security Roles
+              Security Role Templates
             </span>
             <span className="text-[11px] font-semibold text-slate-400">{roles.length} Available</span>
           </div>
@@ -495,7 +501,6 @@ export default function RBACManagementPage() {
           </div>
         </div>
 
-        {/* Right Column: Interactive Permission Matrix */}
         <Card className="lg:col-span-8 rounded-xl border border-slate-200/90 shadow-none bg-white p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100 gap-3">
             <div>
@@ -547,7 +552,6 @@ export default function RBACManagementPage() {
               <TableBody>
                 {selectedRole.permissions.map((perm) => (
                   <TableRow key={perm.module} className="border-b border-slate-50 hover:bg-slate-50/50">
-                    {/* Module Title */}
                     <TableCell className="py-3 pl-0">
                       <div>
                         <span className="text-xs font-bold text-slate-900 block">{perm.module}</span>
@@ -555,7 +559,6 @@ export default function RBACManagementPage() {
                       </div>
                     </TableCell>
 
-                    {/* View */}
                     <TableCell className="py-3 text-center">
                       <input
                         type="checkbox"
@@ -565,7 +568,6 @@ export default function RBACManagementPage() {
                       />
                     </TableCell>
 
-                    {/* Create */}
                     <TableCell className="py-3 text-center">
                       <input
                         type="checkbox"
@@ -575,7 +577,6 @@ export default function RBACManagementPage() {
                       />
                     </TableCell>
 
-                    {/* Edit */}
                     <TableCell className="py-3 text-center">
                       <input
                         type="checkbox"
@@ -585,7 +586,6 @@ export default function RBACManagementPage() {
                       />
                     </TableCell>
 
-                    {/* Delete */}
                     <TableCell className="py-3 text-center">
                       <input
                         type="checkbox"
@@ -595,7 +595,6 @@ export default function RBACManagementPage() {
                       />
                     </TableCell>
 
-                    {/* Special Operational Privilege */}
                     <TableCell className="py-3 pr-0">
                       {perm.specialAction ? (
                         <div className="flex items-center justify-between bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100">
@@ -620,117 +619,35 @@ export default function RBACManagementPage() {
         </Card>
       </div>
 
-      {/* 4. Active Role Assignments Ledger */}
+      {/* 4. Active Database Credential Roster */}
       <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div>
             <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-              DELEGATED USER ROLE ASSIGNMENTS
+              PROVISIONED DATABASE CREDENTIALS & LOGINS
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Live roster of verified personnel credentials mapped to active system security roles
+              Active login accounts stored in PostgreSQL mapping email usernames to role permissions
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <Input
-                placeholder="Search user, role, or territory..."
-                value={searchUserQuery}
-                onChange={(e) => setSearchUserQuery(e.target.value)}
-                className="pl-8 h-8 text-xs border-slate-200 bg-slate-50/50 w-[240px]"
-              />
-            </div>
-
-            {/* Delegate Role to Staff Dialog */}
-            <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" variant="outline" className="h-8 gap-1.5 border-slate-200 bg-white text-slate-800 text-xs font-semibold px-3 rounded-lg shadow-none">
-                  <UserCheck className="h-3.5 w-3.5 text-slate-600" />
-                  Delegate Role
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[480px] bg-white rounded-xl">
-                <DialogHeader>
-                  <DialogTitle className="text-base font-bold text-slate-900">Delegate Security Role</DialogTitle>
-                  <DialogDescription className="text-xs text-slate-500">
-                    Assign a team member to an institutional authorization level.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <form onSubmit={handleAssignUser} className="space-y-3.5 py-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium text-slate-700">Personnel Full Name *</Label>
-                    <Input
-                      placeholder="e.g. Asif Iqbal"
-                      value={assignUserName}
-                      onChange={(e) => setAssignUserName(e.target.value)}
-                      required
-                      className="h-8 text-xs"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium text-slate-700">Corporate Email Address *</Label>
-                    <Input
-                      type="email"
-                      placeholder="asif@akpharma.com"
-                      value={assignEmail}
-                      onChange={(e) => setAssignEmail(e.target.value)}
-                      required
-                      className="h-8 text-xs"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium text-slate-700">Security Role *</Label>
-                      <Select value={assignRoleCode} onValueChange={setAssignRoleCode}>
-                        <SelectTrigger className="h-8 text-xs bg-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="text-xs">
-                          {roles.map((r) => (
-                            <SelectItem key={r.id} value={r.code}>
-                              {r.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium text-slate-700">Territory Jurisdiction</Label>
-                      <Input
-                        value={assignTerritory}
-                        onChange={(e) => setAssignTerritory(e.target.value)}
-                        required
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <DialogFooter className="pt-2">
-                    <Button type="button" variant="outline" onClick={() => setIsAssignOpen(false)} className="h-8 text-xs">
-                      Cancel
-                    </Button>
-                    <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white font-semibold">
-                      Confirm Delegation
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            <Input
+              placeholder="Search user, email, or role..."
+              value={searchUserQuery}
+              onChange={(e) => setSearchUserQuery(e.target.value)}
+              className="pl-8 h-8 text-xs border-slate-200 bg-slate-50/50 w-[240px]"
+            />
           </div>
         </div>
 
         <Table>
           <TableHeader>
             <TableRow className="border-b border-slate-100 hover:bg-transparent text-xs text-slate-600">
-              <TableHead className="text-xs font-medium text-slate-600 pl-0">Operator Name & Email</TableHead>
+              <TableHead className="text-xs font-medium text-slate-600 pl-0">Operator & Login Email</TableHead>
+              <TableHead className="text-xs font-medium text-slate-600">Password Hash</TableHead>
               <TableHead className="text-xs font-medium text-slate-600">Assigned Role</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Security Identifier</TableHead>
               <TableHead className="text-xs font-medium text-slate-600">Territory Station</TableHead>
               <TableHead className="text-xs font-medium text-slate-600">Last Active Session</TableHead>
               <TableHead className="text-xs font-medium text-slate-600 text-right pr-0">Status</TableHead>
@@ -751,17 +668,17 @@ export default function RBACManagementPage() {
                       </Avatar>
                       <div>
                         <span className="text-xs font-bold text-slate-900 block">{user.name}</span>
-                        <span className="text-[10px] text-slate-400 font-mono block">{user.email}</span>
+                        <span className="text-[10px] text-[#0090FF] font-mono block">{user.email}</span>
                       </div>
                     </div>
                   </TableCell>
 
-                  <TableCell className="py-3 text-xs font-semibold text-slate-800">
-                    {matchedRole ? matchedRole.name : user.roleCode}
+                  <TableCell className="py-3 text-xs font-mono text-slate-400">
+                    {user.passwordHash}
                   </TableCell>
 
-                  <TableCell className="py-3 text-xs font-mono text-[#0090FF]">
-                    {user.roleCode}
+                  <TableCell className="py-3 text-xs font-semibold text-slate-800">
+                    {matchedRole ? matchedRole.name : user.roleCode}
                   </TableCell>
 
                   <TableCell className="py-3 text-xs text-slate-600">

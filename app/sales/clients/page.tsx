@@ -896,7 +896,7 @@ export default function ClientsDirectoryPage() {
                 <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
                   <div>
                     <h1 className="text-2xl font-black tracking-tight uppercase text-slate-900">
-                      AK PHARMA LIMITED
+                      AK PHARMA 
                     </h1>
                     <p className="text-[11px] text-slate-600 font-semibold mt-0.5">
                       Commercial Distribution & Credit Management
@@ -986,7 +986,7 @@ export default function ClientsDirectoryPage() {
                 </div>
 
                 <p className="text-[11px] text-slate-500 leading-relaxed mt-4">
-                  This confirmation certificate is generated from the central enterprise ledger of AK PHARMA LIMITED. All shipments dispatched under commercial Delivery Challans remain subject to verified payment realization according to agreed terms.
+                  This confirmation certificate is generated from the central enterprise ledger of AK PHARMA. All shipments dispatched under commercial Delivery Challans remain subject to verified payment realization according to agreed terms.
                 </p>
 
                 {/* Sign-off Blocks */}

@@ -933,7 +933,7 @@ export default function PaymentsPage() {
                 <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
                   <div>
                     <h1 className="text-2xl font-black tracking-tight uppercase text-slate-900">
-                      AK PHARMA LIMITED
+                      AK PHARMA 
                     </h1>
                     <p className="text-[11px] text-slate-600 font-semibold mt-0.5">
                       Corporate Finance & Treasury Operations Division

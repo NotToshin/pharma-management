@@ -803,7 +803,7 @@ export default function LogisticsOrdersPage() {
                 {/* Official Letterhead */}
                 <div className="border-b-2 border-slate-900 pb-3 flex items-start justify-between">
                   <div>
-                    <h2 className="text-lg font-black tracking-tight uppercase">AK PHARMA LIMITED</h2>
+                    <h2 className="text-lg font-black tracking-tight uppercase">AK PHARMA </h2>
                     <p className="text-[11px] text-slate-600 font-medium">Warehouse & Logistics Dispatch Division</p>
                     <p className="text-[10px] text-slate-400">Tejgaon Central Depot, Dhaka • DGDA Lic: DL-PH-2026-88</p>
                   </div>

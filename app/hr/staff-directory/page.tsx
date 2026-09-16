@@ -1087,7 +1087,7 @@ export default function StaffDirectoryPage() {
                 {/* Letterhead */}
                 <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
                   <div>
-                    <h2 className="text-lg font-extrabold tracking-tight uppercase">AK PHARMA LIMITED</h2>
+                    <h2 className="text-lg font-extrabold tracking-tight uppercase">AK PHARMA</h2>
                     <p className="text-[11px] text-slate-500">Human Resources & Personnel Administration</p>
                     <p className="text-[10px] text-slate-400">Dhaka, Bangladesh</p>
                   </div>

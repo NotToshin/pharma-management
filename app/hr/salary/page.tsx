@@ -973,7 +973,7 @@ export default function SalaryManagementPage() {
                   </div>
                   <div className="text-center">
                     <div className="w-32 border-b border-slate-300 mb-1" />
-                    <span>Authorized Signatory</span>
+                    <span>Employee Signature</span>
                   </div>
                 </div>
               </div>
