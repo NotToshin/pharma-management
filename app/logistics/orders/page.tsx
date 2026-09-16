@@ -3,12 +3,7 @@
 import * as React from "react";
 import * as XLSX from "xlsx";
 import { useSearchParams } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,7 +54,6 @@ import {
   Boxes,
   Snowflake,
   MoreHorizontal,
-  ArrowRight,
   Store,
   Printer,
   ShieldAlert,
@@ -155,7 +149,7 @@ const initialOrders: SalesOrder[] = [
   },
 ];
 
-export default function LogisticsOrdersPage() {
+function LogisticsOrdersContent() {
   const searchParams = useSearchParams();
 
   const [orders, setOrders] = React.useState<SalesOrder[]>(initialOrders);
@@ -278,10 +272,10 @@ export default function LogisticsOrdersPage() {
       (ord.challanNumber && ord.challanNumber.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesStatus =
-      statusFilter === "all" || ord.status.toLowerCase() === statusFilter.toLowerCase();
+      statusFilter === "all" || ord.status.toLowerCase().includes(statusFilter.toLowerCase());
 
     const matchesTerritory =
-      territoryFilter === "all" || ord.territory.toLowerCase() === territoryFilter.toLowerCase();
+      territoryFilter === "all" || ord.territory.toLowerCase().includes(territoryFilter.toLowerCase());
 
     return matchesSearch && matchesStatus && matchesTerritory;
   });
@@ -803,7 +797,7 @@ export default function LogisticsOrdersPage() {
                 {/* Official Letterhead */}
                 <div className="border-b-2 border-slate-900 pb-3 flex items-start justify-between">
                   <div>
-                    <h2 className="text-lg font-black tracking-tight uppercase">AK PHARMA </h2>
+                    <h2 className="text-lg font-black tracking-tight uppercase">AK PHARMA LIMITED</h2>
                     <p className="text-[11px] text-slate-600 font-medium">Warehouse & Logistics Dispatch Division</p>
                     <p className="text-[10px] text-slate-400">Tejgaon Central Depot, Dhaka • DGDA Lic: DL-PH-2026-88</p>
                   </div>
@@ -924,5 +918,13 @@ export default function LogisticsOrdersPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function LogisticsOrdersPage() {
+  return (
+    <React.Suspense fallback={<div className="p-8 text-center text-xs text-slate-400">Loading Logistics Dispatch...</div>}>
+      <LogisticsOrdersContent />
+    </React.Suspense>
   );
 }
