@@ -50,13 +50,104 @@ import {
   UserPlus,
 } from "lucide-react";
 
+/* ------------------------------------------------------------------ */
+/* Print stylesheet                                                    */
+/* ------------------------------------------------------------------ */
+/*
+ * Kept as a plain <style> tag (injected via dangerouslySetInnerHTML) so it
+ * works in any React setup, not just Next.js with styled-jsx.
+ *
+ * Note the double backslash in `.print\\:hidden` — inside a JS template
+ * literal a single `\:` collapses to `:`, which produces the invalid
+ * selector `.print:hidden` and invalidates the entire comma-separated rule.
+ */
+const PRINT_STYLES = `
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+@media print {
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide everything, then reveal only the payslip subtree.
+     Using visibility (not display) keeps Radix's portal ancestors in the
+     layout tree, so the dialog itself is still rendered. */
+  body * {
+    visibility: hidden !important;
+  }
+
+  .print-payslip-node,
+  .print-payslip-node * {
+    visibility: visible !important;
+  }
+
+  /* The actual fix for the cropping: shadcn/Radix centres DialogContent with
+     left-1/2 top-1/2 + translate(-50%, -50%). Overriding left/top alone left
+     the transform in place, pulling the sheet off the top-left of the page. */
+  .print-payslip-node {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+    translate: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    display: block !important;
+    background: #ffffff !important;
+  }
+
+  /* The inner scroll container has to expand, otherwise only the slice that
+     was visible on screen makes it onto the page. */
+  .print-payslip-body {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+  }
+
+  /* Radix overlay / backdrop and the dialog's own close button */
+  [data-radix-popper-content-wrapper],
+  .print-payslip-node > button[type="button"][class*="absolute"] {
+    display: none !important;
+  }
+
+  .print\\:hidden,
+  button {
+    display: none !important;
+  }
+
+  table,
+  tr,
+  td,
+  th {
+    page-break-inside: avoid;
+  }
+}
+`;
+
 // Mock Directory of Enrolled Employees (Shared from Staff Directory)
 const staffDirectoryList = [
   { empId: "EMP-2041", fullName: "Rafiqul Islam", designation: "Senior MIO", department: "Field Force", territory: "Dhaka North Hub", defaultBank: "Eastern Bank PLC" },
   { empId: "EMP-2042", fullName: "Tanvir Ahmed", designation: "MIO", department: "Field Force", territory: "Dhaka South Hub", defaultBank: "Islami Bank Bangladesh" },
   { empId: "EMP-2030", fullName: "Nazmul Huda Chowdhury", designation: "Regional Sales Manager", department: "Sales Management", territory: "Central Division HQ", defaultBank: "BRAC Bank PLC" },
   { empId: "EMP-2045", fullName: "Kamrul Hasan", designation: "MIO", department: "Field Force", territory: "Chittagong Central", defaultBank: "Standard Chartered" },
-  // Unassigned staff members ready to be configured
   { empId: "EMP-2051", fullName: "Enamul Haque", designation: "Junior MIO", department: "Field Force", territory: "Sylhet Sadar", defaultBank: "Eastern Bank PLC" },
   { empId: "EMP-2058", fullName: "Sabbir Hossain", designation: "MIO", department: "Field Force", territory: "Rajshahi Metro", defaultBank: "BRAC Bank PLC" },
   { empId: "EMP-2018", fullName: "Dr. Sumaiya Akhtar", designation: "Head of QA & Compliance", department: "Quality Assurance", territory: "Plant 01 Labs", defaultBank: "Eastern Bank PLC" },
@@ -168,11 +259,12 @@ export default function SalaryManagementPage() {
   const [newTax, setNewTax] = React.useState("1000");
   const [newBankAccount, setNewBankAccount] = React.useState("");
 
-  // Edit & Print Modals
+  // Edit & Print Preview Modals
   const [editingRecord, setEditingRecord] = React.useState<EmployeeSalary | null>(null);
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [printRecord, setPrintRecord] = React.useState<EmployeeSalary | null>(null);
   const [isPrintOpen, setIsPrintOpen] = React.useState(false);
+  const [successToast, setSuccessToast] = React.useState<string | null>(null);
 
   // Helper Computations
   const getGrossEarnings = (r: EmployeeSalary) =>
@@ -220,6 +312,7 @@ export default function SalaryManagementPage() {
     setSelectedStaffEmpId("");
     setNewBankAccount("");
     setIsAssignOpen(false);
+    showNotification(`Assigned salary structure successfully for ${staff.fullName}`);
   };
 
   const handleSaveEdit = (e: React.FormEvent) => {
@@ -231,6 +324,23 @@ export default function SalaryManagementPage() {
     );
     setIsEditOpen(false);
     setEditingRecord(null);
+    showNotification(`Updated remuneration structure for ${editingRecord.fullName}`);
+  };
+
+  const showNotification = (msg: string) => {
+    setSuccessToast(msg);
+    setTimeout(() => setSuccessToast(null), 3500);
+  };
+
+  /*
+   * Wait for the dialog to finish opening/animating before handing control to
+   * the browser's print dialog, otherwise a fast click can capture a blank or
+   * half-transformed sheet.
+   */
+  const handleTriggerPrint = () => {
+    requestAnimationFrame(() => {
+      setTimeout(() => window.print(), 60);
+    });
   };
 
   const handleExportExcel = () => {
@@ -279,8 +389,19 @@ export default function SalaryManagementPage() {
 
   return (
     <div className="space-y-6 max-w-[1360px] mx-auto pb-10">
+      {/* Print styles — plain <style> so it works outside Next.js too */}
+      <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
+
+      {/* Toast Alert */}
+      {successToast && (
+        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center gap-2 text-xs font-bold print:hidden">
+          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+          <span>{successToast}</span>
+        </div>
+      )}
+
       {/* 1. Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 print:hidden">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
             Salary, Benefits & Incentive Management
@@ -320,7 +441,6 @@ export default function SalaryManagementPage() {
               </DialogHeader>
 
               <form onSubmit={handleAssignSalary} className="space-y-4 py-2">
-                {/* Staff Dropdown from Staff Directory */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">Select Employee from Directory</Label>
                   <Select value={selectedStaffEmpId} onValueChange={setSelectedStaffEmpId} required>
@@ -472,7 +592,7 @@ export default function SalaryManagementPage() {
       </div>
 
       {/* 2. Overview Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 print:hidden">
         <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">Total Net Take-Home Pool</span>
@@ -535,7 +655,7 @@ export default function SalaryManagementPage() {
       </div>
 
       {/* 3. Search & Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200/90">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200/90 print:hidden">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
           <Input
@@ -563,14 +683,14 @@ export default function SalaryManagementPage() {
       </div>
 
       {/* 4. Main Editable Roster Table */}
-      <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6">
+      <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6 print:hidden">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
               EMPLOYEE COMPENSATION & ALLOWANCE BREAKDOWN
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Modify basic pay, rent subsidies, field conveyance, and print PDF payslips
+              Modify basic pay, rent subsidies, field conveyance, and preview professional payslips
             </p>
           </div>
           <span className="text-xs text-slate-400 font-medium">
@@ -594,7 +714,6 @@ export default function SalaryManagementPage() {
           </TableHeader>
           <TableBody>
             {filteredSalaries.map((emp) => {
-              const gross = getGrossEarnings(emp);
               const deductions = getTotalDeductions(emp);
               const net = getNetPayable(emp);
 
@@ -658,7 +777,7 @@ export default function SalaryManagementPage() {
                         className="h-7 px-2.5 text-xs text-slate-700 border-slate-200 hover:bg-slate-50 gap-1"
                       >
                         <Pencil className="h-3 w-3 text-slate-400" />
-                        Edit Structure
+                        Edit
                       </Button>
                       <Button
                         size="sm"
@@ -667,10 +786,10 @@ export default function SalaryManagementPage() {
                           setPrintRecord(emp);
                           setIsPrintOpen(true);
                         }}
-                        className="h-7 px-2.5 text-xs text-[#0090FF] border-blue-200 hover:bg-blue-50 gap-1"
+                        className="h-7 px-2.5 text-xs text-[#0090FF] border-blue-200 hover:bg-blue-50 gap-1 font-semibold"
                       >
                         <Printer className="h-3 w-3" />
-                        Print Payslip
+                        Payslip
                       </Button>
                     </div>
                   </TableCell>
@@ -861,18 +980,18 @@ export default function SalaryManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 6. Formatted Printable Payslip Dialog */}
+      {/* 6. Formatted Printable Payslip Preview Dialog */}
       <Dialog open={isPrintOpen} onOpenChange={setIsPrintOpen}>
-        <DialogContent className="sm:max-w-[650px] bg-white rounded-xl p-0 overflow-hidden">
+        <DialogContent className="print-payslip-node sm:max-w-[680px] bg-white rounded-xl p-0 overflow-hidden max-h-[92vh] flex flex-col">
           {printRecord && (
-            <div>
-              <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between print:hidden">
+            <>
+              <div className="p-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between print:hidden">
                 <span className="text-xs font-bold text-slate-700">Official Payslip Preview</span>
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
-                    onClick={() => window.print()}
-                    className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white gap-1.5"
+                    onClick={handleTriggerPrint}
+                    className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white gap-1.5 shadow-none"
                   >
                     <Printer className="h-3.5 w-3.5" />
                     Print / Save PDF
@@ -888,27 +1007,29 @@ export default function SalaryManagementPage() {
                 </div>
               </div>
 
-              <div className="p-8 text-slate-900 font-sans" id="payslip-printable">
-                <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
+              {/* print-payslip-body: the print stylesheet expands this scroll
+                  container so the full payslip reaches the page. */}
+              <div className="print-payslip-body p-5 text-slate-900 font-sans overflow-y-auto space-y-3 text-[11px]">
+                <div className="border-b-2 border-slate-900 pb-3 flex items-start justify-between">
                   <div>
-                    <h2 className="text-lg font-extrabold tracking-tight uppercase">AK PHARMA</h2>
-                    <p className="text-[11px] text-slate-500">Corporate Headquarters & Pharmaceuticals Division</p>
-                    <p className="text-[10px] text-slate-400">Dhaka, Bangladesh</p>
+                    <h2 className="text-base font-extrabold tracking-tight uppercase">AK PHARMA</h2>
+                    <p className="text-[10px] text-slate-500">Corporate Headquarters & Pharmaceuticals Division</p>
+                    <p className="text-[9px] text-slate-400">Dhaka, Bangladesh</p>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs font-bold uppercase tracking-wider block text-slate-800">PAYSLIP ADVICE</span>
-                    <span className="text-xs font-mono font-medium text-slate-600 block">{printRecord.payPeriod}</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider block text-slate-800">PAYSLIP ADVICE</span>
+                    <span className="text-[11px] font-mono font-medium text-[#0090FF] block mt-0.5">{printRecord.payPeriod}</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 py-4 border-b border-slate-200 text-xs">
-                  <div className="space-y-1">
+                <div className="grid grid-cols-2 gap-3 py-2 border-b border-slate-200 text-[11px]">
+                  <div className="space-y-0.5">
                     <div><span className="text-slate-400">Employee Name: </span><strong>{printRecord.fullName}</strong></div>
-                    <div><span className="text-slate-400">Employee ID: </span><span className="font-mono">{printRecord.empId}</span></div>
+                    <div><span className="text-slate-400">Employee ID: </span><span className="font-mono font-semibold">{printRecord.empId}</span></div>
                     <div><span className="text-slate-400">Designation: </span>{printRecord.designation}</div>
                     <div><span className="text-slate-400">Department: </span>{printRecord.department}</div>
                   </div>
-                  <div className="space-y-1 text-right sm:text-left">
+                  <div className="space-y-0.5 text-right sm:text-left">
                     <div><span className="text-slate-400">Assigned Hub: </span>{printRecord.territory}</div>
                     <div><span className="text-slate-400">Disbursing Bank: </span>{printRecord.bankName}</div>
                     <div><span className="text-slate-400">A/C Number: </span><span className="font-mono">{printRecord.bankAccount}</span></div>
@@ -916,68 +1037,68 @@ export default function SalaryManagementPage() {
                   </div>
                 </div>
 
-                <div className="py-4 text-xs">
-                  <div className="grid grid-cols-2 gap-6">
+                <div className="py-1 text-[11px]">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <h4 className="font-bold uppercase tracking-wider text-slate-900 pb-2 border-b border-slate-300">
+                      <h4 className="font-bold uppercase tracking-wider text-slate-900 pb-1 border-b border-slate-300 text-[10px]">
                         Earnings & Allowances
                       </h4>
-                      <table className="w-full mt-2">
+                      <table className="w-full mt-1.5 text-[11px]">
                         <tbody>
-                          <tr className="border-b border-slate-100 py-1"><td className="py-1 text-slate-600">Basic Pay</td><td className="text-right font-mono font-medium">৳{printRecord.basicSalary.toLocaleString("en-IN")}</td></tr>
-                          <tr className="border-b border-slate-100 py-1"><td className="py-1 text-slate-600">House Rent Allowance</td><td className="text-right font-mono font-medium">৳{printRecord.houseRent.toLocaleString("en-IN")}</td></tr>
-                          <tr className="border-b border-slate-100 py-1"><td className="py-1 text-slate-600">Medical Subsidy</td><td className="text-right font-mono font-medium">৳{printRecord.medicalAllowance.toLocaleString("en-IN")}</td></tr>
-                          <tr className="border-b border-slate-100 py-1"><td className="py-1 text-slate-600">Conveyance / Field TA-DA</td><td className="text-right font-mono font-medium">৳{printRecord.conveyanceTaDa.toLocaleString("en-IN")}</td></tr>
-                          <tr className="border-b border-slate-100 py-1"><td className="py-1 text-slate-600">Sales Quota Incentive</td><td className="text-right font-mono font-medium text-emerald-700">+৳{printRecord.salesIncentive.toLocaleString("en-IN")}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="py-1 text-slate-600">Basic Pay</td><td className="text-right font-mono font-medium">৳{printRecord.basicSalary.toLocaleString("en-IN")}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="py-1 text-slate-600">House Rent Allowance</td><td className="text-right font-mono font-medium">৳{printRecord.houseRent.toLocaleString("en-IN")}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="py-1 text-slate-600">Medical Subsidy</td><td className="text-right font-mono font-medium">৳{printRecord.medicalAllowance.toLocaleString("en-IN")}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="py-1 text-slate-600">Conveyance / Field TA-DA</td><td className="text-right font-mono font-medium">৳{printRecord.conveyanceTaDa.toLocaleString("en-IN")}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="py-1 text-slate-600">Sales Quota Incentive</td><td className="text-right font-mono font-medium text-emerald-700">+৳{printRecord.salesIncentive.toLocaleString("en-IN")}</td></tr>
                           {printRecord.specialBonus > 0 && (
-                            <tr className="border-b border-slate-100 py-1"><td className="py-1 text-slate-600">Special Bonus</td><td className="text-right font-mono font-medium text-emerald-700">+৳{printRecord.specialBonus.toLocaleString("en-IN")}</td></tr>
+                            <tr className="border-b border-slate-100"><td className="py-1 text-slate-600">Special Bonus</td><td className="text-right font-mono font-medium text-emerald-700">+৳{printRecord.specialBonus.toLocaleString("en-IN")}</td></tr>
                           )}
-                          <tr className="font-bold pt-2"><td className="pt-2">Total Gross Earnings</td><td className="text-right font-mono pt-2">৳{getGrossEarnings(printRecord).toLocaleString("en-IN")}</td></tr>
+                          <tr className="font-bold"><td className="pt-1.5">Total Gross Earnings</td><td className="text-right font-mono pt-1.5">৳{getGrossEarnings(printRecord).toLocaleString("en-IN")}</td></tr>
                         </tbody>
                       </table>
                     </div>
 
                     <div>
-                      <h4 className="font-bold uppercase tracking-wider text-slate-900 pb-2 border-b border-slate-300">
+                      <h4 className="font-bold uppercase tracking-wider text-slate-900 pb-1 border-b border-slate-300 text-[10px]">
                         Statutory Deductions
                       </h4>
-                      <table className="w-full mt-2">
+                      <table className="w-full mt-1.5 text-[11px]">
                         <tbody>
-                          <tr className="border-b border-slate-100 py-1"><td className="py-1 text-slate-600">Provident Fund (PF)</td><td className="text-right font-mono font-medium text-rose-600">৳{printRecord.providentFund.toLocaleString("en-IN")}</td></tr>
-                          <tr className="border-b border-slate-100 py-1"><td className="py-1 text-slate-600">Tax Withheld (TDS)</td><td className="text-right font-mono font-medium text-rose-600">৳{printRecord.taxDeduction.toLocaleString("en-IN")}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="py-1 text-slate-600">Provident Fund (PF)</td><td className="text-right font-mono font-medium text-rose-600">৳{printRecord.providentFund.toLocaleString("en-IN")}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="py-1 text-slate-600">Tax Withheld (TDS)</td><td className="text-right font-mono font-medium text-rose-600">৳{printRecord.taxDeduction.toLocaleString("en-IN")}</td></tr>
                           {printRecord.otherDeductions > 0 && (
-                            <tr className="border-b border-slate-100 py-1"><td className="py-1 text-slate-600">Other Adjustments</td><td className="text-right font-mono font-medium text-rose-600">৳{printRecord.otherDeductions.toLocaleString("en-IN")}</td></tr>
+                            <tr className="border-b border-slate-100"><td className="py-1 text-slate-600">Other Adjustments</td><td className="text-right font-mono font-medium text-rose-600">৳{printRecord.otherDeductions.toLocaleString("en-IN")}</td></tr>
                           )}
-                          <tr className="font-bold pt-2"><td className="pt-2">Total Deductions</td><td className="text-right font-mono pt-2 text-rose-600">৳{getTotalDeductions(printRecord).toLocaleString("en-IN")}</td></tr>
+                          <tr className="font-bold"><td className="pt-1.5">Total Deductions</td><td className="text-right font-mono pt-1.5 text-rose-600">৳{getTotalDeductions(printRecord).toLocaleString("en-IN")}</td></tr>
                         </tbody>
                       </table>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 p-4 border-2 border-slate-900 bg-slate-50 flex items-center justify-between text-sm">
-                  <span className="font-bold uppercase tracking-wide">Net Disbursed Take-Home Pay</span>
-                  <span className="text-xl font-mono font-extrabold text-slate-900">
-                    ৳{getNetPayable(printRecord).toLocaleString("en-IN")}
+                <div className="mt-2 p-2.5 border-2 border-slate-900 bg-slate-50 flex items-center justify-between text-xs">
+                  <span className="font-bold uppercase tracking-wide text-[11px]">Net Disbursed Take-Home Pay</span>
+                  <span className="text-sm font-mono font-extrabold text-[#0090FF]">
+                    ৳{getNetPayable(printRecord).toLocaleString("en-IN")}/-
                   </span>
                 </div>
 
-                <div className="mt-12 pt-6 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-400">
+                <div className="mt-6 pt-4 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-400">
                   <div className="text-center">
-                    <div className="w-32 border-b border-slate-300 mb-1" />
+                    <div className="w-28 border-b border-slate-300 mb-1 mx-auto" />
                     <span>Prepared By (HR)</span>
                   </div>
                   <div className="text-center">
-                    <div className="w-32 border-b border-slate-300 mb-1" />
+                    <div className="w-28 border-b border-slate-300 mb-1 mx-auto" />
                     <span>Checked By (Accounts)</span>
                   </div>
                   <div className="text-center">
-                    <div className="w-32 border-b border-slate-300 mb-1" />
+                    <div className="w-28 border-b border-slate-300 mb-1 mx-auto" />
                     <span>Employee Signature</span>
                   </div>
                 </div>
               </div>
-            </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
