@@ -1,13 +1,12 @@
 "use client";
 
 import * as React from "react";
-import * as XLSX from "xlsx";
+import Link from "next/link";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,378 +27,244 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from "recharts";
-import {
-  DollarSign,
-  TrendingUp,
-  CreditCard,
-  Receipt,
-  Download,
-  CalendarDays,
-  ArrowUpRight,
-  ArrowDownRight,
   Wallet,
-  Building,
-  Filter,
-  CheckCircle2,
+  Landmark,
+  Banknote,
+  ArrowRight,
+  Search,
+  Building2,
+  ExternalLink,
+  ShieldCheck,
   Clock,
+  ArrowUpRight,
+  ArrowDownLeft,
 } from "lucide-react";
 
-// Cash Flow & Monthly Run-Rate Trend (in Lakhs BDT)
-const revenueTrendData = [
-  { month: "Apr", Revenue: 142.5, Collections: 130.2, Expenses: 38.4 },
-  { month: "May", Revenue: 158.0, Collections: 145.0, Expenses: 41.2 },
-  { month: "Jun", Revenue: 165.4, Collections: 159.8, Expenses: 44.0 },
-  { month: "Jul", Revenue: 178.2, Collections: 164.5, Expenses: 46.5 },
-  { month: "Aug", Revenue: 189.6, Collections: 178.0, Expenses: 49.0 },
-  { month: "Sep", Revenue: 194.7, Collections: 182.4, Expenses: 51.2 },
-];
-
-interface FinancialTransaction {
+interface DetailedFinancialAccount {
   id: string;
-  trxCode: string;
-  partyName: string;
-  type: "Pharmacy Invoice" | "Wholesale Deposit" | "MIO Field Allowance" | "Batch Procurement";
-  territory: string;
-  amount: number;
-  date: string;
-  status: "Settled" | "Pending Clearance" | "Overdue";
+  accountName: string;
+  accountType: "Bank Account" | "Cash on Hand" | "Credit Card" | "Corporate Escrow";
+  currency: string;
+  currentBalance: number;
+  accountNumber: string;
+  institution: string;
+  branchLocation: string;
+  lastReconciled: string;
+  status: "Active" | "Pending Audit" | "Frozen";
 }
 
-const recentTransactions: FinancialTransaction[] = [
+const detailedMockAccounts: DetailedFinancialAccount[] = [
   {
-    id: "tx-1",
-    trxCode: "INV-2026-8841",
-    partyName: "Popular Pharmacy (Dhanmondi Branch)",
-    type: "Pharmacy Invoice",
-    territory: "Dhaka North",
-    amount: 142500,
-    date: "16 Sep 2026",
-    status: "Settled",
+    id: "acc-101",
+    accountName: "AK Pharma Corporate Ops",
+    accountType: "Bank Account",
+    currency: "BDT (৳)",
+    currentBalance: 8450000,
+    accountNumber: "104-102-994821",
+    institution: "Eastern Bank PLC",
+    branchLocation: "Gulshan-2 Corporate Branch",
+    lastReconciled: "17 Sep 2026, 02:30 PM",
+    status: "Active",
   },
   {
-    id: "tx-2",
-    trxCode: "EXP-2026-0312",
-    partyName: "Rafiqul Islam (MIO Field Conveyance)",
-    type: "MIO Field Allowance",
-    territory: "Dhaka North",
-    amount: 18400,
-    date: "16 Sep 2026",
-    status: "Settled",
+    id: "acc-102",
+    accountName: "AK Pharma Wholesale Collection",
+    accountType: "Bank Account",
+    currency: "BDT (৳)",
+    currentBalance: 5210000,
+    accountNumber: "205-019-338104",
+    institution: "Islami Bank Bangladesh PLC",
+    branchLocation: "Motijheel Commercial Branch",
+    lastReconciled: "16 Sep 2026, 04:15 PM",
+    status: "Active",
   },
   {
-    id: "tx-3",
-    trxCode: "INV-2026-8842",
-    partyName: "Chevron Hospital Chemist Hub",
-    type: "Pharmacy Invoice",
-    territory: "Chittagong Central",
-    amount: 98200,
-    date: "15 Sep 2026",
-    status: "Pending Clearance",
+    id: "acc-103",
+    accountName: "AK Pharma LC & Sourcing Escrow",
+    accountType: "Corporate Escrow",
+    currency: "BDT (৳)",
+    currentBalance: 3940000,
+    accountNumber: "01-8849201-01",
+    institution: "Standard Chartered Bank",
+    branchLocation: "Dhanmondi Branch",
+    lastReconciled: "15 Sep 2026, 11:00 AM",
+    status: "Active",
   },
   {
-    id: "tx-4",
-    trxCode: "PRC-2026-0094",
-    partyName: "Square Raw Pharma Ingredients Ltd.",
-    type: "Batch Procurement",
-    territory: "Central Warehouse",
-    amount: 420000,
-    date: "14 Sep 2026",
-    status: "Settled",
+    id: "acc-104",
+    accountName: "Central Vault Petty Cash",
+    accountType: "Cash on Hand",
+    currency: "BDT (৳)",
+    currentBalance: 640000,
+    accountNumber: "CASH-VAULT-01",
+    institution: "Head Office Operations",
+    branchLocation: "Tejgaon Industrial Area, Dhaka",
+    lastReconciled: "17 Sep 2026, 09:00 AM",
+    status: "Active",
   },
   {
-    id: "tx-5",
-    trxCode: "INV-2026-8843",
-    partyName: "Medinova Chemist Corner (Mirpur)",
-    type: "Pharmacy Invoice",
-    territory: "Dhaka South",
-    amount: 67500,
-    date: "12 Sep 2026",
-    status: "Overdue",
-  },
-  {
-    id: "tx-6",
-    trxCode: "DEP-2026-0129",
-    partyName: "Sylhet Central Medicine Wholesalers",
-    type: "Wholesale Deposit",
-    territory: "Sylhet Sadar",
-    amount: 210000,
-    date: "11 Sep 2026",
-    status: "Settled",
+    id: "acc-105",
+    accountName: "Corporate Procurement Card",
+    accountType: "Credit Card",
+    currency: "BDT (৳)",
+    currentBalance: -180000,
+    accountNumber: "CC-9941-8821",
+    institution: "City Bank PLC",
+    branchLocation: "Gulshan Branch",
+    lastReconciled: "14 Sep 2026, 05:45 PM",
+    status: "Active",
   },
 ];
 
-export default function FinanceOverviewPage() {
-  const [transactions, setTransactions] = React.useState<FinancialTransaction[]>(recentTransactions);
-  const [filterType, setFilterType] = React.useState("all");
+export default function DetailedFinancialOverviewDashboard() {
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [typeFilter, setTypeFilter] = React.useState("all");
 
-  const handleExportExcel = () => {
-    const data = transactions.map((t) => ({
-      "Transaction Ref": t.trxCode,
-      "Counterparty / Entity": t.partyName,
-      "Transaction Type": t.type,
-      "Associated Territory": t.territory,
-      "Amount (৳)": t.amount,
-      Date: t.date,
-      "Settlement Status": t.status,
-    }));
+  const totalBankBalances = detailedMockAccounts
+    .filter((acc) => acc.accountType === "Bank Account" || acc.accountType === "Corporate Escrow")
+    .reduce((acc, curr) => acc + curr.currentBalance, 0);
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Finance Overview");
-    XLSX.writeFile(workbook, `AK_Pharma_Financial_Overview_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  };
+  const totalCashOnHand = detailedMockAccounts
+    .filter((acc) => acc.accountType === "Cash on Hand")
+    .reduce((acc, curr) => acc + curr.currentBalance, 0);
 
-  const filteredTransactions =
-    filterType === "all"
-      ? transactions
-      : transactions.filter((t) => t.type.toLowerCase().includes(filterType.toLowerCase()));
+  const totalCreditUtilized = detailedMockAccounts
+    .filter((acc) => acc.accountType === "Credit Card")
+    .reduce((acc, curr) => acc + curr.currentBalance, 0);
+
+  const totalLiquidity = totalBankBalances + totalCashOnHand + totalCreditUtilized;
+
+  const filteredAccounts = detailedMockAccounts.filter((acc) => {
+    const matchesSearch =
+      acc.accountName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      acc.institution.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      acc.accountNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      acc.branchLocation.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesType =
+      typeFilter === "all" || acc.accountType.toLowerCase() === typeFilter.toLowerCase();
+
+    return matchesSearch && matchesType;
+  });
 
   return (
-    <div className="space-y-6 max-w-[1360px] mx-auto pb-10">
-      {/* 1. Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            Financial Health & Commercial Overview
+    <div className="space-y-6 max-w-[1440px] mx-auto pb-16 font-sans text-neutral-900">
+      
+      {/* 1. Header Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-neutral-200 p-5 rounded-lg shadow-2xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-600 inline-block" />
+            <span className="text-[11px] font-mono tracking-wider uppercase text-neutral-500 font-bold">
+              AK Pharma Enterprise Node • Financial Overview (Step 1 Detailed)
+            </span>
+          </div>
+          <h1 className="text-xl font-bold tracking-tight text-neutral-900">
+            Treasury & Liquidity Overview
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Macro revenue performance, field expense burn rates, accounts receivable, and cash settlements.
-          </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <Badge variant="outline" className="text-xs font-semibold text-slate-800 bg-white border-slate-200 px-3 py-1.5 rounded-lg">
-            <CalendarDays className="h-3.5 w-3.5 mr-1.5 inline text-slate-600" />
-            Fiscal Q3 2026
-          </Badge>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleExportExcel}
-            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold px-3.5 rounded-lg shadow-none"
-          >
-            <Download className="h-3.5 w-3.5 text-emerald-600" />
-            Export Finance Sheet
-          </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/finance/bank-ledger">
+            <Button
+              size="sm"
+              className="h-8 text-xs font-medium bg-neutral-900 hover:bg-neutral-800 text-white rounded-md shadow-none gap-1.5"
+            >
+              <span>View Master Ledger</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </Link>
         </div>
       </div>
 
-      {/* 2. Top Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Gross Revenue Billed */}
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Gross Billed Turnover</span>
-            <div className="p-1.5 rounded-lg bg-blue-50 text-[#0090FF]">
-              <TrendingUp className="h-4 w-4" />
-            </div>
+      {/* 2. Detailed Summary Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        
+        <div className="bg-white border border-neutral-200 p-5 rounded-lg space-y-2">
+          <div className="flex items-center justify-between text-neutral-500 text-xs font-medium">
+            <span>Total Liquidity</span>
+            <Wallet className="h-4 w-4 text-emerald-600" />
           </div>
-          <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none">
-            ৳1,94,70,000
+          <div className="text-2xl font-bold font-mono tracking-tight text-neutral-900">
+            ৳{totalLiquidity.toLocaleString("en-IN")}
           </div>
-          <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
-            <ArrowUpRight className="h-3.5 w-3.5" />
-            <span>+11.8% vs last month</span>
+          <div className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+            <ShieldCheck className="h-3.5 w-3.5" /> 100% Reconciled Headroom
           </div>
-        </Card>
+        </div>
 
-        {/* Realized Cash Collections */}
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Realized Collections</span>
-            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
-              <CheckCircle2 className="h-4 w-4" />
-            </div>
+        <div className="bg-white border border-neutral-200 p-5 rounded-lg space-y-2">
+          <div className="flex items-center justify-between text-neutral-500 text-xs font-medium">
+            <span>Total Bank Balances</span>
+            <Landmark className="h-4 w-4 text-blue-600" />
           </div>
-          <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none">
-            ৳1,82,40,000
+          <div className="text-2xl font-bold font-mono tracking-tight text-neutral-900">
+            ৳{totalBankBalances.toLocaleString("en-IN")}
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">
-            93.6% Collection recovery efficiency
-          </p>
-        </Card>
+          <div className="text-[11px] text-neutral-500 font-medium">
+            3 Active Institutional Accounts
+          </div>
+        </div>
 
-        {/* Accounts Receivable (A/R) */}
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Accounts Receivable (A/R)</span>
-            <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600">
-              <Clock className="h-4 w-4" />
-            </div>
+        <div className="bg-white border border-neutral-200 p-5 rounded-lg space-y-2">
+          <div className="flex items-center justify-between text-neutral-500 text-xs font-medium">
+            <span>Total Cash on Hand</span>
+            <Banknote className="h-4 w-4 text-neutral-700" />
           </div>
-          <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none">
-            ৳12,30,000
+          <div className="text-2xl font-bold font-mono tracking-tight text-neutral-900">
+            ৳{totalCashOnHand.toLocaleString("en-IN")}
           </div>
-          <p className="text-[11px] text-amber-600 font-medium mt-3">
-            ৳67,500 currently past 45-day credit term
-          </p>
-        </Card>
+          <div className="text-[11px] text-neutral-500 font-medium">
+            Tejgaon Central Vault Register
+          </div>
+        </div>
 
-        {/* Operational Burn & Field Allowances */}
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Operational Burn & DA/TA</span>
-            <div className="p-1.5 rounded-lg bg-slate-100 text-slate-700">
-              <Receipt className="h-4 w-4" />
-            </div>
+        <div className="bg-white border border-neutral-200 p-5 rounded-lg space-y-2">
+          <div className="flex items-center justify-between text-neutral-500 text-xs font-medium">
+            <span>Credit Line Utilized</span>
+            <ArrowUpRight className="h-4 w-4 text-amber-600" />
           </div>
-          <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none">
-            ৳51,20,000
+          <div className="text-2xl font-bold font-mono tracking-tight text-neutral-900">
+            ৳{Math.abs(totalCreditUtilized).toLocaleString("en-IN")}
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">
-            Includes sample costs, MIO allowance & dispatch
-          </p>
-        </Card>
+          <div className="text-[11px] text-amber-600 font-medium">
+            City Bank Corporate Card
+          </div>
+        </div>
+
       </div>
 
-      {/* 3. Middle Charts: Dual-Tone Cash Flow Area & Expense Structure */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-        {/* Six-Month Inflow vs Outflow */}
-        <Card className="lg:col-span-8 rounded-xl border border-slate-200/90 shadow-none bg-white p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 gap-2 border-b border-slate-100">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">Commercial Cash Flow Run-Rate (in Lakh ৳)</h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Billed sales revenue versus collected cash against operational burn
-              </p>
-            </div>
-            <div className="flex items-center gap-3 text-xs font-semibold text-slate-600">
-              <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-[#0090FF]" />
-                <span>Revenue</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>Collections</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-slate-400" />
-                <span>Burn</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="h-[270px] w-full pt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0090FF" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#0090FF" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="colorColl" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#71717A" }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#71717A" }} />
-                <Tooltip
-                  cursor={{ stroke: "#e2e8f0" }}
-                  contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "11px" }}
-                  formatter={(val) => [`৳${val} Lakh`, ""]}
-                />
-                <Area type="monotone" dataKey="Revenue" stroke="#0090FF" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" />
-                <Area type="monotone" dataKey="Collections" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorColl)" />
-                <Area type="monotone" dataKey="Expenses" stroke="#94a3b8" strokeWidth={1.5} fillOpacity={0} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        {/* Operating Margin Breakdown Card */}
-        <Card className="lg:col-span-4 rounded-xl border border-slate-200/90 shadow-none bg-white p-6 flex flex-col justify-between">
+      {/* 3. Detailed Account Breakdown Table */}
+      <div className="bg-white border border-neutral-200 rounded-lg p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold text-slate-900">Commercial Margin Breakdown</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Realized net margins after operational allocations</p>
-
-            <div className="mt-6 space-y-4">
-              <div>
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-slate-600 font-medium">COGS & API Sourcing</span>
-                  <span className="font-mono font-bold text-slate-900">54.2%</span>
-                </div>
-                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-slate-800 rounded-full" style={{ width: "54.2%" }} />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-slate-600 font-medium">Field Force & Sampling</span>
-                  <span className="font-mono font-bold text-slate-900">18.4%</span>
-                </div>
-                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#0090FF] rounded-full" style={{ width: "18.4%" }} />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-slate-600 font-medium">Warehouse & Logistics</span>
-                  <span className="font-mono font-bold text-slate-900">7.8%</span>
-                </div>
-                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-300 rounded-full" style={{ width: "7.8%" }} />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-emerald-700 font-semibold">Net Operating Profit</span>
-                  <span className="font-mono font-bold text-emerald-700">19.6%</span>
-                </div>
-                <div className="h-2 w-full bg-emerald-50 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: "19.6%" }} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-100 text-xs mt-4">
-            <span className="font-semibold text-slate-800 block">Audited Net Profit</span>
-            <span className="text-lg font-bold text-slate-900 block font-mono mt-0.5">৳38,16,000</span>
-            <span className="text-[10px] text-slate-400">Current active monthly period</span>
-          </div>
-        </Card>
-      </div>
-
-      {/* 4. Transactions Ledger Table */}
-      <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div>
-            <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-              Recent Commercial Invoices & Field Disbursements
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900">
+              Detailed Financial Account Breakdown & Status
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Audited payments, credit term disbursements, and chemist settlement receipts
-            </p>
+            <p className="text-xs text-neutral-500">Roster of banking channels, branch locations, and last reconciliation stamps</p>
           </div>
 
           <div className="flex items-center gap-2">
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="h-8 w-[160px] text-xs bg-white border-slate-200">
-                <Filter className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
-                <SelectValue placeholder="All Categories" />
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-neutral-400" />
+              <Input
+                placeholder="Search account..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 text-xs w-[200px] border-neutral-200"
+              />
+            </div>
+
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="h-8 w-[150px] text-xs border-neutral-200 bg-white">
+                <SelectValue placeholder="Account Type" />
               </SelectTrigger>
               <SelectContent className="text-xs">
-                <SelectItem value="all">All Transactions</SelectItem>
-                <SelectItem value="pharmacy invoice">Pharmacy Invoice</SelectItem>
-                <SelectItem value="mio field allowance">Field Allowance</SelectItem>
-                <SelectItem value="wholesale deposit">Wholesale Deposit</SelectItem>
-                <SelectItem value="batch procurement">Procurement</SelectItem>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="bank account">Bank Account</SelectItem>
+                <SelectItem value="corporate escrow">Corporate Escrow</SelectItem>
+                <SelectItem value="cash on hand">Cash on Hand</SelectItem>
+                <SelectItem value="credit card">Credit Card</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -407,58 +272,72 @@ export default function FinanceOverviewPage() {
 
         <Table>
           <TableHeader>
-            <TableRow className="border-b border-slate-100 hover:bg-transparent text-xs text-slate-600">
-              <TableHead className="text-xs font-medium text-slate-600 pl-0">Reference ID</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Counterparty / Description</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Transaction Type</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Territory / Node</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Billing Date</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-right">Amount (৳)</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-right pr-0">Status</TableHead>
+            <TableRow className="border-b border-neutral-200 text-xs text-neutral-600">
+              <TableHead className="pl-0">Account Name & Institution</TableHead>
+              <TableHead>Account Type</TableHead>
+              <TableHead>Branch & Location</TableHead>
+              <TableHead>Last Reconciled</TableHead>
+              <TableHead className="text-right">Current Balance</TableHead>
+              <TableHead className="text-right pr-0">Actions (Step 2)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTransactions.map((tx) => (
-              <TableRow key={tx.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                <TableCell className="py-3 text-xs font-mono font-semibold text-[#0090FF] pl-0">
-                  {tx.trxCode}
-                </TableCell>
-                <TableCell className="py-3 text-xs font-semibold text-slate-900">
-                  {tx.partyName}
-                </TableCell>
-                <TableCell className="py-3 text-xs">
-                  <Badge variant="outline" className="text-[10px] font-medium bg-slate-50 text-slate-700 border-slate-200">
-                    {tx.type}
-                  </Badge>
-                </TableCell>
-                <TableCell className="py-3 text-xs text-slate-600">
-                  {tx.territory}
-                </TableCell>
-                <TableCell className="py-3 text-xs text-slate-600">
-                  {tx.date}
-                </TableCell>
-                <TableCell className="py-3 text-xs text-right font-mono font-bold text-slate-900">
-                  ৳{tx.amount.toLocaleString("en-IN")}
-                </TableCell>
-                <TableCell className="py-3 text-xs text-right pr-0">
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
-                      tx.status === "Settled"
-                        ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                        : tx.status === "Pending Clearance"
-                        ? "text-amber-700 bg-amber-50 border-amber-200"
-                        : "text-rose-700 bg-rose-50 border-rose-200"
-                    }`}
-                  >
-                    {tx.status}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
+            {filteredAccounts.map((acc) => {
+              const isNegative = acc.currentBalance < 0;
+              return (
+                <TableRow key={acc.id} className="border-b border-neutral-100 text-xs hover:bg-neutral-50">
+                  <TableCell className="py-3.5 pl-0">
+                    <span className="font-bold block text-neutral-900">{acc.accountName}</span>
+                    <span className="font-mono text-[10px] text-neutral-500">
+                      {acc.institution} • {acc.accountNumber}
+                    </span>
+                  </TableCell>
+
+                  <TableCell className="py-3.5">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      acc.accountType === "Bank Account" ? "bg-blue-50 text-blue-700 border border-blue-200" :
+                      acc.accountType === "Corporate Escrow" ? "bg-purple-50 text-purple-700 border border-purple-200" :
+                      acc.accountType === "Cash on Hand" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                      "bg-amber-50 text-amber-700 border border-amber-200"
+                    }`}>
+                      {acc.accountType}
+                    </span>
+                  </TableCell>
+
+                  <TableCell className="py-3.5 text-neutral-600">
+                    {acc.branchLocation}
+                  </TableCell>
+
+                  <TableCell className="py-3.5 text-neutral-500 font-mono text-[11px]">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3 text-neutral-400" />
+                      <span>{acc.lastReconciled}</span>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className={`py-3.5 text-right font-mono font-bold ${isNegative ? "text-rose-600" : "text-neutral-900"}`}>
+                    {isNegative ? `-৳${Math.abs(acc.currentBalance).toLocaleString("en-IN")}` : `৳${acc.currentBalance.toLocaleString("en-IN")}`}
+                  </TableCell>
+
+                  <TableCell className="py-3.5 text-right pr-0">
+                    <Link href={`/finance/bank-ledger?account=${encodeURIComponent(acc.bankName)}`}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs font-medium border-neutral-300 text-neutral-700 hover:bg-neutral-100 rounded-md gap-1"
+                      >
+                        <span>View Ledger</span>
+                        <ExternalLink className="h-3 w-3 text-neutral-400" />
+                      </Button>
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
-      </Card>
+      </div>
+
     </div>
   );
 }

@@ -106,12 +106,12 @@ const initialEmployees: Employee[] = [
     address: "Village+Post: Benotia PS-Shahzadpur Dist: Sirajgonj",
     nidNumber: "1994821049281",
     email: "hasanali@gmail.com",
-    designation: "Medical Information Officer (MIO)",
-    department: "Medical Information",
+    designation: "Medical Information Officer",
+    department: "Field Force",
     startDate: "January 01, 2025",
     employmentStatus: "Probationary",
     salary: 20000,
-    supervisor: "Toshin Bin Azad (Head of HR)",
+    supervisor: "Toshin Bin Azad (Human Resource)",
     workSchedule: "Sat - Thu (8:30 AM - 5:30 PM)",
     emergencyName: "Md. Mokbul Hossain",
     emergencyRelationship: "Father",
@@ -127,12 +127,12 @@ const initialEmployees: Employee[] = [
     address: "House 24, Road 4, Sector 10, Uttara, Dhaka",
     nidNumber: "1992109283019",
     email: "rafiqul.mio@akpharma.com",
-    designation: "Senior Medical Information Officer (MIO)",
-    department: "Field Force (MIO)",
+    designation: "Sales Representative",
+    department: "Field Force",
     startDate: "January 15, 2024",
     employmentStatus: "Active",
     salary: 38000,
-    supervisor: "Nazmul Huda Chowdhury (RSM)",
+    supervisor: "Managing Director",
     workSchedule: "Sat - Thu (9:00 AM - 6:00 PM)",
     emergencyName: "Shamima Nasrin",
     emergencyRelationship: "Spouse",
@@ -148,12 +148,12 @@ const initialEmployees: Employee[] = [
     address: "House 12, Road 2, Dhanmondi, Dhaka",
     nidNumber: "1995830192847",
     email: "tanvir.mio@akpharma.com",
-    designation: "Medical Information Officer (MIO)",
-    department: "Field Force (MIO)",
+    designation: "Accountant",
+    department: "Staff",
     startDate: "March 01, 2025",
     employmentStatus: "Active",
     salary: 32000,
-    supervisor: "Nazmul Huda Chowdhury (RSM)",
+    supervisor: "Exectuive Director",
     workSchedule: "Sat - Thu (9:00 AM - 6:00 PM)",
     emergencyName: "Tariq Ahmed",
     emergencyRelationship: "Brother",
@@ -162,31 +162,48 @@ const initialEmployees: Employee[] = [
   {
     id: "emp-4",
     empId: "EMP-2030",
-    fullName: "Nazmul Huda Chowdhury",
+    fullName: "Toshin Bin Azad",
     phone: "+880 1715-778899",
-    fathersName: "Late Golam Mostafa Chowdhury",
+    fathersName: "Golam Mostafa Azad",
     mothersName: "Laila Arjumand",
     address: "Plot 12, Block C, Mirpur 2, Dhaka",
     nidNumber: "1988261902847",
-    email: "nazmul.rsm@akpharma.com",
-    designation: "Regional Sales Manager (RSM)",
-    department: "Sales Management",
+    email: "toshin@akpharma.com",
+    designation: "Human Resource",
+    department: "Management",
     startDate: "August 10, 2022",
     employmentStatus: "Active",
     salary: 85000,
     supervisor: "Managing Director",
     workSchedule: "Sun - Thu (9:00 AM - 6:00 PM)",
-    emergencyName: "Nasrin Chowdhury",
+    emergencyName: "Nasrin Azad",
     emergencyRelationship: "Spouse",
     emergencyPhone: "+880 1611-224466",
   },
 ];
+
+const DEFAULT_DESIGNATIONS = [
+  "Chairman",
+  "Managing Director",
+  "Exectuive Director",
+  "Human Resource",
+  "Admin",
+  "Accountant",
+  "Sales Represenstive",
+  "Medical Information Officer",
+];
+
+const DEFAULT_DEPARTMENTS = ["Management", "Field Force", "Staff"];
 
 export default function StaffDirectoryPage() {
   const [employees, setEmployees] = React.useState<Employee[]>(initialEmployees);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [departmentFilter, setDepartmentFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
+
+  // Dynamic dropdown options state (Super Admin expandable)
+  const [designations, setDesignations] = React.useState<string[]>(DEFAULT_DESIGNATIONS);
+  const [departments, setDepartments] = React.useState<string[]>(DEFAULT_DEPARTMENTS);
 
   // Portfolio Sheet State
   const [selectedEmp, setSelectedEmp] = React.useState<Employee | null>(null);
@@ -207,12 +224,12 @@ export default function StaffDirectoryPage() {
     address: "",
     nidNumber: "",
     email: "",
-    designation: "",
-    department: "Field Force (MIO)",
+    designation: "Medical Information Officer",
+    department: "Field Force",
     startDate: "January 01, 2025",
     employmentStatus: "Active" as Employee["employmentStatus"],
     salary: "",
-    supervisor: "Toshin Bin Azad (Head of HR)",
+    supervisor: "Managing Director",
     workSchedule: "Sat - Thu (8:30 AM - 5:30 PM)",
     emergencyName: "",
     emergencyRelationship: "",
@@ -224,7 +241,62 @@ export default function StaffDirectoryPage() {
   const [editingEmp, setEditingEmp] = React.useState<Employee | null>(null);
 
   const handleFormChange = (field: string, val: any) => {
+    // Check if super admin triggered "Add more"
+    if (val === "__ADD_NEW_DESIGNATION__") {
+      const customDesig = prompt("Enter new designation title (Super Admin access):");
+      if (customDesig && customDesig.trim() !== "") {
+        const formatted = customDesig.trim();
+        if (!designations.includes(formatted)) {
+          setDesignations((prev) => [...prev, formatted]);
+        }
+        setFormState((prev) => ({ ...prev, designation: formatted }));
+      }
+      return;
+    }
+
+    if (val === "__ADD_NEW_DEPARTMENT__") {
+      const customDept = prompt("Enter new department title (Super Admin access):");
+      if (customDept && customDept.trim() !== "") {
+        const formatted = customDept.trim();
+        if (!departments.includes(formatted)) {
+          setDepartments((prev) => [...prev, formatted]);
+        }
+        setFormState((prev) => ({ ...prev, department: formatted }));
+      }
+      return;
+    }
+
     setFormState((prev) => ({ ...prev, [field]: val }));
+  };
+
+  const handleEditFormChange = (field: string, val: any) => {
+    if (!editingEmp) return;
+
+    if (val === "__ADD_NEW_DESIGNATION__") {
+      const customDesig = prompt("Enter new designation title (Super Admin access):");
+      if (customDesig && customDesig.trim() !== "") {
+        const formatted = customDesig.trim();
+        if (!designations.includes(formatted)) {
+          setDesignations((prev) => [...prev, formatted]);
+        }
+        setEditingEmp({ ...editingEmp, designation: formatted });
+      }
+      return;
+    }
+
+    if (val === "__ADD_NEW_DEPARTMENT__") {
+      const customDept = prompt("Enter new department title (Super Admin access):");
+      if (customDept && customDept.trim() !== "") {
+        const formatted = customDept.trim();
+        if (!departments.includes(formatted)) {
+          setDepartments((prev) => [...prev, formatted]);
+        }
+        setEditingEmp({ ...editingEmp, department: formatted });
+      }
+      return;
+    }
+
+    setEditingEmp({ ...editingEmp, [field]: val });
   };
 
   const handleOpenPortfolio = (emp: Employee) => {
@@ -479,26 +551,53 @@ export default function StaffDirectoryPage() {
                     2. Corporate Role & Posting
                   </h4>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    
+                    {/* Designation Dropdown with Super Admin Add More */}
                     <div className="space-y-1">
-                      <Label className="text-xs font-medium text-slate-700">Desig.</Label>
-                      <Input
-                        placeholder="Medical Information Officer (MIO)"
+                      <Label className="text-xs font-medium text-slate-700">Designation</Label>
+                      <Select
                         value={formState.designation}
-                        onChange={(e) => handleFormChange("designation", e.target.value)}
-                        required
-                        className="h-8 text-xs"
-                      />
+                        onValueChange={(v) => handleFormChange("designation", v)}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-white">
+                          <SelectValue placeholder="Select Designation" />
+                        </SelectTrigger>
+                        <SelectContent className="text-xs max-h-[240px]">
+                          {designations.map((desig) => (
+                            <SelectItem key={desig} value={desig}>
+                              {desig}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__ADD_NEW_DESIGNATION__" className="text-blue-600 font-semibold border-t border-slate-100 mt-1 pt-1">
+                            + Add more (Super Admin access)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+
+                    {/* Department Dropdown with Super Admin Add More */}
                     <div className="space-y-1">
-                      <Label className="text-xs font-medium text-slate-700">Dept.</Label>
-                      <Input
-                        placeholder="Medical Information"
+                      <Label className="text-xs font-medium text-slate-700">Department</Label>
+                      <Select
                         value={formState.department}
-                        onChange={(e) => handleFormChange("department", e.target.value)}
-                        required
-                        className="h-8 text-xs"
-                      />
+                        onValueChange={(v) => handleFormChange("department", v)}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-white">
+                          <SelectValue placeholder="Select Department" />
+                        </SelectTrigger>
+                        <SelectContent className="text-xs">
+                          {departments.map((dept) => (
+                            <SelectItem key={dept} value={dept}>
+                              {dept}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__ADD_NEW_DEPARTMENT__" className="text-blue-600 font-semibold border-t border-slate-100 mt-1 pt-1">
+                            + Add more (Super Admin access)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-slate-700">Start Date</Label>
                       <Input
@@ -541,7 +640,7 @@ export default function StaffDirectoryPage() {
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-slate-700">Supervisor</Label>
                       <Input
-                        placeholder="Toshin Bin Azad (Head of HR)"
+                        placeholder="Toshin Bin Azad (Human Resource)"
                         value={formState.supervisor}
                         onChange={(e) => handleFormChange("supervisor", e.target.value)}
                         required
@@ -698,9 +797,11 @@ export default function StaffDirectoryPage() {
             </SelectTrigger>
             <SelectContent className="text-xs">
               <SelectItem value="all">All Departments</SelectItem>
-              <SelectItem value="medical information">Medical Information</SelectItem>
-              <SelectItem value="field force (mio)">Field Force (MIO)</SelectItem>
-              <SelectItem value="sales management">Sales Management</SelectItem>
+              {departments.map((dept) => (
+                <SelectItem key={dept} value={dept.toLowerCase()}>
+                  {dept}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -1257,23 +1358,51 @@ export default function StaffDirectoryPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
+                
+                {/* Edit Designation Dropdown with Super Admin Add More */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">Desig.</Label>
-                  <Input
+                  <Label className="text-xs font-medium text-slate-700">Designation</Label>
+                  <Select
                     value={editingEmp.designation}
-                    onChange={(e) => setEditingEmp({ ...editingEmp, designation: e.target.value })}
-                    required
-                    className="h-8 text-xs"
-                  />
+                    onValueChange={(val) => handleEditFormChange("designation", val)}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="text-xs max-h-[240px]">
+                      {designations.map((desig) => (
+                        <SelectItem key={desig} value={desig}>
+                          {desig}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__ADD_NEW_DESIGNATION__" className="text-blue-600 font-semibold border-t border-slate-100 mt-1 pt-1">
+                        + Add more (Super Admin access)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                {/* Edit Department Dropdown with Super Admin Add More */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">Dept.</Label>
-                  <Input
+                  <Label className="text-xs font-medium text-slate-700">Department</Label>
+                  <Select
                     value={editingEmp.department}
-                    onChange={(e) => setEditingEmp({ ...editingEmp, department: e.target.value })}
-                    required
-                    className="h-8 text-xs"
-                  />
+                    onValueChange={(val) => handleEditFormChange("department", val)}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="text-xs">
+                      {departments.map((dept) => (
+                        <SelectItem key={dept} value={dept}>
+                          {dept}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__ADD_NEW_DEPARTMENT__" className="text-blue-600 font-semibold border-t border-slate-100 mt-1 pt-1">
+                        + Add more (Super Admin access)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

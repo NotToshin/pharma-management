@@ -201,7 +201,7 @@ const navSections = [
         defaultOpen: true,
         subItems: [
           { title: "Treasury Overview", href: "/finance/overview" },
-          { title: "Bank Accounts Ledger", href: "/finance/bank-ledger" },
+          { title: "Accounts Ledger", href: "/finance/bank-ledger" },
         ],
       },
       {
