@@ -1,0 +1,156 @@
+"use client";
+
+import * as React from "react";
+import * as XLSX from "xlsx";
+// ... keep all your existing UI imports from lucide-react, card, table, dialog, etc.
+
+interface DoctorRecord {
+  id: string;
+  docCode: string;
+  name: string;
+  bmdcReg: string;
+  specialty: string;
+  designation: string;
+  institute: string;
+  chamberAddress: string;
+  territory: string;
+  contactNumber: string;
+  potentialCategory: "A+" | "A" | "B" | "C" | "Tier 1 (High Prescriber)" | "Tier 2 (Moderate)" | "Tier 3 (Potential)";
+  patientVolumeDaily: number;
+  assignedMio: string;
+  status: "Active" | "Inactive";
+  email?: string;
+  keyProducts?: string[];
+  lastVisited?: string;
+  monthlyRevenueEst?: string;
+  visitFrequency?: string;
+}
+
+export default function DoctorMasterDatabasePage() {
+  const [doctors, setDoctors] = React.useState<DoctorRecord[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [specialtyFilter, setSpecialtyFilter] = React.useState("all");
+  const [categoryFilter, setCategoryFilter] = React.useState("all");
+
+  // Portfolio Sheet State
+  const [selectedDoctor, setSelectedDoctor] = React.useState<DoctorRecord | null>(null);
+  const [isPortfolioOpen, setIsPortfolioOpen] = React.useState(false);
+
+  // Add Dialog State
+  const [isAddOpen, setIsAddOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [bmdcReg, setBmdcReg] = React.useState("");
+  const [specialty, setSpecialty] = React.useState("Cardiology");
+  const [designation, setDesignation] = React.useState("");
+  const [institute, setInstitute] = React.useState("");
+  const [chamberAddress, setChamberAddress] = React.useState("");
+  const [territory, setTerritory] = React.useState("Dhaka North");
+  const [contactNumber, setContactNumber] = React.useState("");
+  const [potentialCategory, setPotentialCategory] = React.useState<DoctorRecord["potentialCategory"]>("A");
+  const [patientVolumeDaily, setPatientVolumeDaily] = React.useState("");
+  const [assignedMio, setAssignedMio] = React.useState("");
+
+  // Edit Dialog State
+  const [isEditOpen, setIsEditOpen] = React.useState(false);
+  const [editingDoctor, setEditingDoctor] = React.useState<DoctorRecord | null>(null);
+
+  // FETCH LIVE DATA FROM EXPRESS BACKEND ON MOUNT
+  const fetchDoctors = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/doctors");
+      const result = await res.json();
+      
+      // Handle both direct array responses or wrapped { success: true, data: [...] } responses
+      const rawData = Array.isArray(result) ? result : result.data || [];
+      
+      // Map Prisma backend model properties to match your frontend DoctorRecord interface smoothly
+      const formattedDoctors: DoctorRecord[] = rawData.map((doc: any, index: number) => ({
+        id: doc.id || String(index),
+        docCode: doc.docCode || `DOC-204${index + 10}`,
+        name: doc.doctorName || doc.name,
+        bmdcReg: doc.bmdcRegNumber || doc.bmdcReg || "A-00000",
+        specialty: doc.specialtyAndInstitute ? doc.specialtyAndInstitute.split('(')[0].trim() : (doc.specialty || "General Physician"),
+        designation: doc.designation || "Consultant",
+        institute: doc.specialtyAndInstitute || doc.institute || "General Hospital",
+        chamberAddress: doc.chamber || doc.chamberAddress || "General Chamber",
+        territory: doc.territoryAndMio ? doc.territoryAndMio.split('/')[0].trim() : (doc.territory || "Central Hub"),
+        contactNumber: doc.phone || doc.contactNumber || "+880 1700-000000",
+        potentialCategory: doc.tier?.includes("Tier 1") ? "A+" : doc.tier?.includes("Tier 2") ? "A" : "B",
+        patientVolumeDaily: doc.patientVolumeDaily || 30,
+        assignedMio: doc.territoryAndMio?.includes("MIO:") ? doc.territoryAndMio.split("MIO:")[1].trim() : (doc.assignedMio || "Unassigned"),
+        status: "Active",
+        email: doc.email || "doctor@akpharma.com",
+        keyProducts: ["Standard Line Products"],
+        lastVisited: "16 Sep 2026",
+        monthlyRevenueEst: "৳1,50,000",
+        visitFrequency: "Monthly (P2)"
+      }));
+
+      setDoctors(formattedDoctors);
+    } catch (err) {
+      console.error("Failed to fetch doctors from backend server:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchDoctors();
+  }, []);
+
+  // Handler to add doctor directly from the master table modal
+  const handleAddDoctor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const newDocPayload = {
+      doctorName: name,
+      phone: contactNumber,
+      bmdcRegNumber: bmdcReg,
+      specialtyAndInstitute: `${specialty} (${institute})`,
+      chamber: chamberAddress,
+      territoryAndMio: `${territory} / MIO: ${assignedMio || "General"}`,
+      email: "doctor@akpharma.com",
+      tier: potentialCategory === "A+" ? "Tier 1 (High Prescriber)" : "Tier 2 (Moderate)",
+      patientVolumeDaily: Number(patientVolumeDaily) || 25
+    };
+
+    try {
+      const res = await fetch("http://localhost:5000/api/doctors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newDocPayload),
+      });
+
+      if (res.ok) {
+        setName("");
+        setBmdcReg("");
+        setInstitute("");
+        setChamberAddress("");
+        setContactNumber("");
+        setPatientVolumeDaily("");
+        setAssignedMio("");
+        setIsAddOpen(false);
+        fetchDoctors(); // Refresh list instantly from backend
+      } else {
+        alert("Server failed to save doctor record.");
+      }
+    } catch (error) {
+      console.error("Network error adding doctor:", error);
+    }
+  };
+
+  const handleDeleteDoctor = async (id: string) => {
+    try {
+      await fetch(`http://localhost:5000/api/doctors/${id}`, {
+        method: "DELETE",
+      });
+      setDoctors((prev) => prev.filter((doc) => doc.id !== id));
+      if (selectedDoctor && selectedDoctor.id === id) {
+        setIsPortfolioOpen(false);
+      }
+    } catch (error) {
+      console.error("Failed to delete doctor from backend:", error);
+    }
+  };
+
+  // ... keep your filtering, search, and UI table render logic intact below
