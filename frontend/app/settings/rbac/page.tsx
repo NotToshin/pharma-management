@@ -22,7 +22,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -36,15 +35,16 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Shield,
   ShieldCheck,
-  UserCheck,
   Users,
   Plus,
   Download,
   Search,
   CheckCircle2,
-  KeyRound,
   Save,
   Lock,
+  RefreshCw,
+  Trash2,
+  Ban,
 } from "lucide-react";
 
 interface RolePermission {
@@ -68,116 +68,26 @@ interface SystemRole {
   permissions: RolePermission[];
 }
 
-const defaultPermissions: Record<string, RolePermission[]> = {
-  SUPER_ADMIN: [
-    { module: "Doctor Registry", category: "Clinical", read: true, create: true, edit: true, delete: true, specialAction: "Re-rank Category Tiers", specialGranted: true },
-    { module: "FEFO Stock Control", category: "Warehouse", read: true, create: true, edit: true, delete: true, specialAction: "Quarantine / Write-off Batch", specialGranted: true },
-    { module: "Sales & Dispatch", category: "Logistics", read: true, create: true, edit: true, delete: true, specialAction: "Override Credit Hold", specialGranted: true },
-    { module: "Accounts & Collections", category: "Finance", read: true, create: true, edit: true, delete: true, specialAction: "Authorize Bank Release", specialGranted: true },
-    { module: "Staff & Payroll", category: "Human Resources", read: true, create: true, edit: true, delete: true, specialAction: "Issue Appointment Letters", specialGranted: true },
-  ],
-  RSM_EXEC: [
-    { module: "Doctor Registry", category: "Clinical", read: true, create: true, edit: true, delete: false, specialAction: "Re-rank Category Tiers", specialGranted: true },
-    { module: "FEFO Stock Control", category: "Warehouse", read: true, create: false, edit: false, delete: false, specialAction: "Quarantine / Write-off Batch", specialGranted: false },
-    { module: "Sales & Dispatch", category: "Logistics", read: true, create: true, edit: true, delete: false, specialAction: "Override Credit Hold", specialGranted: false },
-    { module: "Accounts & Collections", category: "Finance", read: true, create: false, edit: false, delete: false, specialAction: "Authorize Bank Release", specialGranted: false },
-    { module: "Staff & Payroll", category: "Human Resources", read: true, create: false, edit: false, delete: false, specialAction: "Issue Appointment Letters", specialGranted: false },
-  ],
-  MIO_FIELD: [
-    { module: "Doctor Registry", category: "Clinical", read: true, create: true, edit: true, delete: false, specialAction: "Re-rank Category Tiers", specialGranted: false },
-    { module: "FEFO Stock Control", category: "Warehouse", read: true, create: false, edit: false, delete: false, specialAction: "Quarantine / Write-off Batch", specialGranted: false },
-    { module: "Sales & Dispatch", category: "Logistics", read: true, create: true, edit: false, delete: false, specialAction: "Override Credit Hold", specialGranted: false },
-    { module: "Accounts & Collections", category: "Finance", read: true, create: true, edit: false, delete: false, specialAction: "Authorize Bank Release", specialGranted: false },
-    { module: "Staff & Payroll", category: "Human Resources", read: false, create: false, edit: false, delete: false, specialAction: "Issue Appointment Letters", specialGranted: false },
-  ],
-  FIN_CONTROLLER: [
-    { module: "Doctor Registry", category: "Clinical", read: true, create: false, edit: false, delete: false, specialAction: "Re-rank Category Tiers", specialGranted: false },
-    { module: "FEFO Stock Control", category: "Warehouse", read: true, create: false, edit: false, delete: false, specialAction: "Quarantine / Write-off Batch", specialGranted: false },
-    { module: "Sales & Dispatch", category: "Logistics", read: true, create: false, edit: true, delete: false, specialAction: "Override Credit Hold", specialGranted: true },
-    { module: "Accounts & Collections", category: "Finance", read: true, create: true, edit: true, delete: true, specialAction: "Authorize Bank Release", specialGranted: true },
-    { module: "Staff & Payroll", category: "Human Resources", read: true, create: true, edit: true, delete: false, specialAction: "Issue Appointment Letters", specialGranted: false },
-  ],
-  WH_LOGISTICS: [
-    { module: "Doctor Registry", category: "Clinical", read: false, create: false, edit: false, delete: false, specialAction: "Re-rank Category Tiers", specialGranted: false },
-    { module: "FEFO Stock Control", category: "Warehouse", read: true, create: true, edit: true, delete: false, specialAction: "Quarantine / Write-off Batch", specialGranted: true },
-    { module: "Sales & Dispatch", category: "Logistics", read: true, create: true, edit: true, delete: false, specialAction: "Override Credit Hold", specialGranted: false },
-    { module: "Accounts & Collections", category: "Finance", read: false, create: false, edit: false, delete: false, specialAction: "Authorize Bank Release", specialGranted: false },
-    { module: "Staff & Payroll", category: "Human Resources", read: false, create: false, edit: false, delete: false, specialAction: "Issue Appointment Letters", specialGranted: false },
-  ],
-};
-
-const initialRoles: SystemRole[] = [
-  {
-    id: "role-1",
-    name: "Super Administrator / Management",
-    code: "SUPER_ADMIN",
-    description: "Unrestricted master operational rights across statutory audits, financial releases, and user provisioning.",
-    userCount: 2,
-    isSystemDefault: true,
-    permissions: defaultPermissions.SUPER_ADMIN,
-  },
-  {
-    id: "role-2",
-    name: "Regional Sales Manager (RSM)",
-    code: "RSM_EXEC",
-    description: "Division-level field force governance, target allocations, and doctor engagement monitoring.",
-    userCount: 4,
-    isSystemDefault: true,
-    permissions: defaultPermissions.RSM_EXEC,
-  },
-  {
-    id: "role-3",
-    name: "Medical Information Officer (MIO)",
-    code: "MIO_FIELD",
-    description: "Prescription detailing logs, territory doctor calls, order booking, and field payment realization entries.",
-    userCount: 28,
-    isSystemDefault: true,
-    permissions: defaultPermissions.MIO_FIELD,
-  },
-  {
-    id: "role-4",
-    name: "Accounts & Finance Controller",
-    code: "FIN_CONTROLLER",
-    description: "Bank reconciliations, payment vouchers, A/R collections, and payroll electronic advice authorization.",
-    userCount: 5,
-    isSystemDefault: true,
-    permissions: defaultPermissions.FIN_CONTROLLER,
-  },
-  {
-    id: "role-5",
-    name: "Warehouse & Cold-Chain Lead",
-    code: "WH_LOGISTICS",
-    description: "FEFO bin tracking, batch quarantine locks, delivery challan verification, and temperature audits.",
-    userCount: 6,
-    isSystemDefault: true,
-    permissions: defaultPermissions.WH_LOGISTICS,
-  },
-];
-
 interface UserAssignment {
   id: string;
   name: string;
   email: string;
-  passwordHash: string; // Stored securely in database
+  passwordHash: string;
   roleCode: string;
+  roleName: string;
   territory: string;
   status: "Active" | "Restricted";
   lastLogin: string;
 }
 
-const initialAssignments: UserAssignment[] = [
-  { id: "u-1", name: "Toshin Bin Azad", email: "toshin@akpharma.com", passwordHash: "••••••••••••", roleCode: "SUPER_ADMIN", territory: "Central HQ", status: "Active", lastLogin: "Just now" },
-  { id: "u-2", name: "Nazmul Huda Chowdhury", email: "nazmul.rsm@akpharma.com", passwordHash: "••••••••••••", roleCode: "RSM_EXEC", territory: "Central Division HQ", status: "Active", lastLogin: "2 hours ago" },
-  { id: "u-3", name: "Rafiqul Islam", email: "rafiqul.mio@akpharma.com", passwordHash: "••••••••••••", roleCode: "MIO_FIELD", territory: "Dhaka North Hub", status: "Active", lastLogin: "Today, 08:30 AM" },
-];
-
 export default function RBACManagementPage() {
-  const [roles, setRoles] = React.useState<SystemRole[]>(initialRoles);
-  const [selectedRole, setSelectedRole] = React.useState<SystemRole>(initialRoles[0]);
-  const [assignments, setAssignments] = React.useState<UserAssignment[]>(initialAssignments);
+  const [roles, setRoles] = React.useState<SystemRole[]>([]);
+  const [selectedRoleId, setSelectedRoleId] = React.useState<string>("");
+  const [assignments, setAssignments] = React.useState<UserAssignment[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [searchUserQuery, setSearchUserQuery] = React.useState("");
 
-  // Database Provisioning Modal State
+  // Provisioning Modal State
   const [isProvisionOpen, setIsProvisionOpen] = React.useState(false);
   const [provName, setProvName] = React.useState("");
   const [provEmail, setProvEmail] = React.useState("");
@@ -185,70 +95,157 @@ export default function RBACManagementPage() {
   const [provRoleCode, setProvRoleCode] = React.useState("MIO_FIELD");
   const [provTerritory, setProvTerritory] = React.useState("Dhaka North Hub");
 
-  // Save changes feedback
+  // Feedback states
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const [saveToast, setSaveToast] = React.useState(false);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+  // Fetch RBAC data without infinite loop triggers
+  const fetchRBACData = React.useCallback(async (isManualRefresh = false) => {
+    try {
+      if (isManualRefresh) setLoading(true);
+      const [rolesRes, usersRes] = await Promise.all([
+        fetch(`${API_URL}/rbac/roles`).catch(() => null),
+        fetch(`${API_URL}/rbac/users`).catch(() => null),
+      ]);
+
+      if (rolesRes && rolesRes.ok) {
+        const rolesData: SystemRole[] = await rolesRes.json();
+        setRoles(rolesData);
+        // Default select first role once if not already chosen
+        setSelectedRoleId((curr) => {
+          if (curr && rolesData.some((r) => r.id === curr)) return curr;
+          return rolesData[0]?.id || "";
+        });
+      }
+
+      if (usersRes && usersRes.ok) {
+        const usersData = await usersRes.json();
+        setAssignments(usersData);
+      }
+    } catch (err) {
+      console.error("Error loading RBAC settings:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [API_URL]);
+
+  // Load once on initial mount only
+  React.useEffect(() => {
+    fetchRBACData(false);
+  }, [fetchRBACData]);
+
+  const selectedRole = React.useMemo(() => {
+    return roles.find((r) => r.id === selectedRoleId) || roles[0] || null;
+  }, [roles, selectedRoleId]);
 
   const handleTogglePermission = (
     moduleName: string,
     action: "read" | "create" | "edit" | "delete" | "specialGranted"
   ) => {
-    setSelectedRole((prev) => ({
-      ...prev,
-      permissions: prev.permissions.map((p) => {
-        if (p.module === moduleName) {
-          return { ...p, [action]: !p[action] };
+    if (!selectedRole) return;
+
+    setRoles((prevRoles) =>
+      prevRoles.map((role) => {
+        if (role.id === selectedRole.id) {
+          return {
+            ...role,
+            permissions: role.permissions.map((p) => {
+              if (p.module === moduleName) {
+                return { ...p, [action]: !p[action] };
+              }
+              return p;
+            }),
+          };
         }
-        return p;
-      }),
-    }));
+        return role;
+      })
+    );
+
     setHasUnsavedChanges(true);
   };
 
-  const handleSaveRolePermissions = () => {
-    setRoles((prev) =>
-      prev.map((r) => (r.id === selectedRole.id ? selectedRole : r))
-    );
-    setHasUnsavedChanges(false);
-    setSaveToast(true);
-    setTimeout(() => setSaveToast(false), 2000);
+  const handleSaveRolePermissions = async () => {
+    if (!selectedRole) return;
+    try {
+      const res = await fetch(`${API_URL}/rbac/roles/${selectedRole.id}/permissions`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions: selectedRole.permissions }),
+      });
+
+      if (!res.ok) throw new Error("Failed to save permissions");
+
+      setHasUnsavedChanges(false);
+      setSaveToast(true);
+      setTimeout(() => setSaveToast(false), 2000);
+    } catch {
+      alert("Failed to save permission matrix to database.");
+    }
   };
 
-  // Database User Provisioning Handler
-  const handleProvisionOperator = (e: React.FormEvent) => {
+  const handleProvisionOperator = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!provEmail || !provPassword || !provName) return;
 
-    const newUser: UserAssignment = {
-      id: `u-${Date.now()}`,
-      name: provName,
-      email: provEmail,
-      passwordHash: "•".repeat(provPassword.length) + " (Hashed)",
-      roleCode: provRoleCode,
-      territory: provTerritory,
-      status: "Active",
-      lastLogin: "Never logged in",
-    };
+    try {
+      const res = await fetch(`${API_URL}/rbac/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: provName,
+          email: provEmail,
+          password: provPassword,
+          roleCode: provRoleCode,
+          territory: provTerritory,
+        }),
+      });
 
-    setAssignments((prev) => [newUser, ...prev]);
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Provisioning failed");
+        return;
+      }
 
-    // Increment user count for that role
-    setRoles((prev) =>
-      prev.map((r) => (r.code === provRoleCode ? { ...r, userCount: r.userCount + 1 } : r))
-    );
+      setProvName("");
+      setProvEmail("");
+      setProvPassword("");
+      setIsProvisionOpen(false);
+      fetchRBACData(false);
+    } catch {
+      alert("Network error: Failed to provision user in database.");
+    }
+  };
 
-    // Reset Form
-    setProvName("");
-    setProvEmail("");
-    setProvPassword("");
-    setIsProvisionOpen(false);
+  const handleToggleUserStatus = async (userId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/rbac/users/${userId}/status`, { method: "PUT" });
+      if (!res.ok) throw new Error("Failed to update status");
+      setAssignments((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, status: u.status === "Active" ? "Restricted" : "Active" } : u))
+      );
+    } catch {
+      alert("Could not update account status.");
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, name: string) => {
+    if (!confirm(`Are you sure you want to permanently revoke credentials for "${name}"?`)) return;
+    try {
+      const res = await fetch(`${API_URL}/rbac/users/${userId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete user");
+      setAssignments((prev) => prev.filter((u) => u.id !== userId));
+    } catch {
+      alert("Could not delete user.");
+    }
   };
 
   const handleExportAudit = () => {
     const data = assignments.map((u) => ({
       "Operator Name": u.name,
       "Database Email": u.email,
-      "Assigned Role Code": u.roleCode,
+      "Assigned Role": u.roleName,
       "Territory Station": u.territory,
       "Account Status": u.status,
       "Last Session": u.lastLogin,
@@ -257,28 +254,35 @@ export default function RBACManagementPage() {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "RBAC Security Audit");
-    XLSX.writeFile(workbook, `AK_Pharma_RBAC_Database_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(workbook, `AK_Pharma_RBAC_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const filteredUsers = assignments.filter((u) => {
+    const q = searchUserQuery.toLowerCase();
     return (
-      u.name.toLowerCase().includes(searchUserQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchUserQuery.toLowerCase()) ||
-      u.roleCode.toLowerCase().includes(searchUserQuery.toLowerCase()) ||
-      u.territory.toLowerCase().includes(searchUserQuery.toLowerCase())
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.roleCode.toLowerCase().includes(q) ||
+      u.territory.toLowerCase().includes(q)
     );
   });
 
   return (
-    <div className="space-y-6 max-w-[1360px] mx-auto pb-12">
-      {/* 1. Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="space-y-6 max-w-[1360px] mx-auto pb-12 font-sans text-slate-900">
+      {/* 1. Header Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            Role-Based Access Control (RBAC) & Database Credentials
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              SECURITY & ACCESS CONTROL MATRIX
+            </span>
+          </div>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 mt-1">
+            RBAC & Credential Provisioning
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Provision user login emails and encrypted passwords, configure permissions, and enforce separation of duties.
+            Closed-access registration: Provision operator logins, assign roles, and enforce permissions.
           </p>
         </div>
 
@@ -286,174 +290,86 @@ export default function RBACManagementPage() {
           <Button
             size="sm"
             variant="outline"
+            onClick={() => fetchRBACData(true)}
+            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold px-3 rounded-lg shadow-none"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${loading ? "animate-spin" : ""}`} />
+            Sync
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
             onClick={handleExportAudit}
             className="h-9 gap-1.5 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold px-3.5 rounded-lg shadow-none"
           >
             <Download className="h-3.5 w-3.5 text-emerald-600" />
-            Export Security Audit
+            Export Audit
           </Button>
 
-          {/* Provision Operator Modal Button */}
-          <Dialog open={isProvisionOpen} onOpenChange={setIsProvisionOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="h-9 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs font-semibold px-3.5 rounded-lg shadow-none">
-                <Plus className="h-4 w-4" />
-                Provision Operator Account
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[480px] bg-white rounded-xl">
-              <DialogHeader>
-                <DialogTitle className="text-base font-bold text-slate-900">
-                  Database Credential Provisioning
-                </DialogTitle>
-                <DialogDescription className="text-xs text-slate-500">
-                  Enter login credentials and assign an operational role to grant system access.
-                </DialogDescription>
-              </DialogHeader>
-
-              <form onSubmit={handleProvisionOperator} className="space-y-3.5 py-2 text-xs">
-                <div className="space-y-1.5">
-                  <Label className="font-semibold text-slate-700">Operator Full Name *</Label>
-                  <Input
-                    placeholder="e.g. Dr. Asif Iqbal"
-                    value={provName}
-                    onChange={(e) => setProvName(e.target.value)}
-                    required
-                    className="h-8 text-xs"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="font-semibold text-slate-700">Login Email (Username) *</Label>
-                    <Input
-                      type="email"
-                      placeholder="asif@akpharma.com"
-                      value={provEmail}
-                      onChange={(e) => setProvEmail(e.target.value)}
-                      required
-                      className="h-8 text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="font-semibold text-slate-700">Database Password *</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        value={provPassword}
-                        onChange={(e) => setProvPassword(e.target.value)}
-                        required
-                        className="pl-8 h-8 text-xs font-mono"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="font-semibold text-slate-700">Security Role *</Label>
-                    <Select value={provRoleCode} onValueChange={setProvRoleCode}>
-                      <SelectTrigger className="h-8 text-xs bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="text-xs">
-                        {roles.map((r) => (
-                          <SelectItem key={r.id} value={r.code}>
-                            {r.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="font-semibold text-slate-700">Territory Station</Label>
-                    <Input
-                      placeholder="e.g. Dhaka South Hub"
-                      value={provTerritory}
-                      onChange={(e) => setProvTerritory(e.target.value)}
-                      required
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                </div>
-
-                <DialogFooter className="pt-2">
-                  <Button type="button" variant="outline" onClick={() => setIsProvisionOpen(false)} className="h-8 text-xs">
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white font-semibold">
-                    Save to Database & Grant Access
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button
+            size="sm"
+            onClick={() => setIsProvisionOpen(true)}
+            className="h-9 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs font-semibold px-4 rounded-lg shadow-none"
+          >
+            <Plus className="h-4 w-4" />
+            Provision Operator Account
+          </Button>
         </div>
       </div>
 
       {/* 2. Top Summary Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
+        <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Configured Role Classes</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Configured Role Classes</span>
             <div className="p-1.5 rounded-lg bg-blue-50 text-[#0090FF]">
               <Shield className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[26px] font-bold tracking-tight text-slate-900 leading-none font-mono">
+          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-slate-900 leading-none font-mono">
             {roles.length} Roles
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">
-            System default templates active
-          </p>
+          <p className="text-[11px] text-slate-400 mt-2">Active database permission templates</p>
         </Card>
 
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
+        <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Provisioned Accounts</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Provisioned Accounts</span>
             <div className="p-1.5 rounded-lg bg-slate-100 text-slate-700">
               <Users className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[26px] font-bold tracking-tight text-slate-900 leading-none font-mono">
+          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-slate-900 leading-none font-mono">
             {assignments.length} Logins
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">
-            Active database credentials
-          </p>
+          <p className="text-[11px] text-slate-400 mt-2">Closed-door database credentials</p>
         </Card>
 
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
+        <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Separation of Duties</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Separation of Duties</span>
             <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
               <ShieldCheck className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[26px] font-bold tracking-tight text-slate-900 leading-none font-mono text-emerald-600">
+          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-emerald-600 leading-none font-mono">
             Enforced
           </div>
-          <p className="text-[11px] text-emerald-600 font-medium mt-3">
-            Maker-checker rule active on vouchers
-          </p>
+          <p className="text-[11px] text-emerald-600 font-medium mt-2">Audit maker-checker rules active</p>
         </Card>
 
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
+        <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Root Authentication</span>
-            <Badge variant="outline" className="text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200 px-2 py-0.5 rounded-md">
-              Encrypted
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Credential Encryption</span>
+            <Badge variant="outline" className="text-[10px] font-bold text-rose-700 bg-rose-50 border-rose-200">
+              Bcrypt (12)
             </Badge>
           </div>
-          <div className="mt-3 text-[26px] font-bold tracking-tight text-slate-900 leading-none font-mono">
-            Bcrypt (12)
+          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-slate-900 leading-none font-mono">
+            SHA-256 / JWT
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">
-            Secure database password hashing
-          </p>
+          <p className="text-[11px] text-slate-400 mt-2">Zero plaintext password persistence</p>
         </Card>
       </div>
 
@@ -461,7 +377,7 @@ export default function RBACManagementPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <div className="lg:col-span-4 space-y-3">
           <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
               Security Role Templates
             </span>
             <span className="text-[11px] font-semibold text-slate-400">{roles.length} Available</span>
@@ -469,18 +385,18 @@ export default function RBACManagementPage() {
 
           <div className="space-y-2">
             {roles.map((r) => {
-              const isSelected = selectedRole.id === r.id;
+              const isSelected = selectedRoleId === r.id;
               return (
                 <div
                   key={r.id}
                   onClick={() => {
-                    setSelectedRole(r);
+                    setSelectedRoleId(r.id);
                     setHasUnsavedChanges(false);
                   }}
                   className={`p-4 rounded-xl border transition-all cursor-pointer ${
                     isSelected
-                      ? "border-[#0090FF] bg-blue-50/40 shadow-xs"
-                      : "border-slate-200/90 bg-white hover:border-slate-300"
+                      ? "border-[#0090FF] bg-blue-50/50 shadow-xs"
+                      : "border-slate-200 bg-white hover:border-slate-300"
                   }`}
                 >
                   <div className="flex items-start justify-between">
@@ -501,133 +417,139 @@ export default function RBACManagementPage() {
           </div>
         </div>
 
-        <Card className="lg:col-span-8 rounded-xl border border-slate-200/90 shadow-none bg-white p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100 gap-3">
+        <Card className="lg:col-span-8 rounded-xl border border-slate-200 shadow-none bg-white p-6">
+          {selectedRole ? (
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900">
-                  Permission Matrix: <span className="text-[#0090FF]">{selectedRole.name}</span>
-                </h3>
-                {selectedRole.isSystemDefault && (
-                  <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-600 border-slate-200">
-                    System Protected
-                  </Badge>
-                )}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100 gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Permission Matrix: <span className="text-[#0090FF]">{selectedRole.name}</span>
+                    </h3>
+                    {selectedRole.isSystemDefault && (
+                      <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-600 border-slate-200">
+                        Protected Template
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Toggle functional read, create, write, and elevated actions for this role tier.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {saveToast && (
+                    <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Saved to Database
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    disabled={!hasUnsavedChanges}
+                    onClick={handleSaveRolePermissions}
+                    className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white gap-1.5 shadow-none"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    Save Permissions
+                  </Button>
+                </div>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Toggle functional read, create, write, and statutory audit actions for this role tier.
-              </p>
-            </div>
 
-            <div className="flex items-center gap-2">
-              {saveToast && (
-                <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1 animate-in fade-in">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Saved
-                </span>
-              )}
-              <Button
-                size="sm"
-                disabled={!hasUnsavedChanges}
-                onClick={handleSaveRolePermissions}
-                className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white gap-1.5 shadow-none"
-              >
-                <Save className="h-3.5 w-3.5" />
-                Save Permissions
-              </Button>
-            </div>
-          </div>
+              <div className="pt-2">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-slate-100 hover:bg-transparent text-xs text-slate-600">
+                      <TableHead className="pl-0">Functional Module</TableHead>
+                      <TableHead className="text-center w-14">View</TableHead>
+                      <TableHead className="text-center w-14">Create</TableHead>
+                      <TableHead className="text-center w-14">Edit</TableHead>
+                      <TableHead className="text-center w-14">Delete</TableHead>
+                      <TableHead className="pr-0">Statutory Special Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedRole.permissions.map((perm) => (
+                      <TableRow key={perm.module} className="border-b border-slate-50 hover:bg-slate-50/50">
+                        <TableCell className="py-3 pl-0">
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 block">{perm.module}</span>
+                            <span className="text-[10px] text-slate-400 block">{perm.category} Scope</span>
+                          </div>
+                        </TableCell>
 
-          <div className="pt-2">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-b border-slate-100 hover:bg-transparent text-xs text-slate-600">
-                  <TableHead className="text-xs font-medium text-slate-600 pl-0">Functional Module</TableHead>
-                  <TableHead className="text-xs font-medium text-slate-600 text-center w-14">View</TableHead>
-                  <TableHead className="text-xs font-medium text-slate-600 text-center w-14">Create</TableHead>
-                  <TableHead className="text-xs font-medium text-slate-600 text-center w-14">Edit</TableHead>
-                  <TableHead className="text-xs font-medium text-slate-600 text-center w-14">Delete</TableHead>
-                  <TableHead className="text-xs font-medium text-slate-600 pr-0">Statutory Special Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {selectedRole.permissions.map((perm) => (
-                  <TableRow key={perm.module} className="border-b border-slate-50 hover:bg-slate-50/50">
-                    <TableCell className="py-3 pl-0">
-                      <div>
-                        <span className="text-xs font-bold text-slate-900 block">{perm.module}</span>
-                        <span className="text-[10px] text-slate-400 block">{perm.category} Scope</span>
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={perm.read}
-                        onChange={() => handleTogglePermission(perm.module, "read")}
-                        className="h-3.5 w-3.5 rounded border-slate-300 text-[#0090FF] focus:ring-0 cursor-pointer"
-                      />
-                    </TableCell>
-
-                    <TableCell className="py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={perm.create}
-                        onChange={() => handleTogglePermission(perm.module, "create")}
-                        className="h-3.5 w-3.5 rounded border-slate-300 text-[#0090FF] focus:ring-0 cursor-pointer"
-                      />
-                    </TableCell>
-
-                    <TableCell className="py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={perm.edit}
-                        onChange={() => handleTogglePermission(perm.module, "edit")}
-                        className="h-3.5 w-3.5 rounded border-slate-300 text-[#0090FF] focus:ring-0 cursor-pointer"
-                      />
-                    </TableCell>
-
-                    <TableCell className="py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={perm.delete}
-                        onChange={() => handleTogglePermission(perm.module, "delete")}
-                        className="h-3.5 w-3.5 rounded border-slate-300 text-[#0090FF] focus:ring-0 cursor-pointer"
-                      />
-                    </TableCell>
-
-                    <TableCell className="py-3 pr-0">
-                      {perm.specialAction ? (
-                        <div className="flex items-center justify-between bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100">
-                          <span className="text-[11px] font-medium text-slate-700 truncate max-w-[210px]">
-                            {perm.specialAction}
-                          </span>
-                          <Switch
-                            checked={perm.specialGranted}
-                            onCheckedChange={() => handleTogglePermission(perm.module, "specialGranted")}
-                            className="scale-75"
+                        <TableCell className="py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={perm.read}
+                            onChange={() => handleTogglePermission(perm.module, "read")}
+                            className="h-3.5 w-3.5 rounded border-slate-300 text-[#0090FF] focus:ring-0 cursor-pointer"
                           />
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-slate-400 italic">No elevated privilege</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                        </TableCell>
+
+                        <TableCell className="py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={perm.create}
+                            onChange={() => handleTogglePermission(perm.module, "create")}
+                            className="h-3.5 w-3.5 rounded border-slate-300 text-[#0090FF] focus:ring-0 cursor-pointer"
+                          />
+                        </TableCell>
+
+                        <TableCell className="py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={perm.edit}
+                            onChange={() => handleTogglePermission(perm.module, "edit")}
+                            className="h-3.5 w-3.5 rounded border-slate-300 text-[#0090FF] focus:ring-0 cursor-pointer"
+                          />
+                        </TableCell>
+
+                        <TableCell className="py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={perm.delete}
+                            onChange={() => handleTogglePermission(perm.module, "delete")}
+                            className="h-3.5 w-3.5 rounded border-slate-300 text-[#0090FF] focus:ring-0 cursor-pointer"
+                          />
+                        </TableCell>
+
+                        <TableCell className="py-3 pr-0">
+                          {perm.specialAction ? (
+                            <div className="flex items-center justify-between bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100">
+                              <span className="text-[11px] font-medium text-slate-700 truncate max-w-[210px]">
+                                {perm.specialAction}
+                              </span>
+                              <Switch
+                                checked={perm.specialGranted}
+                                onCheckedChange={() => handleTogglePermission(perm.module, "specialGranted")}
+                                className="scale-75"
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">No elevated privilege</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ) : (
+            <div className="p-8 text-center text-xs text-slate-400">Loading permission matrix...</div>
+          )}
         </Card>
       </div>
 
       {/* 4. Active Database Credential Roster */}
-      <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6">
+      <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div>
             <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-              PROVISIONED DATABASE CREDENTIALS & LOGINS
+              PROVISIONED DATABASE CREDENTIALS & OPERATOR LOGINS
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Active login accounts stored in PostgreSQL mapping email usernames to role permissions
+              Secure logins stored in PostgreSQL mapping email usernames to role permission levels
             </p>
           </div>
 
@@ -645,19 +567,24 @@ export default function RBACManagementPage() {
         <Table>
           <TableHeader>
             <TableRow className="border-b border-slate-100 hover:bg-transparent text-xs text-slate-600">
-              <TableHead className="text-xs font-medium text-slate-600 pl-0">Operator & Login Email</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Password Hash</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Assigned Role</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Territory Station</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Last Active Session</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-right pr-0">Status</TableHead>
+              <TableHead className="pl-0">Operator & Login Email</TableHead>
+              <TableHead>Password Hash</TableHead>
+              <TableHead>Assigned Role</TableHead>
+              <TableHead>Territory Station</TableHead>
+              <TableHead>Last Active Session</TableHead>
+              <TableHead className="text-center">Status</TableHead>
+              <TableHead className="text-right pr-0">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredUsers.map((user) => {
-              const matchedRole = roles.find((r) => r.code === user.roleCode);
-
-              return (
+            {filteredUsers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-8 text-slate-400 text-xs">
+                  No provisioned users found. Click <strong>"Provision Operator Account"</strong> to create credentials.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredUsers.map((user) => (
                 <TableRow key={user.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                   <TableCell className="py-3 pl-0">
                     <div className="flex items-center gap-2.5">
@@ -678,7 +605,7 @@ export default function RBACManagementPage() {
                   </TableCell>
 
                   <TableCell className="py-3 text-xs font-semibold text-slate-800">
-                    {matchedRole ? matchedRole.name : user.roleCode}
+                    {user.roleName || user.roleCode}
                   </TableCell>
 
                   <TableCell className="py-3 text-xs text-slate-600">
@@ -689,17 +616,140 @@ export default function RBACManagementPage() {
                     {user.lastLogin}
                   </TableCell>
 
-                  <TableCell className="py-3 text-xs text-right pr-0">
-                    <Badge variant="outline" className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border-emerald-200">
+                  <TableCell className="py-3 text-xs text-center">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-semibold ${
+                        user.status === "Active"
+                          ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                          : "text-rose-700 bg-rose-50 border-rose-200"
+                      }`}
+                    >
                       {user.status}
                     </Badge>
                   </TableCell>
+
+                  <TableCell className="py-3 text-xs text-right pr-0">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleToggleUserStatus(user.id)}
+                        className="h-7 w-7 p-0 text-slate-400 hover:text-amber-600"
+                        title={user.status === "Active" ? "Restrict Access" : "Activate Access"}
+                      >
+                        <Ban className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteUser(user.id, user.name)}
+                        className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
+                        title="Delete Operator Account"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              );
-            })}
+              ))
+            )}
           </TableBody>
         </Table>
       </Card>
+
+      {/* 5. Provision Operator Modal */}
+      <Dialog open={isProvisionOpen} onOpenChange={setIsProvisionOpen}>
+        <DialogContent className="sm:max-w-[480px] bg-white rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900">
+              Database Credential Provisioning
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Closed Registration: Set up authorized login email, password, and assign security role.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleProvisionOperator} className="space-y-3.5 py-2 text-xs">
+            <div className="space-y-1">
+              <Label className="font-semibold text-slate-700">Operator Full Name *</Label>
+              <Input
+                placeholder="e.g. Toshin Bin Azad"
+                value={provName}
+                onChange={(e) => setProvName(e.target.value)}
+                required
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="font-semibold text-slate-700">Login Email (Username) *</Label>
+                <Input
+                  type="email"
+                  placeholder="name@akpharma.com"
+                  value={provEmail}
+                  onChange={(e) => setProvEmail(e.target.value)}
+                  required
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="font-semibold text-slate-700">Database Password *</Label>
+                <div className="relative">
+                  <Lock className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={provPassword}
+                    onChange={(e) => setProvPassword(e.target.value)}
+                    required
+                    className="pl-8 h-8 text-xs font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="font-semibold text-slate-700">Security Role *</Label>
+                <Select value={provRoleCode} onValueChange={setProvRoleCode}>
+                  <SelectTrigger className="h-8 text-xs bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs">
+                    {roles.map((r) => (
+                      <SelectItem key={r.id} value={r.code}>
+                        {r.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="font-semibold text-slate-700">Territory Station</Label>
+                <Input
+                  placeholder="e.g. Dhaka North Hub"
+                  value={provTerritory}
+                  onChange={(e) => setProvTerritory(e.target.value)}
+                  required
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsProvisionOpen(false)} className="h-8 text-xs">
+                Cancel
+              </Button>
+              <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white font-semibold">
+                Save to Database & Grant Access
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

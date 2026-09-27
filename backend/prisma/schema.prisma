@@ -225,3 +225,49 @@ model InventoryBatch {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
+
+model SystemRole {
+  id              String           @id @default(uuid())
+  name            String
+  code            String           @unique
+  description     String
+  isSystemDefault Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  users           SystemUser[]
+  permissions     RolePermission[]
+}
+
+model RolePermission {
+  id             String     @id @default(uuid())
+  roleId         String
+  role           SystemRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module         String     // e.g. "Doctor Registry", "FEFO Stock Control"
+  category       String     // "Clinical", "Warehouse", "Logistics", "Finance", "HR"
+  read           Boolean    @default(false)
+  create         Boolean    @default(false)
+  edit           Boolean    @default(false)
+  delete         Boolean    @default(false)
+  specialAction  String?    // e.g. "Override Credit Hold"
+  specialGranted Boolean    @default(false)
+
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@unique([roleId, module])
+}
+
+model SystemUser {
+  id           String      @id @default(uuid())
+  name         String
+  email        String      @unique
+  passwordHash String
+  territory    String      @default("Dhaka HQ")
+  status       String      @default("Active") // "Active" | "Restricted"
+  lastLogin    String      @default("Never logged in")
+  roleId       String
+  role         SystemRole  @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
