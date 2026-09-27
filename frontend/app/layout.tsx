@@ -28,7 +28,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn(geistSans.variable, geistMono.variable)}
+      className={cn(geistSans.variable, geistMono.variable, "light")} // <-- Added "light" class fallback here
     >
       <body
         suppressHydrationWarning
@@ -37,6 +37,7 @@ export default function RootLayout({
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
+          forcedTheme="light" // <-- THIS LOCKS IT PERMANENTLY. No 'd' or 'Esc' key will ever trigger dark mode again.
           enableSystem={false}
           disableTransitionOnChange
         >

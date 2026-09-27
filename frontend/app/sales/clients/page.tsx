@@ -23,7 +23,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -45,22 +44,19 @@ import {
   Store,
   Plus,
   Download,
+  Upload,
   Search,
   Filter,
   Phone,
-  MapPin,
   FileText,
   CreditCard,
   Printer,
   Pencil,
-  AlertTriangle,
-  CheckCircle2,
-  MoreHorizontal,
-  Building2,
-  ShieldCheck,
+  Trash2,
   Truck,
   Receipt,
   Clock,
+  MoreHorizontal,
 } from "lucide-react";
 
 export interface ClientProfile {
@@ -81,114 +77,10 @@ export interface ClientProfile {
   lastBilledDate: string;
 }
 
-const initialClients: ClientProfile[] = [
-  {
-    id: "cl-1",
-    clientCode: "AKP-CL-101",
-    pharmacyName: "Popular Pharmacy (Dhanmondi)",
-    proprietor: "Kazi Motahar Hossain",
-    phone: "+880 1711-223344",
-    drugLicenseNo: "DL-DH-48210",
-    tradeLicenseNo: "TRAD/DSCC/01928",
-    address: "House 16, Road 2, Dhanmondi, Dhaka",
-    territory: "Dhaka North",
-    assignedMio: "Rafiqul Islam",
-    creditLimitBDT: 250000,
-    outstandingBalanceBDT: 40000,
-    creditTermDays: 30,
-    status: "Active / Healthy",
-    lastBilledDate: "10 Aug 2026",
-  },
-  {
-    id: "cl-2",
-    clientCode: "AKP-CL-102",
-    pharmacyName: "Labaid In-House Chemist (Uttara)",
-    proprietor: "Mahbubur Rahman",
-    phone: "+880 1819-334455",
-    drugLicenseNo: "DL-DH-99104",
-    tradeLicenseNo: "TRAD/DNCC/44910",
-    address: "Sector 3, Uttara Model Town, Dhaka",
-    territory: "Dhaka North",
-    assignedMio: "Rafiqul Islam",
-    creditLimitBDT: 500000,
-    outstandingBalanceBDT: 0,
-    creditTermDays: 45,
-    status: "Active / Healthy",
-    lastBilledDate: "20 Aug 2026",
-  },
-  {
-    id: "cl-3",
-    clientCode: "AKP-CL-103",
-    pharmacyName: "Medinova Chemist Corner",
-    proprietor: "Dr. Ashfaqul Haque",
-    phone: "+880 1912-445566",
-    drugLicenseNo: "DL-DH-33019",
-    tradeLicenseNo: "TRAD/DSCC/88219",
-    address: "Plot 12, Mirpur Road, Dhaka",
-    territory: "Dhaka South",
-    assignedMio: "Tanvir Ahmed",
-    creditLimitBDT: 150000,
-    outstandingBalanceBDT: 115000,
-    creditTermDays: 30,
-    status: "Watchlist",
-    lastBilledDate: "12 Jul 2026",
-  },
-  {
-    id: "cl-4",
-    clientCode: "AKP-CL-104",
-    pharmacyName: "Chevron Model Drug House",
-    proprietor: "S. M. Jamaluddin",
-    phone: "+880 1613-556677",
-    drugLicenseNo: "DL-CTG-77210",
-    tradeLicenseNo: "TRAD/CCC/11092",
-    address: "12/A O.R. Nizam Road, Chittagong",
-    territory: "Chittagong Central",
-    assignedMio: "Kamrul Hasan",
-    creditLimitBDT: 100000,
-    outstandingBalanceBDT: 65000,
-    creditTermDays: 21,
-    status: "Credit Hold",
-    lastBilledDate: "05 Jun 2026",
-  },
-  {
-    id: "cl-5",
-    clientCode: "AKP-CL-105",
-    pharmacyName: "Ibn Sina Pharma Outlet (Sylhet)",
-    proprietor: "A. K. M. Shamsuddin",
-    phone: "+880 1715-667788",
-    drugLicenseNo: "DL-SYL-10928",
-    tradeLicenseNo: "TRAD/SCC/09812",
-    address: "Subidbazar Point, Sylhet Sadar",
-    territory: "Sylhet Sadar",
-    assignedMio: "Enamul Haque",
-    creditLimitBDT: 300000,
-    outstandingBalanceBDT: 65000,
-    creditTermDays: 30,
-    status: "Active / Healthy",
-    lastBilledDate: "02 Sep 2026",
-  },
-  {
-    id: "cl-6",
-    clientCode: "AKP-CL-106",
-    pharmacyName: "Apollo Medical Hall (Rajshahi)",
-    proprietor: "Shahidul Alam",
-    phone: "+880 1518-778899",
-    drugLicenseNo: "DL-RAJ-44912",
-    tradeLicenseNo: "TRAD/RCC/88102",
-    address: "Shaheb Bazar, Rajshahi Metro",
-    territory: "Rajshahi Metro",
-    assignedMio: "Sabbir Hossain",
-    creditLimitBDT: 100000,
-    outstandingBalanceBDT: 85000,
-    creditTermDays: 15,
-    status: "Credit Hold",
-    lastBilledDate: "15 Jun 2026",
-  },
-];
-
 export default function ClientsDirectoryPage() {
   const router = useRouter();
-  const [clients, setClients] = React.useState<ClientProfile[]>(initialClients);
+  const [clients, setClients] = React.useState<ClientProfile[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [territoryFilter, setTerritoryFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
@@ -200,22 +92,62 @@ export default function ClientsDirectoryPage() {
     clientCode: "",
     pharmacyName: "",
     proprietor: "",
-    phone: "",
+    phone: "+880 ",
     drugLicenseNo: "",
     tradeLicenseNo: "",
     address: "",
     territory: "Dhaka North",
-    assignedMio: "Rafiqul Islam",
+    assignedMio: "",
     creditLimitBDT: 150000,
     outstandingBalanceBDT: 0,
     creditTermDays: 30,
     status: "Active / Healthy",
-    lastBilledDate: "17 Sep 2026",
+    lastBilledDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
   });
 
   // Statement / Profile Modal State
   const [activeClient, setActiveClient] = React.useState<ClientProfile | null>(null);
   const [isStatementOpen, setIsStatementOpen] = React.useState(false);
+
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // Fetch Live Client Data from Backend API
+  const fetchClients = async () => {
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const res = await fetch(`${API_URL}/clients`);
+      if (!res.ok) throw new Error("Failed to fetch client directory");
+      const data = await res.json();
+      
+      const formatted = data.map((item: any) => ({
+        id: item.id,
+        clientCode: item.clientCode || `AKP-CL-${item.id.slice(0, 4)}`,
+        pharmacyName: item.pharmacyName,
+        proprietor: item.proprietor || "N/A",
+        phone: item.phone || "+880 ",
+        drugLicenseNo: item.drugLicenseNo || "N/A",
+        tradeLicenseNo: item.tradeLicenseNo || "N/A",
+        address: item.address || "N/A",
+        territory: item.territory || "Dhaka North",
+        assignedMio: item.assignedMio || "Unassigned",
+        creditLimitBDT: Number(item.creditLimitBDT) || 150000,
+        outstandingBalanceBDT: Number(item.outstandingBalanceBDT) || 0,
+        creditTermDays: Number(item.creditTermDays) || 30,
+        status: item.status || "Active / Healthy",
+        lastBilledDate: item.lastBilledDate || "Recent",
+      }));
+
+      setClients(formatted);
+      setLoading(false);
+    } catch (err) {
+      console.error("Error loading clients from database:", err);
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchClients();
+  }, []);
 
   // Direct connection to /logistics/orders
   const handleRedirectToOrder = (client: ClientProfile) => {
@@ -234,20 +166,20 @@ export default function ClientsDirectoryPage() {
   const handleOpenCreate = () => {
     setEditingId(null);
     setFormData({
-      clientCode: `AKP-CL-${100 + clients.length + 1}`,
+      clientCode: `AKP-CL-${Math.floor(1000 + Math.random() * 9000)}`,
       pharmacyName: "",
       proprietor: "",
-      phone: "",
+      phone: "+880 ",
       drugLicenseNo: "",
       tradeLicenseNo: "",
       address: "",
       territory: "Dhaka North",
-      assignedMio: "Rafiqul Islam",
+      assignedMio: "",
       creditLimitBDT: 150000,
       outstandingBalanceBDT: 0,
       creditTermDays: 30,
       status: "Active / Healthy",
-      lastBilledDate: "17 Sep 2026",
+      lastBilledDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
     });
     setIsFormOpen(true);
   };
@@ -273,23 +205,95 @@ export default function ClientsDirectoryPage() {
     setIsFormOpen(true);
   };
 
-  const handleSaveForm = (e: React.FormEvent) => {
+  const handleSaveForm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingId) {
-      setClients((prev) =>
-        prev.map((c) => (c.id === editingId ? { ...formData, id: editingId } : c))
-      );
-      if (activeClient && activeClient.id === editingId) {
-        setActiveClient({ ...formData, id: editingId });
-      }
-    } else {
-      const newClient: ClientProfile = {
-        ...formData,
-        id: `cl-${Date.now()}`,
-      };
-      setClients((prev) => [newClient, ...prev]);
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const endpoint = editingId ? `${API_URL}/clients/${editingId}` : `${API_URL}/clients`;
+      const method = editingId ? "PUT" : "POST";
+
+      const res = await fetch(endpoint, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (!res.ok) throw new Error("Failed to save client record");
+
+      setIsFormOpen(false);
+      fetchClients();
+    } catch (error) {
+      console.error("Error saving client:", error);
+      alert("Failed to save client record to database.");
     }
-    setIsFormOpen(false);
+  };
+
+  // Delete Client Handler
+  const handleDeleteClient = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this pharmacy client record?")) return;
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const res = await fetch(`${API_URL}/clients/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("Failed to delete client record");
+
+      fetchClients();
+    } catch (error) {
+      console.error("Error deleting client:", error);
+      alert("Failed to delete client record.");
+    }
+  };
+
+  // Excel Import Handler
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const workbook = XLSX.read(bstr, { type: "binary" });
+        const wsname = workbook.SheetNames[0];
+        const ws = workbook.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+        
+        for (const row of data) {
+          const clientPayload = {
+            clientCode: row["Client Code"] || `AKP-CL-${Math.floor(1000 + Math.random() * 9000)}`,
+            pharmacyName: row["Pharmacy / Chemist"] || row["Pharmacy Name"] || "Unnamed Pharmacy",
+            proprietor: row["Proprietor"] || "N/A",
+            phone: String(row["Phone"] || "+880 "),
+            drugLicenseNo: String(row["Drug License #"] || "N/A"),
+            tradeLicenseNo: String(row["Trade License #"] || "N/A"),
+            address: row["Address"] || "N/A",
+            territory: row["Territory"] || "Dhaka North",
+            assignedMio: row["Assigned MIO"] || "Unassigned",
+            creditLimitBDT: Number(row["Credit Limit (BDT)"]) || 150000,
+            outstandingBalanceBDT: Number(row["Outstanding Balance (BDT)"]) || 0,
+            creditTermDays: Number(row["Credit Terms (Days)"]) || 30,
+            status: row["Account Status"] || "Active / Healthy",
+          };
+
+          await fetch(`${API_URL}/clients`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(clientPayload),
+          });
+        }
+
+        fetchClients();
+        alert("Client Roster imported successfully!");
+      } catch (err) {
+        console.error("Error parsing Excel file:", err);
+        alert("Failed to import Excel file format.");
+      }
+    };
+    reader.readAsBinaryString(file);
   };
 
   const handleOpenStatement = (client: ClientProfile) => {
@@ -347,6 +351,15 @@ export default function ClientsDirectoryPage() {
 
   return (
     <div className="space-y-6 max-w-[1380px] mx-auto pb-16">
+      {/* Hidden file input for excel import */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImportExcel}
+        accept=".xlsx, .xls, .csv"
+        className="hidden"
+      />
+
       {/* 1. Header Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs print:hidden">
         <div>
@@ -365,6 +378,16 @@ export default function ClientsDirectoryPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold px-3.5 rounded-lg shadow-none"
+          >
+            <Upload className="h-3.5 w-3.5 text-blue-600" />
+            Import Excel
+          </Button>
+
           <Button
             size="sm"
             variant="outline"
@@ -399,7 +422,7 @@ export default function ClientsDirectoryPage() {
             {clients.length} Chemist Outlets
           </div>
           <p className="text-[11px] text-slate-400 mt-3 font-medium">
-            Across 5 regional sales territories
+            Active regional database records
           </p>
         </Card>
 
@@ -521,151 +544,164 @@ export default function ClientsDirectoryPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredClients.map((client) => {
-              const availableHeadroom = Math.max(0, client.creditLimitBDT - client.outstandingBalanceBDT);
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-slate-400 text-xs">
+                  Loading client directory from database...
+                </TableCell>
+              </TableRow>
+            ) : filteredClients.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-slate-400 text-xs">
+                  No pharmacy client records found. Click "Onboard New Pharmacy" or "Import Excel" to add accounts.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredClients.map((client) => {
+                const availableHeadroom = Math.max(0, client.creditLimitBDT - client.outstandingBalanceBDT);
 
-              return (
-                <TableRow key={client.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                  {/* Pharmacy Name & Code */}
-                  <TableCell className="py-3 pl-0">
-                    <div className="leading-tight">
-                      <span className="text-xs font-bold text-slate-900 block">{client.pharmacyName}</span>
-                      <span className="text-[10px] font-mono text-[#0090FF] block mt-0.5">{client.clientCode}</span>
-                    </div>
-                  </TableCell>
-
-                  {/* Proprietor & Phone */}
-                  <TableCell className="py-3 text-xs">
-                    <div>
-                      <span className="font-semibold text-slate-900 block">{client.proprietor}</span>
-                      <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-0.5">
-                        <Phone className="h-2.5 w-2.5 text-slate-400" />
-                        <span className="font-mono text-slate-600">{client.phone}</span>
+                return (
+                  <TableRow key={client.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                    <TableCell className="py-3 pl-0">
+                      <div className="leading-tight">
+                        <span className="text-xs font-bold text-slate-900 block">{client.pharmacyName}</span>
+                        <span className="text-[10px] font-mono text-[#0090FF] block mt-0.5">{client.clientCode}</span>
                       </div>
-                    </div>
-                  </TableCell>
+                    </TableCell>
 
-                  {/* Drug License */}
-                  <TableCell className="py-3 text-xs font-mono text-slate-700">
-                    <div>
-                      <span className="block font-medium">{client.drugLicenseNo}</span>
-                      <span className="text-[10px] text-slate-400 block">{client.tradeLicenseNo}</span>
-                    </div>
-                  </TableCell>
+                    <TableCell className="py-3 text-xs">
+                      <div>
+                        <span className="font-semibold text-slate-900 block">{client.proprietor}</span>
+                        <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-0.5">
+                          <Phone className="h-2.5 w-2.5 text-slate-400" />
+                          <span className="font-mono text-slate-600">{client.phone}</span>
+                        </div>
+                      </div>
+                    </TableCell>
 
-                  {/* Territory & MIO */}
-                  <TableCell className="py-3 text-xs text-slate-700">
-                    <div>
-                      <span className="font-medium text-slate-900 block">{client.territory}</span>
-                      <span className="text-[10px] text-slate-400 block">MIO: {client.assignedMio}</span>
-                    </div>
-                  </TableCell>
+                    <TableCell className="py-3 text-xs font-mono text-slate-700">
+                      <div>
+                        <span className="block font-medium">{client.drugLicenseNo}</span>
+                        <span className="text-[10px] text-slate-400 block">{client.tradeLicenseNo}</span>
+                      </div>
+                    </TableCell>
 
-                  {/* Credit Limit */}
-                  <TableCell className="py-3 text-xs text-right font-mono text-slate-700">
-                    ৳{client.creditLimitBDT.toLocaleString("en-IN")}
-                    <span className="text-[10px] text-slate-400 block">{client.creditTermDays} Days Term</span>
-                  </TableCell>
+                    <TableCell className="py-3 text-xs text-slate-700">
+                      <div>
+                        <span className="font-medium text-slate-900 block">{client.territory}</span>
+                        <span className="text-[10px] text-slate-400 block">MIO: {client.assignedMio}</span>
+                      </div>
+                    </TableCell>
 
-                  {/* Dues */}
-                  <TableCell className="py-3 text-xs text-right font-mono font-bold text-slate-900">
-                    {client.outstandingBalanceBDT > 0 ? (
-                      <span className={client.status === "Credit Hold" ? "text-rose-600" : "text-amber-600"}>
-                        ৳{client.outstandingBalanceBDT.toLocaleString("en-IN")}
+                    <TableCell className="py-3 text-xs text-right font-mono text-slate-700">
+                      ৳{client.creditLimitBDT.toLocaleString("en-IN")}
+                      <span className="text-[10px] text-slate-400 block">{client.creditTermDays} Days Term</span>
+                    </TableCell>
+
+                    <TableCell className="py-3 text-xs text-right font-mono font-bold text-slate-900">
+                      {client.outstandingBalanceBDT > 0 ? (
+                        <span className={client.status === "Credit Hold" ? "text-rose-600" : "text-amber-600"}>
+                          ৳{client.outstandingBalanceBDT.toLocaleString("en-IN")}
+                        </span>
+                      ) : (
+                        <span className="text-emerald-600 font-normal">৳0 (Clear)</span>
+                      )}
+                      <span className="text-[10px] text-slate-400 block font-normal">
+                        Avail: ৳{availableHeadroom.toLocaleString("en-IN")}
                       </span>
-                    ) : (
-                      <span className="text-emerald-600 font-normal">৳0 (Clear)</span>
-                    )}
-                    <span className="text-[10px] text-slate-400 block font-normal">
-                      Avail: ৳{availableHeadroom.toLocaleString("en-IN")}
-                    </span>
-                  </TableCell>
+                    </TableCell>
 
-                  {/* Status */}
-                  <TableCell className="py-3 text-xs">
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        client.status === "Active / Healthy"
-                          ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                          : client.status === "Watchlist"
-                          ? "text-amber-700 bg-amber-50 border-amber-200"
-                          : "text-rose-700 bg-rose-50 border-rose-200"
-                      }`}
-                    >
-                      {client.status}
-                    </Badge>
-                  </TableCell>
-
-                  {/* Actions */}
-                  <TableCell className="py-3 text-xs text-right pr-0">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {/* Direct Order Connection Button */}
-                      <Button
-                        size="sm"
+                    <TableCell className="py-3 text-xs">
+                      <Badge
                         variant="outline"
-                        onClick={() => handleRedirectToOrder(client)}
-                        className="h-7 px-2.5 text-xs text-[#0090FF] border-blue-200 hover:bg-blue-50 gap-1 font-semibold"
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                          client.status === "Active / Healthy"
+                            ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                            : client.status === "Watchlist"
+                            ? "text-amber-700 bg-amber-50 border-amber-200"
+                            : "text-rose-700 bg-rose-50 border-rose-200"
+                        }`}
                       >
-                        <Truck className="h-3 w-3" />
-                        Create Order
-                      </Button>
+                        {client.status}
+                      </Badge>
+                    </TableCell>
 
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleOpenEdit(client)}
-                        className="h-7 px-2 text-xs text-slate-700 border-slate-200 hover:bg-slate-50 gap-1"
-                      >
-                        <Pencil className="h-3 w-3 text-slate-400" />
-                        Edit
-                      </Button>
+                    <TableCell className="py-3 text-xs text-right pr-0">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRedirectToOrder(client)}
+                          className="h-7 px-2.5 text-xs text-[#0090FF] border-blue-200 hover:bg-blue-50 gap-1 font-semibold"
+                        >
+                          <Truck className="h-3 w-3" />
+                          Create Order
+                        </Button>
 
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleOpenStatement(client)}
-                        className="h-7 px-2 text-xs text-slate-700 border-slate-200 hover:bg-slate-50 gap-1 font-medium"
-                      >
-                        <FileText className="h-3 w-3" />
-                        Statement
-                      </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenEdit(client)}
+                          className="h-7 px-2 text-xs text-slate-700 border-slate-200 hover:bg-slate-50 gap-1"
+                        >
+                          <Pencil className="h-3 w-3 text-slate-400" />
+                          Edit
+                        </Button>
 
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-slate-800">
-                            <MoreHorizontal className="h-3.5 w-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-52 bg-white">
-                          <DropdownMenuLabel className="text-[10px] text-slate-400 uppercase tracking-wider">
-                            Direct Workflows
-                          </DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleRedirectToOrder(client)} className="text-xs cursor-pointer">
-                            <Truck className="h-3.5 w-3.5 mr-2 text-[#0090FF]" />
-                            Book Delivery Order
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild className="text-xs cursor-pointer">
-                            <Link href="/finance/collections">
-                              <Receipt className="h-3.5 w-3.5 mr-2 text-emerald-600" />
-                              Record Collection Receipt
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => handleOpenStatement(client)}
-                            className="text-xs cursor-pointer text-slate-700"
-                          >
-                            <Printer className="h-3.5 w-3.5 mr-2 text-slate-500" />
-                            Print Account Statement
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenStatement(client)}
+                          className="h-7 px-2 text-xs text-slate-700 border-slate-200 hover:bg-slate-50 gap-1 font-medium"
+                        >
+                          <FileText className="h-3 w-3" />
+                          Statement
+                        </Button>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-slate-800">
+                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52 bg-white">
+                            <DropdownMenuLabel className="text-[10px] text-slate-400 uppercase tracking-wider">
+                              Direct Workflows
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => handleRedirectToOrder(client)} className="text-xs cursor-pointer">
+                              <Truck className="h-3.5 w-3.5 mr-2 text-[#0090FF]" />
+                              Book Delivery Order
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild className="text-xs cursor-pointer">
+                              <Link href="/finance/collections">
+                                <Receipt className="h-3.5 w-3.5 mr-2 text-emerald-600" />
+                                Record Collection Receipt
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleOpenStatement(client)}
+                              className="text-xs cursor-pointer text-slate-700"
+                            >
+                              <Printer className="h-3.5 w-3.5 mr-2 text-slate-500" />
+                              Print Account Statement
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteClient(client.id)}
+                              className="text-xs cursor-pointer text-rose-600 focus:text-rose-600 focus:bg-rose-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2 text-rose-600" />
+                              Delete / Deactivate Client
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </Card>

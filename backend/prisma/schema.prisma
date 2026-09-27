@@ -92,3 +92,69 @@ model Salary {
 
   @@unique([staffId, payPeriod])
 }
+
+model Client {
+  id                    String        @id @default(uuid())
+  clientCode            String        @unique
+  pharmacyName          String
+  proprietor            String?
+  phone                 String
+  drugLicenseNo         String?
+  tradeLicenseNo        String?
+  address               String?
+  territory             String?
+  assignedMio           String?
+  creditLimitBDT        Decimal       @default(150000) @db.Decimal(12, 2)
+  outstandingBalanceBDT Decimal       @default(0.00) @db.Decimal(12, 2)
+  creditTermDays        Int           @default(30)
+  status                String        @default("Active / Healthy")
+  lastBilledDate        String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+}
+
+model Order {
+  id             String   @id @default(uuid())
+  orderNumber    String   @unique
+  orderDate      String
+  pharmacyName   String
+  territory      String
+  assignedMio    String
+  itemsSummary   String
+  itemsDetail    Json?    // <-- Stores the exact array of items [{ no, description, quantity, unitCost, total }]
+  totalBoxes     Int
+  orderValue     Decimal  @db.Decimal(12, 2)
+  discount       Decimal  @default(0.00) @db.Decimal(12, 2)
+  comments       String?
+  deliveryMethod String
+  status         String
+  challanNumber  String?
+  invoiceNumber  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model TreasuryDeposit {
+  id              String      @id @default(uuid())
+  destinationType String      // "Cash Drawer" or "Bank Account"
+  destinationName String      // e.g. "Head Office Cash Safe" or "Eastern Bank PLC"
+  amount          Decimal     @db.Decimal(12, 2)
+  salesRep        String?
+  discrepancy     Decimal     @default(0.00) @db.Decimal(12, 2)
+  resolution      String?
+  createdAt       DateTime    @default(now())
+}
+
+model ExpenseVoucher {
+  id            String   @id @default(uuid())
+  voucherNo     String   @unique
+  payeeName     String
+  category      String
+  fundingSource String   // "Cash Safe" or "Bank Account"
+  sourceDetail  String   // e.g. "Head Office Cash Safe" or "Eastern Bank PLC"
+  amount        Decimal  @db.Decimal(12, 2)
+  paymentDate   String
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

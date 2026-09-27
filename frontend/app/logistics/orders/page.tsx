@@ -41,23 +41,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Truck,
-  PackageCheck,
   Search,
   Filter,
   Plus,
   Download,
-  Clock,
   CheckCircle2,
   AlertTriangle,
   FileText,
   Boxes,
-  Snowflake,
   MoreHorizontal,
   Store,
   Printer,
   ShieldAlert,
+  Trash2,
+  UserCheck,
 } from "lucide-react";
+
+interface InvoiceItem {
+  no: number;
+  description: string;
+  quantity: number;
+  unitCost: number;
+  total: number;
+}
 
 interface SalesOrder {
   id: string;
@@ -67,114 +73,198 @@ interface SalesOrder {
   territory: string;
   assignedMio: string;
   itemsSummary: string;
+  itemsDetail: InvoiceItem[];
   totalBoxes: number;
   orderValue: number;
-  deliveryMethod: "Company Van (Cold Chain)" | "Company Van (Ambient)" | "Courier Dispatch";
+  discount: number;
+  comments: string;
+  deliveryMethod: "Sales Representative" | "Medical Information Officer" | "Third Party Courier";
   status: "Pending Credit Check" | "FEFO Allocated" | "Out for Delivery" | "Delivered & Invoiced" | "Cancelled";
-  challanNumber?: string;
-  invoiceNumber?: string;
+  invoiceNumber: string;
 }
 
-const initialOrders: SalesOrder[] = [
-  {
-    id: "ord-1",
-    orderNumber: "SO-2026-4401",
-    orderDate: "16 Sep 2026",
-    pharmacyName: "Popular Pharmacy (Dhanmondi)",
-    territory: "Dhaka North",
-    assignedMio: "Rafiqul Islam",
-    itemsSummary: "Rosuvastatin 10mg (2000), Cardiloc 5mg (1500)",
-    totalBoxes: 35,
-    orderValue: 84500,
-    deliveryMethod: "Company Van (Ambient)",
-    status: "Out for Delivery",
-    challanNumber: "DC-2026-1082",
-  },
-  {
-    id: "ord-2",
-    orderNumber: "SO-2026-4402",
-    orderDate: "16 Sep 2026",
-    pharmacyName: "Labaid Specialized Hospital Chemist",
-    territory: "Dhaka North",
-    assignedMio: "Rafiqul Islam",
-    itemsSummary: "Cef-3 200mg Susp (500), Fefol-Z (1200)",
-    totalBoxes: 22,
-    orderValue: 142000,
-    deliveryMethod: "Company Van (Cold Chain)",
-    status: "FEFO Allocated",
-    challanNumber: "DC-2026-1083",
-  },
-  {
-    id: "ord-3",
-    orderNumber: "SO-2026-4403",
-    orderDate: "15 Sep 2026",
-    pharmacyName: "Chevron Clinical Lab & Pharmacy",
-    territory: "Chittagong Central",
-    assignedMio: "Kamrul Hasan",
-    itemsSummary: "Napa Extra 500mg (5000), Maxpro 20mg (3000)",
-    totalBoxes: 48,
-    orderValue: 98000,
-    deliveryMethod: "Company Van (Ambient)",
-    status: "Delivered & Invoiced",
-    challanNumber: "DC-2026-1079",
-    invoiceNumber: "INV-2026-9017",
-  },
-  {
-    id: "ord-4",
-    orderNumber: "SO-2026-4404",
-    orderDate: "15 Sep 2026",
-    pharmacyName: "Medinova Medical Chemist",
-    territory: "Dhaka South",
-    assignedMio: "Tanvir Ahmed",
-    itemsSummary: "Azithromycin 500mg (800), Omeprazole 20mg (2500)",
-    totalBoxes: 18,
-    orderValue: 64200,
-    deliveryMethod: "Courier Dispatch",
-    status: "Pending Credit Check",
-  },
-  {
-    id: "ord-5",
-    orderNumber: "SO-2026-4405",
-    orderDate: "14 Sep 2026",
-    pharmacyName: "Ibn Sina Pharma Outlet",
-    territory: "Sylhet Sadar",
-    assignedMio: "Enamul Haque",
-    itemsSummary: "Aceclofenac 100mg (1500), Diacerein (600)",
-    totalBoxes: 16,
-    orderValue: 51800,
-    deliveryMethod: "Company Van (Ambient)",
-    status: "Delivered & Invoiced",
-    challanNumber: "DC-2026-1075",
-    invoiceNumber: "INV-2026-9018",
-  },
-];
+interface ClientOption {
+  id: string;
+  clientCode: string;
+  pharmacyName: string;
+  territory: string;
+  assignedMio: string;
+  status: string;
+  creditLimitBDT: number;
+  outstandingBalanceBDT: number;
+  address?: string;
+  phone?: string;
+}
+
+interface StaffOption {
+  id: string;
+  fullName: string;
+  department: string;
+  designation: string;
+}
+
+interface StockProduct {
+  id: string;
+  name: string;
+  stockQty: number;
+  unitPrice: number;
+}
+
+function parseSummaryToRows(summary: string, totalVal: number, totalBoxes: number): InvoiceItem[] {
+  if (!summary) return [{ no: 1, description: "Pharmaceutical Products", quantity: 1, unitCost: totalVal, total: totalVal }];
+
+  const parts = summary.split(",").map((s) => s.trim()).filter(Boolean);
+  if (parts.length <= 1 && !summary.includes("(")) {
+    return [{ no: 1, description: summary, quantity: totalBoxes || 1, unitCost: totalBoxes ? totalVal / totalBoxes : totalVal, total: totalVal }];
+  }
+
+  const parsed: InvoiceItem[] = [];
+  let remainingVal = totalVal;
+
+  parts.forEach((part, index) => {
+    const match = part.match(/^(.*?)(?:\s*\((\d+)\))?$/);
+    const desc = match ? match[1].trim() : part;
+    const qty = match && match[2] ? parseInt(match[2], 10) : 1;
+    const approxUnit = Math.round(totalVal / (totalBoxes || parts.length || 1));
+    const lineTotal = index === parts.length - 1 ? remainingVal : approxUnit * qty;
+    remainingVal -= lineTotal;
+
+    parsed.push({
+      no: index + 1,
+      description: desc,
+      quantity: qty,
+      unitCost: qty > 0 ? Math.round(lineTotal / qty) : 0,
+      total: lineTotal,
+    });
+  });
+
+  return parsed;
+}
 
 function LogisticsOrdersContent() {
   const searchParams = useSearchParams();
 
-  const [orders, setOrders] = React.useState<SalesOrder[]>(initialOrders);
+  const [orders, setOrders] = React.useState<SalesOrder[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [territoryFilter, setTerritoryFilter] = React.useState("all");
 
-  // New Sales Order Modal States
+  const [clientList, setClientList] = React.useState<ClientOption[]>([]);
+  const [staffList, setStaffList] = React.useState<StaffOption[]>([]);
+  const [productCatalog, setProductCatalog] = React.useState<StockProduct[]>([]);
+
+  const [pharmacyInput, setPharmacyInput] = React.useState("");
+  const [pharmacySuggestions, setPharmacySuggestions] = React.useState<ClientOption[]>([]);
+  const [activeSuggestionRow, setActiveSuggestionRow] = React.useState<number | null>(null);
+
   const [isNewOrderOpen, setIsNewOrderOpen] = React.useState(false);
-  const [pharmacyName, setPharmacyName] = React.useState("");
   const [territory, setTerritory] = React.useState("Dhaka North");
-  const [assignedMio, setAssignedMio] = React.useState("Rafiqul Islam");
-  const [itemsSummary, setItemsSummary] = React.useState("");
-  const [totalBoxes, setTotalBoxes] = React.useState("");
-  const [orderValue, setOrderValue] = React.useState("");
-  const [deliveryMethod, setDeliveryMethod] = React.useState<SalesOrder["deliveryMethod"]>("Company Van (Ambient)");
+  const [assignedMio, setAssignedMio] = React.useState("");
+  const [deliveryMethod, setDeliveryMethod] = React.useState<SalesOrder["deliveryMethod"]>("Sales Representative");
+  const [orderComments, setOrderComments] = React.useState("");
+  const [discountAmount, setDiscountAmount] = React.useState<number>(0);
 
-  // Client link inspection state from URL
+  const [lineItems, setLineItems] = React.useState<InvoiceItem[]>([
+    { no: 1, description: "", quantity: 1, unitCost: 0, total: 0 },
+  ]);
+
   const [clientCreditNotice, setClientCreditNotice] = React.useState<{ status: string; avail: string } | null>(null);
-
-  // Inspect Modal State
   const [selectedOrder, setSelectedOrder] = React.useState<SalesOrder | null>(null);
   const [isInspectOpen, setIsInspectOpen] = React.useState(false);
 
-  // Read URL query parameters passed from /sales/clients
+  const fetchBackendData = React.useCallback(async () => {
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      
+      const [ordRes, clientRes, staffRes, productRes] = await Promise.all([
+        fetch(`${API_URL}/orders`).catch(() => ({ ok: false, json: async () => [] })),
+        fetch(`${API_URL}/clients`).catch(() => ({ ok: false, json: async () => [] })),
+        fetch(`${API_URL}/staff`).catch(() => ({ ok: false, json: async () => [] })),
+        fetch(`${API_URL}/products`).catch(() => ({ ok: false, json: async () => [] })),
+      ]);
+
+      if (productRes.ok) {
+        const prodData = await productRes.json();
+        if (Array.isArray(prodData) && prodData.length > 0) {
+          setProductCatalog(prodData.map((p: any) => ({
+            id: p.id,
+            name: p.name || p.productName || "Medicine",
+            stockQty: Number(p.stockQty ?? p.quantity ?? 100),
+            unitPrice: Number(p.unitPrice ?? p.price ?? 500),
+          })));
+        } else {
+          setProductCatalog([
+            { id: "p-1", name: "Rosuvastatin 10mg Tablets", stockQty: 240, unitPrice: 420 },
+            { id: "p-2", name: "Cardiloc 5mg Tablets", stockQty: 180, unitPrice: 350 },
+            { id: "p-3", name: "Cef-3 200mg Suspension", stockQty: 95, unitPrice: 620 },
+            { id: "p-4", name: "Fefol-Z Capsules", stockQty: 310, unitPrice: 280 },
+            { id: "p-5", name: "Napa Extra 500mg", stockQty: 500, unitPrice: 120 },
+            { id: "p-6", name: "Maxpro 20mg Capsules", stockQty: 140, unitPrice: 450 },
+            { id: "p-7", name: "Azithromycin 500mg", stockQty: 85, unitPrice: 750 },
+          ]);
+        }
+      }
+
+      if (ordRes.ok) {
+        const ordData = await ordRes.json();
+        setOrders(ordData.map((item: any, idx: number) => {
+          let parsedItems: InvoiceItem[] = [];
+          if (Array.isArray(item.itemsDetail) && item.itemsDetail.length > 0) {
+            parsedItems = item.itemsDetail;
+          } else if (typeof item.itemsDetail === "string") {
+            try {
+              parsedItems = JSON.parse(item.itemsDetail);
+            } catch {
+              parsedItems = parseSummaryToRows(item.itemsSummary, Number(item.orderValue) || 0, Number(item.totalBoxes) || 1);
+            }
+          } else {
+            parsedItems = parseSummaryToRows(item.itemsSummary, Number(item.orderValue) || 0, Number(item.totalBoxes) || 1);
+          }
+
+          const sequentialInvoiceNo = item.invoiceNumber || `INV-2026-${String(idx + 1).padStart(4, "0")}`;
+
+          return {
+            id: item.id,
+            orderNumber: item.orderNumber || `SO-2026-${String(idx + 1).padStart(4, "0")}`,
+            orderDate: item.orderDate || "27 Sep 2026",
+            pharmacyName: item.pharmacyName,
+            territory: item.territory || "Dhaka North",
+            assignedMio: item.assignedMio || "Unassigned",
+            itemsSummary: item.itemsSummary || "General Formulations",
+            itemsDetail: parsedItems,
+            totalBoxes: Number(item.totalBoxes) || 1,
+            orderValue: Number(item.orderValue) || 25000,
+            discount: Number(item.discount) || 0,
+            comments: item.comments || "",
+            deliveryMethod: item.deliveryMethod || "Sales Representative",
+            status: item.status || "FEFO Allocated",
+            invoiceNumber: sequentialInvoiceNo,
+          };
+        }));
+      }
+
+      if (clientRes.ok) {
+        const clientData = await clientRes.json();
+        setClientList(clientData);
+      }
+
+      if (staffRes.ok) {
+        const staffData = await staffRes.json();
+        setStaffList(staffData);
+      }
+
+      setLoading(false);
+    } catch (err) {
+      console.error("Error loading logistics records:", err);
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchBackendData();
+  }, [fetchBackendData]);
+
   React.useEffect(() => {
     const incomingPharmacy = searchParams.get("pharmacy");
     const incomingTerritory = searchParams.get("territory");
@@ -183,7 +273,7 @@ function LogisticsOrdersContent() {
     const incomingAvail = searchParams.get("availableCredit");
 
     if (incomingPharmacy) {
-      setPharmacyName(incomingPharmacy);
+      setPharmacyInput(incomingPharmacy);
       if (incomingTerritory) setTerritory(incomingTerritory);
       if (incomingMio) setAssignedMio(incomingMio);
       if (incomingCredit) {
@@ -196,49 +286,235 @@ function LogisticsOrdersContent() {
     }
   }, [searchParams]);
 
-  const handleCreateOrder = (e: React.FormEvent) => {
-    e.preventDefault();
-    const isHold = clientCreditNotice?.status === "Credit Hold";
-
-    const newOrd: SalesOrder = {
-      id: `ord-${Date.now()}`,
-      orderNumber: `SO-2026-${Math.floor(4400 + orders.length + 6)}`,
-      orderDate: "17 Sep 2026",
-      pharmacyName,
-      territory,
-      assignedMio,
-      itemsSummary,
-      totalBoxes: Number(totalBoxes) || 10,
-      orderValue: Number(orderValue) || 25000,
-      deliveryMethod,
-      status: isHold ? "Pending Credit Check" : "FEFO Allocated",
-      challanNumber: `DC-2026-${Math.floor(1080 + orders.length + 5)}`,
-    };
-
-    setOrders((prev) => [newOrd, ...prev]);
-    setPharmacyName("");
-    setItemsSummary("");
-    setTotalBoxes("");
-    setOrderValue("");
-    setClientCreditNotice(null);
-    setIsNewOrderOpen(false);
+  const handlePharmacyTyping = (val: string) => {
+    setPharmacyInput(val);
+    if (!val.trim()) {
+      setPharmacySuggestions([]);
+      return;
+    }
+    const query = val.toLowerCase();
+    const matches = clientList.filter(
+      (c) =>
+        c.pharmacyName.toLowerCase().includes(query) ||
+        c.clientCode.toLowerCase().includes(query)
+    );
+    setPharmacySuggestions(matches);
   };
 
-  const handleUpdateStatus = (id: string, newStatus: SalesOrder["status"]) => {
-    setOrders((prev) =>
-      prev.map((ord) => {
-        if (ord.id === id) {
-          const isNowDelivered = newStatus === "Delivered & Invoiced";
+  const handleSelectPharmacy = (client: ClientOption) => {
+    setPharmacyInput(client.pharmacyName);
+    setTerritory(client.territory || territory);
+    setAssignedMio(client.assignedMio || assignedMio);
+    const avail = Math.max(0, client.creditLimitBDT - client.outstandingBalanceBDT);
+    setClientCreditNotice({
+      status: client.status,
+      avail: String(avail),
+    });
+    setPharmacySuggestions([]);
+  };
+
+  const handleRemoveLineItem = (index: number) => {
+    if (lineItems.length === 1) {
+      setLineItems([{ no: 1, description: "", quantity: 1, unitCost: 0, total: 0 }]);
+      return;
+    }
+    setLineItems((prev) =>
+      prev.filter((_, i) => i !== index).map((item, idx) => ({
+        ...item,
+        no: idx + 1,
+      }))
+    );
+  };
+
+  const handleUpdateLineItem = (index: number, field: keyof InvoiceItem, value: any) => {
+    setLineItems((prev) => {
+      const isLastRow = index === prev.length - 1;
+      const isEnteringDescription = field === "description" && typeof value === "string" && value.trim() !== "";
+      const wasPreviouslyEmpty = prev[index].description.trim() === "";
+
+      const updatedList = prev.map((item, i) => {
+        if (i === index) {
+          const updated = { ...item, [field]: value };
+          if (field === "quantity" || field === "unitCost") {
+            const qty = field === "quantity" ? Number(value) || 0 : item.quantity;
+            const cost = field === "unitCost" ? Number(value) || 0 : item.unitCost;
+            updated.total = qty * cost;
+          }
+          return updated;
+        }
+        return item;
+      });
+
+      if (isLastRow && isEnteringDescription && wasPreviouslyEmpty) {
+        updatedList.push({
+          no: updatedList.length + 1,
+          description: "",
+          quantity: 1,
+          unitCost: 0,
+          total: 0,
+        });
+      }
+
+      return updatedList.map((item, idx) => ({
+        ...item,
+        no: idx + 1,
+      }));
+    });
+  };
+
+  const handleSelectStockProduct = (index: number, prod: StockProduct) => {
+    setLineItems((prev) => {
+      const isLastRow = index === prev.length - 1;
+      const wasEmpty = prev[index].description.trim() === "";
+
+      const updatedList = prev.map((item, i) => {
+        if (i === index) {
           return {
-            ...ord,
-            status: newStatus,
-            invoiceNumber: isNowDelivered ? ord.invoiceNumber || `INV-2026-${Math.floor(9020 + Math.random() * 80)}` : ord.invoiceNumber,
-            challanNumber: ord.challanNumber || `DC-2026-${Math.floor(1090 + Math.random() * 50)}`,
+            ...item,
+            description: prod.name,
+            unitCost: prod.unitPrice,
+            total: (item.quantity || 1) * prod.unitPrice,
           };
         }
-        return ord;
-      })
-    );
+        return item;
+      });
+
+      if (isLastRow && wasEmpty) {
+        updatedList.push({
+          no: updatedList.length + 1,
+          description: "",
+          quantity: 1,
+          unitCost: 0,
+          total: 0,
+        });
+      }
+
+      return updatedList.map((item, idx) => ({
+        ...item,
+        no: idx + 1,
+      }));
+    });
+    setActiveSuggestionRow(null);
+  };
+
+  const validLineItems = React.useMemo(
+    () => lineItems.filter((item) => item.description.trim() !== ""),
+    [lineItems]
+  );
+
+  const calculatedSubtotal = React.useMemo(
+    () => validLineItems.reduce((acc, curr) => acc + curr.total, 0),
+    [validLineItems]
+  );
+
+  const calculatedGrandTotal = Math.max(0, calculatedSubtotal - discountAmount);
+
+  const totalBoxesCalculated = React.useMemo(
+    () => validLineItems.reduce((acc, curr) => acc + (Number(curr.quantity) || 0), 0),
+    [validLineItems]
+  );
+
+  const itemsSummaryString = React.useMemo(
+    () =>
+      validLineItems
+        .map((i) => `${i.description} (${i.quantity})`)
+        .join(", ") || "General Pharmaceuticals",
+    [validLineItems]
+  );
+
+  const nextSerialInvoiceNo = `INV-2026-${String(orders.length + 1).padStart(4, "0")}`;
+
+  const handleCreateOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validLineItems.length === 0) {
+      alert("Please specify at least one product description.");
+      return;
+    }
+
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const isHold = clientCreditNotice?.status === "Credit Hold";
+
+      const payload = {
+        orderNumber: `SO-2026-${String(orders.length + 1).padStart(4, "0")}`,
+        orderDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        pharmacyName: pharmacyInput,
+        territory,
+        assignedMio: assignedMio || "General MIO",
+        itemsSummary: itemsSummaryString,
+        itemsDetail: validLineItems,
+        totalBoxes: totalBoxesCalculated,
+        orderValue: calculatedGrandTotal,
+        discount: discountAmount,
+        comments: orderComments,
+        deliveryMethod,
+        status: isHold ? "Pending Credit Check" : "FEFO Allocated",
+        invoiceNumber: nextSerialInvoiceNo,
+      };
+
+      const res = await fetch(`${API_URL}/orders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error("Failed to submit sales order");
+
+      // Auto-minus quantities from Stock Management
+      await fetch(`${API_URL}/products/deduct-stock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deductions: validLineItems.map((item) => ({
+            name: item.description,
+            quantity: item.quantity,
+          })),
+        }),
+      }).catch((err) => console.log("Stock deduction sync:", err));
+
+      setIsNewOrderOpen(false);
+      setPharmacyInput("");
+      setLineItems([{ no: 1, description: "", quantity: 1, unitCost: 0, total: 0 }]);
+      setDiscountAmount(0);
+      setOrderComments("");
+      setClientCreditNotice(null);
+      fetchBackendData();
+    } catch (error) {
+      console.error("Error creating sales order:", error);
+      alert("Failed to submit order to warehouse.");
+    }
+  };
+
+  const handleUpdateStatus = async (id: string, newStatus: SalesOrder["status"]) => {
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const res = await fetch(`${API_URL}/orders/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update status");
+      fetchBackendData();
+    } catch (error) {
+      console.error("Error updating order status:", error);
+    }
+  };
+
+  const handleDeleteOrder = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this sales order?")) return;
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const res = await fetch(`${API_URL}/orders/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("Failed to delete order");
+      fetchBackendData();
+    } catch (error) {
+      console.error("Error deleting order:", error);
+      alert("Failed to delete order record.");
+    }
   };
 
   const handleExportExcel = () => {
@@ -249,12 +525,11 @@ function LogisticsOrdersContent() {
       Territory: o.territory,
       "Assigned MIO": o.assignedMio,
       "Item Breakdown": o.itemsSummary,
-      "Carton Boxes": o.totalBoxes,
+      "Boxes": o.totalBoxes,
       "Total Amount (৳)": o.orderValue,
       "Logistics Method": o.deliveryMethod,
       "Fulfillment Status": o.status,
-      "Delivery Challan": o.challanNumber || "Not Issued",
-      "Sales Invoice": o.invoiceNumber || "Pending Delivery",
+      "Invoice Number": o.invoiceNumber,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -263,29 +538,92 @@ function LogisticsOrdersContent() {
     XLSX.writeFile(workbook, `AK_Pharma_Logistics_Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  const filteredOrders = orders.filter((ord) => {
-    const matchesSearch =
-      ord.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ord.pharmacyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ord.itemsSummary.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ord.assignedMio.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (ord.challanNumber && ord.challanNumber.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredOrders = React.useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    const sf = statusFilter.toLowerCase();
+    const tf = territoryFilter.toLowerCase();
 
-    const matchesStatus =
-      statusFilter === "all" || ord.status.toLowerCase().includes(statusFilter.toLowerCase());
+    return orders.filter((ord) => {
+      const matchesSearch =
+        !q ||
+        ord.orderNumber.toLowerCase().includes(q) ||
+        ord.pharmacyName.toLowerCase().includes(q) ||
+        ord.itemsSummary.toLowerCase().includes(q) ||
+        ord.assignedMio.toLowerCase().includes(q) ||
+        Boolean(ord.invoiceNumber && ord.invoiceNumber.toLowerCase().includes(q));
 
-    const matchesTerritory =
-      territoryFilter === "all" || ord.territory.toLowerCase().includes(territoryFilter.toLowerCase());
+      const matchesStatus = sf === "all" || ord.status.toLowerCase() === sf;
+      const matchesTerritory = tf === "all" || ord.territory.toLowerCase() === tf;
 
-    return matchesSearch && matchesStatus && matchesTerritory;
-  });
+      return matchesSearch && matchesStatus && matchesTerritory;
+    });
+  }, [orders, searchQuery, statusFilter, territoryFilter]);
 
-  const totalRevenue = orders.reduce((acc, curr) => acc + curr.orderValue, 0);
-  const activeDispatchCount = orders.filter((o) => o.status === "Out for Delivery").length;
-  const pendingCreditCount = orders.filter((o) => o.status === "Pending Credit Check").length;
+  const totalRevenue = React.useMemo(() => orders.reduce((acc, curr) => acc + curr.orderValue, 0), [orders]);
+  
+  // Active Sales Representatives count
+  const activeRepsCount = React.useMemo(() => {
+    const reps = new Set(orders.map((o) => o.assignedMio).filter((m) => m && m !== "Unassigned"));
+    return reps.size;
+  }, [orders]);
+
+  const pendingCreditCount = React.useMemo(() => orders.filter((o) => o.status === "Pending Credit Check").length, [orders]);
+
+  const matchedClient = React.useMemo(
+    () => (selectedOrder ? clientList.find((c) => c.pharmacyName === selectedOrder.pharmacyName) : null),
+    [clientList, selectedOrder]
+  );
+
+  const activeInvoiceRows = React.useMemo(() => {
+    if (!selectedOrder) return [];
+    if (selectedOrder.itemsDetail && Array.isArray(selectedOrder.itemsDetail) && selectedOrder.itemsDetail.length > 0) {
+      const valid = selectedOrder.itemsDetail.filter((i) => i.description && i.description.trim() !== "");
+      if (valid.length > 0) return valid;
+    }
+    return parseSummaryToRows(selectedOrder.itemsSummary, selectedOrder.orderValue, selectedOrder.totalBoxes);
+  }, [selectedOrder]);
+
+  const inspectSubtotal = React.useMemo(
+    () => activeInvoiceRows.reduce((sum, item) => sum + item.total, 0),
+    [activeInvoiceRows]
+  );
+
+  const inspectDiscount = selectedOrder?.discount || 0;
+  const inspectGrandTotal = selectedOrder?.orderValue || Math.max(0, inspectSubtotal - inspectDiscount);
 
   return (
     <div className="space-y-6 max-w-[1360px] mx-auto pb-10">
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 10mm;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #print-standalone-invoice,
+          #print-standalone-invoice * {
+            visibility: visible !important;
+          }
+          #print-standalone-invoice {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 10px !important;
+            background: white !important;
+          }
+        }
+      `}</style>
+
       {/* 1. Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 print:hidden">
         <div>
@@ -293,7 +631,7 @@ function LogisticsOrdersContent() {
             Order Fulfillment & Logistics Dispatch
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Process pharmacy orders, allocate warehouse FEFO batches, generate Delivery Challans, and trigger invoices.
+            Process pharmacy orders, allocate warehouse FEFO batches, and trigger serial invoices.
           </p>
         </div>
 
@@ -308,7 +646,6 @@ function LogisticsOrdersContent() {
             Export Order Roster
           </Button>
 
-          {/* Create Order Modal */}
           <Dialog open={isNewOrderOpen} onOpenChange={setIsNewOrderOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="h-9 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs font-semibold px-3.5 rounded-lg shadow-none">
@@ -316,18 +653,17 @@ function LogisticsOrdersContent() {
                 Create Sales Order
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[540px] bg-white rounded-xl">
+            <DialogContent className="sm:max-w-[800px] bg-white rounded-2xl max-h-[92vh] overflow-y-auto p-6">
               <DialogHeader>
-                <DialogTitle className="text-base font-bold text-slate-900">Book New Commercial Order</DialogTitle>
+                <DialogTitle className="text-base font-bold text-slate-900">Book New Commercial Order & Invoice</DialogTitle>
                 <DialogDescription className="text-xs text-slate-500">
-                  Select destination chemist, ordered formulations, and delivery logistics route.
+                  Select destination chemist, pick formulations from inventory, and generate sequential invoice.
                 </DialogDescription>
               </DialogHeader>
 
-              {/* Client Credit Integration Notice */}
               {clientCreditNotice && (
                 <div
-                  className={`p-3 rounded-xl border flex items-center justify-between text-xs mb-1 ${
+                  className={`p-3 rounded-xl border flex items-center justify-between text-xs my-1 ${
                     clientCreditNotice.status === "Credit Hold"
                       ? "bg-rose-50 border-rose-200 text-rose-800"
                       : "bg-blue-50 border-blue-200 text-blue-800"
@@ -359,22 +695,40 @@ function LogisticsOrdersContent() {
                 </div>
               )}
 
-              <form onSubmit={handleCreateOrder} className="space-y-3.5 py-2">
-                <div className="space-y-1.5">
+              <form onSubmit={handleCreateOrder} className="space-y-4 py-2">
+                <div className="space-y-1.5 relative">
                   <Label htmlFor="pharmacy" className="text-xs font-medium text-slate-700">
-                    Chemist / Pharmacy Outlet *
+                    Chemist / Pharmacy Outlet (Type to search) *
                   </Label>
                   <Input
                     id="pharmacy"
-                    placeholder="e.g. Al-Madina Model Pharmacy"
-                    value={pharmacyName}
-                    onChange={(e) => setPharmacyName(e.target.value)}
+                    placeholder="Type pharmacy name or code (e.g. Al-Madina)..."
+                    value={pharmacyInput}
+                    onChange={(e) => handlePharmacyTyping(e.target.value)}
                     required
                     className="h-8 text-xs font-semibold"
+                    autoComplete="off"
                   />
+                  {pharmacySuggestions.length > 0 && (
+                    <div className="absolute z-50 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">
+                      {pharmacySuggestions.map((c) => (
+                        <div
+                          key={c.id}
+                          onClick={() => handleSelectPharmacy(c)}
+                          className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex items-center justify-between border-b border-slate-50 last:border-0"
+                        >
+                          <div>
+                            <strong className="text-slate-900 block">{c.pharmacyName}</strong>
+                            <span className="text-[10px] text-slate-400">{c.territory} • Code: {c.clientCode}</span>
+                          </div>
+                          <Badge variant="outline" className="text-[9px]">{c.status}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="ter" className="text-xs font-medium text-slate-700">Territory Hub</Label>
                     <Select value={territory} onValueChange={setTerritory}>
@@ -390,73 +744,181 @@ function LogisticsOrdersContent() {
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div className="space-y-1.5">
-                    <Label htmlFor="mio" className="text-xs font-medium text-slate-700">Responsible MIO</Label>
+                    <Label htmlFor="mio" className="text-xs font-medium text-slate-700">Sales Representative</Label>
+                    <Select value={assignedMio} onValueChange={setAssignedMio}>
+                      <SelectTrigger className="h-8 text-xs bg-white">
+                        <SelectValue placeholder="Select Sales Rep" />
+                      </SelectTrigger>
+                      <SelectContent className="text-xs max-h-40">
+                        {staffList.map((staff) => (
+                          <SelectItem key={staff.id} value={staff.fullName}>
+                            {staff.fullName} ({staff.designation || staff.department || "Field Force"})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="delivery-method" className="text-xs font-medium text-slate-700">Logistics Fleet</Label>
+                    <Select
+                      value={deliveryMethod}
+                      onValueChange={(val) => setDeliveryMethod(val as SalesOrder["deliveryMethod"])}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="text-xs">
+                        <SelectItem value="Sales Representative">Sales Representative</SelectItem>
+                        <SelectItem value="Medical Information Officer">Medical Information Officer</SelectItem>
+                        <SelectItem value="Third Party Courier">Third Party Courier</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                      Invoice Line Items & Products (Connected with Stock Management)
+                    </Label>
+                    <span className="text-[10px] text-slate-500 italic">
+                      * Auto-creates consecutive rows & automatically updates inventory
+                    </span>
+                  </div>
+
+                  <div className="border border-black rounded-lg overflow-visible">
+                    <table className="w-full text-xs text-center border-collapse">
+                      <thead>
+                        <tr className="bg-black text-white font-bold text-[10px] uppercase tracking-wider">
+                          <th className="py-2 w-10 border-r border-neutral-700">No.</th>
+                          <th className="py-2 text-left px-3 border-r border-neutral-700">Product / Medicine</th>
+                          <th className="py-2 w-20 border-r border-neutral-700">Boxes</th>
+                          <th className="py-2 w-28 border-r border-neutral-700">Unit Price (৳)</th>
+                          <th className="py-2 w-28 border-r border-neutral-700">Total (৳)</th>
+                          <th className="py-2 w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lineItems.map((item, idx) => (
+                          <tr key={idx} className="border-b border-slate-200 last:border-0 relative">
+                            <td className="py-1.5 border-r border-slate-200 font-mono font-bold text-slate-600">
+                              {item.no}
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-slate-200 text-left relative">
+                              <Input
+                                placeholder="Choose or search stock product..."
+                                value={item.description}
+                                onChange={(e) => {
+                                  handleUpdateLineItem(idx, "description", e.target.value);
+                                  setActiveSuggestionRow(idx);
+                                }}
+                                onFocus={() => setActiveSuggestionRow(idx)}
+                                className="h-7 text-xs border-slate-200 font-medium"
+                              />
+                              {activeSuggestionRow === idx && (
+                                <div className="absolute z-50 left-2 right-2 bg-white border border-slate-300 rounded shadow-lg max-h-40 overflow-y-auto mt-0.5">
+                                  {productCatalog
+                                    .filter((p) => p.name.toLowerCase().includes(item.description.toLowerCase()))
+                                    .map((prod) => (
+                                      <div
+                                        key={prod.id}
+                                        onClick={() => handleSelectStockProduct(idx, prod)}
+                                        className="px-2.5 py-1.5 text-xs hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50 last:border-0"
+                                      >
+                                        <span className="font-semibold text-slate-900">{prod.name}</span>
+                                        <span className="text-[10px] text-slate-500 font-mono">
+                                          Stock: {prod.stockQty} boxes | ৳{prod.unitPrice}
+                                        </span>
+                                      </div>
+                                    ))}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-slate-200">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => handleUpdateLineItem(idx, "quantity", e.target.value)}
+                                className="h-7 text-xs font-mono text-center border-slate-200"
+                              />
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-slate-200">
+                              <Input
+                                type="number"
+                                min="0"
+                                value={item.unitCost}
+                                onChange={(e) => handleUpdateLineItem(idx, "unitCost", e.target.value)}
+                                className="h-7 text-xs font-mono text-right border-slate-200"
+                              />
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-slate-200 font-mono font-bold text-right text-slate-900">
+                              ৳{item.total.toLocaleString("en-IN")}
+                            </td>
+                            <td className="py-1.5 px-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveLineItem(idx)}
+                                disabled={lineItems.length === 1}
+                                className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 items-start pt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">Comments / Logistics Notes</Label>
                     <Input
-                      id="mio"
-                      placeholder="e.g. Rafiqul Islam"
-                      value={assignedMio}
-                      onChange={(e) => setAssignedMio(e.target.value)}
-                      required
+                      placeholder="Special delivery instructions or comments..."
+                      value={orderComments}
+                      onChange={(e) => setOrderComments(e.target.value)}
                       className="h-8 text-xs"
                     />
                   </div>
-                </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="items" className="text-xs font-medium text-slate-700">Formulations & Quantity *</Label>
-                  <Input
-                    id="items"
-                    placeholder="e.g. Napa Extra (2000 Strips), Ciprocin 500mg (800 Strips)"
-                    value={itemsSummary}
-                    onChange={(e) => setItemsSummary(e.target.value)}
-                    required
-                    className="h-8 text-xs"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="boxes" className="text-xs font-medium text-slate-700">Carton Box Count *</Label>
-                    <Input
-                      id="boxes"
-                      type="number"
-                      placeholder="20"
-                      value={totalBoxes}
-                      onChange={(e) => setTotalBoxes(e.target.value)}
-                      required
-                      className="h-8 text-xs font-mono"
-                    />
+                  <div className="border border-black rounded-lg overflow-hidden text-xs">
+                    <div className="flex border-b border-black">
+                      <div className="w-28 bg-black text-white px-2 py-1.5 font-bold uppercase text-[10px] flex items-center">
+                        SUBTOTAL
+                      </div>
+                      <div className="flex-1 p-1.5 text-right font-mono font-bold">
+                        ৳{calculatedSubtotal.toLocaleString("en-IN")}
+                      </div>
+                    </div>
+                    <div className="flex border-b border-black items-center">
+                      <div className="w-28 bg-black text-white px-2 py-1.5 font-bold uppercase text-[10px] flex items-center">
+                        DISCOUNT (৳)
+                      </div>
+                      <div className="flex-1 px-2">
+                        <Input
+                          type="number"
+                          value={discountAmount}
+                          onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value) || 0))}
+                          className="h-6 text-xs font-mono text-right border-0 bg-transparent p-0"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex bg-slate-50">
+                      <div className="w-28 bg-black text-white px-2 py-1.5 font-bold uppercase text-[10px] flex items-center">
+                        GRAND TOTAL
+                      </div>
+                      <div className="flex-1 p-1.5 text-right font-mono font-extrabold text-sm text-[#0090FF]">
+                        ৳{calculatedGrandTotal.toLocaleString("en-IN")}
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="val" className="text-xs font-medium text-slate-700">Invoice Total (৳) *</Label>
-                    <Input
-                      id="val"
-                      type="number"
-                      placeholder="65000"
-                      value={orderValue}
-                      onChange={(e) => setOrderValue(e.target.value)}
-                      required
-                      className="h-8 text-xs font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="delivery-method" className="text-xs font-medium text-slate-700">Logistics Fleet Channel</Label>
-                  <Select
-                    value={deliveryMethod}
-                    onValueChange={(val) => setDeliveryMethod(val as SalesOrder["deliveryMethod"])}
-                  >
-                    <SelectTrigger className="h-8 text-xs bg-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="text-xs">
-                      <SelectItem value="Company Van (Ambient)">Company Van (Standard Ambient Delivery)</SelectItem>
-                      <SelectItem value="Company Van (Cold Chain)">Company Van (Refrigerated Cold Chain 2-8°C)</SelectItem>
-                      <SelectItem value="Courier Dispatch">Outstation Third-Party Courier</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
 
                 <DialogFooter className="pt-3">
@@ -464,7 +926,7 @@ function LogisticsOrdersContent() {
                     Cancel
                   </Button>
                   <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white">
-                    Submit Order to Warehouse
+                    Submit Order & Deduct Stock
                   </Button>
                 </DialogFooter>
               </form>
@@ -490,18 +952,19 @@ function LogisticsOrdersContent() {
           </p>
         </Card>
 
+        {/* Updated KPI Card to show Sales Representative */}
         <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Active Road Deliveries</span>
+            <span className="text-xs font-medium text-slate-500">Sales Representative</span>
             <div className="p-1.5 rounded-lg bg-blue-50 text-[#0090FF]">
-              <Truck className="h-4 w-4" />
+              <UserCheck className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none font-mono">
-            {activeDispatchCount} Vans
+            {activeRepsCount} Active
           </div>
           <p className="text-[11px] text-slate-400 mt-3">
-            Dispatched on territorial delivery routes
+            Assigned across territorial field routes
           </p>
         </Card>
 
@@ -541,7 +1004,7 @@ function LogisticsOrdersContent() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
           <Input
-            placeholder="Search order #, pharmacy, challan, or MIO..."
+            placeholder="Search order #, pharmacy, invoice #, or MIO..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8 h-8 text-xs border-slate-200 bg-slate-50/50"
@@ -579,7 +1042,7 @@ function LogisticsOrdersContent() {
         </div>
       </div>
 
-      {/* 4. Main Order Ledger Table */}
+      {/* 4. Main Order Ledger Table (Updated with "Boxes" and "Invoice No.") */}
       <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6 print:hidden">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -587,7 +1050,7 @@ function LogisticsOrdersContent() {
               COMMERCIAL SALES ORDER REGISTER
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Live batch picking, Delivery Challan issuances, and automated invoice triggers
+              Live batch picking and sequential commercial sales invoice generation
             </p>
           </div>
           <span className="text-xs text-slate-400 font-medium">
@@ -602,174 +1065,173 @@ function LogisticsOrdersContent() {
               <TableHead className="text-xs font-medium text-slate-600">Destination Chemist</TableHead>
               <TableHead className="text-xs font-medium text-slate-600">Items / Formulations</TableHead>
               <TableHead className="text-xs font-medium text-slate-600">Delivery Fleet</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-center">Cartons</TableHead>
+              <TableHead className="text-xs font-medium text-slate-600 text-center">Boxes</TableHead>
               <TableHead className="text-xs font-medium text-slate-600 text-right">Order Value</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Challan / Invoice</TableHead>
+              <TableHead className="text-xs font-medium text-slate-600">Invoice No.</TableHead>
               <TableHead className="text-xs font-medium text-slate-600">Fulfillment Status</TableHead>
               <TableHead className="text-xs font-medium text-slate-600 text-right pr-0">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredOrders.map((ord) => (
-              <TableRow key={ord.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                {/* Order Ref */}
-                <TableCell className="py-3 pl-0">
-                  <div className="leading-tight">
-                    <span className="text-xs font-mono font-bold text-[#0090FF] block">{ord.orderNumber}</span>
-                    <span className="text-[10px] text-slate-400 mt-0.5">{ord.orderDate}</span>
-                  </div>
-                </TableCell>
-
-                {/* Chemist / Pharmacy */}
-                <TableCell className="py-3 text-xs text-slate-800">
-                  <div>
-                    <span className="font-semibold text-slate-900 block">{ord.pharmacyName}</span>
-                    <span className="text-[10px] text-slate-400">{ord.territory} • MIO: {ord.assignedMio}</span>
-                  </div>
-                </TableCell>
-
-                {/* Items Summary */}
-                <TableCell className="py-3 text-xs text-slate-600 max-w-[210px] truncate">
-                  {ord.itemsSummary}
-                </TableCell>
-
-                {/* Fleet / Delivery Method */}
-                <TableCell className="py-3 text-xs text-slate-700">
-                  <div className="flex items-center gap-1.5">
-                    {ord.deliveryMethod.includes("Cold") ? (
-                      <Snowflake className="h-3 w-3 text-[#0090FF] shrink-0" />
-                    ) : (
-                      <Truck className="h-3 w-3 text-slate-400 shrink-0" />
-                    )}
-                    <span className="truncate max-w-[140px]">{ord.deliveryMethod}</span>
-                  </div>
-                </TableCell>
-
-                {/* Boxes */}
-                <TableCell className="py-3 text-xs text-center font-mono font-medium text-slate-700">
-                  {ord.totalBoxes}
-                </TableCell>
-
-                {/* Order Value */}
-                <TableCell className="py-3 text-xs text-right font-mono font-bold text-slate-900">
-                  ৳{ord.orderValue.toLocaleString("en-IN")}
-                </TableCell>
-
-                {/* Challan & Invoice Links */}
-                <TableCell className="py-3 text-xs">
-                  <div>
-                    <span className="font-mono text-[10px] text-slate-700 block">
-                      {ord.challanNumber ? ord.challanNumber : "Challan Pending"}
-                    </span>
-                    {ord.invoiceNumber ? (
-                      <span className="font-mono text-[10px] font-semibold text-emerald-600 block">
-                        {ord.invoiceNumber}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-slate-400 italic">Not Invoiced</span>
-                    )}
-                  </div>
-                </TableCell>
-
-                {/* Status Badge */}
-                <TableCell className="py-3 text-xs">
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
-                      ord.status === "Delivered & Invoiced"
-                        ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                        : ord.status === "Out for Delivery"
-                        ? "text-blue-700 bg-blue-50 border-blue-200"
-                        : ord.status === "FEFO Allocated"
-                        ? "text-purple-700 bg-purple-50 border-purple-200"
-                        : "text-amber-700 bg-amber-50 border-amber-200"
-                    }`}
-                  >
-                    {ord.status}
-                  </Badge>
-                </TableCell>
-
-                {/* Actions Dropdown */}
-                <TableCell className="py-3 text-xs text-right pr-0">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-7 w-7 p-0 text-slate-500 hover:text-slate-900">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-52 bg-white">
-                      <DropdownMenuLabel className="text-[10px] text-slate-400 uppercase tracking-wider">
-                        Workflow Transitions
-                      </DropdownMenuLabel>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setSelectedOrder(ord);
-                          setIsInspectOpen(true);
-                        }}
-                        className="text-xs cursor-pointer text-slate-700"
-                      >
-                        <FileText className="h-3.5 w-3.5 mr-2 text-slate-500" />
-                        Inspect Delivery Challan
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-
-                      {ord.status === "Pending Credit Check" && (
-                        <DropdownMenuItem
-                          onClick={() => handleUpdateStatus(ord.id, "FEFO Allocated")}
-                          className="text-xs cursor-pointer text-emerald-600"
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
-                          Approve Credit & Allocate Batches
-                        </DropdownMenuItem>
-                      )}
-
-                      {ord.status === "FEFO Allocated" && (
-                        <DropdownMenuItem
-                          onClick={() => handleUpdateStatus(ord.id, "Out for Delivery")}
-                          className="text-xs cursor-pointer text-[#0090FF]"
-                        >
-                          <Truck className="h-3.5 w-3.5 mr-2" />
-                          Dispatch on Van Route
-                        </DropdownMenuItem>
-                      )}
-
-                      {ord.status === "Out for Delivery" && (
-                        <DropdownMenuItem
-                          onClick={() => handleUpdateStatus(ord.id, "Delivered & Invoiced")}
-                          className="text-xs cursor-pointer text-emerald-600 font-semibold"
-                        >
-                          <PackageCheck className="h-3.5 w-3.5 mr-2" />
-                          Mark Delivered & Generate Invoice
-                        </DropdownMenuItem>
-                      )}
-
-                      <DropdownMenuItem
-                        onClick={() => handleUpdateStatus(ord.id, "Cancelled")}
-                        className="text-xs cursor-pointer text-rose-600 focus:text-rose-600 focus:bg-rose-50"
-                      >
-                        <AlertTriangle className="h-3.5 w-3.5 mr-2" />
-                        Cancel Order
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center py-8 text-slate-400 text-xs">
+                  Loading order register from database...
                 </TableCell>
               </TableRow>
-            ))}
+            ) : filteredOrders.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center py-8 text-slate-400 text-xs">
+                  No sales orders found. Click "Create Sales Order" to book a dispatch.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredOrders.map((ord) => (
+                <TableRow key={ord.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                  <TableCell className="py-3 pl-0">
+                    <div className="leading-tight">
+                      <span className="text-xs font-mono font-bold text-[#0090FF] block">{ord.orderNumber}</span>
+                      <span className="text-[10px] text-slate-400 mt-0.5">{ord.orderDate}</span>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="py-3 text-xs text-slate-800">
+                    <div>
+                      <span className="font-semibold text-slate-900 block">{ord.pharmacyName}</span>
+                      <span className="text-[10px] text-slate-400">{ord.territory} • MIO: {ord.assignedMio}</span>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="py-3 text-xs text-slate-600 max-w-[210px] truncate">
+                    {ord.itemsSummary}
+                  </TableCell>
+
+                  <TableCell className="py-3 text-xs text-slate-700">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate max-w-[140px] font-medium">{ord.deliveryMethod}</span>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="py-3 text-xs text-center font-mono font-medium text-slate-700">
+                    {ord.totalBoxes}
+                  </TableCell>
+
+                  <TableCell className="py-3 text-xs text-right font-mono font-bold text-slate-900">
+                    ৳{ord.orderValue.toLocaleString("en-IN")}
+                  </TableCell>
+
+                  <TableCell className="py-3 text-xs">
+                    <span className="font-mono text-xs font-bold text-emerald-700 block">
+                      {ord.invoiceNumber}
+                    </span>
+                  </TableCell>
+
+                  <TableCell className="py-3 text-xs">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                        ord.status === "Delivered & Invoiced"
+                          ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                          : ord.status === "Out for Delivery"
+                          ? "text-blue-700 bg-blue-50 border-blue-200"
+                          : ord.status === "FEFO Allocated"
+                          ? "text-purple-700 bg-purple-50 border-purple-200"
+                          : "text-amber-700 bg-amber-50 border-amber-200"
+                      }`}
+                    >
+                      {ord.status}
+                    </Badge>
+                  </TableCell>
+
+                  <TableCell className="py-3 text-xs text-right pr-0">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-7 w-7 p-0 text-slate-500 hover:text-slate-900">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-52 bg-white">
+                        <DropdownMenuLabel className="text-[10px] text-slate-400 uppercase tracking-wider">
+                          Workflow Transitions
+                        </DropdownMenuLabel>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedOrder(ord);
+                            setIsInspectOpen(true);
+                          }}
+                          className="text-xs cursor-pointer text-slate-700 font-semibold"
+                        >
+                          <FileText className="h-3.5 w-3.5 mr-2 text-slate-500" />
+                          View / Print Invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+
+                        {ord.status === "Pending Credit Check" && (
+                          <DropdownMenuItem
+                            onClick={() => handleUpdateStatus(ord.id, "FEFO Allocated")}
+                            className="text-xs cursor-pointer text-emerald-600"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
+                            Approve Credit & Allocate Batches
+                          </DropdownMenuItem>
+                        )}
+
+                        {ord.status === "FEFO Allocated" && (
+                          <DropdownMenuItem
+                            onClick={() => handleUpdateStatus(ord.id, "Out for Delivery")}
+                            className="text-xs cursor-pointer text-[#0090FF]"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
+                            Dispatch on Route
+                          </DropdownMenuItem>
+                        )}
+
+                        {ord.status === "Out for Delivery" && (
+                          <DropdownMenuItem
+                            onClick={() => handleUpdateStatus(ord.id, "Delivered & Invoiced")}
+                            className="text-xs cursor-pointer text-emerald-600 font-semibold"
+                          >
+                            <PackageCheck className="h-3.5 w-3.5 mr-2" />
+                            Mark Delivered & Invoiced
+                          </DropdownMenuItem>
+                        )}
+
+                        <DropdownMenuItem
+                          onClick={() => handleUpdateStatus(ord.id, "Cancelled")}
+                          className="text-xs cursor-pointer text-amber-600"
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5 mr-2" />
+                          Cancel Order
+                        </DropdownMenuItem>
+
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteOrder(ord.id)}
+                          className="text-xs cursor-pointer text-rose-600 focus:text-rose-600 focus:bg-rose-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-2 text-rose-600" />
+                          Delete Order Record
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </Card>
 
-      {/* 5. Delivery Challan Inspection Modal */}
+      {/* 5. Invoice Preview & Actions Dialog */}
       <Dialog open={isInspectOpen} onOpenChange={setIsInspectOpen}>
-        <DialogContent className="sm:max-w-[620px] bg-white rounded-2xl p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-[760px] bg-white rounded-2xl p-0 overflow-hidden max-h-[95vh] flex flex-col">
           {selectedOrder && (
             <div>
-              {/* Header Toolbar (Hidden when printing) */}
               <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between print:hidden">
                 <div className="flex items-center gap-2">
-                  <Truck className="h-4 w-4 text-[#0090FF]" />
+                  <FileText className="h-4 w-4 text-[#0090FF]" />
                   <span className="text-xs font-bold text-slate-800">
-                    Delivery Challan — {selectedOrder.challanNumber || "Draft"}
+                    Invoice Preview — {selectedOrder.invoiceNumber}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -779,7 +1241,7 @@ function LogisticsOrdersContent() {
                     className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white gap-1.5 shadow-none"
                   >
                     <Printer className="h-3.5 w-3.5" />
-                    Print Challan
+                    Print Invoice
                   </Button>
                   <Button
                     size="sm"
@@ -792,131 +1254,242 @@ function LogisticsOrdersContent() {
                 </div>
               </div>
 
-              {/* Printable Body Content */}
-              <div className="p-8 text-slate-900 font-sans leading-relaxed text-xs">
-                {/* Official Letterhead */}
-                <div className="border-b-2 border-slate-900 pb-3 flex items-start justify-between">
-                  <div>
-                    <h2 className="text-lg font-black tracking-tight uppercase">AK PHARMA LIMITED</h2>
-                    <p className="text-[11px] text-slate-600 font-medium">Warehouse & Logistics Dispatch Division</p>
-                    <p className="text-[10px] text-slate-400">Tejgaon Central Depot, Dhaka • DGDA Lic: DL-PH-2026-88</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-black uppercase tracking-wider block text-slate-900 border border-slate-900 px-2 py-0.5 inline-block">
-                      DELIVERY CHALLAN
-                    </span>
-                    <span className="text-xs font-mono font-bold text-[#0090FF] block mt-1">
-                      {selectedOrder.challanNumber || "DC-PENDING"}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                      Date: {selectedOrder.orderDate}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Primary Meta Strip */}
-                <div className="grid grid-cols-2 gap-4 py-4 border-b border-slate-200 text-xs">
-                  <div className="space-y-1">
-                    <div>
-                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Destination Chemist:</span>
-                      <strong className="text-sm text-slate-900 block">{selectedOrder.pharmacyName}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">Territory & Assigned Field Officer:</span>
-                      <span className="font-medium text-slate-800">{selectedOrder.territory} • MIO: {selectedOrder.assignedMio}</span>
+              {/* On-screen Preview */}
+              <div className="p-8 overflow-y-auto max-h-[75vh] bg-neutral-100 flex justify-center">
+                <div className="bg-white border-2 border-black p-6 w-full max-w-[620px] text-black font-sans text-xs">
+                  <div className="flex justify-between items-start">
+                    <h1 className="text-3xl font-black tracking-wider uppercase font-serif">INVOICE</h1>
+                    <div className="text-right text-[11px] leading-tight space-y-0.5 font-medium">
+                      <strong className="text-sm font-black uppercase tracking-wide block font-serif">AK Pharma</strong>
+                      <p>10/26, Rupnagar R/A, Mirpur, Dhaka 1216</p>
+                      <p>01712611074, 01798112763</p>
+                      <p>akpharmabd@gmail.com</p>
                     </div>
                   </div>
 
-                  <div className="space-y-1 text-right sm:text-left">
-                    <div>
-                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Logistics Channel:</span>
-                      <strong className="text-slate-900 block">{selectedOrder.deliveryMethod}</strong>
+                  <div className="mt-6 border border-black w-64 text-left">
+                    <div className="bg-black text-white px-2 py-0.5 font-bold uppercase text-[10px] tracking-wider">
+                      BILL TO:
                     </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">Sales Order Reference:</span>
-                      <span className="font-mono font-bold text-slate-800">{selectedOrder.orderNumber}</span>
+                    <div className="p-2 space-y-0.5 text-[11px]">
+                      <strong className="block font-bold">{selectedOrder.pharmacyName}</strong>
+                      <p className="text-neutral-700">{matchedClient?.address || selectedOrder.territory}</p>
+                      <p className="text-neutral-700">{matchedClient?.phone || "Phone: On File"}</p>
+                      <p className="text-neutral-500 text-[10px]">Territory: {selectedOrder.territory}</p>
                     </div>
                   </div>
-                </div>
 
-                {/* Consignment Manifest */}
-                <div className="py-4">
-                  <table className="w-full text-xs border border-slate-300">
+                  <table className="w-full mt-6 border-collapse border border-black text-xs text-center">
                     <thead>
-                      <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-800">
-                        <th className="text-left p-2.5">Dispatched Formulations / Products</th>
-                        <th className="text-center p-2.5 w-24">Cartons</th>
-                        <th className="text-right p-2.5 w-32">Value (BDT)</th>
+                      <tr className="bg-black text-white font-bold text-[10px] uppercase tracking-wider">
+                        <th className="border border-black py-1.5 w-10">No.</th>
+                        <th className="border border-black py-1.5 text-left px-2">Description</th>
+                        <th className="border border-black py-1.5 w-16">Boxes</th>
+                        <th className="border border-black py-1.5 w-24">Unit Cost</th>
+                        <th className="border border-black py-1.5 w-24">Total</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      <tr>
-                        <td className="p-3">
-                          <span className="font-bold text-slate-900 block">{selectedOrder.itemsSummary}</span>
-                          <span className="text-[10px] text-slate-500 block mt-0.5">
-                            FEFO Verification: Checked & Batch Allocated
-                          </span>
-                        </td>
-                        <td className="p-3 text-center font-mono font-bold text-slate-900">
-                          {selectedOrder.totalBoxes} Boxes
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-slate-900">
-                          ৳{selectedOrder.orderValue.toLocaleString("en-IN")}/-
-                        </td>
-                      </tr>
+                    <tbody>
+                      {activeInvoiceRows.map((row, idx) => (
+                        <tr key={idx} className="border-b border-black">
+                          <td className="border-r border-black py-2 font-mono font-medium">{row.no || idx + 1}</td>
+                          <td className="border-r border-black py-2 px-2 text-left font-medium">{row.description}</td>
+                          <td className="border-r border-black py-2 font-mono">{row.quantity}</td>
+                          <td className="border-r border-black py-2 font-mono">৳{row.unitCost.toLocaleString("en-IN")}</td>
+                          <td className="py-2 font-mono font-bold">৳{row.total.toLocaleString("en-IN")}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
-                </div>
 
-                {selectedOrder.invoiceNumber && (
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-emerald-800 my-2">
-                    <span className="font-medium">Commercial Sales Invoice Generated:</span>
-                    <span className="font-mono font-bold">{selectedOrder.invoiceNumber}</span>
-                  </div>
-                )}
+                  <div className="mt-4 flex gap-4 items-start">
+                    <div className="flex-1 border border-black min-h-[90px]">
+                      <div className="bg-black text-white px-2 py-0.5 font-bold uppercase text-[10px] tracking-wider text-center">
+                        COMMENTS
+                      </div>
+                      <div className="p-2 text-[11px] text-neutral-700 space-y-1">
+                        <p>• Invoice No: <strong>{selectedOrder.invoiceNumber}</strong></p>
+                        <p>• Assigned MIO: {selectedOrder.assignedMio}</p>
+                        <p>• Delivery Fleet: {selectedOrder.deliveryMethod}</p>
+                        {selectedOrder.comments && <p>• Notes: {selectedOrder.comments}</p>}
+                      </div>
+                    </div>
 
-                {/* Sign-off Blocks */}
-                <div className="mt-12 pt-6 border-t-2 border-slate-200 grid grid-cols-3 gap-6 text-[11px] text-center">
-                  <div>
-                    <div className="w-32 border-b border-slate-400 mx-auto mb-1.5" />
-                    <span className="font-bold text-slate-900 block">Warehouse Dispatcher</span>
-                    <span className="text-[10px] text-slate-500">Tejgaon Central Depot</span>
+                    <div className="w-56 border border-black">
+                      <div className="flex border-b border-black">
+                        <div className="w-24 bg-black text-white px-2 py-1 font-bold text-[10px] uppercase flex items-center">
+                          SUBTOTAL
+                        </div>
+                        <div className="flex-1 p-1 text-right font-mono font-medium">
+                          ৳{inspectSubtotal.toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                      <div className="flex border-b border-black">
+                        <div className="w-24 bg-black text-white px-2 py-1 font-bold text-[10px] uppercase flex items-center">
+                          DISCOUNT
+                        </div>
+                        <div className="flex-1 p-1 text-right font-mono">
+                          ৳{inspectDiscount.toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                      <div className="flex bg-neutral-50">
+                        <div className="w-24 bg-black text-white px-2 py-1 font-bold text-[10px] uppercase flex items-center">
+                          GRAND TOTAL
+                        </div>
+                        <div className="flex-1 p-1 text-right font-mono font-bold text-sm">
+                          ৳{inspectGrandTotal.toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="w-32 border-b border-slate-400 mx-auto mb-1.5" />
-                    <span className="font-bold text-slate-900 block">Fleet Delivery Driver</span>
-                    <span className="text-[10px] text-slate-500">Route Courier</span>
+
+                  <div className="mt-12 pt-6 grid grid-cols-2 gap-8 text-[10px] text-center border-t-2 border-slate-200">
+                    <div>
+                      <div className="w-32 border-b border-slate-400 mx-auto mb-1" />
+                      <strong className="text-slate-900 block text-[11px]">Chief Executive Officer</strong>
+                      <span className="text-slate-500">Authorized Signature</span>
+                    </div>
+                    <div>
+                      <div className="w-32 border-b border-slate-400 mx-auto mb-1" />
+                      <strong className="text-slate-900 block text-[11px]">Managing Director</strong>
+                      <span className="text-slate-500">Authorized Signature</span>
+                    </div>
                   </div>
-                  <div>
-                    <div className="w-32 border-b border-slate-400 mx-auto mb-1.5" />
-                    <span className="font-bold text-slate-900 block">Chemist Receiver</span>
-                    <span className="text-[10px] text-slate-500">Official Pharmacy Stamp</span>
+
+                  <div className="mt-6 text-center font-bold text-xs uppercase tracking-wider font-serif">
+                    THANK YOU FOR YOUR BUSINESS
                   </div>
                 </div>
               </div>
 
-              {/* Modal Footer Controls */}
-              <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between print:hidden">
-                <Button variant="outline" size="sm" onClick={() => setIsInspectOpen(false)} className="h-8 text-xs">
-                  Close Preview
-                </Button>
-                {selectedOrder.status !== "Delivered & Invoiced" && (
+              {selectedOrder.status !== "Delivered & Invoiced" && (
+                <div className="p-3 border-t border-slate-200 bg-slate-50 flex justify-end print:hidden">
                   <Button
                     size="sm"
                     onClick={() => {
                       handleUpdateStatus(selectedOrder.id, "Delivered & Invoiced");
                       setIsInspectOpen(false);
                     }}
-                    className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white font-semibold"
+                    className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                   >
-                    Confirm Delivery & Trigger Invoice
+                    Confirm Delivery & Complete Invoice
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 6. Isolated Standalone Printable Invoice Sheet: Matches Design Exactly */}
+      {selectedOrder && (
+        <div id="print-standalone-invoice" className="hidden font-sans text-black bg-white">
+          <div className="border-2 border-black p-8 w-full max-w-[760px] mx-auto text-xs">
+            <div className="flex justify-between items-start">
+              <h1 className="text-4xl font-black tracking-wider uppercase font-serif">INVOICE</h1>
+              <div className="text-right text-xs leading-snug space-y-0.5">
+                <strong className="text-base font-black uppercase tracking-wide block font-serif">AK Pharma</strong>
+                <p>10/26, Rupnagar R/A, Mirpur, Dhaka 1216</p>
+                <p>01712611074, 01798112763</p>
+                <p>akpharmabd@gmail.com</p>
+              </div>
+            </div>
+
+            <div className="mt-8 border border-black w-72 text-left">
+              <div className="bg-black text-white px-2.5 py-1 font-bold uppercase text-[11px] tracking-wider">
+                BILL TO:
+              </div>
+              <div className="p-2.5 space-y-1 text-xs">
+                <strong className="block font-bold text-sm">{selectedOrder.pharmacyName}</strong>
+                <p>{matchedClient?.address || selectedOrder.territory}</p>
+                <p>{matchedClient?.phone || "Phone: On Record"}</p>
+                <p className="text-neutral-600 text-[10px]">Territory: {selectedOrder.territory}</p>
+              </div>
+            </div>
+
+            <table className="w-full mt-8 border-collapse border border-black text-xs text-center">
+              <thead>
+                <tr className="bg-black text-white font-bold text-[11px] uppercase tracking-wider">
+                  <th className="border border-black py-2 w-12">No.</th>
+                  <th className="border border-black py-2 text-left px-3">Description</th>
+                  <th className="border border-black py-2 w-20">Boxes</th>
+                  <th className="border border-black py-2 w-28">Unit Cost</th>
+                  <th className="border border-black py-2 w-28">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeInvoiceRows.map((row, idx) => (
+                  <tr key={idx} className="border-b border-black">
+                    <td className="border-r border-black py-2.5 font-mono font-medium">{row.no || idx + 1}</td>
+                    <td className="border-r border-black py-2.5 px-3 text-left font-medium">{row.description}</td>
+                    <td className="border-r border-black py-2.5 font-mono">{row.quantity}</td>
+                    <td className="border-r border-black py-2.5 font-mono">৳{row.unitCost.toLocaleString("en-IN")}</td>
+                    <td className="py-2.5 font-mono font-bold">৳{row.total.toLocaleString("en-IN")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="mt-6 flex gap-6 items-start">
+              <div className="flex-1 border border-black min-h-[110px]">
+                <div className="bg-black text-white px-3 py-1 font-bold uppercase text-[11px] tracking-wider text-center">
+                  COMMENTS
+                </div>
+                <div className="p-3 text-xs text-neutral-800 space-y-1">
+                  <p>• Invoice No: <strong>{selectedOrder.invoiceNumber}</strong></p>
+                  <p>• Assigned MIO: {selectedOrder.assignedMio}</p>
+                  <p>• Delivery Fleet: {selectedOrder.deliveryMethod}</p>
+                  {selectedOrder.comments && <p>• Notes: {selectedOrder.comments}</p>}
+                </div>
+              </div>
+
+              <div className="w-64 border border-black">
+                <div className="flex border-b border-black">
+                  <div className="w-28 bg-black text-white px-2.5 py-1.5 font-bold text-[11px] uppercase flex items-center">
+                    SUBTOTAL
+                  </div>
+                  <div className="flex-1 p-1.5 text-right font-mono font-medium text-xs">
+                    ৳{inspectSubtotal.toLocaleString("en-IN")}
+                  </div>
+                </div>
+                <div className="flex border-b border-black">
+                  <div className="w-28 bg-black text-white px-2.5 py-1.5 font-bold text-[11px] uppercase flex items-center">
+                    DISCOUNT
+                  </div>
+                  <div className="flex-1 p-1.5 text-right font-mono text-xs">
+                    ৳{inspectDiscount.toLocaleString("en-IN")}
+                  </div>
+                </div>
+                <div className="flex">
+                  <div className="w-28 bg-black text-white px-2.5 py-1.5 font-bold text-[11px] uppercase flex items-center">
+                    GRAND TOTAL
+                  </div>
+                  <div className="flex-1 p-1.5 text-right font-mono font-bold text-sm">
+                    ৳{inspectGrandTotal.toLocaleString("en-IN")}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-16 pt-8 border-t-2 border-slate-200 grid grid-cols-2 gap-12 text-[10px] text-center">
+              <div>
+                <div className="w-48 border-b border-slate-400 mx-auto mb-1.5" />
+                <strong className="text-slate-900 block text-xs">Chief Executive Officer (CEO)</strong>
+                <span className="text-slate-500">Authorized Signature</span>
+              </div>
+              <div>
+                <div className="w-48 border-b border-slate-400 mx-auto mb-1.5" />
+                <strong className="text-slate-900 block text-xs">Managing Director (MD)</strong>
+                <span className="text-slate-500">Authorized Signature</span>
+              </div>
+            </div>
+
+            <div className="mt-10 text-center font-bold text-sm uppercase tracking-widest font-serif">
+              THANK YOU FOR YOUR BUSINESS
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

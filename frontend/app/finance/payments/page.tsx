@@ -21,16 +21,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -44,46 +35,26 @@ import {
   Download,
   Search,
   Filter,
-  CheckCircle2,
-  Clock,
-  Receipt,
-  MoreHorizontal,
   Plus,
   Pencil,
-  FileText,
-  Check,
-  Building2,
-  ShieldCheck,
-  AlertCircle,
-  X,
-  CreditCard,
-  Copy,
+  Receipt,
+  Wallet,
+  Landmark,
+  Trash2,
 } from "lucide-react";
 
-export interface PaymentVoucher {
+export interface ExpenseVoucher {
   id: string;
   voucherNo: string;
   payeeName: string;
-  vendorTin: string;
-  category: string;
-  disbursingBank: string;
-  disbursingAccount: string;
-  invoiceRef: string;
-  poRef: string;
-  grossAmount: number;
-  tdsRate: number; // Percentage
-  vdsRate: number; // Percentage
-  netAmount: number;
-  paymentMethod: string;
-  instrumentRef: string;
-  executionDate: string;
-  stage: "Settled & Disbursed" | "Awaiting MD Signoff" | "Scheduled Clearing" | "Compliance Hold";
-  makerName: string;
-  checkerName: string;
-  narration: string;
+  category: "Doctor Gifts & Promotional" | "Wholesaler Settlement" | "Staff Welfare & Meals" | "Meetings & Events" | "General Operating Expense";
+  fundingSource: "Cash Safe" | "Bank Account";
+  sourceDetail: string;
+  amount: number;
+  paymentDate: string;
+  notes: string;
 }
 
-// Helper to convert number to Bangladeshi Taka words
 function numberToWordsBDT(num: number): string {
   if (num === 0) return "Zero Taka Only";
   const a = [
@@ -105,220 +76,307 @@ function numberToWordsBDT(num: number): string {
   return inWords(Math.floor(num)).trim() + " Taka Only";
 }
 
-const initialVouchers: PaymentVoucher[] = [
-  {
-    id: "pv-1",
-    voucherNo: "AKP-PV-2026-0901",
-    payeeName: "Square Raw Pharma Ingredients Ltd.",
-    vendorTin: "TIN-9948-2841-002",
-    category: "Active Pharmaceutical Ingredients (API)",
-    disbursingBank: "Standard Chartered Bank",
-    disbursingAccount: "01-8849201-01",
-    invoiceRef: "API-SQ-88910",
-    poRef: "PO-2026-0814",
-    grossAmount: 420000,
-    tdsRate: 5,
-    vdsRate: 7.5,
-    netAmount: 367500,
-    paymentMethod: "RTGS Real-Time Settlement",
-    instrumentRef: "RTGS-SCB-99021",
-    executionDate: "16 Sep 2026",
-    stage: "Settled & Disbursed",
-    makerName: "K. R. Mahmud (Accounts)",
-    checkerName: "Toshin Bin Azad (Admin Head)",
-    narration: "Commercial release for 500kg Ciprofloxacin USP grade bulk API lot with certified Certificate of Analysis (CoA).",
-  },
-  {
-    id: "pv-2",
-    voucherNo: "AKP-PV-2026-0902",
-    payeeName: "Bengal Pack & Print Solutions",
-    vendorTin: "TIN-8821-4902-119",
-    category: "Primary & Secondary Packaging",
-    disbursingBank: "Islami Bank Bangladesh PLC",
-    disbursingAccount: "205-019-338104",
-    invoiceRef: "BP-2026-773",
-    poRef: "PO-2026-0842",
-    grossAmount: 175000,
-    tdsRate: 4,
-    vdsRate: 5,
-    netAmount: 159250,
-    paymentMethod: "Account Payee Crossed Cheque",
-    instrumentRef: "CQ-339014",
-    executionDate: "18 Sep 2026",
-    stage: "Scheduled Clearing",
-    makerName: "K. R. Mahmud (Accounts)",
-    checkerName: "Pending Executive Counter-Sign",
-    narration: "Supply of 120,000 unit pharmaceutical blister aluminum foils with calibrated anti-counterfeit thermal stamping.",
-  },
-  {
-    id: "pv-3",
-    voucherNo: "AKP-PV-2026-0903",
-    payeeName: "Directorate General of Drug Administration (DGDA)",
-    vendorTin: "STATUTORY-GOV-BD",
-    category: "Statutory Regulatory & DGDA",
-    disbursingBank: "Eastern Bank PLC",
-    disbursingAccount: "104-102-994821",
-    invoiceRef: "DGDA-CH-2026-9",
-    poRef: "STAT-LIC-991",
-    grossAmount: 85000,
-    tdsRate: 0,
-    vdsRate: 0,
-    netAmount: 85000,
-    paymentMethod: "BEFTN / NPSB Electronic Clearing",
-    instrumentRef: "TREASURY-CHAL-091",
-    executionDate: "15 Sep 2026",
-    stage: "Settled & Disbursed",
-    makerName: "Dr. Sumaiya Akhtar (QA)",
-    checkerName: "Toshin Bin Azad (Admin Head)",
-    narration: "Statutory formulation renewal and GMP secondary cleanroom inspection fee under government treasury code.",
-  },
-  {
-    id: "pv-4",
-    voucherNo: "AKP-PV-2026-0904",
-    payeeName: "Dhaka North Field Force Consolidated Pool",
-    vendorTin: "INTERNAL-STAFF-DISB",
-    category: "Field Force DA/TA & Conveyance",
-    disbursingBank: "Eastern Bank PLC",
-    disbursingAccount: "104-102-994821",
-    invoiceRef: "EXP-DHK-N-09",
-    poRef: "DCR-TOUR-WK2",
-    grossAmount: 38400,
-    tdsRate: 0,
-    vdsRate: 0,
-    netAmount: 38400,
-    paymentMethod: "BEFTN / NPSB Electronic Clearing",
-    instrumentRef: "EBL-BATCH-SAL-98",
-    executionDate: "16 Sep 2026",
-    stage: "Settled & Disbursed",
-    makerName: "Nazmul Huda (RSM Central)",
-    checkerName: "Toshin Bin Azad (Admin Head)",
-    narration: "Reimbursable doctor detailing conveyance and GPS-verified doctor sample visit logs for 8 MIOs.",
-  },
-  {
-    id: "pv-5",
-    voucherNo: "AKP-PV-2026-0905",
-    payeeName: "Aventis Chem Excipients PLC",
-    vendorTin: "LC-FOREIGN-4921",
-    category: "Active Pharmaceutical Ingredients (API)",
-    disbursingBank: "Standard Chartered Bank",
-    disbursingAccount: "01-8849201-01",
-    invoiceRef: "LC-IMPORT-402",
-    poRef: "PO-2026-0799",
-    grossAmount: 680000,
-    tdsRate: 5,
-    vdsRate: 0,
-    netAmount: 646000,
-    paymentMethod: "RTGS Real-Time Settlement",
-    instrumentRef: "PENDING-TX-SWIFT",
-    executionDate: "20 Sep 2026",
-    stage: "Awaiting MD Signoff",
-    makerName: "K. R. Mahmud (Accounts)",
-    checkerName: "Managing Director / CFO",
-    narration: "Foreign raw material import Letter of Credit document retirement for microcrystalline cellulose excipient.",
-  },
-];
+export default function GeneralPaymentsPage() {
+  const [vouchers, setVouchers] = React.useState<ExpenseVoucher[]>([
+  ]);
 
-export default function PaymentsPage() {
-  const [vouchers, setVouchers] = React.useState<PaymentVoucher[]>(initialVouchers);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [categoryFilter, setCategoryFilter] = React.useState("all");
-  const [stageFilter, setStageFilter] = React.useState("all");
 
-  // Create / Edit Modal State
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
-  const [formData, setFormData] = React.useState<Omit<PaymentVoucher, "id">>({
-    voucherNo: "",
+  const [formData, setFormData] = React.useState<Omit<ExpenseVoucher, "id">>({
+    voucherNo: `AKP-EXP-2026-${Math.floor(1000 + Math.random() * 9000)}`,
     payeeName: "",
-    vendorTin: "",
-    category: "Active Pharmaceutical Ingredients (API)",
-    disbursingBank: "Eastern Bank PLC",
-    disbursingAccount: "104-102-994821",
-    invoiceRef: "",
-    poRef: "",
-    grossAmount: 100000,
-    tdsRate: 5,
-    vdsRate: 7.5,
-    netAmount: 87500,
-    paymentMethod: "RTGS Real-Time Settlement",
-    instrumentRef: "",
-    executionDate: "17 Sep 2026",
-    stage: "Settled & Disbursed",
-    makerName: "Toshin Bin Azad (Admin Head)",
-    checkerName: "Managing Director / CFO",
-    narration: "",
+    category: "Doctor Gifts & Promotional",
+    fundingSource: "Cash Safe",
+    sourceDetail: "Head Office Cash Safe",
+    amount: 0,
+    paymentDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    notes: "",
   });
 
-  // Dedicated Print Slip Modal State
-  const [printTarget, setPrintTarget] = React.useState<PaymentVoucher | null>(null);
-  const [isPrintModalOpen, setIsPrintModalOpen] = React.useState(false);
+  const [printTarget, setPrintTarget] = React.useState<ExpenseVoucher | null>(null);
+  const [isPrintOpen, setIsPrintOpen] = React.useState(false);
 
-  // Bank & Compliance Details Modal State (new high-end activity)
-  const [detailsTarget, setDetailsTarget] = React.useState<PaymentVoucher | null>(null);
-  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false);
+  // Hidden print iframe trigger
+  const handlePrint = (record: ExpenseVoucher) => {
+    const printFrame = document.createElement("iframe");
+    printFrame.style.position = "fixed";
+    printFrame.style.right = "0";
+    printFrame.style.bottom = "0";
+    printFrame.style.width = "0";
+    printFrame.style.height = "0";
+    printFrame.style.border = "0";
+    document.body.appendChild(printFrame);
 
-  // Recalculate net whenever gross, tds, or vds changes
-  const updateGrossAndTaxes = (gross: number, tds: number, vds: number) => {
-    const tdsVal = (gross * tds) / 100;
-    const vdsVal = (gross * vds) / 100;
-    const net = Math.max(0, gross - tdsVal - vdsVal);
-    setFormData((prev) => ({
-      ...prev,
-      grossAmount: gross,
-      tdsRate: tds,
-      vdsRate: vds,
-      netAmount: Math.round(net),
-    }));
+    const doc = printFrame.contentWindow?.document;
+    if (!doc) return;
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Voucher_${record.voucherNo}</title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 15mm;
+            }
+            * {
+              box-sizing: border-box;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              color: #0f172a;
+              background: #fff;
+              font-size: 13px;
+              line-height: 1.5;
+            }
+            .voucher-box {
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 24px;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              border-bottom: 2px solid #0f172a;
+              padding-bottom: 16px;
+            }
+            .company-name {
+              font-size: 20px;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: -0.5px;
+            }
+            .sub-title {
+              font-size: 11px;
+              color: #64748b;
+              margin-top: 2px;
+            }
+            .voucher-tag {
+              text-align: right;
+            }
+            .tag-badge {
+              display: inline-block;
+              font-size: 11px;
+              font-weight: 800;
+              border: 1px solid #0f172a;
+              padding: 2px 8px;
+              text-transform: uppercase;
+            }
+            .voucher-num {
+              font-family: monospace;
+              font-weight: 700;
+              color: #0090FF;
+              margin-top: 4px;
+            }
+            .meta-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 16px;
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 6px;
+              padding: 14px;
+              margin-top: 16px;
+            }
+            .meta-label {
+              font-size: 10px;
+              text-transform: uppercase;
+              font-weight: 700;
+              color: #64748b;
+            }
+            .meta-val {
+              font-weight: 600;
+              font-size: 13px;
+              margin-top: 2px;
+            }
+            .particulars-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 20px;
+            }
+            .particulars-table th {
+              background: #f1f5f9;
+              text-align: left;
+              padding: 10px 12px;
+              border: 1px solid #cbd5e1;
+              font-size: 11px;
+              text-transform: uppercase;
+            }
+            .particulars-table td {
+              padding: 12px;
+              border: 1px solid #cbd5e1;
+              font-size: 12px;
+            }
+            .amount-box {
+              margin-top: 16px;
+              padding: 12px 16px;
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 6px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+            .signatures {
+              margin-top: 60px;
+              display: flex;
+              justify-content: space-between;
+              padding: 0 40px;
+            }
+            .sig-block {
+              text-align: center;
+              width: 200px;
+            }
+            .sig-line {
+              border-top: 1px solid #475569;
+              margin-bottom: 6px;
+            }
+            .sig-title {
+              font-weight: 700;
+              font-size: 11px;
+            }
+            .sig-sub {
+              font-size: 10px;
+              color: #64748b;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="voucher-box">
+            <div class="header">
+              <div>
+                <div class="company-name">AK PHARMA </div>
+                <div class="sub-title">Corporate Finance & General Expense Disbursement</div>
+                <div class="sub-title">Plot 14, Sector 7, Uttara Commercial Zone, Dhaka • DGDA Lic: DL-PH-2026-88</div>
+              </div>
+              <div class="voucher-tag">
+                <div class="tag-badge">Expense Payment Voucher</div>
+                <div class="voucher-num">${record.voucherNo}</div>
+                <div class="sub-title" style="font-family: monospace;">Date: ${record.paymentDate}</div>
+              </div>
+            </div>
+
+            <div class="meta-grid">
+              <div>
+                <div class="meta-label">Payee / Beneficiary</div>
+                <div class="meta-val">${record.payeeName}</div>
+                <div class="meta-label" style="margin-top: 8px;">Expense Category</div>
+                <div class="meta-val">${record.category}</div>
+              </div>
+              <div>
+                <div class="meta-label">Disbursing Account / Safe</div>
+                <div class="meta-val">${record.sourceDetail} (${record.fundingSource})</div>
+                <div class="meta-label" style="margin-top: 8px;">Payment Status</div>
+                <div class="meta-val" style="color: #059669;">Settled & Disbursed</div>
+              </div>
+            </div>
+
+            <table class="particulars-table">
+              <thead>
+                <tr>
+                  <th>Particulars / Purpose of Payment</th>
+                  <th style="width: 140px; text-align: right;">Amount (BDT)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <strong>Payment to ${record.payeeName}</strong>
+                    <div style="color: #475569; font-style: italic; margin-top: 4px;">
+                      "${record.notes || "General operational expense disbursement."}"
+                    </div>
+                  </td>
+                  <td style="text-align: right; font-family: monospace; font-weight: 700; font-size: 14px;">
+                    ৳${record.amount.toLocaleString("en-IN")}/-
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="amount-box">
+              <span style="color: #64748b; font-size: 11px; font-weight: 600;">Amount in Words:</span>
+              <span style="font-weight: 700; font-style: italic;">${numberToWordsBDT(record.amount)}</span>
+            </div>
+
+            <div class="signatures">
+              <div class="sig-block">
+                <div class="sig-line"></div>
+                <div class="sig-title">Chief Executive Officer (CEO)</div>
+                <div class="sig-sub">Executive Approval</div>
+              </div>
+              <div class="sig-block">
+                <div class="sig-line"></div>
+                <div class="sig-title">Managing Director (MD)</div>
+                <div class="sig-sub">Final Financial Sign-off</div>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      printFrame.contentWindow?.focus();
+      printFrame.contentWindow?.print();
+      setTimeout(() => {
+        document.body.removeChild(printFrame);
+      }, 1000);
+    }, 250);
   };
+  
+const handleOpenCreate = async () => {
+  setEditingId(null);
 
-  const handleOpenCreate = () => {
-    setEditingId(null);
-    setFormData({
-      voucherNo: `AKP-PV-2026-09${vouchers.length + 10}`,
-      payeeName: "",
-      vendorTin: "",
-      category: "Active Pharmaceutical Ingredients (API)",
-      disbursingBank: "Eastern Bank PLC",
-      disbursingAccount: "104-102-994821",
-      invoiceRef: "",
-      poRef: "",
-      grossAmount: 0,
-      tdsRate: 5,
-      vdsRate: 7.5,
-      netAmount: 0,
-      paymentMethod: "RTGS Real-Time Settlement",
-      instrumentRef: "",
-      executionDate: "17 Sep 2026",
-      stage: "Settled & Disbursed",
-      makerName: "Toshin Bin Azad (Admin Head)",
-      checkerName: "Managing Director / CFO",
-      narration: "",
-    });
-    setIsFormOpen(true);
-  };
+  let nextSerial = "AKP-EXP-2026-0001";
 
-  const handleOpenEdit = (v: PaymentVoucher) => {
+  try {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+    const res = await fetch(`${API_URL}/payments/next-number`);
+    if (res.ok) {
+      const data = await res.json();
+      nextSerial = data.nextVoucherNo;
+    } else {
+      // Local fallback: count current vouchers + 1
+      nextSerial = `AKP-EXP-2026-${String(vouchers.length + 1).padStart(4, "0")}`;
+    }
+  } catch {
+    nextSerial = `AKP-EXP-2026-${String(vouchers.length + 1).padStart(4, "0")}`;
+  }
+
+  setFormData({
+    voucherNo: nextSerial,
+    payeeName: "",
+    category: "Doctor Gifts & Promotional",
+    fundingSource: "Cash Safe",
+    sourceDetail: "Head Office Cash Safe",
+    amount: 0,
+    paymentDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    notes: "",
+  });
+
+  setIsFormOpen(true);
+};
+
+  const handleOpenEdit = (v: ExpenseVoucher) => {
     setEditingId(v.id);
     setFormData({
       voucherNo: v.voucherNo,
       payeeName: v.payeeName,
-      vendorTin: v.vendorTin,
       category: v.category,
-      disbursingBank: v.disbursingBank,
-      disbursingAccount: v.disbursingAccount,
-      invoiceRef: v.invoiceRef,
-      poRef: v.poRef,
-      grossAmount: v.grossAmount,
-      tdsRate: v.tdsRate,
-      vdsRate: v.vdsRate,
-      netAmount: v.netAmount,
-      paymentMethod: v.paymentMethod,
-      instrumentRef: v.instrumentRef,
-      executionDate: v.executionDate,
-      stage: v.stage,
-      makerName: v.makerName,
-      checkerName: v.checkerName,
-      narration: v.narration,
+      fundingSource: v.fundingSource,
+      sourceDetail: v.sourceDetail,
+      amount: v.amount,
+      paymentDate: v.paymentDate,
+      notes: v.notes,
     });
     setIsFormOpen(true);
   };
@@ -326,206 +384,74 @@ export default function PaymentsPage() {
   const handleSaveForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingId) {
-      // Update existing
       setVouchers((prev) =>
         prev.map((v) => (v.id === editingId ? { ...formData, id: editingId } : v))
       );
-      if (printTarget && printTarget.id === editingId) {
-        setPrintTarget({ ...formData, id: editingId });
-      }
     } else {
-      // Create new
-      const created: PaymentVoucher = {
+      const created: ExpenseVoucher = {
         ...formData,
-        id: `pv-${Date.now()}`,
+        id: `exp-${Date.now()}`,
       };
       setVouchers((prev) => [created, ...prev]);
     }
     setIsFormOpen(false);
   };
 
-  const handleOpenPrintSlip = (v: PaymentVoucher) => {
-    setPrintTarget(v);
-    setIsPrintModalOpen(true);
-  };
-
-  const triggerDirectPrint = () => {
-    window.print();
+  const handleDelete = (id: string) => {
+    if (confirm("Are you sure you want to delete this expense voucher?")) {
+      setVouchers((prev) => prev.filter((v) => v.id !== id));
+    }
   };
 
   const handleExportExcel = () => {
     const data = vouchers.map((v) => ({
-      "Voucher Code": v.voucherNo,
+      "Voucher #": v.voucherNo,
+      "Date": v.paymentDate,
       "Payee / Beneficiary": v.payeeName,
-      "Vendor TIN": v.vendorTin,
-      Category: v.category,
-      "Disbursing Bank": v.disbursingBank,
-      "Bank Account": v.disbursingAccount,
-      "Invoice Ref": v.invoiceRef,
-      "PO Ref": v.poRef,
-      "Gross (BDT)": v.grossAmount,
-      "TDS Rate (%)": v.tdsRate,
-      "VDS Rate (%)": v.vdsRate,
-      "Net Disbursed (BDT)": v.netAmount,
-      Channel: v.paymentMethod,
-      "Instrument Ref": v.instrumentRef,
-      Date: v.executionDate,
-      Stage: v.stage,
-      Maker: v.makerName,
-      Checker: v.checkerName,
-      Narration: v.narration,
+      "Category": v.category,
+      "Source Type": v.fundingSource,
+      "Source Detail": v.sourceDetail,
+      "Amount (BDT)": v.amount,
+      "Notes": v.notes,
     }));
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Accounts Payable");
-    XLSX.writeFile(wb, `AK_Pharma_Payment_Vouchers_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  };
-
-  // --- High-end voucher workflow activities ---
-
-  const handleApproveAndRelease = (v: PaymentVoucher) => {
-    setVouchers((prev) =>
-      prev.map((p) =>
-        p.id === v.id
-          ? {
-              ...p,
-              stage: "Settled & Disbursed",
-              checkerName: "Managing Director / CFO (Approved)",
-            }
-          : p
-      )
-    );
-  };
-
-  const handleFlagComplianceHold = (v: PaymentVoucher) => {
-    setVouchers((prev) =>
-      prev.map((p) => (p.id === v.id ? { ...p, stage: "Compliance Hold" } : p))
-    );
-  };
-
-  const handleReleaseComplianceHold = (v: PaymentVoucher) => {
-    setVouchers((prev) =>
-      prev.map((p) => (p.id === v.id ? { ...p, stage: "Scheduled Clearing" } : p))
-    );
-  };
-
-  const handleDuplicateVoucher = (v: PaymentVoucher) => {
-    const duplicated: PaymentVoucher = {
-      ...v,
-      id: `pv-${Date.now()}`,
-      voucherNo: `${v.voucherNo}-DUP`,
-      stage: "Awaiting MD Signoff",
-      checkerName: "Managing Director / CFO",
-      instrumentRef: "",
-    };
-    setVouchers((prev) => [duplicated, ...prev]);
-  };
-
-  const handleVoidVoucher = (v: PaymentVoucher) => {
-    if (
-      typeof window !== "undefined" &&
-      window.confirm(`Void voucher ${v.voucherNo}? This action cannot be undone.`)
-    ) {
-      setVouchers((prev) => prev.filter((p) => p.id !== v.id));
-    }
-  };
-
-  const handleOpenDetails = (v: PaymentVoucher) => {
-    setDetailsTarget(v);
-    setIsDetailsOpen(true);
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "General Payments");
+    XLSX.writeFile(workbook, `AK_Pharma_General_Payments_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const filteredVouchers = vouchers.filter((v) => {
     const matchesSearch =
       v.voucherNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
       v.payeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.invoiceRef.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.disbursingBank.toLowerCase().includes(searchQuery.toLowerCase());
+      v.notes.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesCategory =
-      categoryFilter === "all" || v.category.toLowerCase() === categoryFilter.toLowerCase();
+    const matchesCat =
+      categoryFilter === "all" || v.category === categoryFilter;
 
-    const matchesStage =
-      stageFilter === "all" || v.stage.toLowerCase() === stageFilter.toLowerCase();
-
-    return matchesSearch && matchesCategory && matchesStage;
+    return matchesSearch && matchesCat;
   });
 
-  const totalDisbursedNet = vouchers
-    .filter((v) => v.stage === "Settled & Disbursed")
-    .reduce((acc, curr) => acc + curr.netAmount, 0);
-
-  const pendingAuthorizationNet = vouchers
-    .filter((v) => v.stage === "Awaiting MD Signoff")
-    .reduce((acc, curr) => acc + curr.netAmount, 0);
-
-  const totalStatutoryWithheld = vouchers
-    .filter((v) => v.stage === "Settled & Disbursed")
-    .reduce((acc, curr) => acc + (curr.grossAmount - curr.netAmount), 0);
+  const totalExpenseAmount = vouchers.reduce((acc, curr) => acc + curr.amount, 0);
 
   return (
-    <div className="space-y-6 max-w-[1380px] mx-auto pb-16">
-      {/* Robust print stylesheet.
-          Radix Dialog centers itself with position:fixed + a translate transform and
-          caps the panel at max-h-[95vh] with overflow-hidden so it can scroll on screen.
-          None of that survives printing: fixed/transformed elements get clipped to the
-          current viewport instead of flowing across pages, so anything below the fold
-          silently disappeared from the printed voucher. The rules below hide every other
-          element via the classic visibility technique, then force the dialog wrapper back
-          to normal static flow with no height cap so the full slip can paginate correctly. */}
-      <style jsx global>{`
-        @media print {
-          @page {
-            size: A4;
-            margin: 14mm;
-          }
-          body * {
-            visibility: hidden;
-          }
-          #printable-payment-voucher,
-          #printable-payment-voucher * {
-            visibility: visible;
-          }
-          #payment-voucher-dialog-content {
-            position: static !important;
-            inset: auto !important;
-            transform: none !important;
-            max-height: none !important;
-            height: auto !important;
-            overflow: visible !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            box-shadow: none !important;
-            border: none !important;
-            border-radius: 0 !important;
-            display: block !important;
-          }
-          #printable-payment-voucher {
-            position: static !important;
-            width: 100% !important;
-            max-height: none !important;
-            overflow: visible !important;
-            padding: 0 !important;
-            margin: 0 !important;
-          }
-        }
-      `}</style>
-
+    <div className="space-y-6 max-w-[1380px] mx-auto pb-16 font-sans text-neutral-900">
+      
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs print:hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="h-2 w-2 rounded-full bg-[#0090FF] animate-pulse" />
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              DISBURSEMENTS & ACCOUNTS PAYABLE
+              EXPENSE & DISBURSEMENT LEDGER
             </span>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900 mt-1">
-            Vendor Remittances & Payment Vouchers
+            General Payments & Cash Outflows
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Full editable control over vendor disbursements, TDS/VDS statutory tax withholding, and high-fidelity printable slips.
+            Record doctor gifts, wholesaler payments, staff expenses, and meeting costs with simple cash or bank allocation.
           </p>
         </div>
 
@@ -536,8 +462,7 @@ export default function PaymentsPage() {
             onClick={handleExportExcel}
             className="h-9 gap-1.5 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold px-3.5 rounded-lg shadow-none"
           >
-            <Download className="h-3.5 w-3.5 text-emerald-600" />
-            Export Ledger
+            <Download className="h-3.5 w-3.5 text-emerald-600" /> Export Ledger
           </Button>
 
           <Button
@@ -545,312 +470,166 @@ export default function PaymentsPage() {
             onClick={handleOpenCreate}
             className="h-9 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs font-semibold px-3.5 rounded-lg shadow-none"
           >
-            <Plus className="h-4 w-4" />
-            Issue New Voucher
+            <Plus className="h-4 w-4" /> Record New Payment
           </Button>
         </div>
       </div>
 
       {/* 2. Top Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 print:hidden">
-        <Card className="rounded-xl border border-slate-200/90 shadow-sm bg-white p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Net Settled Disbursals</span>
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-              <CheckCircle2 className="h-4 w-4" />
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="rounded-xl border border-slate-200 shadow-sm bg-white p-5">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Payments Recorded</span>
+          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-slate-900 font-mono">
+            {vouchers.length} Vouchers
           </div>
-          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-slate-900 leading-none font-mono">
-            ৳{totalDisbursedNet.toLocaleString("en-IN")}
-          </div>
-          <p className="text-[11px] text-slate-400 mt-3 font-medium">
-            Cleared cash outflows across banking routes
-          </p>
         </Card>
-
-        <Card className="rounded-xl border border-slate-200/90 shadow-sm bg-white p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Statutory Tax Withheld</span>
-            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
-              <ShieldCheck className="h-4 w-4" />
-            </div>
+        <Card className="rounded-xl border border-slate-200 shadow-sm bg-white p-5">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Outflow Amount</span>
+          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-emerald-700 font-mono">
+            ৳{totalExpenseAmount.toLocaleString("en-IN")}
           </div>
-          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-slate-900 leading-none font-mono text-purple-700">
-            ৳{totalStatutoryWithheld.toLocaleString("en-IN")}
-          </div>
-          <p className="text-[11px] text-slate-400 mt-3 font-medium">
-            TDS Sec-52 & VDS earmarked for treasury deposit
-          </p>
         </Card>
-
-        <Card className="rounded-xl border border-slate-200/90 shadow-sm bg-white p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Pending Authorization</span>
-            <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
-              <Clock className="h-4 w-4" />
-            </div>
+        <Card className="rounded-xl border border-slate-200 shadow-sm bg-white p-5">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Funding Sources</span>
+          <div className="mt-3 text-xs font-semibold text-slate-700 flex gap-2">
+            <span className="px-2.5 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200">Cash Safes Active</span>
+            <span className="px-2.5 py-1 rounded bg-purple-50 text-purple-700 border border-purple-200">Corporate Banks Active</span>
           </div>
-          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-slate-900 leading-none font-mono text-amber-600">
-            ৳{pendingAuthorizationNet.toLocaleString("en-IN")}
-          </div>
-          <p className="text-[11px] text-amber-600 font-semibold mt-3">
-            Awaiting Managing Director countersign
-          </p>
-        </Card>
-
-        <Card className="rounded-xl border border-slate-200/90 shadow-sm bg-white p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Active Vouchers</span>
-            <Badge variant="outline" className="text-[10px] font-bold text-blue-700 bg-blue-50 border-blue-200">
-              {vouchers.length} Total
-            </Badge>
-          </div>
-          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-slate-900 leading-none font-mono">
-            {vouchers.filter((v) => v.stage === "Settled & Disbursed").length} / {vouchers.length}
-          </div>
-          <p className="text-[11px] text-slate-400 mt-3 font-medium">
-            100% reconciled against bank debits
-          </p>
         </Card>
       </div>
 
       {/* 3. Search & Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200/90 print:hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
           <Input
-            placeholder="Search voucher #, vendor, invoice ref..."
+            placeholder="Search voucher #, payee, notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8 h-8 text-xs border-slate-200 bg-slate-50/50"
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="h-8 w-[190px] text-xs bg-white border-slate-200">
-              <Filter className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Sourcing Categories</SelectItem>
-              <SelectItem value="active pharmaceutical ingredients (api)">API & Raw Materials</SelectItem>
-              <SelectItem value="primary & secondary packaging">Packaging Materials</SelectItem>
-              <SelectItem value="field force da/ta & conveyance">Field Force DA/TA</SelectItem>
-              <SelectItem value="statutory regulatory & dgda">Statutory & DGDA</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={stageFilter} onValueChange={setStageFilter}>
-            <SelectTrigger className="h-8 w-[160px] text-xs bg-white border-slate-200">
-              <SelectValue placeholder="All Stages" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Audit Stages</SelectItem>
-              <SelectItem value="settled & disbursed">Settled & Disbursed</SelectItem>
-              <SelectItem value="awaiting md signoff">Awaiting Signoff</SelectItem>
-              <SelectItem value="scheduled clearing">Scheduled</SelectItem>
-              <SelectItem value="compliance hold">Compliance Hold</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="h-8 w-[240px] text-xs bg-white border-slate-200">
+            <Filter className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
+            <SelectValue placeholder="All Categories" />
+          </SelectTrigger>
+          <SelectContent className="text-xs">
+            <SelectItem value="all">All Expense Categories</SelectItem>
+            <SelectItem value="Doctor Gifts & Promotional">Doctor Gifts & Promotional</SelectItem>
+            <SelectItem value="Wholesaler Settlement">Wholesaler Settlement</SelectItem>
+            <SelectItem value="Staff Welfare & Meals">Staff Welfare & Meals</SelectItem>
+            <SelectItem value="Meetings & Events">Meetings & Events</SelectItem>
+            <SelectItem value="General Operating Expense">General Operating Expense</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* 4. Voucher Table */}
-      <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6 print:hidden">
+      <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-6">
         <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-              PAYMENT VOUCHERS & DISBURSEMENT JOURNAL
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Edit voucher amounts and tax structures, or generate print-ready advice slips.
-            </p>
-          </div>
-          <span className="text-xs text-slate-400 font-medium">
-            Showing {filteredVouchers.length} Vouchers
-          </span>
+          <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
+            General Payment & Expense Register
+          </h3>
+          <span className="text-xs text-slate-400 font-medium">Showing {filteredVouchers.length} Records</span>
         </div>
 
         <Table>
           <TableHeader>
-            <TableRow className="border-b border-slate-100 hover:bg-transparent text-xs text-slate-600">
-              <TableHead className="text-xs font-medium text-slate-600 pl-0">Voucher / Date</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Beneficiary & Category</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Disbursing Account</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-right">Gross (৳)</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-right">Tax WHT (৳)</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-right">Net Payable (৳)</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Status</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-right pr-0">Actions</TableHead>
+            <TableRow className="border-b border-slate-100 text-xs text-slate-600">
+              <TableHead className="pl-0">Voucher & Date</TableHead>
+              <TableHead>Payee / Beneficiary</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Funding Source</TableHead>
+              <TableHead className="text-right">Amount (৳)</TableHead>
+              <TableHead className="text-right pr-0">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredVouchers.map((v) => {
-              const totalWht = v.grossAmount - v.netAmount;
-
-              return (
-                <TableRow key={v.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+            {filteredVouchers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-slate-400 text-xs">
+                  No payment vouchers found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredVouchers.map((v) => (
+                <TableRow key={v.id} className="border-b border-slate-50 hover:bg-slate-50/50 text-xs">
                   <TableCell className="py-3 pl-0">
-                    <div className="leading-tight">
-                      <span className="text-xs font-mono font-bold text-[#0090FF] block">{v.voucherNo}</span>
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">{v.executionDate}</span>
+                    <span className="font-mono font-bold text-[#0090FF] block">{v.voucherNo}</span>
+                    <span className="text-[10px] text-slate-400">{v.paymentDate}</span>
+                  </TableCell>
+
+                  <TableCell className="py-3">
+                    <strong className="text-slate-900 block">{v.payeeName}</strong>
+                    <span className="text-[10px] text-slate-500">{v.notes || "No additional notes"}</span>
+                  </TableCell>
+
+                  <TableCell className="py-3">
+                    <Badge variant="outline" className="text-[10px] font-semibold">{v.category}</Badge>
+                  </TableCell>
+
+                  <TableCell className="py-3 text-slate-700">
+                    <div className="flex items-center gap-1 font-medium">
+                      {v.fundingSource === "Cash Safe" ? <Wallet className="h-3 w-3 text-emerald-600" /> : <Landmark className="h-3 w-3 text-blue-600" />}
+                      <span>{v.sourceDetail}</span>
                     </div>
                   </TableCell>
 
-                  <TableCell className="py-3 text-xs">
-                    <div>
-                      <span className="font-semibold text-slate-900 block">{v.payeeName}</span>
-                      <span className="text-[10px] text-slate-500 block truncate max-w-[210px] mt-0.5">
-                        {v.category}
-                      </span>
-                    </div>
+                  <TableCell className="py-3 text-right font-mono font-bold text-slate-900 text-sm">
+                    ৳{v.amount.toLocaleString("en-IN")}
                   </TableCell>
 
-                  <TableCell className="py-3 text-xs text-slate-700">
-                    <div>
-                      <span className="font-medium text-slate-900 block">{v.disbursingBank}</span>
-                      <span className="text-[10px] font-mono text-slate-400 block">{v.disbursingAccount}</span>
-                    </div>
-                  </TableCell>
-
-                  <TableCell className="py-3 text-xs text-right font-mono text-slate-700">
-                    ৳{v.grossAmount.toLocaleString("en-IN")}
-                  </TableCell>
-
-                  <TableCell className="py-3 text-xs text-right font-mono text-rose-500">
-                    {totalWht > 0 ? `-৳${totalWht.toLocaleString("en-IN")}` : "৳0"}
-                  </TableCell>
-
-                  <TableCell className="py-3 text-xs text-right font-mono font-bold text-slate-900">
-                    ৳{v.netAmount.toLocaleString("en-IN")}
-                  </TableCell>
-
-                  <TableCell className="py-3 text-xs">
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        v.stage === "Settled & Disbursed"
-                          ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                          : v.stage === "Scheduled Clearing"
-                          ? "text-blue-700 bg-blue-50 border-blue-200"
-                          : v.stage === "Awaiting MD Signoff"
-                          ? "text-amber-700 bg-amber-50 border-amber-200"
-                          : "text-rose-700 bg-rose-50 border-rose-200"
-                      }`}
-                    >
-                      {v.stage}
-                    </Badge>
-                  </TableCell>
-
-                  <TableCell className="py-3 text-xs text-right pr-0">
+                  <TableCell className="py-3 text-right pr-0">
                     <div className="flex items-center justify-end gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleOpenEdit(v)}
-                        className="h-7 px-2 text-xs text-slate-700 border-slate-200 hover:bg-slate-50 gap-1"
-                      >
-                        <Pencil className="h-3 w-3 text-slate-400" />
-                        Edit
+                      <Button size="sm" variant="outline" onClick={() => handleOpenEdit(v)} className="h-7 px-2 text-xs">
+                        <Pencil className="h-3 w-3 text-slate-400 mr-1" /> Edit
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleOpenPrintSlip(v)}
-                        className="h-7 px-2 text-xs text-[#0090FF] border-blue-200 hover:bg-blue-50 gap-1 font-semibold"
+                        onClick={() => {
+                          setPrintTarget(v);
+                          setIsPrintOpen(true);
+                        }}
+                        className="h-7 px-2 text-xs text-[#0090FF] border-blue-200"
                       >
-                        <Printer className="h-3 w-3" />
-                        Print Advice
+                        <Receipt className="h-3 w-3 mr-1" /> View
                       </Button>
-
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 w-7 p-0 text-slate-500 border-slate-200 hover:bg-slate-50"
-                          >
-                            <MoreHorizontal className="h-3.5 w-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="text-xs w-60">
-                          <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-slate-400">
-                            Voucher Actions
-                          </DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-
-                          {v.stage === "Awaiting MD Signoff" && (
-                            <DropdownMenuItem
-                              onClick={() => handleApproveAndRelease(v)}
-                              className="gap-2 text-emerald-700 focus:text-emerald-700 focus:bg-emerald-50"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                              Approve & Release Payment
-                            </DropdownMenuItem>
-                          )}
-
-                          {v.stage === "Compliance Hold" ? (
-                            <DropdownMenuItem
-                              onClick={() => handleReleaseComplianceHold(v)}
-                              className="gap-2 text-blue-700 focus:text-blue-700 focus:bg-blue-50"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Release Compliance Hold
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem
-                              onClick={() => handleFlagComplianceHold(v)}
-                              className="gap-2 text-amber-700 focus:text-amber-700 focus:bg-amber-50"
-                            >
-                              <AlertCircle className="h-3.5 w-3.5" />
-                              Flag for Compliance Hold
-                            </DropdownMenuItem>
-                          )}
-
-                          <DropdownMenuItem onClick={() => handleOpenDetails(v)} className="gap-2">
-                            <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                            View Bank & Compliance Details
-                          </DropdownMenuItem>
-
-                          <DropdownMenuItem onClick={() => handleDuplicateVoucher(v)} className="gap-2">
-                            <Copy className="h-3.5 w-3.5 text-slate-400" />
-                            Duplicate Voucher
-                          </DropdownMenuItem>
-
-                          <DropdownMenuSeparator />
-
-                          <DropdownMenuItem
-                            onClick={() => handleVoidVoucher(v)}
-                            className="gap-2 text-rose-600 focus:text-rose-600 focus:bg-rose-50"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                            Void Voucher
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handlePrint(v)}
+                        className="h-7 px-2 text-xs text-slate-700 hover:bg-slate-100"
+                      >
+                        <Printer className="h-3 w-3 mr-1" /> Print
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDelete(v.id)} className="h-7 w-7 p-0 text-rose-600 border-rose-200">
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
-              );
-            })}
+              ))
+            )}
           </TableBody>
         </Table>
       </Card>
 
-      {/* 5. Comprehensive Create & Edit Modal */}
+      {/* 5. Create / Edit Modal */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-[620px] bg-white rounded-2xl max-h-[92vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[520px] bg-white rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900">
-              {editingId ? "Edit Payment Voucher Particulars" : "Issue New Payment Voucher"}
+              {editingId ? "Edit Payment Voucher" : "Record General Payment"}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Update payee details, bank account, tax deductions, and narrative justifications.
+              Simple cash or bank expense recording.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSaveForm} className="space-y-4 py-2 text-xs">
+          <form onSubmit={handleSaveForm} className="space-y-3.5 py-2 text-xs">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">Voucher Code *</Label>
@@ -858,195 +637,121 @@ export default function PaymentsPage() {
                   value={formData.voucherNo}
                   onChange={(e) => setFormData({ ...formData, voucherNo: e.target.value })}
                   required
-                  className="h-8 text-xs font-mono font-bold"
+                  className="h-8 font-mono font-bold"
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Execution Date *</Label>
+                <Label className="text-xs font-medium text-slate-700">Payment Date *</Label>
                 <Input
-                  value={formData.executionDate}
-                  onChange={(e) => setFormData({ ...formData, executionDate: e.target.value })}
+                  value={formData.paymentDate}
+                  onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
                   required
-                  className="h-8 text-xs font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Beneficiary / Supplier Name *</Label>
-                <Input
-                  value={formData.payeeName}
-                  onChange={(e) => setFormData({ ...formData, payeeName: e.target.value })}
-                  required
-                  className="h-8 text-xs font-semibold"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Vendor TIN / Tax ID</Label>
-                <Input
-                  value={formData.vendorTin}
-                  onChange={(e) => setFormData({ ...formData, vendorTin: e.target.value })}
-                  className="h-8 text-xs font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Cost Category</Label>
-                <Input
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  required
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Disbursing Bank</Label>
-                <Input
-                  value={formData.disbursingBank}
-                  onChange={(e) => setFormData({ ...formData, disbursingBank: e.target.value })}
-                  required
-                  className="h-8 text-xs"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Disbursing Account No.</Label>
-                <Input
-                  value={formData.disbursingAccount}
-                  onChange={(e) => setFormData({ ...formData, disbursingAccount: e.target.value })}
-                  required
-                  className="h-8 text-xs font-mono"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Instrument / Cheque #</Label>
-                <Input
-                  value={formData.instrumentRef}
-                  onChange={(e) => setFormData({ ...formData, instrumentRef: e.target.value })}
-                  className="h-8 text-xs font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Vendor Invoice #</Label>
-                <Input
-                  value={formData.invoiceRef}
-                  onChange={(e) => setFormData({ ...formData, invoiceRef: e.target.value })}
-                  className="h-8 text-xs font-mono"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Purchase Order (PO) #</Label>
-                <Input
-                  value={formData.poRef}
-                  onChange={(e) => setFormData({ ...formData, poRef: e.target.value })}
-                  className="h-8 text-xs font-mono"
-                />
-              </div>
-            </div>
-
-            {/* Calculations Container */}
-            <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 space-y-3">
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-                Financial Amount & Statutory Withholdings
-              </span>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-medium text-slate-700">Gross Amount (৳)</Label>
-                  <Input
-                    type="number"
-                    value={formData.grossAmount}
-                    onChange={(e) =>
-                      updateGrossAndTaxes(Number(e.target.value) || 0, formData.tdsRate, formData.vdsRate)
-                    }
-                    required
-                    className="h-8 text-xs font-mono font-bold"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-medium text-slate-700">TDS Rate (%)</Label>
-                  <Input
-                    type="number"
-                    value={formData.tdsRate}
-                    onChange={(e) =>
-                      updateGrossAndTaxes(formData.grossAmount, Number(e.target.value) || 0, formData.vdsRate)
-                    }
-                    className="h-8 text-xs font-mono"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-medium text-slate-700">VDS Rate (%)</Label>
-                  <Input
-                    type="number"
-                    value={formData.vdsRate}
-                    onChange={(e) =>
-                      updateGrossAndTaxes(formData.grossAmount, formData.tdsRate, Number(e.target.value) || 0)
-                    }
-                    className="h-8 text-xs font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Total Deducted at Source:</span>
-                  <span className="font-mono font-bold text-rose-600">
-                    -৳{(formData.grossAmount - formData.netAmount).toLocaleString("en-IN")}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-slate-500 block text-[11px]">Net Disbursed Take-Home:</span>
-                  <span className="font-mono font-bold text-base text-[#0090FF]">
-                    ৳{formData.netAmount.toLocaleString("en-IN")}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Audit Approval Stage</Label>
-                <Select
-                  value={formData.stage}
-                  onValueChange={(val) =>
-                    setFormData({ ...formData, stage: val as PaymentVoucher["stage"] })
-                  }
-                >
-                  <SelectTrigger className="h-8 text-xs bg-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="text-xs">
-                    <SelectItem value="Settled & Disbursed">Settled & Disbursed</SelectItem>
-                    <SelectItem value="Awaiting MD Signoff">Awaiting MD Signoff</SelectItem>
-                    <SelectItem value="Scheduled Clearing">Scheduled Clearing</SelectItem>
-                    <SelectItem value="Compliance Hold">Compliance Hold</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Payment Channel</Label>
-                <Input
-                  value={formData.paymentMethod}
-                  onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                  className="h-8 text-xs"
+                  className="h-8 font-mono"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-medium text-slate-700">Purpose / Commercial Narration</Label>
+              <Label className="text-xs font-medium text-slate-700">Payee / Beneficiary Name *</Label>
               <Input
-                value={formData.narration}
-                onChange={(e) => setFormData({ ...formData, narration: e.target.value })}
-                className="h-8 text-xs"
+                placeholder="e.g. Dr. Ahmed Hossain / Wholesaler Name / Staff Member"
+                value={formData.payeeName}
+                onChange={(e) => setFormData({ ...formData, payeeName: e.target.value })}
+                required
+                className="h-8 font-semibold"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">Expense Category *</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(val: any) => setFormData({ ...formData, category: val })}
+                >
+                  <SelectTrigger className="h-8 bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs">
+                    <SelectItem value="Doctor Gifts & Promotional">Doctor Gifts & Promotional</SelectItem>
+                    <SelectItem value="Wholesaler Settlement">Wholesaler Settlement</SelectItem>
+                    <SelectItem value="Staff Welfare & Meals">Staff Welfare & Meals</SelectItem>
+                    <SelectItem value="Meetings & Events">Meetings & Events</SelectItem>
+                    <SelectItem value="General Operating Expense">General Operating Expense</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">Amount (৳) *</Label>
+                <Input
+                  type="number"
+                  value={formData.amount}
+                  onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) || 0 })}
+                  required
+                  className="h-8 font-mono font-bold text-emerald-700"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">Funding Type *</Label>
+                <Select
+                  value={formData.fundingSource}
+                  onValueChange={(val: any) => {
+                    setFormData({
+                      ...formData,
+                      fundingSource: val,
+                      sourceDetail: val === "Cash Safe" ? "Head Office Cash Safe" : "Eastern Bank PLC",
+                    });
+                  }}
+                >
+                  <SelectTrigger className="h-8 bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs">
+                    <SelectItem value="Cash Safe">Physical Cash Safe</SelectItem>
+                    <SelectItem value="Bank Account">Corporate Bank Account</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">Specific Safe / Bank *</Label>
+                <Select
+                  value={formData.sourceDetail}
+                  onValueChange={(val) => setFormData({ ...formData, sourceDetail: val })}
+                >
+                  <SelectTrigger className="h-8 bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs">
+                    {formData.fundingSource === "Cash Safe" ? (
+                      <>
+                        <SelectItem value="Head Office Cash Safe">Head Office Cash Safe</SelectItem>
+                        <SelectItem value="CEO Cash Safe">CEO Cash Safe</SelectItem>
+                        <SelectItem value="Chairman Cash Safe">Chairman Cash Safe</SelectItem>
+                      </>
+                    ) : (
+                      <>
+                        <SelectItem value="Eastern Bank PLC (Corporate Ops)">Eastern Bank PLC (Corporate Ops)</SelectItem>
+                        <SelectItem value="Islami Bank Bangladesh PLC">Islami Bank Bangladesh PLC</SelectItem>
+                        <SelectItem value="Standard Chartered Bank">Standard Chartered Bank</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-slate-700">Notes / Purpose Description</Label>
+              <Input
+                placeholder="Details of expense..."
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                className="h-8"
               />
             </div>
 
@@ -1055,303 +760,84 @@ export default function PaymentsPage() {
                 Cancel
               </Button>
               <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white">
-                {editingId ? "Save Voucher Changes" : "Create Voucher"}
+                {editingId ? "Save Changes" : "Save Payment Voucher"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* 6. Isolated, Print-Perfect Remittance Advice Slip Modal */}
-      <Dialog open={isPrintModalOpen} onOpenChange={setIsPrintModalOpen}>
-        <DialogContent
-          id="payment-voucher-dialog-content"
-          className="sm:max-w-[780px] bg-white rounded-2xl p-0 overflow-hidden max-h-[95vh] flex flex-col"
-        >
+      {/* 6. Screen Preview Modal with Reliable Direct Print Button */}
+      <Dialog open={isPrintOpen} onOpenChange={setIsPrintOpen}>
+        <DialogContent className="sm:max-w-[700px] bg-white rounded-xl max-h-[95vh] overflow-y-auto">
           {printTarget && (
-            <>
-              {/* Toolbar Bar (Completely hidden during printing via print:hidden) */}
-              <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between print:hidden">
-                <div className="flex items-center gap-2">
-                  <Receipt className="h-4 w-4 text-[#0090FF]" />
-                  <span className="text-xs font-bold text-slate-800">
-                    Printable Payment Voucher Preview — {printTarget.voucherNo}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={triggerDirectPrint}
-                    className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white gap-1.5 shadow-none"
-                  >
-                    <Printer className="h-3.5 w-3.5" />
-                    Print / Save as PDF
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsPrintModalOpen(false)}
-                    className="h-8 text-xs"
-                  >
-                    Close
-                  </Button>
-                </div>
-              </div>
-
-              {/* Printable Body Content */}
-              <div
-                className="p-8 sm:p-10 text-slate-900 font-sans leading-relaxed text-xs overflow-y-auto print:overflow-visible print:p-0 print:m-0"
-                id="printable-payment-voucher"
-              >
-                {/* Official Letterhead */}
-                <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
+            <div className="space-y-6">
+              <div className="p-6 bg-white border border-slate-200 rounded-xl space-y-5 text-xs text-neutral-900">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                   <div>
-                    <h1 className="text-2xl font-black tracking-tight uppercase text-slate-900">
-                      AK PHARMA 
-                    </h1>
-                    <p className="text-[11px] text-slate-600 font-semibold mt-0.5">
-                      Corporate Finance & Treasury Operations Division
-                    </p>
-                    <p className="text-[10px] text-slate-500">
-                      Plot 14, Sector 7, Uttara Commercial Zone, Dhaka • DGDA Lic: DL-PH-2026-88
-                    </p>
+                    <h2 className="text-lg font-extrabold text-slate-900 uppercase">AK PHARMA</h2>
+                    <p className="text-[11px] text-slate-500">Official Expense Payment Voucher / Disbursement Slip</p>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs font-extrabold uppercase tracking-wider block text-slate-900 border border-slate-900 px-2 py-0.5 inline-block">
-                      OFFICIAL PAYMENT VOUCHER
-                    </span>
-                    <span className="text-xs font-mono font-bold text-[#0090FF] block mt-1.5">
-                      {printTarget.voucherNo}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                      Date: {printTarget.executionDate}
-                    </span>
+                    <span className="text-xs font-bold text-[#0090FF] block font-mono">{printTarget.voucherNo}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">Date: {printTarget.paymentDate}</span>
                   </div>
                 </div>
 
-                {/* Primary Meta Strip */}
-                <div className="grid grid-cols-2 gap-6 py-4 border-b border-slate-300 text-xs">
-                  <div className="space-y-1">
-                    <div>
-                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Paid To (Beneficiary):</span>
-                      <strong className="text-sm text-slate-900 block">{printTarget.payeeName}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">Vendor TIN / Tax Registration:</span>
-                      <span className="font-mono font-semibold text-slate-800">{printTarget.vendorTin || "VERIFIED VENDOR"}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">Invoice / Purchase Order Reference:</span>
-                      <span className="font-mono font-medium text-slate-800">{printTarget.invoiceRef} • PO: {printTarget.poRef}</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1 text-right sm:text-left">
-                    <div>
-                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Disbursing Treasury Account:</span>
-                      <strong className="text-slate-900 block">{printTarget.disbursingBank}</strong>
-                      <span className="text-[10px] font-mono text-slate-500">{printTarget.disbursingAccount}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">Channel & Instrument Reference:</span>
-                      <span className="font-medium text-slate-800 inline-flex items-center gap-1">
-                        <CreditCard className="h-3 w-3 text-slate-400" />
-                        {printTarget.paymentMethod} {printTarget.instrumentRef ? `(${printTarget.instrumentRef})` : ""}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">Settlement Status:</span>
-                      <strong className="text-emerald-700">{printTarget.stage}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Expenditure Particulars Table */}
-                <div className="py-4">
-                  <table className="w-full text-xs border border-slate-300">
-                    <thead>
-                      <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-800">
-                        <th className="text-left p-2.5">Particulars / Expenditure Description</th>
-                        <th className="text-center p-2.5 w-44">Category</th>
-                        <th className="text-right p-2.5 w-36">Gross BDT</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      <tr>
-                        <td className="p-3">
-                          <span className="font-bold text-slate-900 block">
-                            Disbursement for {printTarget.payeeName}
-                          </span>
-                          <span className="text-[11px] text-slate-600 italic block mt-1 leading-relaxed">
-                            "{printTarget.narration || "Commercial expenditure verified under internal audit policy."}"
-                          </span>
-                        </td>
-                        <td className="p-3 text-center text-slate-700 font-medium">
-                          {printTarget.category}
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-slate-900">
-                          ৳{printTarget.grossAmount.toLocaleString("en-IN")}/-
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Statutory Tax Deductions & Legal Net Banner */}
-                <div className="grid grid-cols-2 gap-6 p-4 bg-slate-50 rounded-xl border border-slate-300">
-                  <div className="space-y-1.5 text-[11px]">
-                    <span className="font-bold uppercase tracking-wider text-slate-500 block">
-                      Statutory Tax Withholdings (Source Deductions)
-                    </span>
-                    <div className="flex items-center justify-between text-slate-700">
-                      <span>TDS Sec-52 Withholding ({printTarget.tdsRate}%):</span>
-                      <span className="font-mono font-bold text-rose-600">
-                        -৳{((printTarget.grossAmount * printTarget.tdsRate) / 100).toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-700">
-                      <span>VDS Source Deduction ({printTarget.vdsRate}%):</span>
-                      <span className="font-mono font-bold text-rose-600">
-                        -৳{((printTarget.grossAmount * printTarget.vdsRate) / 100).toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col justify-center text-right pl-4 border-l border-slate-300">
-                    <span className="text-[10px] uppercase font-bold text-slate-500">Net Disbursed Take-Home</span>
-                    <div className="text-2xl font-black font-mono text-slate-900 mt-0.5">
-                      ৳{printTarget.netAmount.toLocaleString("en-IN")}/-
-                    </div>
-                  </div>
-                </div>
-
-                {/* Amount in Words */}
-                <div className="mt-3 p-2.5 border border-slate-200 bg-white rounded-lg flex items-center gap-2 text-[11px]">
-                  <span className="font-bold text-slate-500">In Words:</span>
-                  <span className="font-semibold text-slate-800 italic">
-                    {numberToWordsBDT(printTarget.netAmount)}
-                  </span>
-                </div>
-
-                {/* Tripartite Sign-off Blocks */}
-                <div className="mt-14 pt-8 border-t-2 border-slate-200 grid grid-cols-3 gap-6 text-[11px] text-center">
+                <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-lg">
                   <div>
-                    <div className="w-36 border-b border-slate-400 mx-auto mb-1.5" />
-                    <span className="font-bold text-slate-900 block">{printTarget.makerName}</span>
-                    <span className="text-[10px] text-slate-500">Prepared By (Accounts Officer)</span>
+                    <p className="text-slate-500 font-medium">Payee / Beneficiary:</p>
+                    <p className="font-bold text-slate-900 text-sm mt-0.5">{printTarget.payeeName}</p>
+                    <p className="text-slate-500 font-medium mt-3">Classification:</p>
+                    <p className="font-semibold text-slate-800">{printTarget.category}</p>
                   </div>
                   <div>
-                    <div className="w-36 border-b border-slate-400 mx-auto mb-1.5" />
-                    <span className="font-bold text-slate-900 block">{printTarget.checkerName}</span>
-                    <span className="text-[10px] text-slate-500">Audited By (Internal Audit)</span>
+                    <p className="text-slate-500 font-medium">Disbursed From ({printTarget.fundingSource}):</p>
+                    <p className="font-semibold text-slate-800 mt-0.5">{printTarget.sourceDetail}</p>
+                    <p className="text-slate-500 font-medium mt-3">Authorization Status:</p>
+                    <p className="font-bold text-emerald-600">Settled & Disbursed</p>
                   </div>
-                  <div>
-                    <div className="w-36 border-b border-slate-400 mx-auto mb-1.5" />
-                    <span className="font-bold text-slate-900 block">Managing Director / CFO</span>
-                    <span className="text-[10px] text-slate-500">Authorized Signatory</span>
+                </div>
+
+                <div className="space-y-2 border rounded-lg p-4">
+                  <p className="font-bold text-slate-900 border-b pb-2">Expenditure Particulars</p>
+                  <div className="flex justify-between py-1">
+                    <span className="text-slate-600 italic">"{printTarget.notes || "General operational expense disbursement."}"</span>
+                    <span className="font-mono font-bold text-sm text-slate-900">৳{printTarget.amount.toLocaleString("en-IN")}</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-medium">Amount in Words:</span>
+                  <strong className="italic text-slate-900">{numberToWordsBDT(printTarget.amount)}</strong>
+                </div>
+
+                <div className="flex justify-between pt-10 text-[11px] text-slate-500 border-t">
+                  <div className="text-center">
+                    <div className="w-36 border-b border-slate-400 mx-auto mb-1" />
+                    <strong className="text-slate-900 block">Chief Executive Officer (CEO)</strong>
+                    <span className="text-[9px]">Executive Approval</span>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-36 border-b border-slate-400 mx-auto mb-1" />
+                    <strong className="text-slate-900 block">Managing Director (MD)</strong>
+                    <span className="text-[9px]">Final Financial Sign-off</span>
                   </div>
                 </div>
               </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
 
-      {/* 7. Bank & Compliance Details Modal (new high-end activity) */}
-      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="sm:max-w-[520px] bg-white rounded-2xl">
-          {detailsTarget && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-[#0090FF]" />
-                  Bank & Compliance Details
-                </DialogTitle>
-                <DialogDescription className="text-xs text-slate-500">
-                  {detailsTarget.voucherNo} • {detailsTarget.payeeName}
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-3 py-2 text-xs">
-                <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50/80">
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Vendor TIN</span>
-                    <span className="font-mono font-semibold text-slate-800">
-                      {detailsTarget.vendorTin || "VERIFIED VENDOR"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Cost Category</span>
-                    <span className="font-medium text-slate-800">{detailsTarget.category}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Disbursing Bank</span>
-                    <span className="font-medium text-slate-800">{detailsTarget.disbursingBank}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Account No.</span>
-                    <span className="font-mono font-semibold text-slate-800">{detailsTarget.disbursingAccount}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Payment Channel</span>
-                    <span className="font-medium text-slate-800 inline-flex items-center gap-1">
-                      <CreditCard className="h-3 w-3 text-slate-400" />
-                      {detailsTarget.paymentMethod}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Instrument Ref</span>
-                    <span className="font-mono font-semibold text-slate-800">
-                      {detailsTarget.instrumentRef || "—"}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold mb-1">
-                    Commercial Narration
-                  </span>
-                  <p className="text-slate-700 leading-relaxed">{detailsTarget.narration || "—"}</p>
-                </div>
-
-                <div className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200">
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Maker / Checker</span>
-                    <span className="font-medium text-slate-800">{detailsTarget.makerName}</span>
-                    <span className="text-slate-400"> → </span>
-                    <span className="font-medium text-slate-800">{detailsTarget.checkerName}</span>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                      detailsTarget.stage === "Settled & Disbursed"
-                        ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                        : detailsTarget.stage === "Scheduled Clearing"
-                        ? "text-blue-700 bg-blue-50 border-blue-200"
-                        : detailsTarget.stage === "Awaiting MD Signoff"
-                        ? "text-amber-700 bg-amber-50 border-amber-200"
-                        : "text-rose-700 bg-rose-50 border-rose-200"
-                    }`}
-                  >
-                    {detailsTarget.stage}
-                  </Badge>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setIsDetailsOpen(false)}
-                  className="h-8 text-xs"
-                >
-                  Close
+              <div className="flex justify-end gap-2 pb-2">
+                <Button variant="outline" onClick={() => setIsPrintOpen(false)} className="text-xs">Close</Button>
+                <Button onClick={() => handlePrint(printTarget)} className="bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs gap-1.5">
+                  <Printer className="h-4 w-4" /> Print Voucher
                 </Button>
-              </DialogFooter>
-            </>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
     </div>
+    
   );
-}
+  
+};
