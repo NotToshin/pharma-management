@@ -8,6 +8,7 @@ import clientRoutes from "./routes/clientRoutes";
 import orderRoutes from "./routes/orderRoutes";
 import treasuryRoutes from "./routes/treasuryRoutes";
 import accountLedgerRoutes from "./routes/accountLedgerRoutes";
+import inventoryRoutes from "./routes/inventoryRoutes"; // <--- Add this
 dotenv.config();
 
 const app = express();
@@ -20,6 +21,7 @@ app.use("/api/clients", clientRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/treasury", treasuryRoutes);
 app.use("/api/account-ledger", accountLedgerRoutes);
+app.use("/api/inventory", inventoryRoutes); // <--- Mount here
 // Register API Modules
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/staff", staffRoutes);

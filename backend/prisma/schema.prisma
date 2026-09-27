@@ -208,3 +208,20 @@ model JournalTransaction {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 }
+
+model InventoryBatch {
+  id               String   @id @default(uuid())
+  skuCode          String   @unique
+  brandName        String
+  genericName      String
+  category         String
+  batchNumber      String   @unique
+  mfgDate          String
+  expiryDate       String
+  availableUnits   Int
+  unitPrice        Decimal  @db.Decimal(10, 2)
+  warehouseBin     String
+  storageCondition String   // "Controlled Ambient (<25°C)" | "Cold Chain (2-8°C)"
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
