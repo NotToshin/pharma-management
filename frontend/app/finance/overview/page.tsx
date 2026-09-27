@@ -2,16 +2,9 @@
 
 import * as React from "react";
 import * as XLSX from "xlsx";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -19,6 +12,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -31,157 +32,220 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
 } from "recharts";
 import {
-  DollarSign,
   TrendingUp,
-  CreditCard,
   Receipt,
   Download,
   CalendarDays,
   ArrowUpRight,
-  ArrowDownRight,
-  Wallet,
-  Building,
-  Filter,
   CheckCircle2,
   Clock,
+  Filter,
+  FileText,
+  Printer,
+  Calendar as CalendarIcon,
+  RefreshCw,
 } from "lucide-react";
 
-// Cash Flow & Monthly Run-Rate Trend (in Lakhs BDT)
-const revenueTrendData = [
-  { month: "Apr", Revenue: 142.5, Collections: 130.2, Expenses: 38.4 },
-  { month: "May", Revenue: 158.0, Collections: 145.0, Expenses: 41.2 },
-  { month: "Jun", Revenue: 165.4, Collections: 159.8, Expenses: 44.0 },
-  { month: "Jul", Revenue: 178.2, Collections: 164.5, Expenses: 46.5 },
-  { month: "Aug", Revenue: 189.6, Collections: 178.0, Expenses: 49.0 },
-  { month: "Sep", Revenue: 194.7, Collections: 182.4, Expenses: 51.2 },
-];
+interface MonthlyMetrics {
+  month: string;
+  monthIndex: number;
+  year: number;
+  Revenue: number;
+  Collections: number;
+  Expenses: number;
+  rawRevenue: number;
+  rawCollections: number;
+  rawExpenses: number;
+}
 
 interface FinancialTransaction {
   id: string;
   trxCode: string;
   partyName: string;
-  type: "Pharmacy Invoice" | "Wholesale Deposit" | "MIO Field Allowance" | "Batch Procurement";
+  type: string;
   territory: string;
   amount: number;
   date: string;
   status: "Settled" | "Pending Clearance" | "Overdue";
 }
 
-const recentTransactions: FinancialTransaction[] = [
-  {
-    id: "tx-1",
-    trxCode: "INV-2026-8841",
-    partyName: "Popular Pharmacy (Dhanmondi Branch)",
-    type: "Pharmacy Invoice",
-    territory: "Dhaka North",
-    amount: 142500,
-    date: "16 Sep 2026",
-    status: "Settled",
-  },
-  {
-    id: "tx-2",
-    trxCode: "EXP-2026-0312",
-    partyName: "Rafiqul Islam (MIO Field Conveyance)",
-    type: "MIO Field Allowance",
-    territory: "Dhaka North",
-    amount: 18400,
-    date: "16 Sep 2026",
-    status: "Settled",
-  },
-  {
-    id: "tx-3",
-    trxCode: "INV-2026-8842",
-    partyName: "Chevron Hospital Chemist Hub",
-    type: "Pharmacy Invoice",
-    territory: "Chittagong Central",
-    amount: 98200,
-    date: "15 Sep 2026",
-    status: "Pending Clearance",
-  },
-  {
-    id: "tx-4",
-    trxCode: "PRC-2026-0094",
-    partyName: "Square Raw Pharma Ingredients Ltd.",
-    type: "Batch Procurement",
-    territory: "Central Warehouse",
-    amount: 420000,
-    date: "14 Sep 2026",
-    status: "Settled",
-  },
-  {
-    id: "tx-5",
-    trxCode: "INV-2026-8843",
-    partyName: "Medinova Chemist Corner (Mirpur)",
-    type: "Pharmacy Invoice",
-    territory: "Dhaka South",
-    amount: 67500,
-    date: "12 Sep 2026",
-    status: "Overdue",
-  },
-  {
-    id: "tx-6",
-    trxCode: "DEP-2026-0129",
-    partyName: "Sylhet Central Medicine Wholesalers",
-    type: "Wholesale Deposit",
-    territory: "Sylhet Sadar",
-    amount: 210000,
-    date: "11 Sep 2026",
-    status: "Settled",
-  },
+const MONTH_NAMES = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 ];
 
 export default function FinanceOverviewPage() {
-  const [transactions, setTransactions] = React.useState<FinancialTransaction[]>(recentTransactions);
+  const [loading, setLoading] = React.useState(true);
+  const [selectedYear, setSelectedYear] = React.useState<number>(2026);
+  const [selectedMonth, setSelectedMonth] = React.useState<number>(8); // September (0-indexed: 8)
+  const [isCalendarOpen, setIsCalendarOpen] = React.useState(false);
+  const [isStatementOpen, setIsStatementOpen] = React.useState(false);
   const [filterType, setFilterType] = React.useState("all");
+
+  const [metrics, setMetrics] = React.useState({
+    currentEarnBDT: 0,
+    currentCollectionsBDT: 0,
+    currentBurnBDT: 0,
+    currentArBDT: 0,
+    currentNetProfitBDT: 0,
+  });
+
+  // Dynamic Margin Breakdown state
+  const [marginBreakdown, setMarginBreakdown] = React.useState({
+    cogsPercent: 0,
+    cogsAmount: 0,
+    fieldForcePercent: 0,
+    fieldForceAmount: 0,
+    logisticsPercent: 0,
+    logisticsAmount: 0,
+    netMarginPercent: 0,
+    netProfitAmount: 0,
+  });
+
+  const [annualMetrics, setAnnualMetrics] = React.useState({
+    annualEarnBDT: 0,
+    annualCollectionsBDT: 0,
+    annualBurnBDT: 0,
+    annualNetProfitBDT: 0,
+  });
+
+  const [monthlyTrend, setMonthlyTrend] = React.useState<MonthlyMetrics[]>([]);
+  const [transactions, setTransactions] = React.useState<FinancialTransaction[]>([]);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+  const fetchOverviewData = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_URL}/finance-overview/metrics?year=${selectedYear}&month=${selectedMonth}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMetrics(data.metrics || {});
+        if (data.marginBreakdown) {
+          setMarginBreakdown(data.marginBreakdown);
+        }
+        setAnnualMetrics(data.annualMetrics || {});
+        setMonthlyTrend(data.monthlyTrend || []);
+        setTransactions(data.transactions || []);
+      }
+    } catch (err) {
+      console.error("Failed to load live financial overview:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [API_URL, selectedYear, selectedMonth]);
+
+  React.useEffect(() => {
+    fetchOverviewData();
+  }, [fetchOverviewData]);
 
   const handleExportExcel = () => {
     const data = transactions.map((t) => ({
       "Transaction Ref": t.trxCode,
       "Counterparty / Entity": t.partyName,
       "Transaction Type": t.type,
-      "Associated Territory": t.territory,
-      "Amount (৳)": t.amount,
+      "Associated Territory / Account": t.territory,
+      "Amount (BDT)": t.amount,
       Date: t.date,
       "Settlement Status": t.status,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Finance Overview");
-    XLSX.writeFile(workbook, `AK_Pharma_Financial_Overview_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, `Finance_${MONTH_NAMES[selectedMonth]}_${selectedYear}`);
+    XLSX.writeFile(workbook, `AK_Pharma_Financial_Overview_${MONTH_NAMES[selectedMonth]}_${selectedYear}.xlsx`);
   };
 
-  const filteredTransactions =
-    filterType === "all"
-      ? transactions
-      : transactions.filter((t) => t.type.toLowerCase().includes(filterType.toLowerCase()));
+  const filteredTransactions = transactions.filter((t) => {
+    if (filterType === "all") return true;
+    return t.type.toLowerCase().includes(filterType.toLowerCase());
+  });
+
+  const collectionRatio = metrics.currentEarnBDT > 0
+    ? ((metrics.currentCollectionsBDT / metrics.currentEarnBDT) * 100).toFixed(1)
+    : "0.0";
 
   return (
-    <div className="space-y-6 max-w-[1360px] mx-auto pb-10">
-      {/* 1. Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="space-y-6 max-w-[1360px] mx-auto pb-12 font-sans text-slate-900">
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #printable-annual-statement,
+          #printable-annual-statement * {
+            visibility: visible !important;
+          }
+          #printable-annual-statement {
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            padding: 30px !important;
+            background: white !important;
+            z-index: 999999 !important;
+          }
+        }
+      `}</style>
+
+      {/* 1. Header Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-[#0090FF] animate-pulse" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              COMMERCIAL PERFORMANCE & EXECUTIVE TREASURY
+            </span>
+          </div>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 mt-1">
             Financial Health & Commercial Overview
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Macro revenue performance, field expense burn rates, accounts receivable, and cash settlements.
+            Real-time turnover, live collection rates, operational burn, and fiscal period reconciliation.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Badge variant="outline" className="text-xs font-semibold text-slate-800 bg-white border-slate-200 px-3 py-1.5 rounded-lg">
-            <CalendarDays className="h-3.5 w-3.5 mr-1.5 inline text-slate-600" />
-            Fiscal Q3 2026
-          </Badge>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={fetchOverviewData}
+            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold px-3 rounded-lg shadow-none"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+
+          {/* Dynamic Working Calendar Trigger */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsCalendarOpen(true)}
+            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-800 text-xs font-semibold px-3.5 rounded-lg shadow-none hover:border-slate-300"
+          >
+            <CalendarDays className="h-4 w-4 text-[#0090FF]" />
+            <span>
+              {MONTH_NAMES[selectedMonth]} {selectedYear} (Fiscal Q{Math.floor(selectedMonth / 3) + 1})
+            </span>
+          </Button>
+
+          {/* Annual Statement Trigger */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsStatementOpen(true)}
+            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-800 text-xs font-semibold px-3.5 rounded-lg shadow-none hover:border-slate-300"
+          >
+            <FileText className="h-3.5 w-3.5 text-slate-600" />
+            Annual Statement
+          </Button>
 
           <Button
             size="sm"
@@ -190,88 +254,85 @@ export default function FinanceOverviewPage() {
             className="h-9 gap-1.5 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold px-3.5 rounded-lg shadow-none"
           >
             <Download className="h-3.5 w-3.5 text-emerald-600" />
-            Export Finance Sheet
+            Export Sheet
           </Button>
         </div>
       </div>
 
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Gross Revenue Billed */}
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
+        <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Gross Billed Turnover</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Gross Billed Turnover</span>
             <div className="p-1.5 rounded-lg bg-blue-50 text-[#0090FF]">
               <TrendingUp className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none">
-            ৳1,94,70,000
+          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-slate-900 leading-none font-mono">
+            ৳{metrics.currentEarnBDT.toLocaleString("en-IN")}
           </div>
           <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
             <ArrowUpRight className="h-3.5 w-3.5" />
-            <span>+11.8% vs last month</span>
+            <span>Active for {MONTH_NAMES[selectedMonth]} {selectedYear}</span>
           </div>
         </Card>
 
-        {/* Realized Cash Collections */}
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
+        <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Realized Collections</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Realized Collections</span>
             <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
               <CheckCircle2 className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none">
-            ৳1,82,40,000
+          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-emerald-700 leading-none font-mono">
+            ৳{metrics.currentCollectionsBDT.toLocaleString("en-IN")}
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">
-            93.6% Collection recovery efficiency
+          <p className="text-[11px] text-slate-400 mt-3 font-medium">
+            {collectionRatio}% collection recovery rate
           </p>
         </Card>
 
-        {/* Accounts Receivable (A/R) */}
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
+        <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Accounts Receivable (A/R)</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Accounts Receivable (A/R)</span>
             <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600">
               <Clock className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none">
-            ৳12,30,000
+          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-amber-700 leading-none font-mono">
+            ৳{metrics.currentArBDT.toLocaleString("en-IN")}
           </div>
           <p className="text-[11px] text-amber-600 font-medium mt-3">
-            ৳67,500 currently past 45-day credit term
+            Outstanding chemist clearance for this period
           </p>
         </Card>
 
-        {/* Operational Burn & Field Allowances */}
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
+        <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Operational Burn & DA/TA</span>
-            <div className="p-1.5 rounded-lg bg-slate-100 text-slate-700">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Operational Burn & DA/TA</span>
+            <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600">
               <Receipt className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none">
-            ৳51,20,000
+          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-slate-900 leading-none font-mono">
+            ৳{metrics.currentBurnBDT.toLocaleString("en-IN")}
           </div>
           <p className="text-[11px] text-slate-400 mt-3">
-            Includes sample costs, MIO allowance & dispatch
+            Disbursed field costs, promo materials & operations
           </p>
         </Card>
       </div>
 
-      {/* 3. Middle Charts: Dual-Tone Cash Flow Area & Expense Structure */}
+      {/* 3. Middle Area Chart & Fully Dynamic Margin Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-        {/* Six-Month Inflow vs Outflow */}
-        <Card className="lg:col-span-8 rounded-xl border border-slate-200/90 shadow-none bg-white p-6">
+        <Card className="lg:col-span-8 rounded-xl border border-slate-200 shadow-none bg-white p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 gap-2 border-b border-slate-100">
             <div>
-              <h2 className="text-sm font-bold text-slate-900">Commercial Cash Flow Run-Rate (in Lakh ৳)</h2>
+              <h2 className="text-sm font-bold text-slate-900">
+                FY {selectedYear} Cash Flow Run-Rate (in Lakh ৳)
+              </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Billed sales revenue versus collected cash against operational burn
+                Dynamic revenue versus collections plotted against operational burn
               </p>
             </div>
             <div className="flex items-center gap-3 text-xs font-semibold text-slate-600">
@@ -292,7 +353,7 @@ export default function FinanceOverviewPage() {
 
           <div className="h-[270px] w-full pt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={monthlyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#0090FF" stopOpacity={0.2} />
@@ -309,7 +370,7 @@ export default function FinanceOverviewPage() {
                 <Tooltip
                   cursor={{ stroke: "#e2e8f0" }}
                   contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "11px" }}
-                  formatter={(val) => [`৳${val} Lakh`, ""]}
+                  formatter={(val: any) => [`৳${val} Lakh`, ""]}
                 />
                 <Area type="monotone" dataKey="Revenue" stroke="#0090FF" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" />
                 <Area type="monotone" dataKey="Collections" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorColl)" />
@@ -319,87 +380,115 @@ export default function FinanceOverviewPage() {
           </div>
         </Card>
 
-        {/* Operating Margin Breakdown Card */}
-        <Card className="lg:col-span-4 rounded-xl border border-slate-200/90 shadow-none bg-white p-6 flex flex-col justify-between">
+        {/* 100% Dynamic Commercial Margin Breakdown Card */}
+        <Card className="lg:col-span-4 rounded-xl border border-slate-200 shadow-none bg-white p-6 flex flex-col justify-between">
           <div>
-            <h2 className="text-sm font-bold text-slate-900">Commercial Margin Breakdown</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-900">Commercial Margin Breakdown</h2>
+              <Badge variant="outline" className="text-[10px] font-bold">
+                {MONTH_NAMES[selectedMonth]} {selectedYear}
+              </Badge>
+            </div>
             <p className="text-xs text-slate-400 mt-0.5">Realized net margins after operational allocations</p>
 
             <div className="mt-6 space-y-4">
+              {/* Dynamic COGS & Sourcing */}
               <div>
                 <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-slate-600 font-medium">COGS & API Sourcing</span>
-                  <span className="font-mono font-bold text-slate-900">54.2%</span>
+                  <span className="text-slate-600 font-medium">COGS & Sourcing</span>
+                  <span className="font-mono font-bold text-slate-900">{marginBreakdown.cogsPercent}%</span>
                 </div>
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-slate-800 rounded-full" style={{ width: "54.2%" }} />
+                  <div
+                    className="h-full bg-slate-800 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, marginBreakdown.cogsPercent)}%` }}
+                  />
                 </div>
               </div>
 
+              {/* Dynamic Field Force & Sampling */}
               <div>
                 <div className="flex items-center justify-between text-xs mb-1.5">
                   <span className="text-slate-600 font-medium">Field Force & Sampling</span>
-                  <span className="font-mono font-bold text-slate-900">18.4%</span>
+                  <span className="font-mono font-bold text-slate-900">{marginBreakdown.fieldForcePercent}%</span>
                 </div>
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#0090FF] rounded-full" style={{ width: "18.4%" }} />
+                  <div
+                    className="h-full bg-[#0090FF] rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, marginBreakdown.fieldForcePercent)}%` }}
+                  />
                 </div>
               </div>
 
+              {/* Dynamic Warehouse & Logistics */}
               <div>
                 <div className="flex items-center justify-between text-xs mb-1.5">
                   <span className="text-slate-600 font-medium">Warehouse & Logistics</span>
-                  <span className="font-mono font-bold text-slate-900">7.8%</span>
+                  <span className="font-mono font-bold text-slate-900">{marginBreakdown.logisticsPercent}%</span>
                 </div>
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-300 rounded-full" style={{ width: "7.8%" }} />
+                  <div
+                    className="h-full bg-blue-400 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, marginBreakdown.logisticsPercent)}%` }}
+                  />
                 </div>
               </div>
 
+              {/* Dynamic Net Operating Margin */}
               <div>
                 <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-emerald-700 font-semibold">Net Operating Profit</span>
-                  <span className="font-mono font-bold text-emerald-700">19.6%</span>
+                  <span className="text-emerald-700 font-semibold">Net Operating Margin</span>
+                  <span className="font-mono font-bold text-emerald-700">{marginBreakdown.netMarginPercent}%</span>
                 </div>
                 <div className="h-2 w-full bg-emerald-50 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: "19.6%" }} />
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, marginBreakdown.netMarginPercent)}%` }}
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-100 text-xs mt-4">
-            <span className="font-semibold text-slate-800 block">Audited Net Profit</span>
-            <span className="text-lg font-bold text-slate-900 block font-mono mt-0.5">৳38,16,000</span>
-            <span className="text-[10px] text-slate-400">Current active monthly period</span>
+          {/* Dynamic Net Operating Retained Profit */}
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs mt-4">
+            <span className="font-bold text-slate-700 block uppercase tracking-wider text-[10px]">
+              NET OPERATING RETAINED PROFIT
+            </span>
+            <span className="text-xl font-black text-slate-900 block font-mono mt-1">
+              ৳{marginBreakdown.netProfitAmount.toLocaleString("en-IN")}
+            </span>
+            <span className="text-[10px] text-slate-400">
+              For period: {MONTH_NAMES[selectedMonth]} {selectedYear}
+            </span>
           </div>
         </Card>
       </div>
 
-      {/* 4. Transactions Ledger Table */}
-      <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6">
+      {/* 4. Live Transactions Ledger Table */}
+      <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div>
             <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-              Recent Commercial Invoices & Field Disbursements
+              RECENT COMMERCIAL INVOICES & FIELD DISBURSEMENTS
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Audited payments, credit term disbursements, and chemist settlement receipts
+              Live consolidated stream of invoices, disbursements, and treasury entries
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="h-8 w-[160px] text-xs bg-white border-slate-200">
+              <SelectTrigger className="h-8 w-[170px] text-xs bg-white border-slate-200">
                 <Filter className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
-                <SelectValue placeholder="All Categories" />
+                <SelectValue placeholder="All Operations" />
               </SelectTrigger>
               <SelectContent className="text-xs">
-                <SelectItem value="all">All Transactions</SelectItem>
-                <SelectItem value="pharmacy invoice">Pharmacy Invoice</SelectItem>
-                <SelectItem value="mio field allowance">Field Allowance</SelectItem>
-                <SelectItem value="wholesale deposit">Wholesale Deposit</SelectItem>
-                <SelectItem value="batch procurement">Procurement</SelectItem>
+                <SelectItem value="all">All Operations</SelectItem>
+                <SelectItem value="pharmacy invoice">Pharmacy Invoices</SelectItem>
+                <SelectItem value="field disbursement">Disbursements</SelectItem>
+                <SelectItem value="wholesale deposit">Wholesale Deposits</SelectItem>
+                <SelectItem value="loan intake">Loan Intakes</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -411,54 +500,273 @@ export default function FinanceOverviewPage() {
               <TableHead className="text-xs font-medium text-slate-600 pl-0">Reference ID</TableHead>
               <TableHead className="text-xs font-medium text-slate-600">Counterparty / Description</TableHead>
               <TableHead className="text-xs font-medium text-slate-600">Transaction Type</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Territory / Node</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Billing Date</TableHead>
+              <TableHead className="text-xs font-medium text-slate-600">Territory / Account</TableHead>
+              <TableHead className="text-xs font-medium text-slate-600">Date</TableHead>
               <TableHead className="text-xs font-medium text-slate-600 text-right">Amount (৳)</TableHead>
               <TableHead className="text-xs font-medium text-slate-600 text-right pr-0">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTransactions.map((tx) => (
-              <TableRow key={tx.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                <TableCell className="py-3 text-xs font-mono font-semibold text-[#0090FF] pl-0">
-                  {tx.trxCode}
-                </TableCell>
-                <TableCell className="py-3 text-xs font-semibold text-slate-900">
-                  {tx.partyName}
-                </TableCell>
-                <TableCell className="py-3 text-xs">
-                  <Badge variant="outline" className="text-[10px] font-medium bg-slate-50 text-slate-700 border-slate-200">
-                    {tx.type}
-                  </Badge>
-                </TableCell>
-                <TableCell className="py-3 text-xs text-slate-600">
-                  {tx.territory}
-                </TableCell>
-                <TableCell className="py-3 text-xs text-slate-600">
-                  {tx.date}
-                </TableCell>
-                <TableCell className="py-3 text-xs text-right font-mono font-bold text-slate-900">
-                  ৳{tx.amount.toLocaleString("en-IN")}
-                </TableCell>
-                <TableCell className="py-3 text-xs text-right pr-0">
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
-                      tx.status === "Settled"
-                        ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                        : tx.status === "Pending Clearance"
-                        ? "text-amber-700 bg-amber-50 border-amber-200"
-                        : "text-rose-700 bg-rose-50 border-rose-200"
-                    }`}
-                  >
-                    {tx.status}
-                  </Badge>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-8 text-slate-400 text-xs">
+                  Loading live financial records...
                 </TableCell>
               </TableRow>
-            ))}
+            ) : filteredTransactions.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-8 text-slate-400 text-xs">
+                  No transaction records found for this period.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredTransactions.map((tx) => (
+                <TableRow key={tx.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                  <TableCell className="py-3 text-xs font-mono font-semibold text-[#0090FF] pl-0">
+                    {tx.trxCode}
+                  </TableCell>
+                  <TableCell className="py-3 text-xs font-semibold text-slate-900">
+                    {tx.partyName}
+                  </TableCell>
+                  <TableCell className="py-3 text-xs">
+                    <Badge variant="outline" className="text-[10px] font-medium bg-slate-50 text-slate-700 border-slate-200">
+                      {tx.type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="py-3 text-xs text-slate-600">
+                    {tx.territory}
+                  </TableCell>
+                  <TableCell className="py-3 text-xs text-slate-600 font-mono">
+                    {tx.date}
+                  </TableCell>
+                  <TableCell className="py-3 text-xs text-right font-mono font-bold text-slate-900">
+                    ৳{tx.amount.toLocaleString("en-IN")}
+                  </TableCell>
+                  <TableCell className="py-3 text-xs text-right pr-0">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                        tx.status === "Settled"
+                          ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                          : tx.status === "Pending Clearance"
+                          ? "text-amber-700 bg-amber-50 border-amber-200"
+                          : "text-rose-700 bg-rose-50 border-rose-200"
+                      }`}
+                    >
+                      {tx.status}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </Card>
+
+      {/* 5. Working Calendar Dialog Modal */}
+      <Dialog open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+        <DialogContent className="sm:max-w-[480px] bg-white rounded-2xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4 text-[#0090FF]" />
+              Select Accounting Period & Fiscal Quarter
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Pick any month to inspect live earned revenue, operational burn, and collections.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <span className="text-xs font-semibold text-slate-700">Financial Year</span>
+              <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+                <SelectTrigger className="h-8 w-28 text-xs font-bold font-mono bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="text-xs font-mono">
+                  <SelectItem value="2025">FY 2025</SelectItem>
+                  <SelectItem value="2026">FY 2026</SelectItem>
+                  <SelectItem value="2027">FY 2027</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Quarter / Month Selection */}
+            <div className="space-y-3">
+              {[
+                { quarter: "Q1", months: [0, 1, 2] },
+                { quarter: "Q2", months: [3, 4, 5] },
+                { quarter: "Q3", months: [6, 7, 8] },
+                { quarter: "Q4", months: [9, 10, 11] },
+              ].map((q) => (
+                <div key={q.quarter} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-black uppercase text-slate-400 block mb-2">
+                    Fiscal {q.quarter} {selectedYear}
+                  </span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {q.months.map((mIdx) => {
+                      const isSelected = selectedMonth === mIdx;
+                      const monthData = monthlyTrend[mIdx] || { Revenue: 0 };
+                      return (
+                        <button
+                          key={mIdx}
+                          type="button"
+                          onClick={() => {
+                            setSelectedMonth(mIdx);
+                            setIsCalendarOpen(false);
+                          }}
+                          className={`p-2.5 rounded-lg border text-left transition-all ${
+                            isSelected
+                              ? "bg-[#0090FF] border-[#0090FF] text-white shadow-sm"
+                              : "bg-white border-slate-200 hover:border-slate-300 text-slate-800"
+                          }`}
+                        >
+                          <strong className="block text-xs font-bold">{MONTH_NAMES[mIdx]}</strong>
+                          <span className={`block text-[10px] font-mono mt-0.5 ${isSelected ? "text-blue-100" : "text-slate-400"}`}>
+                            Rev: ৳{monthData.Revenue}L
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCalendarOpen(false)}
+              className="h-8 text-xs"
+            >
+              Close Calendar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 6. Comprehensive Annual Financial Statement Modal */}
+      <Dialog open={isStatementOpen} onOpenChange={setIsStatementOpen}>
+        <DialogContent className="sm:max-w-[760px] bg-white rounded-2xl max-h-[95vh] overflow-y-auto p-0">
+          <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between print:hidden">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-[#0090FF]" />
+              <span className="text-xs font-bold text-slate-800">
+                Annual Financial Statement — FY {selectedYear}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => window.print()}
+                className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white gap-1.5 shadow-none"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Print Statement
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsStatementOpen(false)}
+                className="h-8 text-xs"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+
+          <div id="printable-annual-statement" className="p-8 text-slate-900 font-sans text-xs bg-white">
+            <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
+              <div>
+                <h1 className="text-xl font-black uppercase tracking-tight">AK PHARMA LTD.</h1>
+                <p className="text-[10px] text-slate-600 font-semibold">Directorate of Finance & Commercial Operations</p>
+                <p className="text-[9px] text-slate-500">10/26, Rupnagar R/A, Mirpur, Dhaka 1216 • DGDA Lic: DL-PH-2026-88</p>
+              </div>
+              <div className="text-right">
+                <span className="text-xs font-bold uppercase tracking-wider block border border-slate-900 px-2 py-0.5 inline-block">
+                  ANNUAL STATEMENT (FY {selectedYear})
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono block mt-1">
+                  Issued: 27 Sep 2026
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-3 py-4 border-b border-slate-200">
+              <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
+                <span className="text-[9px] uppercase font-bold text-slate-500 block">Total Billed Turnover</span>
+                <strong className="text-sm font-mono font-bold text-slate-900 block mt-1">
+                  ৳{annualMetrics.annualEarnBDT.toLocaleString("en-IN")}
+                </strong>
+              </div>
+              <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
+                <span className="text-[9px] uppercase font-bold text-slate-500 block">Realized Collections</span>
+                <strong className="text-sm font-mono font-bold text-emerald-700 block mt-1">
+                  ৳{annualMetrics.annualCollectionsBDT.toLocaleString("en-IN")}
+                </strong>
+              </div>
+              <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
+                <span className="text-[9px] uppercase font-bold text-slate-500 block">Operational Burn</span>
+                <strong className="text-sm font-mono font-bold text-rose-700 block mt-1">
+                  ৳{annualMetrics.annualBurnBDT.toLocaleString("en-IN")}
+                </strong>
+              </div>
+              <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
+                <span className="text-[9px] uppercase font-bold text-slate-500 block">Audited Net Profit</span>
+                <strong className="text-sm font-mono font-bold text-[#0090FF] block mt-1">
+                  ৳{annualMetrics.annualNetProfitBDT.toLocaleString("en-IN")}
+                </strong>
+              </div>
+            </div>
+
+            <div className="py-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-2">
+                Monthly Commercial Performance Ledger (FY {selectedYear})
+              </h3>
+              <table className="w-full text-xs border border-slate-300">
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-800">
+                    <th className="text-left p-2">Period</th>
+                    <th className="text-right p-2">Billed Revenue (৳)</th>
+                    <th className="text-right p-2">Collected (৳)</th>
+                    <th className="text-right p-2">Expenses / Burn (৳)</th>
+                    <th className="text-right p-2">Net Cash (৳)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {monthlyTrend.map((m) => {
+                    const net = m.rawCollections - m.rawExpenses;
+                    return (
+                      <tr key={m.month}>
+                        <td className="p-2 font-bold">{m.month} {selectedYear}</td>
+                        <td className="p-2 text-right font-mono">৳{m.rawRevenue.toLocaleString("en-IN")}</td>
+                        <td className="p-2 text-right font-mono text-emerald-700 font-semibold">৳{m.rawCollections.toLocaleString("en-IN")}</td>
+                        <td className="p-2 text-right font-mono text-rose-600">৳{m.rawExpenses.toLocaleString("en-IN")}</td>
+                        <td className="p-2 text-right font-mono font-bold text-slate-900">৳{net.toLocaleString("en-IN")}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-16 pt-6 border-t-2 border-slate-200 grid grid-cols-2 gap-8 text-[10px] text-center">
+              <div>
+                <div className="w-40 border-b border-slate-400 mx-auto mb-1" />
+                <strong className="text-slate-900 block text-xs">Chief Executive Officer (CEO)</strong>
+                <span className="text-slate-500">Executive Financial Authorization</span>
+              </div>
+              <div>
+                <div className="w-40 border-b border-slate-400 mx-auto mb-1" />
+                <strong className="text-slate-900 block text-xs">Managing Director (MD)</strong>
+                <span className="text-slate-500">Final Audit & Statutory Sign-off</span>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
