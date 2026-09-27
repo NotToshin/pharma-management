@@ -2,12 +2,7 @@
 
 import * as React from "react";
 import * as XLSX from "xlsx";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +23,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -44,12 +38,18 @@ import {
   Download,
   Search,
   Filter,
-  CheckCircle2,
   Wallet,
   Building2,
+  ArrowRightLeft,
+  Trash2,
+  CheckCircle2,
+  ArrowDownRight,
+  ArrowUpRight,
+  Coins,
+  BadgePercent,
+  RefreshCw,
 } from "lucide-react";
 
-// Master Directory of Operational Banks in Bangladesh
 export const BANGLADESH_BANKS = {
   conventional: [
     "Eastern Bank PLC",
@@ -61,15 +61,7 @@ export const BANGLADESH_BANKS = {
     "Mutual Trust Bank (MTB)",
     "Dhaka Bank PLC",
     "Bank Asia PLC",
-    "NCC Bank PLC",
-    "Mercantile Bank PLC",
-    "Southeast Bank PLC",
     "Pubali Bank PLC",
-    "Uttara Bank PLC",
-    "Trust Bank Limited",
-    "Midland Bank Limited",
-    "NRB Bank Limited",
-    "Community Bank Bangladesh",
   ],
   islamic: [
     "Islami Bank Bangladesh PLC",
@@ -77,295 +69,280 @@ export const BANGLADESH_BANKS = {
     "Shahjalal Islami Bank PLC",
     "Social Islami Bank PLC (SIBL)",
     "EXIM Bank Bangladesh PLC",
-    "First Security Islami Bank PLC",
-    "Union Bank PLC",
-    "Global Islami Bank PLC",
-    "ICB Islamic Bank",
   ],
   foreign: [
     "Standard Chartered Bank",
     "HSBC Bangladesh",
     "Citibank N.A.",
     "Commercial Bank of Ceylon",
-    "State Bank of India (SBI)",
-    "Woori Bank",
   ],
-  stateOwned: [
-    "Sonali Bank PLC",
-    "Janata Bank PLC",
-    "Agrani Bank PLC",
-    "Rupali Bank PLC",
-    "Bangladesh Krishi Bank",
-  ],
-  vault: [
-    "Central Vault Petty Cash",
-    "Factory / Plant Cash Register",
+  cashCounters: [
+    "Head Office Cash Safe",
+    "Sales Counter Cash Drawer",
+    "Mirpur Depot Petty Safe",
+    "Factory Plant Cash Vault",
   ],
 };
 
-interface BankAccount {
+interface AccountRecord {
   id: string;
-  bankName: string;
-  accountName: string;
+  accountTitle: string;
+  category: "BANK" | "CASH";
+  institution: string;
   accountNumber: string;
   branch: string;
-  type: "Current" | "Corporate Escrow" | "Petty Cash" | "Savings";
+  accountClass: string;
   balance: number;
 }
 
-interface LedgerEntry {
+interface TransactionRecord {
   id: string;
   entryDate: string;
   refCode: string;
-  accountUsed: string;
+  flowType: "INFLOW" | "OUTFLOW" | "TRANSFER" | "LOAN";
   particulars: string;
-  method: "BEFTN / RTGS" | "Cheque Deposit" | "Cash / Vault" | "Direct Debit";
-  type: "Inflow" | "Outflow";
+  fundingEntity?: string;
+  method: string;
   amount: number;
-  runningBalance: number;
+  sourceAccountId?: string;
+  destinationAccountId?: string;
+  sourceAccount?: AccountRecord;
+  destinationAccount?: AccountRecord;
   reconciliationStatus: "Reconciled" | "In Transit" | "Unreconciled";
 }
 
-const initialAccounts: BankAccount[] = [
-  {
-    id: "acc-1",
-    bankName: "Eastern Bank PLC",
-    accountName: "AK Pharma Corporate Ops",
-    accountNumber: "104-102-994821",
-    branch: "Gulshan-2 Corporate Branch",
-    type: "Current",
-    balance: 8450000,
-  },
-  {
-    id: "acc-2",
-    bankName: "Islami Bank Bangladesh PLC",
-    accountName: "AK Pharma Wholesale Collection",
-    accountNumber: "205-019-338104",
-    branch: "Motijheel Commercial Branch",
-    type: "Current",
-    balance: 5210000,
-  },
-  {
-    id: "acc-3",
-    bankName: "Standard Chartered Bank",
-    accountName: "AK Pharma LC / Sourcing",
-    accountNumber: "01-8849201-01",
-    branch: "Dhanmondi Branch",
-    type: "Corporate Escrow",
-    balance: 3940000,
-  },
-  {
-    id: "acc-4",
-    bankName: "BRAC Bank PLC",
-    accountName: "AK Pharma Payroll & HR",
-    accountNumber: "150-120-449102",
-    branch: "Mirpur 10 Branch",
-    type: "Current",
-    balance: 2150000,
-  },
-  {
-    id: "acc-5",
-    bankName: "Central Vault Petty Cash",
-    accountName: "Head Office Operations",
-    accountNumber: "CASH-VAULT-01",
-    branch: "Dhaka HQ",
-    type: "Petty Cash",
-    balance: 640000,
-  },
-];
-
-const initialLedger: LedgerEntry[] = [
-  {
-    id: "led-1",
-    entryDate: "16 Sep 2026",
-    refCode: "TX-EBL-8921",
-    accountUsed: "Eastern Bank PLC",
-    particulars: "Popular Diagnostic Center (Monthly Wholesale Settlement)",
-    method: "BEFTN / RTGS",
-    type: "Inflow",
-    amount: 142500,
-    runningBalance: 8450000,
-    reconciliationStatus: "Reconciled",
-  },
-  {
-    id: "led-2",
-    entryDate: "16 Sep 2026",
-    refCode: "TX-VLT-0419",
-    accountUsed: "Central Vault Petty Cash",
-    particulars: "MIO Daily Conveyance & Outstation Fare Disbursed",
-    method: "Cash / Vault",
-    type: "Outflow",
-    amount: 18400,
-    runningBalance: 640000,
-    reconciliationStatus: "Reconciled",
-  },
-  {
-    id: "led-3",
-    entryDate: "15 Sep 2026",
-    refCode: "TX-IBB-2910",
-    accountUsed: "Islami Bank Bangladesh PLC",
-    particulars: "Sylhet Sadar Chemist Society Bulk Deposit",
-    method: "Cheque Deposit",
-    type: "Inflow",
-    amount: 210000,
-    runningBalance: 5210000,
-    reconciliationStatus: "In Transit",
-  },
-  {
-    id: "led-4",
-    entryDate: "14 Sep 2026",
-    refCode: "TX-SCB-1102",
-    accountUsed: "Standard Chartered Bank",
-    particulars: "Square Formulation Active Pharma API Sourcing Payment",
-    method: "BEFTN / RTGS",
-    type: "Outflow",
-    amount: 420000,
-    runningBalance: 3940000,
-    reconciliationStatus: "Reconciled",
-  },
-  {
-    id: "led-5",
-    entryDate: "13 Sep 2026",
-    refCode: "TX-BBL-5501",
-    accountUsed: "BRAC Bank PLC",
-    particulars: "Mid-month Field Officer Travel Advance Settlement",
-    method: "BEFTN / RTGS",
-    type: "Outflow",
-    amount: 85000,
-    runningBalance: 2150000,
-    reconciliationStatus: "Reconciled",
-  },
-];
-
-export default function BankLedgerPage() {
-  const [accounts, setAccounts] = React.useState<BankAccount[]>(initialAccounts);
-  const [ledger, setLedger] = React.useState<LedgerEntry[]>(initialLedger);
+export default function AccountLedgerPage() {
+  const [accounts, setAccounts] = React.useState<AccountRecord[]>([]);
+  const [ledger, setLedger] = React.useState<TransactionRecord[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [accountFilter, setAccountFilter] = React.useState("all");
-  const [typeFilter, setTypeFilter] = React.useState("all");
+  const [flowFilter, setFlowFilter] = React.useState("all");
 
-  // Post Transaction Modal State
-  const [isTxOpen, setIsTxOpen] = React.useState(false);
-  const [txAccount, setTxAccount] = React.useState(initialAccounts[0].bankName);
-  const [particulars, setParticulars] = React.useState("");
-  const [method, setMethod] = React.useState<LedgerEntry["method"]>("BEFTN / RTGS");
-  const [txType, setTxType] = React.useState<LedgerEntry["type"]>("Inflow");
-  const [amount, setAmount] = React.useState("");
-  const [reconciliationStatus, setReconciliationStatus] = React.useState<LedgerEntry["reconciliationStatus"]>("Reconciled");
-
-  // Add New Bank Account Modal State
+  // Modals
   const [isAddAccountOpen, setIsAddAccountOpen] = React.useState(false);
-  const [newBankName, setNewBankName] = React.useState(BANGLADESH_BANKS.conventional[0]);
-  const [newAccountTitle, setNewAccountTitle] = React.useState("");
-  const [newAccountNumber, setNewAccountNumber] = React.useState("");
-  const [newBranch, setNewBranch] = React.useState("");
-  const [newAccountType, setNewAccountType] = React.useState<BankAccount["type"]>("Current");
-  const [initialBalance, setInitialBalance] = React.useState("");
+  const [isTxOpen, setIsTxOpen] = React.useState(false);
 
-  const totalLiquidCash = accounts.reduce((acc, a) => acc + a.balance, 0);
+  // Add Account Form
+  const [accCategory, setAccCategory] = React.useState<"BANK" | "CASH">("BANK");
+  const [accInstitution, setAccInstitution] = React.useState(BANGLADESH_BANKS.conventional[0]);
+  const [accTitle, setAccTitle] = React.useState("");
+  const [accNumber, setAccNumber] = React.useState("");
+  const [accBranch, setAccBranch] = React.useState("");
+  const [accClass, setAccClass] = React.useState("Current");
+  const [accInitialBalance, setAccInitialBalance] = React.useState("");
 
-  const handleCreateAccount = (e: React.FormEvent) => {
+  // Transaction / Loan / Transfer Form
+  const [txFlow, setTxFlow] = React.useState<"INFLOW" | "OUTFLOW" | "TRANSFER" | "LOAN">("TRANSFER");
+  const [sourceAccountId, setSourceAccountId] = React.useState("");
+  const [destinationAccountId, setDestinationAccountId] = React.useState("");
+  const [txParticulars, setTxParticulars] = React.useState("");
+  const [txFundingEntity, setTxFundingEntity] = React.useState("");
+  const [txMethod, setTxMethod] = React.useState("Cash Handover");
+  const [txAmount, setTxAmount] = React.useState("");
+  const [txStatus, setTxStatus] = React.useState<"Reconciled" | "In Transit" | "Unreconciled">("Reconciled");
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+  const fetchBackendData = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const [accRes, txRes] = await Promise.all([
+        fetch(`${API_URL}/account-ledger/accounts`).catch(() => null),
+        fetch(`${API_URL}/account-ledger/transactions`).catch(() => null),
+      ]);
+
+      if (accRes && accRes.ok) {
+        const accs = await accRes.json();
+        setAccounts(accs.map((a: any) => ({ ...a, balance: Number(a.balance) || 0 })));
+        if (accs.length > 0) {
+          setSourceAccountId(accs[0].id);
+          setDestinationAccountId(accs[1]?.id || accs[0].id);
+        }
+      }
+
+      if (txRes && txRes.ok) {
+        const txs = await txRes.json();
+        setLedger(txs.map((t: any) => ({ ...t, amount: Number(t.amount) || 0 })));
+      }
+    } catch (err) {
+      console.error("Failed to load treasury data:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [API_URL]);
+
+  React.useEffect(() => {
+    fetchBackendData();
+  }, [fetchBackendData]);
+
+  // Aggregate Balances
+  const totalBankLiquidity = accounts
+    .filter((a) => a.category === "BANK")
+    .reduce((sum, a) => sum + a.balance, 0);
+
+  const totalCashSafeLiquidity = accounts
+    .filter((a) => a.category === "CASH")
+    .reduce((sum, a) => sum + a.balance, 0);
+
+  const totalCombinedFunds = totalBankLiquidity + totalCashSafeLiquidity;
+
+  // Add Account / Cash Drawer
+  const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
-    const createdAccount: BankAccount = {
-      id: `acc-${Date.now()}`,
-      bankName: newBankName,
-      accountName: newAccountTitle,
-      accountNumber: newAccountNumber,
-      branch: newBranch,
-      type: newAccountType,
-      balance: parseFloat(initialBalance) || 0,
-    };
+    try {
+      const payload = {
+        accountTitle: accTitle.trim(),
+        category: accCategory,
+        institution: accInstitution,
+        accountNumber: accNumber.trim() || (accCategory === "CASH" ? "CASH-VAULT" : "N/A"),
+        branch: accBranch.trim() || "Main Office",
+        accountClass: accClass,
+        initialBalance: parseFloat(accInitialBalance) || 0,
+      };
 
-    setAccounts((prev) => [...prev, createdAccount]);
-    setNewAccountTitle("");
-    setNewAccountNumber("");
-    setNewBranch("");
-    setInitialBalance("");
-    setIsAddAccountOpen(false);
+      const res = await fetch(`${API_URL}/account-ledger/accounts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error("Failed to create account");
+
+      setAccTitle("");
+      setAccNumber("");
+      setAccBranch("");
+      setAccInitialBalance("");
+      setIsAddAccountOpen(false);
+      fetchBackendData();
+    } catch (err) {
+      alert("Error adding account or cash drawer.");
+    }
   };
 
-  const handleAddTransaction = (e: React.FormEvent) => {
+  // Delete Account
+  const handleDeleteAccount = async (id: string, title: string) => {
+    if (!confirm(`Are you sure you want to remove "${title}"? This will unlink it from active accounts.`)) return;
+    try {
+      const res = await fetch(`${API_URL}/account-ledger/accounts/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete account");
+      fetchBackendData();
+    } catch {
+      alert("Error removing account.");
+    }
+  };
+
+  // Record Transaction / Transfer / Loan
+  const handlePostTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    const numAmount = parseFloat(amount) || 0;
-    if (numAmount <= 0) return;
+    const numAmount = parseFloat(txAmount);
+    if (!numAmount || numAmount <= 0) {
+      alert("Please enter a valid amount.");
+      return;
+    }
 
-    setAccounts((prev) =>
-      prev.map((acc) => {
-        if (acc.bankName === txAccount) {
-          const newBal = txType === "Inflow" ? acc.balance + numAmount : acc.balance - numAmount;
-          return { ...acc, balance: newBal };
-        }
-        return acc;
-      })
-    );
+    if (txFlow === "TRANSFER" && sourceAccountId === destinationAccountId) {
+      alert("Source and Destination accounts cannot be the same.");
+      return;
+    }
 
-    const targetAccount = accounts.find((a) => a.bankName === txAccount);
-    const prevBalance = targetAccount ? targetAccount.balance : 0;
-    const computedBalance = txType === "Inflow" ? prevBalance + numAmount : prevBalance - numAmount;
+    try {
+      const payload = {
+        entryDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        flowType: txFlow,
+        particulars: txParticulars.trim() || (txFlow === "LOAN" ? "Loan Disbursement" : "Journal Entry"),
+        fundingEntity: txFundingEntity.trim(),
+        method: txMethod,
+        amount: numAmount,
+        sourceAccountId: txFlow === "INFLOW" || txFlow === "LOAN" ? undefined : sourceAccountId,
+        destinationAccountId: txFlow === "OUTFLOW" ? undefined : destinationAccountId,
+        reconciliationStatus: txStatus,
+      };
 
-    const newEntry: LedgerEntry = {
-      id: `led-${Date.now()}`,
-      entryDate: "17 Sep 2026",
-      refCode: `TX-${txAccount.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
-      accountUsed: txAccount,
-      particulars,
-      method,
-      type: txType,
-      amount: numAmount,
-      runningBalance: computedBalance,
-      reconciliationStatus,
-    };
+      const res = await fetch(`${API_URL}/account-ledger/transactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    setLedger((prev) => [newEntry, ...prev]);
-    setParticulars("");
-    setAmount("");
-    setIsTxOpen(false);
+      if (!res.ok) throw new Error("Failed to post transaction");
+
+      setTxParticulars("");
+      setTxFundingEntity("");
+      setTxAmount("");
+      setIsTxOpen(false);
+      fetchBackendData();
+    } catch (err) {
+      alert("Failed to submit transaction.");
+    }
+  };
+
+  // Delete Transaction (Reverses Balance)
+  const handleDeleteTransaction = async (tx: TransactionRecord) => {
+    if (!confirm(`Reverse and delete transaction ${tx.refCode}? This will automatically restore account balances.`)) return;
+    try {
+      const res = await fetch(`${API_URL}/account-ledger/transactions/${tx.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete transaction");
+      fetchBackendData();
+    } catch {
+      alert("Error deleting transaction.");
+    }
   };
 
   const handleExportExcel = () => {
     const exportRows = ledger.map((item) => ({
       "Entry Date": item.entryDate,
-      "Voucher / Ref": item.refCode,
-      "Bank / Cash Account": item.accountUsed,
-      Particulars: item.particulars,
-      "Transfer Method": item.method,
-      "Flow Type": item.type,
-      "Amount (৳)": item.amount,
-      "Running Balance (৳)": item.runningBalance,
-      "Reconciliation Status": item.reconciliationStatus,
+      "Ref Code": item.refCode,
+      "Flow Type": item.flowType,
+      "Source Account": item.sourceAccount?.accountTitle || "External Payer",
+      "Destination Account": item.destinationAccount?.accountTitle || "External Payee",
+      "Particulars / Reason": item.particulars,
+      "Entity / Lender": item.fundingEntity || "N/A",
+      Method: item.method,
+      "Amount (BDT)": item.amount,
+      Status: item.reconciliationStatus,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Bank & Cash Ledger");
-    XLSX.writeFile(workbook, `AK_Pharma_Bank_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Treasury Journal");
+    XLSX.writeFile(workbook, `AK_Pharma_Treasury_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const filteredLedger = ledger.filter((item) => {
     const matchesSearch =
       item.particulars.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.refCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.accountUsed.toLowerCase().includes(searchQuery.toLowerCase());
+      (item.fundingEntity && item.fundingEntity.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (item.sourceAccount?.accountTitle && item.sourceAccount.accountTitle.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (item.destinationAccount?.accountTitle && item.destinationAccount.accountTitle.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesAccount =
-      accountFilter === "all" || item.accountUsed.toLowerCase() === accountFilter.toLowerCase();
+      accountFilter === "all" ||
+      item.sourceAccountId === accountFilter ||
+      item.destinationAccountId === accountFilter;
 
-    const matchesType =
-      typeFilter === "all" || item.type.toLowerCase() === typeFilter.toLowerCase();
+    const matchesFlow = flowFilter === "all" || item.flowType.toLowerCase() === flowFilter.toLowerCase();
 
-    return matchesSearch && matchesAccount && matchesType;
+    return matchesSearch && matchesAccount && matchesFlow;
   });
 
   return (
-    <div className="space-y-6 max-w-[1360px] mx-auto pb-10">
-      {/* 1. Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="space-y-6 max-w-[1360px] mx-auto pb-12 text-slate-900 font-sans">
+      {/* 1. Header Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            Bank & Cash Ledger
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-[#0090FF] animate-pulse" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              CENTRAL TREASURY & LIQUIDITY MASTER
+            </span>
+          </div>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 mt-1">
+            Account & Cash Journal Ledger
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Operational liquidity across commercial, Islamic, foreign corporate accounts, and factory vaults.
+            Manage your corporate banks, cash drawers, loan intakes, and transfers.
           </p>
         </div>
 
@@ -373,303 +350,150 @@ export default function BankLedgerPage() {
           <Button
             size="sm"
             variant="outline"
+            onClick={fetchBackendData}
+            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold px-3 rounded-lg shadow-none"
+          >
+            <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
+            Refresh
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
             onClick={handleExportExcel}
-            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold px-3.5 rounded-lg shadow-none"
+            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold px-3 rounded-lg shadow-none"
           >
             <Download className="h-3.5 w-3.5 text-emerald-600" />
             Export Ledger
           </Button>
 
-          {/* Add Account Modal */}
-          <Dialog open={isAddAccountOpen} onOpenChange={setIsAddAccountOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="outline" className="h-9 gap-1.5 border-slate-200 bg-white text-slate-800 text-xs font-semibold px-3 rounded-lg shadow-none">
-                <Building2 className="h-3.5 w-3.5 text-slate-600" />
-                Add Bank Account
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[480px] bg-white rounded-xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="text-base font-bold text-slate-900">Link Commercial Bank Account</DialogTitle>
-                <DialogDescription className="text-xs text-slate-500">
-                  Select an authorized banking institution to link into the corporate chart of accounts.
-                </DialogDescription>
-              </DialogHeader>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsAddAccountOpen(true)}
+            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-800 text-xs font-semibold px-3 rounded-lg shadow-none"
+          >
+            <Building2 className="h-3.5 w-3.5 text-slate-600" />
+            Add Account / Drawer
+          </Button>
 
-              <form onSubmit={handleCreateAccount} className="space-y-3.5 py-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="bank-select" className="text-xs font-medium text-slate-700">Financial Institution</Label>
-                  <Select value={newBankName} onValueChange={setNewBankName}>
-                    <SelectTrigger className="h-8 text-xs bg-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px] text-xs">
-                      <SelectGroup>
-                        <SelectLabel className="text-[10px] text-slate-400 uppercase tracking-wider">Conventional Private Banks</SelectLabel>
-                        {BANGLADESH_BANKS.conventional.map((bank) => (
-                          <SelectItem key={bank} value={bank}>{bank}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel className="text-[10px] text-slate-400 uppercase tracking-wider">Islamic Shariah Banks</SelectLabel>
-                        {BANGLADESH_BANKS.islamic.map((bank) => (
-                          <SelectItem key={bank} value={bank}>{bank}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel className="text-[10px] text-slate-400 uppercase tracking-wider">Multinational / Foreign Banks</SelectLabel>
-                        {BANGLADESH_BANKS.foreign.map((bank) => (
-                          <SelectItem key={bank} value={bank}>{bank}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel className="text-[10px] text-slate-400 uppercase tracking-wider">State-Owned Commercial</SelectLabel>
-                        {BANGLADESH_BANKS.stateOwned.map((bank) => (
-                          <SelectItem key={bank} value={bank}>{bank}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel className="text-[10px] text-slate-400 uppercase tracking-wider">Vault & Cash</SelectLabel>
-                        {BANGLADESH_BANKS.vault.map((bank) => (
-                          <SelectItem key={bank} value={bank}>{bank}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="acc-title" className="text-xs font-medium text-slate-700">Account Title</Label>
-                  <Input
-                    id="acc-title"
-                    placeholder="e.g. AK Pharma Secondary Clearing"
-                    value={newAccountTitle}
-                    onChange={(e) => setNewAccountTitle(e.target.value)}
-                    required
-                    className="h-8 text-xs"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="acc-num" className="text-xs font-medium text-slate-700">Account / IBAN Number</Label>
-                    <Input
-                      id="acc-num"
-                      placeholder="e.g. 104-102-00981"
-                      value={newAccountNumber}
-                      onChange={(e) => setNewAccountNumber(e.target.value)}
-                      required
-                      className="h-8 text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="branch" className="text-xs font-medium text-slate-700">Branch Name</Label>
-                    <Input
-                      id="branch"
-                      placeholder="e.g. Gulshan Corporate Branch"
-                      value={newBranch}
-                      onChange={(e) => setNewBranch(e.target.value)}
-                      required
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="acc-type" className="text-xs font-medium text-slate-700">Account Class</Label>
-                    <Select value={newAccountType} onValueChange={(v) => setNewAccountType(v as BankAccount["type"])}>
-                      <SelectTrigger className="h-8 text-xs bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="text-xs">
-                        <SelectItem value="Current">Current Account</SelectItem>
-                        <SelectItem value="Corporate Escrow">Corporate Escrow / LC</SelectItem>
-                        <SelectItem value="Savings">Savings Account</SelectItem>
-                        <SelectItem value="Petty Cash">Petty Cash Vault</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="opening-bal" className="text-xs font-medium text-slate-700">Opening Balance (৳)</Label>
-                    <Input
-                      id="opening-bal"
-                      type="number"
-                      placeholder="1000000"
-                      value={initialBalance}
-                      onChange={(e) => setInitialBalance(e.target.value)}
-                      required
-                      className="h-8 text-xs font-mono"
-                    />
-                  </div>
-                </div>
-
-                <DialogFooter className="pt-3">
-                  <Button type="button" variant="outline" onClick={() => setIsAddAccountOpen(false)} className="h-8 text-xs">
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white">
-                    Link Account
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          {/* Post Transaction Modal */}
-          <Dialog open={isTxOpen} onOpenChange={setIsTxOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="h-9 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs font-semibold px-3.5 rounded-lg shadow-none">
-                <Plus className="h-4 w-4" />
-                Record Transaction
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[480px] bg-white rounded-xl">
-              <DialogHeader>
-                <DialogTitle className="text-base font-bold text-slate-900">Post Bank or Cash Voucher</DialogTitle>
-                <DialogDescription className="text-xs text-slate-500">
-                  Record an immediate debit or credit entry across liquid accounts.
-                </DialogDescription>
-              </DialogHeader>
-
-              <form onSubmit={handleAddTransaction} className="space-y-3.5 py-2">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="bank" className="text-xs font-medium text-slate-700">Account / Vault</Label>
-                    <Select value={txAccount} onValueChange={setTxAccount}>
-                      <SelectTrigger className="h-8 text-xs bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="text-xs">
-                        {accounts.map((a) => (
-                          <SelectItem key={a.id} value={a.bankName}>
-                            {a.bankName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="flow" className="text-xs font-medium text-slate-700">Flow Type</Label>
-                    <Select value={txType} onValueChange={(val) => setTxType(val as LedgerEntry["type"])}>
-                      <SelectTrigger className="h-8 text-xs bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="text-xs">
-                        <SelectItem value="Inflow">Inflow (Deposit / Credit)</SelectItem>
-                        <SelectItem value="Outflow">Outflow (Disbursed / Debit)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="particulars" className="text-xs font-medium text-slate-700">Particulars / Beneficiary</Label>
-                  <Input
-                    id="particulars"
-                    placeholder="e.g. Popular Chemist Settlement"
-                    value={particulars}
-                    onChange={(e) => setParticulars(e.target.value)}
-                    required
-                    className="h-8 text-xs"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="amount" className="text-xs font-medium text-slate-700">Amount (৳)</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      placeholder="50000"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      required
-                      className="h-8 text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="method" className="text-xs font-medium text-slate-700">Channel</Label>
-                    <Select value={method} onValueChange={(val) => setMethod(val as LedgerEntry["method"])}>
-                      <SelectTrigger className="h-8 text-xs bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="text-xs">
-                        <SelectItem value="BEFTN / RTGS">BEFTN / RTGS</SelectItem>
-                        <SelectItem value="Cheque Deposit">Cheque Deposit</SelectItem>
-                        <SelectItem value="Direct Debit">Direct Debit</SelectItem>
-                        <SelectItem value="Cash / Vault">Cash / Vault</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="recon-status" className="text-xs font-medium text-slate-700">Reconciliation Match</Label>
-                  <Select
-                    value={reconciliationStatus}
-                    onValueChange={(val) => setReconciliationStatus(val as LedgerEntry["reconciliationStatus"])}
-                  >
-                    <SelectTrigger className="h-8 text-xs bg-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="text-xs">
-                      <SelectItem value="Reconciled">Reconciled (Matched Statement)</SelectItem>
-                      <SelectItem value="In Transit">In Transit (Cheque Clearing)</SelectItem>
-                      <SelectItem value="Unreconciled">Unreconciled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <DialogFooter className="pt-3">
-                  <Button type="button" variant="outline" onClick={() => setIsTxOpen(false)} className="h-8 text-xs">
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white">
-                    Post to Ledger
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button
+            size="sm"
+            onClick={() => setIsTxOpen(true)}
+            className="h-9 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs font-semibold px-4 rounded-lg shadow-none"
+          >
+            <Plus className="h-4 w-4" />
+            Post Money / Transfer / Loan
+          </Button>
         </div>
       </div>
 
-      {/* 2. Top Summary KPI Cards: Account Balances */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        {accounts.map((acc) => (
-          <Card key={acc.id} className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-700 truncate max-w-[160px]">
-                {acc.bankName}
-              </span>
-              <div className="p-1.5 rounded-lg bg-slate-100 text-slate-700 shrink-0">
-                {acc.type === "Petty Cash" ? <Wallet className="h-4 w-4" /> : <Landmark className="h-4 w-4" />}
-              </div>
+      {/* 2. Top Summary KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Treasury Liquidity</span>
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700">
+              <CheckCircle2 className="h-4 w-4" />
             </div>
-            <div className="mt-3 text-[24px] font-bold tracking-tight text-slate-900 leading-none font-mono">
-              ৳{acc.balance.toLocaleString("en-IN")}
+          </div>
+          <div className="mt-3 text-[30px] font-extrabold tracking-tight text-slate-900 leading-none font-mono">
+            ৳{totalCombinedFunds.toLocaleString("en-IN")}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-2">Combined across all banks and physical cash drawers</p>
+        </Card>
+
+        <Card className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Corporate Bank Accounts</span>
+            <div className="p-1.5 rounded-lg bg-blue-50 text-[#0090FF]">
+              <Landmark className="h-4 w-4" />
             </div>
-            <p className="text-[11px] text-slate-400 mt-2 truncate">
-              {acc.accountNumber}
-            </p>
-            <div className="mt-3 flex items-center justify-between text-[11px] pt-2 border-t border-slate-100">
-              <span className="text-slate-500 font-medium">{acc.type}</span>
-              <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" /> Active
-              </span>
+          </div>
+          <div className="mt-3 text-[30px] font-extrabold tracking-tight text-blue-700 leading-none font-mono">
+            ৳{totalBankLiquidity.toLocaleString("en-IN")}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-2">Settlement, Clearing, and Foreign Escrow balance</p>
+        </Card>
+
+        <Card className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Physical Cash Drawers</span>
+            <div className="p-1.5 rounded-lg bg-purple-50 text-purple-700">
+              <Wallet className="h-4 w-4" />
             </div>
-          </Card>
-        ))}
+          </div>
+          <div className="mt-3 text-[30px] font-extrabold tracking-tight text-purple-700 leading-none font-mono">
+            ৳{totalCashSafeLiquidity.toLocaleString("en-IN")}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-2">In Central Safe, retail desks, and plant registers</p>
+        </Card>
       </div>
 
-      {/* 3. Search & Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200/90">
+      {/* 3. Dynamic Cash Counters & Banks Strip */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+            Active Vaults, Drawers & Banks ({accounts.length})
+          </h2>
+          <span className="text-[11px] text-slate-400">All balances update dynamically on transaction entry</span>
+        </div>
+
+        {accounts.length === 0 && !loading ? (
+          <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-white text-slate-400 text-xs">
+            No bank accounts or cash drawers configured. Click <strong>"Add Account / Drawer"</strong> to create your first treasury account.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+            {accounts.map((acc) => (
+              <Card key={acc.id} className="rounded-xl border border-slate-200 bg-white p-4 relative group hover:border-slate-300 transition-all shadow-none">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <Badge
+                      variant="outline"
+                      className={`text-[9px] font-bold ${
+                        acc.category === "CASH"
+                          ? "bg-purple-50 text-purple-700 border-purple-200"
+                          : "bg-blue-50 text-blue-700 border-blue-200"
+                      }`}
+                    >
+                      {acc.category === "CASH" ? "Cash Drawer" : "Bank Account"}
+                    </Badge>
+                    <strong className="text-xs font-bold text-slate-900 block mt-1.5 truncate max-w-[170px]" title={acc.accountTitle}>
+                      {acc.accountTitle}
+                    </strong>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDeleteAccount(acc.id, acc.accountTitle)}
+                    className="h-6 w-6 p-0 text-slate-300 hover:text-rose-600 opacity-60 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+
+                <div className="mt-3 text-xl font-black font-mono tracking-tight text-slate-900">
+                  ৳{acc.balance.toLocaleString("en-IN")}
+                </div>
+
+                <div className="mt-2 text-[10px] text-slate-400 truncate flex items-center justify-between">
+                  <span>{acc.institution}</span>
+                  <span className="font-mono text-slate-500 font-semibold">{acc.accountNumber}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 4. Filter Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
           <Input
-            placeholder="Search voucher, particulars, or bank..."
+            placeholder="Search ref, particulars, lender, or accounts..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8 h-8 text-xs border-slate-200 bg-slate-50/50"
@@ -678,111 +502,476 @@ export default function BankLedgerPage() {
 
         <div className="flex items-center gap-2">
           <Select value={accountFilter} onValueChange={setAccountFilter}>
-            <SelectTrigger className="h-8 w-[170px] text-xs bg-white border-slate-200">
+            <SelectTrigger className="h-8 w-[210px] text-xs bg-white border-slate-200">
               <Filter className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
-              <SelectValue placeholder="All Accounts" />
+              <SelectValue placeholder="All Accounts & Drawers" />
             </SelectTrigger>
             <SelectContent className="text-xs">
-              <SelectItem value="all">All Accounts</SelectItem>
+              <SelectItem value="all">All Accounts & Drawers</SelectItem>
               {accounts.map((a) => (
-                <SelectItem key={a.id} value={a.bankName}>
-                  {a.bankName}
+                <SelectItem key={a.id} value={a.id}>
+                  {a.accountTitle}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="h-8 w-[130px] text-xs bg-white border-slate-200">
-              <SelectValue placeholder="Flow Type" />
+          <Select value={flowFilter} onValueChange={setFlowFilter}>
+            <SelectTrigger className="h-8 w-[150px] text-xs bg-white border-slate-200">
+              <SelectValue placeholder="All Operations" />
             </SelectTrigger>
             <SelectContent className="text-xs">
-              <SelectItem value="all">All Flows</SelectItem>
-              <SelectItem value="inflow">Inflow (Deposit)</SelectItem>
-              <SelectItem value="outflow">Outflow (Debit)</SelectItem>
+              <SelectItem value="all">All Operations</SelectItem>
+              <SelectItem value="transfer">Internal Transfer</SelectItem>
+              <SelectItem value="loan">Loan / Borrowing</SelectItem>
+              <SelectItem value="inflow">Inflow / Deposit</SelectItem>
+              <SelectItem value="outflow">Outflow / Disbursement</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {/* 4. Main Running Bank Ledger Table */}
-      <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6">
+      {/* 5. Main Journal Table */}
+      <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
               BANK & CASH JOURNAL LEDGER
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Cumulative cash journal with sequential debit/credit reconciliation balances
+              Live chronological record of all inflows, loans, payouts, and transfers
             </p>
           </div>
           <span className="text-xs text-slate-400 font-medium">
-            Total Available Liquidity: <strong className="text-slate-900 font-mono">৳{totalLiquidCash.toLocaleString("en-IN")}</strong>
+            Showing {filteredLedger.length} Records
           </span>
         </div>
 
         <Table>
           <TableHeader>
-            <TableRow className="border-b border-slate-100 hover:bg-transparent text-xs text-slate-600">
-              <TableHead className="text-xs font-medium text-slate-600 pl-0">Date / Voucher</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Account / Vault</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Particulars</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Channel</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-right">Inflow (Deposit)</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-right">Outflow (Disbursed)</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-right">Running Balance</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-right pr-0">Recon Status</TableHead>
+            <TableRow className="border-b border-slate-100 text-xs text-slate-600">
+              <TableHead className="pl-0">Date & Ref</TableHead>
+              <TableHead>Operation Type</TableHead>
+              <TableHead>From (Source)</TableHead>
+              <TableHead>To (Destination)</TableHead>
+              <TableHead>Particulars / Entity</TableHead>
+              <TableHead className="text-right">Amount (৳)</TableHead>
+              <TableHead className="text-center">Status</TableHead>
+              <TableHead className="text-right pr-0">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredLedger.map((row) => (
-              <TableRow key={row.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                <TableCell className="py-3 pl-0">
-                  <span className="text-xs font-semibold text-slate-900 block">{row.entryDate}</span>
-                  <span className="text-[10px] font-mono text-[#0090FF]">{row.refCode}</span>
-                </TableCell>
-                <TableCell className="py-3 text-xs font-medium text-slate-800">
-                  <div className="flex items-center gap-1.5">
-                    <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                    <span>{row.accountUsed}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="py-3 text-xs text-slate-700 max-w-[280px]">
-                  {row.particulars}
-                </TableCell>
-                <TableCell className="py-3 text-xs text-slate-600">
-                  <Badge variant="outline" className="text-[10px] font-normal bg-slate-50 text-slate-600 border-slate-200">
-                    {row.method}
-                  </Badge>
-                </TableCell>
-                <TableCell className="py-3 text-xs text-right font-mono font-semibold text-emerald-600">
-                  {row.type === "Inflow" ? `+৳${row.amount.toLocaleString("en-IN")}` : "—"}
-                </TableCell>
-                <TableCell className="py-3 text-xs text-right font-mono font-semibold text-rose-600">
-                  {row.type === "Outflow" ? `-৳${row.amount.toLocaleString("en-IN")}` : "—"}
-                </TableCell>
-                <TableCell className="py-3 text-xs text-right font-mono font-bold text-slate-900">
-                  ৳{row.runningBalance.toLocaleString("en-IN")}
-                </TableCell>
-                <TableCell className="py-3 text-xs text-right pr-0">
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
-                      row.reconciliationStatus === "Reconciled"
-                        ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                        : row.reconciliationStatus === "In Transit"
-                        ? "text-amber-700 bg-amber-50 border-amber-200"
-                        : "text-rose-700 bg-rose-50 border-rose-200"
-                    }`}
-                  >
-                    {row.reconciliationStatus}
-                  </Badge>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-slate-400 text-xs">
+                  Loading ledger data from database...
                 </TableCell>
               </TableRow>
-            ))}
+            ) : filteredLedger.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-slate-400 text-xs">
+                  No journal records found. Click <strong>"Post Money / Transfer / Loan"</strong> to create an entry.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredLedger.map((row) => (
+                <TableRow key={row.id} className="border-b border-slate-50 hover:bg-slate-50/50 text-xs">
+                  <TableCell className="py-3 pl-0">
+                    <span className="font-semibold text-slate-900 block">{row.entryDate}</span>
+                    <span className="font-mono text-[10px] text-[#0090FF]">{row.refCode}</span>
+                  </TableCell>
+
+                  <TableCell className="py-3">
+                    {row.flowType === "TRANSFER" && (
+                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] gap-1">
+                        <ArrowRightLeft className="h-3 w-3" /> Transfer
+                      </Badge>
+                    )}
+                    {row.flowType === "LOAN" && (
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] gap-1">
+                        <Coins className="h-3 w-3" /> Loan Intake
+                      </Badge>
+                    )}
+                    {row.flowType === "INFLOW" && (
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] gap-1">
+                        <ArrowDownRight className="h-3 w-3" /> Inflow
+                      </Badge>
+                    )}
+                    {row.flowType === "OUTFLOW" && (
+                      <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] gap-1">
+                        <ArrowUpRight className="h-3 w-3" /> Outflow
+                      </Badge>
+                    )}
+                  </TableCell>
+
+                  <TableCell className="py-3 text-slate-800">
+                    {row.sourceAccount ? (
+                      <div>
+                        <strong className="block text-slate-900 font-semibold">{row.sourceAccount.accountTitle}</strong>
+                        <span className="text-[10px] text-slate-400">
+                          {row.sourceAccount.category === "CASH" ? "Cash Drawer" : "Bank"}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 italic">
+                        {row.flowType === "LOAN" ? "Lender / Credit Line" : "External Source"}
+                      </span>
+                    )}
+                  </TableCell>
+
+                  <TableCell className="py-3 text-slate-800">
+                    {row.destinationAccount ? (
+                      <div>
+                        <strong className="block text-slate-900 font-semibold">{row.destinationAccount.accountTitle}</strong>
+                        <span className="text-[10px] text-slate-400">
+                          {row.destinationAccount.category === "CASH" ? "Cash Drawer" : "Bank"}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 italic">External Payee / Expense</span>
+                    )}
+                  </TableCell>
+
+                  <TableCell className="py-3 text-slate-700 max-w-[240px]">
+                    <span className="block truncate font-medium">{row.particulars}</span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      {row.fundingEntity ? `Entity: ${row.fundingEntity} • ` : ""}
+                      {row.method}
+                    </span>
+                  </TableCell>
+
+                  <TableCell className="py-3 text-right font-mono font-bold text-slate-900 text-sm">
+                    ৳{row.amount.toLocaleString("en-IN")}
+                  </TableCell>
+
+                  <TableCell className="py-3 text-center">
+                    <Badge variant="outline" className="text-[10px] text-slate-600 bg-slate-50 border-slate-200">
+                      {row.reconciliationStatus}
+                    </Badge>
+                  </TableCell>
+
+                  <TableCell className="py-3 text-right pr-0">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDeleteTransaction(row)}
+                      className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </Card>
+
+      {/* 6. Modal: Add Bank Account or Cash Drawer */}
+      <Dialog open={isAddAccountOpen} onOpenChange={setIsAddAccountOpen}>
+        <DialogContent className="sm:max-w-[480px] bg-white rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900">Add Account or Cash Drawer</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Create a new physical cash desk or connect an authorized bank account.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateAccount} className="space-y-3.5 py-2 text-xs">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-slate-700">Type of Account</Label>
+              <Select
+                value={accCategory}
+                onValueChange={(val: any) => {
+                  setAccCategory(val);
+                  setAccInstitution(val === "CASH" ? BANGLADESH_BANKS.cashCounters[0] : BANGLADESH_BANKS.conventional[0]);
+                }}
+              >
+                <SelectTrigger className="h-8 bg-white"><SelectValue /></SelectTrigger>
+                <SelectContent className="text-xs">
+                  <SelectItem value="BANK">Corporate Bank Account</SelectItem>
+                  <SelectItem value="CASH">Physical Cash Drawer / Safe</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-slate-700">Financial Institution / Drawer</Label>
+              <Select value={accInstitution} onValueChange={setAccInstitution}>
+                <SelectTrigger className="h-8 bg-white"><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-[260px] text-xs">
+                  {accCategory === "CASH" ? (
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] text-slate-400">Cash Registers & Safes</SelectLabel>
+                      {BANGLADESH_BANKS.cashCounters.map((safe) => (
+                        <SelectItem key={safe} value={safe}>{safe}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ) : (
+                    <>
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px] text-slate-400">Conventional Banks</SelectLabel>
+                        {BANGLADESH_BANKS.conventional.map((b) => (
+                          <SelectItem key={b} value={b}>{b}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px] text-slate-400">Islamic Shariah Banks</SelectLabel>
+                        {BANGLADESH_BANKS.islamic.map((b) => (
+                          <SelectItem key={b} value={b}>{b}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px] text-slate-400">Foreign / Multinational Banks</SelectLabel>
+                        {BANGLADESH_BANKS.foreign.map((b) => (
+                          <SelectItem key={b} value={b}>{b}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-slate-700">Display Title *</Label>
+              <Input
+                placeholder="e.g. EBL Operations Clearing / HQ Main Cash Drawer"
+                value={accTitle}
+                onChange={(e) => setAccTitle(e.target.value)}
+                required
+                className="h-8"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">Account # / Vault Identifier</Label>
+                <Input
+                  placeholder="e.g. 104-102-998 or SAFE-01"
+                  value={accNumber}
+                  onChange={(e) => setAccNumber(e.target.value)}
+                  className="h-8 font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">Branch / Physical Location</Label>
+                <Input
+                  placeholder="e.g. Gulshan Corporate / Mirpur 10 HQ"
+                  value={accBranch}
+                  onChange={(e) => setAccBranch(e.target.value)}
+                  className="h-8"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">Account Class</Label>
+                <Input
+                  placeholder="Current / Petty Cash / Cash Desk"
+                  value={accClass}
+                  onChange={(e) => setAccClass(e.target.value)}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">Initial Balance (৳) *</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={accInitialBalance}
+                  onChange={(e) => setAccInitialBalance(e.target.value)}
+                  className="h-8 font-mono font-bold"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsAddAccountOpen(false)} className="h-8 text-xs">
+                Cancel
+              </Button>
+              <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white">
+                Save & Link Account
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 7. Modal: Post Money / Transfer / Loan */}
+      <Dialog open={isTxOpen} onOpenChange={setIsTxOpen}>
+        <DialogContent className="sm:max-w-[520px] bg-white rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900">Post Transaction / Transfer / Loan</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Inject capital, record bank loans, disburse funds, or transfer between Cash & Bank.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handlePostTransaction} className="space-y-3.5 py-2 text-xs">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-slate-700">Operation Type *</Label>
+              <Select value={txFlow} onValueChange={(val: any) => setTxFlow(val)}>
+                <SelectTrigger className="h-8 bg-white font-semibold"><SelectValue /></SelectTrigger>
+                <SelectContent className="text-xs">
+                  <SelectItem value="TRANSFER">Internal Transfer (Cash ⇄ Bank / Safe ⇄ Safe)</SelectItem>
+                  <SelectItem value="LOAN">Loan Intake (Bank Loan / Director Borrowing)</SelectItem>
+                  <SelectItem value="INFLOW">Deposit / Capital Inflow (Chemist Collection, Equity)</SelectItem>
+                  <SelectItem value="OUTFLOW">Direct Outflow / External Disbursement</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Transfer Mode */}
+            {txFlow === "TRANSFER" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-slate-700">From Account / Drawer *</Label>
+                  <Select value={sourceAccountId} onValueChange={setSourceAccountId}>
+                    <SelectTrigger className="h-8 bg-white"><SelectValue placeholder="Source" /></SelectTrigger>
+                    <SelectContent className="text-xs">
+                      {accounts.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.accountTitle} (৳{a.balance.toLocaleString("en-IN")})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-slate-700">To Account / Drawer *</Label>
+                  <Select value={destinationAccountId} onValueChange={setDestinationAccountId}>
+                    <SelectTrigger className="h-8 bg-white"><SelectValue placeholder="Destination" /></SelectTrigger>
+                    <SelectContent className="text-xs">
+                      {accounts.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.accountTitle} (৳{a.balance.toLocaleString("en-IN")})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {/* Loan Mode */}
+            {txFlow === "LOAN" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-slate-700">Lender / Financial Source *</Label>
+                  <Input
+                    placeholder="e.g. BRAC Bank Term Loan / Director Loan"
+                    value={txFundingEntity}
+                    onChange={(e) => setTxFundingEntity(e.target.value)}
+                    required
+                    className="h-8 font-medium"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-slate-700">Crediting Into *</Label>
+                  <Select value={destinationAccountId} onValueChange={setDestinationAccountId}>
+                    <SelectTrigger className="h-8 bg-white"><SelectValue placeholder="Select Account" /></SelectTrigger>
+                    <SelectContent className="text-xs">
+                      {accounts.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.accountTitle}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {/* Inflow Mode */}
+            {txFlow === "INFLOW" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-slate-700">Depositor / Payer Entity</Label>
+                  <Input
+                    placeholder="e.g. Popular Chemist / Investor Equity"
+                    value={txFundingEntity}
+                    onChange={(e) => setTxFundingEntity(e.target.value)}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-slate-700">Depositing Into *</Label>
+                  <Select value={destinationAccountId} onValueChange={setDestinationAccountId}>
+                    <SelectTrigger className="h-8 bg-white"><SelectValue placeholder="Select Account" /></SelectTrigger>
+                    <SelectContent className="text-xs">
+                      {accounts.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.accountTitle}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {/* Outflow Mode */}
+            {txFlow === "OUTFLOW" && (
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">Paying Out From Account / Drawer *</Label>
+                <Select value={sourceAccountId} onValueChange={setSourceAccountId}>
+                  <SelectTrigger className="h-8 bg-white"><SelectValue placeholder="Select Account" /></SelectTrigger>
+                  <SelectContent className="text-xs">
+                    {accounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.accountTitle}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">Amount (৳) *</Label>
+                <Input
+                  type="number"
+                  placeholder="50000"
+                  value={txAmount}
+                  onChange={(e) => setTxAmount(e.target.value)}
+                  required
+                  className="h-8 font-mono font-bold text-emerald-700 text-sm"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">Payment Channel</Label>
+                <Select value={txMethod} onValueChange={setTxMethod}>
+                  <SelectTrigger className="h-8 bg-white"><SelectValue /></SelectTrigger>
+                  <SelectContent className="text-xs">
+                    <SelectItem value="Cash Handover">Cash Handover / Counter Deposit</SelectItem>
+                    <SelectItem value="BEFTN / RTGS">BEFTN / RTGS</SelectItem>
+                    <SelectItem value="Cheque Deposit">Cheque Deposit</SelectItem>
+                    <SelectItem value="ATM Withdrawal">ATM Withdrawal</SelectItem>
+                    <SelectItem value="Online Transfer">Online / App Transfer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-slate-700">Particulars / Purpose Description</Label>
+              <Input
+                placeholder="Reason for transfer, loan intake, or expense..."
+                value={txParticulars}
+                onChange={(e) => setTxParticulars(e.target.value)}
+                className="h-8"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsTxOpen(false)} className="h-8 text-xs">
+                Cancel
+              </Button>
+              <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white">
+                Post to Ledger
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
