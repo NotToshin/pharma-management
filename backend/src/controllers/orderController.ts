@@ -24,33 +24,79 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       territory,
       assignedMio,
       itemsSummary,
+      itemsDetail,
       totalBoxes,
       orderValue,
       deliveryMethod,
       status,
       challanNumber,
+      invoiceNumber,
     } = req.body;
 
-    const newOrder = await prisma.order.create({
-      data: {
-        orderNumber: orderNumber || `SO-2026-${Math.floor(4500 + Math.random() * 500)}`,
-        orderDate: orderDate || new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-        pharmacyName,
-        territory: territory || "Dhaka North",
-        assignedMio: assignedMio || "General MIO",
-        itemsSummary,
-        totalBoxes: Number(totalBoxes) || 10,
-        orderValue: Number(orderValue) || 25000,
-        deliveryMethod: deliveryMethod || "Company Van (Ambient)",
-        status: status || "FEFO Allocated",
-        challanNumber: challanNumber || `DC-2026-${Math.floor(1100 + Math.random() * 100)}`,
-      },
+    // Execute order creation and FEFO stock deduction in an atomic transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create the sales order
+      const newOrder = await tx.order.create({
+        data: {
+          orderNumber: orderNumber || `SO-2026-${Math.floor(4500 + Math.random() * 500)}`,
+          orderDate: orderDate || new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+          pharmacyName,
+          territory: territory || "Dhaka North",
+          assignedMio: assignedMio || "General MIO",
+          itemsSummary,
+          totalBoxes: Number(totalBoxes) || 1,
+          orderValue: Number(orderValue) || 0,
+          deliveryMethod: deliveryMethod || "Sales Representative",
+          status: status || "FEFO Allocated",
+          challanNumber: challanNumber || `DC-2026-${Math.floor(1100 + Math.random() * 100)}`,
+          invoiceNumber: invoiceNumber || undefined,
+        },
+      });
+
+      // 2. Deduct quantities from InventoryBatch using FEFO (First-Expiry, First-Out)
+      if (Array.isArray(itemsDetail) && itemsDetail.length > 0) {
+        for (const lineItem of itemsDetail) {
+          const medicineName = (lineItem.description || "").trim();
+          let qtyNeeded = Number(lineItem.quantity) || 0;
+
+          if (!medicineName || qtyNeeded <= 0) continue;
+
+          // Find matching batches sorted by expiryDate ascending (FEFO)
+          const availableBatches = await tx.inventoryBatch.findMany({
+            where: {
+              OR: [
+                { brandName: { equals: medicineName, mode: "insensitive" } },
+                { brandName: { contains: medicineName, mode: "insensitive" } },
+              ],
+              availableUnits: { gt: 0 },
+            },
+            orderBy: { expiryDate: "asc" },
+          });
+
+          // Deduct from the earliest expiring batches first
+          for (const batch of availableBatches) {
+            if (qtyNeeded <= 0) break;
+
+            const deductUnits = Math.min(batch.availableUnits, qtyNeeded);
+            const remainingUnits = batch.availableUnits - deductUnits;
+
+            await tx.inventoryBatch.update({
+              where: { id: batch.id },
+              data: { availableUnits: remainingUnits },
+            });
+
+            qtyNeeded -= deductUnits;
+          }
+        }
+      }
+
+      return newOrder;
     });
 
-    res.status(201).json(newOrder);
+    res.status(201).json(result);
   } catch (error: any) {
-    console.error("Error creating order:", error);
-    res.status(400).json({ error: error.message || "Failed to create order." });
+    console.error("Error creating order with inventory deduction:", error);
+    res.status(400).json({ error: error.message || "Failed to create order and allocate inventory." });
   }
 };
 
