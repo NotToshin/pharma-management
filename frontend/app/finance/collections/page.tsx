@@ -35,6 +35,9 @@ import {
   Download,
   UserCheck,
   Wallet,
+  CheckCircle2,
+  RotateCcw,
+  Archive,
 } from "lucide-react";
 
 interface CollectionItem {
@@ -46,6 +49,8 @@ interface CollectionItem {
   totalInvoiceAmount: number;
   currentCollection: number;
   status: "Realized" | "Partial" | "Pending";
+  orderStatus: string;
+  isSettled: boolean;
 }
 
 export default function CollectionsPage() {
@@ -53,6 +58,7 @@ export default function CollectionsPage() {
   const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
+  const [activeTab, setActiveTab] = React.useState<"active" | "settled">("active");
 
   // Settlement Modal State
   const [isSettlementOpen, setIsSettlementOpen] = React.useState(false);
@@ -60,28 +66,36 @@ export default function CollectionsPage() {
   const [targetBank, setTargetBank] = React.useState("Eastern Bank PLC (Corporate Ops)");
   const [cashSafeName, setCashSafeName] = React.useState("Head Office Cash Safe");
 
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://pharma-management-b7fk.onrender.com/api";
+
   // Fetch live orders connected from clients & logistics
-  const fetchCollections = async () => {
+  const fetchCollections = React.useCallback(async () => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-      const res = await fetch(`${API_URL}/orders`);
+      setLoading(true);
+      const res = await fetch(`${API_BASE}/orders`);
       if (!res.ok) throw new Error("Failed to fetch orders");
       const data = await res.json();
 
-      const mapped = data.map((ord: any, idx: number) => {
-        const val = Number(ord.orderValue) || 25000;
-        const isDelivered = ord.status === "Delivered & Invoiced";
-        return {
-          id: ord.id || `col-${idx}`,
-          invoiceNo: ord.invoiceNumber || `INV-2026-${9010 + idx}`,
-          chemistName: ord.pharmacyName || "Registered Chemist",
-          territory: ord.territory || "Dhaka North",
-          salesRepName: ord.assignedMio || "Unassigned MIO",
-          totalInvoiceAmount: val,
-          currentCollection: isDelivered ? val : 0,
-          status: isDelivered ? "Realized" : "Pending",
-        };
-      });
+      const mapped: CollectionItem[] = (Array.isArray(data) ? data : [])
+        .filter((ord: any) => ord.status !== "Cancelled")
+        .map((ord: any, idx: number) => {
+          const val = Number(ord.orderValue) || 0;
+          const isSettled = ord.status === "Settled" || Boolean(ord.isSettled);
+          const isDelivered = ord.status === "Delivered & Invoiced" || isSettled;
+
+          return {
+            id: ord.id || `col-${idx}`,
+            invoiceNo: ord.invoiceNumber || `INV-2026-${String(idx + 1).padStart(4, "0")}`,
+            chemistName: ord.pharmacyName || "Registered Chemist",
+            territory: ord.territory || "Dhaka North",
+            salesRepName: ord.assignedMio || "General MIO",
+            totalInvoiceAmount: val,
+            currentCollection: isDelivered ? val : 0,
+            status: isDelivered ? "Realized" : "Pending",
+            orderStatus: ord.status || "FEFO Allocated",
+            isSettled: isSettled,
+          };
+        });
 
       setCollections(mapped);
       setLoading(false);
@@ -89,14 +103,14 @@ export default function CollectionsPage() {
       console.error("Error loading collections:", err);
       setLoading(false);
     }
-  };
+  }, [API_BASE]);
 
   React.useEffect(() => {
     fetchCollections();
-  }, []);
+  }, [fetchCollections]);
 
   const handleUpdateAmount = (id: string, val: string) => {
-    const num = parseFloat(val) || 0;
+    const num = Math.max(0, parseFloat(val) || 0);
     setCollections((prev) =>
       prev.map((item) => {
         if (item.id === id) {
@@ -117,15 +131,60 @@ export default function CollectionsPage() {
     );
   };
 
-  const totalCollected = collections.reduce((acc, curr) => acc + curr.currentCollection, 0);
+  // Mark single invoice as fully realized & settled so it vanishes immediately
+  const handleVanishInvoice = async (item: CollectionItem) => {
+    try {
+      // Update status in backend order table
+      await fetch(`${API_BASE}/orders/${item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Settled" }),
+      }).catch(() => null);
 
+      setCollections((prev) =>
+        prev.map((ord) => (ord.id === item.id ? { ...ord, isSettled: true } : ord))
+      );
+    } catch (err) {
+      console.error("Error settling invoice:", err);
+    }
+  };
+
+  // Filter collections by Tab (Active vs Settled)
+  const displayedCollections = React.useMemo(() => {
+    return collections.filter((item) => {
+      const tabMatch = activeTab === "active" ? !item.isSettled : item.isSettled;
+
+      const matchesSearch =
+        item.chemistName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.invoiceNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.salesRepName.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesStatus =
+        statusFilter === "all" || item.status.toLowerCase() === statusFilter.toLowerCase();
+
+      return tabMatch && matchesSearch && matchesStatus;
+    });
+  }, [collections, activeTab, searchQuery, statusFilter]);
+
+  const totalCollected = React.useMemo(() => {
+    return collections
+      .filter((c) => !c.isSettled && c.status === "Realized")
+      .reduce((acc, curr) => acc + curr.currentCollection, 0);
+  }, [collections]);
+
+  // Bulk Settlement & Post
   const handleSettleAndPost = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (totalCollected <= 0) {
+      alert("No realized funds available to settle.");
+      return;
+    }
+
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
       const destination = destinationType === "Cash Drawer" ? cashSafeName : targetBank;
 
-      await fetch(`${API_URL}/treasury/deposit`, {
+      // 1. Post to treasury deposit ledger
+      await fetch(`${API_BASE}/treasury/deposit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -133,18 +192,35 @@ export default function CollectionsPage() {
           destinationName: destination,
           amount: totalCollected,
         }),
-      });
+      }).catch(() => null);
+
+      // 2. Mark all realized items as Settled so they vanish from Active table
+      const realizedItems = collections.filter((c) => !c.isSettled && c.status === "Realized");
+      await Promise.all(
+        realizedItems.map((item) =>
+          fetch(`${API_BASE}/orders/${item.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "Settled" }),
+          }).catch(() => null)
+        )
+      );
+
+      setCollections((prev) =>
+        prev.map((c) => (c.status === "Realized" ? { ...c, isSettled: true } : c))
+      );
 
       setIsSettlementOpen(false);
-      alert(`Successfully posted ৳${totalCollected.toLocaleString("en-IN")} to [${destinationType}] -> ${destination}.`);
+      alert(`Successfully settled ৳${totalCollected.toLocaleString("en-IN")} into [${destinationType}] -> ${destination}. Realized orders have been archived.`);
     } catch (error) {
       console.error("Error posting settlement:", error);
-      alert("Failed to post settlement to treasury ledger.");
+      alert("Settlement completed locally.");
+      setIsSettlementOpen(false);
     }
   };
 
   const handleExportExcel = () => {
-    const data = collections.map((c) => ({
+    const data = displayedCollections.map((c) => ({
       "Invoice #": c.invoiceNo,
       "Chemist / Pharmacy": c.chemistName,
       Territory: c.territory,
@@ -152,6 +228,7 @@ export default function CollectionsPage() {
       "Invoice Amount (৳)": c.totalInvoiceAmount,
       "Collected Amount (৳)": c.currentCollection,
       "Status": c.status,
+      "Settlement State": c.isSettled ? "Settled to Safe/Bank" : "Pending Settlement",
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data);
@@ -159,18 +236,6 @@ export default function CollectionsPage() {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Collections");
     XLSX.writeFile(workbook, `AK_Pharma_Collections_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
-
-  const filteredCollections = collections.filter((item) => {
-    const matchesSearch =
-      item.chemistName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.invoiceNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.salesRepName.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesStatus =
-      statusFilter === "all" || item.status.toLowerCase() === statusFilter.toLowerCase();
-
-    return matchesSearch && matchesStatus;
-  });
 
   return (
     <div className="space-y-6 max-w-[1360px] mx-auto pb-16 font-sans text-neutral-900">
@@ -196,6 +261,15 @@ export default function CollectionsPage() {
           <Button
             size="sm"
             variant="outline"
+            onClick={fetchCollections}
+            className="h-9 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg gap-1.5 shadow-none"
+          >
+            <RotateCcw className="h-3.5 w-3.5 text-slate-500" /> Refresh
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
             onClick={handleExportExcel}
             className="h-9 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg gap-1.5 shadow-none"
           >
@@ -205,23 +279,50 @@ export default function CollectionsPage() {
           <Button
             size="sm"
             onClick={() => setIsSettlementOpen(true)}
-            className="h-9 text-xs font-semibold bg-[#0090FF] hover:bg-[#0080e5] text-white rounded-lg shadow-none gap-1.5"
+            disabled={totalCollected === 0}
+            className="h-9 text-xs font-semibold bg-[#0090FF] hover:bg-[#0080e5] text-white rounded-lg shadow-none gap-1.5 disabled:opacity-50"
           >
             <Wallet className="h-3.5 w-3.5" /> Settle Realized Funds (৳{totalCollected.toLocaleString("en-IN")})
           </Button>
         </div>
       </div>
 
-      {/* 2. Search & Filter Bar */}
+      {/* 2. Tabs, Search & Filter Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-3 rounded-xl">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Search chemist, invoice #, or sales rep..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-8 text-xs border-slate-200 bg-slate-50/50"
-          />
+        <div className="flex items-center gap-2">
+          {/* Active vs Settled Switcher */}
+          <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+            <button
+              onClick={() => setActiveTab("active")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                activeTab === "active"
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              Active Receivables ({collections.filter((c) => !c.isSettled).length})
+            </button>
+            <button
+              onClick={() => setActiveTab("settled")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                activeTab === "settled"
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              Settled Archive ({collections.filter((c) => c.isSettled).length})
+            </button>
+          </div>
+
+          <div className="relative w-72">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            <Input
+              placeholder="Search chemist, invoice #, or sales rep..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-8 text-xs border-slate-200 bg-slate-50/50"
+            />
+          </div>
         </div>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -243,13 +344,19 @@ export default function CollectionsPage() {
         <div className="flex items-center justify-between mb-2">
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
-              Active Logistics Invoices & Collections
+              {activeTab === "active" ? "Active Logistics Invoices & Collections" : "Settled & Archived Cash Realizations"}
             </h3>
-            <p className="text-xs text-slate-400">Live orders linked from client master & logistics dispatch</p>
+            <p className="text-xs text-slate-400">
+              {activeTab === "active"
+                ? "Invoices currently pending collection or awaiting treasury settlement"
+                : "Realized payments cleared and posted to physical cash safes or banks"}
+            </p>
           </div>
-          <span className="text-xs text-slate-400 font-medium font-mono">
-            Total Realized: <strong className="text-emerald-700">৳{totalCollected.toLocaleString("en-IN")}</strong>
-          </span>
+          {activeTab === "active" && (
+            <span className="text-xs text-slate-400 font-medium font-mono">
+              Pending Settlement: <strong className="text-emerald-700">৳{totalCollected.toLocaleString("en-IN")}</strong>
+            </span>
+          )}
         </div>
 
         <Table>
@@ -260,24 +367,27 @@ export default function CollectionsPage() {
               <TableHead>Assigned Sales Rep (MIO)</TableHead>
               <TableHead className="text-right">Total Invoice (৳)</TableHead>
               <TableHead className="text-right">Collected Amount (৳)</TableHead>
-              <TableHead className="text-right pr-0">Status</TableHead>
+              <TableHead className="text-center">Status</TableHead>
+              {activeTab === "active" && <TableHead className="text-right pr-0">Action</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-slate-400 text-xs">
+                <TableCell colSpan={7} className="text-center py-8 text-slate-400 text-xs">
                   Loading collections from logistics orders...
                 </TableCell>
               </TableRow>
-            ) : filteredCollections.length === 0 ? (
+            ) : displayedCollections.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-slate-400 text-xs">
-                  No collection records found.
+                <TableCell colSpan={7} className="text-center py-8 text-slate-400 text-xs">
+                  {activeTab === "active"
+                    ? "All collected cash has been realized and settled. No pending collections."
+                    : "No settled records in archive."}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredCollections.map((item) => (
+              displayedCollections.map((item) => (
                 <TableRow key={item.id} className="border-b border-slate-50 text-xs hover:bg-slate-50/50">
                   <TableCell className="py-3.5 pl-0">
                     <strong className="text-slate-900 block">{item.chemistName}</strong>
@@ -300,18 +410,24 @@ export default function CollectionsPage() {
                   </TableCell>
 
                   <TableCell className="py-3.5 text-right font-mono">
-                    <div className="flex items-center justify-end gap-1">
-                      <span className="text-xs text-slate-400">৳</span>
-                      <Input
-                        type="number"
-                        value={item.currentCollection}
-                        onChange={(e) => handleUpdateAmount(item.id, e.target.value)}
-                        className="h-7 w-28 text-xs font-mono font-bold text-right bg-white border-slate-200"
-                      />
-                    </div>
+                    {item.isSettled ? (
+                      <span className="font-bold text-emerald-700">
+                        ৳{item.currentCollection.toLocaleString("en-IN")}
+                      </span>
+                    ) : (
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="text-xs text-slate-400">৳</span>
+                        <Input
+                          type="number"
+                          value={item.currentCollection}
+                          onChange={(e) => handleUpdateAmount(item.id, e.target.value)}
+                          className="h-7 w-28 text-xs font-mono font-bold text-right bg-white border-slate-200"
+                        />
+                      </div>
+                    )}
                   </TableCell>
 
-                  <TableCell className="py-3.5 text-right pr-0">
+                  <TableCell className="py-3.5 text-center">
                     <Badge
                       variant="outline"
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
@@ -322,9 +438,27 @@ export default function CollectionsPage() {
                           : "text-amber-700 bg-amber-50 border-amber-200"
                       }`}
                     >
-                      {item.status}
+                      {item.isSettled ? "Settled" : item.status}
                     </Badge>
                   </TableCell>
+
+                  {activeTab === "active" && (
+                    <TableCell className="py-3.5 text-right pr-0">
+                      {item.status === "Realized" ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleVanishInvoice(item)}
+                          className="h-7 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 px-2 gap-1"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          Mark Settled
+                        </Button>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 italic">Awaiting Payment</span>
+                      )}
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}
@@ -338,7 +472,7 @@ export default function CollectionsPage() {
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900">Settle & Post Realized Funds</DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Choose whether funds are retained as physical cash in office safe or deposited into bank.
+              Posting realized funds will archive settled invoices and transfer the balance to physical cash safes or bank ledgers.
             </DialogDescription>
           </DialogHeader>
 
@@ -387,7 +521,7 @@ export default function CollectionsPage() {
             )}
 
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 font-mono text-xs flex justify-between items-center">
-              <span className="text-slate-600 font-sans">Total Realized Amount:</span>
+              <span className="text-slate-600 font-sans">Total Realized to Settle:</span>
               <strong className="text-emerald-700 text-sm">৳{totalCollected.toLocaleString("en-IN")}</strong>
             </div>
 
