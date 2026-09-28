@@ -166,15 +166,15 @@ const navSections = [
   {
     group: "SALES & DELIVERIES",
     items: [
-      {
-        title: "Order Processing",
-        icon: Package,
-        defaultOpen: true,
-        subItems: [
-          { title: "Active Inventory Ledger", href: "/sales/orders" },
-          { title: "Expiry Watchlist", href: "/sales/expiry-watchlist" },
-        ],
-      },
+      // {
+      //   title: "Order Processing",
+      //   icon: Package,
+      //   defaultOpen: true,
+      //   subItems: [
+      //     { title: "Active Inventory Ledger", href: "/sales/orders" },
+      //     { title: "Expiry Watchlist", href: "/sales/expiry-watchlist" },
+      //   ],
+      // },
       {
         title: "Delivery Logistics",
         icon: Truck,
