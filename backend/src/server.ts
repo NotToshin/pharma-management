@@ -12,13 +12,13 @@ import inventoryRoutes from "./routes/inventoryRoutes";
 import financeOverviewRoutes from "./routes/financeOverviewRoutes";
 import dashboardRoutes from "./routes/dashboardRoutes";
 import rbacRoutes from "./routes/rbacRoutes";
+import paymentRoutes from "./routes/paymentRoutes";
+
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-// Replace your existing cors setup in backend/src/server.ts with this:
 app.use(cors({
   origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -40,9 +40,11 @@ app.use("/api/doctors", doctorRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/salary", salaryRoutes);
 app.use("/api/rbac", rbacRoutes);
-app.use("/api/auth", rbacRoutes); // Exposes POST /api/auth/login directly
+app.use("/api/auth", rbacRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/expense-vouchers", paymentRoutes);
 
-// Dedicated Health Check Endpoint for UptimeRobot (Keeps Render free-tier alive)
+// Dedicated Health Check Endpoint
 app.get("/api/health", (req: Request, res: Response) => {
   res.status(200).json({
     status: "online",
@@ -52,7 +54,6 @@ app.get("/api/health", (req: Request, res: Response) => {
   });
 });
 
-// Root welcome check
 app.get("/", (req: Request, res: Response) => {
   res.send("AK Pharma TypeScript Backend Server with Supabase is running!");
 });
