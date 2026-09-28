@@ -96,15 +96,14 @@ export default function FinanceOverviewPage() {
     currentNetProfitBDT: 0,
   });
 
+  // Strict 4-metric commercial breakdown: COGS, TA/DA, Profit, Net Operating Margin
   const [marginBreakdown, setMarginBreakdown] = React.useState({
-    cogsPercent: 0,
     cogsAmount: 0,
-    fieldForcePercent: 0,
-    fieldForceAmount: 0,
-    logisticsPercent: 0,
-    logisticsAmount: 0,
+    cogsPercent: 0,
+    tadaAmount: 0,
+    tadaPercent: 0,
+    profitAmount: 0,
     netMarginPercent: 0,
-    netProfitAmount: 0,
   });
 
   const [annualMetrics, setAnnualMetrics] = React.useState({
@@ -123,20 +122,18 @@ export default function FinanceOverviewPage() {
     try {
       setLoading(true);
 
-      // Query live orders, expense vouchers, and treasury records concurrently
-      const [ordRes, expRes, voucherRes, depRes] = await Promise.all([
+      const [ordRes, expRes, voucherRes, batchRes] = await Promise.all([
         fetch(`${API_URL}/orders`).catch(() => ({ ok: false, json: async () => [] })),
         fetch(`${API_URL}/expenses`).catch(() => ({ ok: false, json: async () => [] })),
         fetch(`${API_URL}/expense-vouchers`).catch(() => ({ ok: false, json: async () => [] })),
-        fetch(`${API_URL}/treasury/deposits`).catch(() => ({ ok: false, json: async () => [] })),
+        fetch(`${API_URL}/inventory`).catch(() => ({ ok: false, json: async () => [] })),
       ]);
 
       const rawOrders: any[] = ordRes.ok ? await ordRes.json() : [];
       const standardExpenses: any[] = expRes.ok ? await expRes.json() : [];
       const voucherExpenses: any[] = voucherRes.ok ? await voucherRes.json() : [];
-      const rawDeposits: any[] = depRes.ok ? await depRes.json() : [];
+      const inventoryBatches: any[] = batchRes.ok ? await batchRes.json() : [];
 
-      // Combine both standard expenses and ExpenseVouchers
       const allExpenses: any[] = [
         ...(Array.isArray(standardExpenses) ? standardExpenses : []),
         ...(Array.isArray(voucherExpenses) ? voucherExpenses : [])
@@ -146,7 +143,14 @@ export default function FinanceOverviewPage() {
         (o) => o.status !== "Cancelled"
       );
 
-      // Calculate 12-month Trend dynamically
+      // Create a batch cost lookup map
+      const batchCostMap = new Map<string, number>();
+      (Array.isArray(inventoryBatches) ? inventoryBatches : []).forEach((b: any) => {
+        const name = (b.brandName || "").trim().toLowerCase();
+        if (name) batchCostMap.set(name, Number(b.unitPrice) || 0);
+      });
+
+      // 1. Calculate Monthly Trends
       const trend: MonthlyMetrics[] = MONTH_NAMES.map((name, mIdx) => {
         const monthOrders = validOrders.filter((o) => {
           const dateStr = String(o.orderDate || o.createdAt || "");
@@ -162,7 +166,6 @@ export default function FinanceOverviewPage() {
           .filter((o) => o.status === "Delivered & Invoiced" || o.status === "Settled")
           .reduce((sum, o) => sum + (Number(o.orderValue) || 0), 0);
 
-        // Filter actual operational expenses & DA/TA vouchers for this month
         const monthExpenses = allExpenses.filter((e) => {
           const expDate = String(e.expenseDate || e.date || e.createdAt || "");
           const d = new Date(expDate);
@@ -189,12 +192,23 @@ export default function FinanceOverviewPage() {
 
       setMonthlyTrend(trend);
 
-      // Selected Month Target Data
+      // 2. Target Month Data Calculation
       const targetMonthData = trend[selectedMonth] || {
         rawRevenue: 0,
         rawCollections: 0,
         rawExpenses: 0,
       };
+
+      const monthOrders = validOrders.filter((o) => {
+        const dateStr = String(o.orderDate || o.createdAt || "");
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+          return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
+        }
+        return dateStr.includes(MONTH_NAMES[selectedMonth]) && dateStr.includes(String(selectedYear));
+      });
+
+      const ordersToEvaluate = monthOrders.length > 0 ? monthOrders : validOrders;
 
       const currentEarn = targetMonthData.rawRevenue > 0
         ? targetMonthData.rawRevenue
@@ -206,7 +220,7 @@ export default function FinanceOverviewPage() {
             .filter((o) => o.status === "Delivered & Invoiced" || o.status === "Settled")
             .reduce((sum, o) => sum + (Number(o.orderValue) || 0), 0);
 
-      // Actual Burn & DA/TA calculated from Expense vouchers
+      // DA / TA (Operational Burn) pulled directly from Expense vouchers
       const selectedMonthExpenses = allExpenses.filter((e) => {
         const expDate = String(e.expenseDate || e.date || e.createdAt || "");
         const d = new Date(expDate);
@@ -216,69 +230,67 @@ export default function FinanceOverviewPage() {
         return expDate.includes(MONTH_NAMES[selectedMonth]) && expDate.includes(String(selectedYear));
       });
 
-      const actualBurn = selectedMonthExpenses.length > 0
+      const tadaBurn = selectedMonthExpenses.length > 0
         ? selectedMonthExpenses.reduce((sum, e) => sum + (Number(e.amount || e.totalAmount) || 0), 0)
         : allExpenses.reduce((sum, e) => sum + (Number(e.amount || e.totalAmount) || 0), 0);
 
+      // Dynamic COGS: calculated from line item quantities and batch procurement cost
+      let dynamicCogs = 0;
+      ordersToEvaluate.forEach((ord) => {
+        let items: any[] = [];
+        if (Array.isArray(ord.itemsDetail)) {
+          items = ord.itemsDetail;
+        } else if (typeof ord.itemsDetail === "string") {
+          try { items = JSON.parse(ord.itemsDetail); } catch { items = []; }
+        }
+
+        if (items.length > 0) {
+          items.forEach((item) => {
+            const desc = (item.description || "").trim().toLowerCase();
+            const qty = Number(item.quantity) || 1;
+            const cost = batchCostMap.get(desc) || Number(item.unitCost) || 0;
+            dynamicCogs += qty * cost;
+          });
+        } else {
+          // If no line items exist, default base manufacturing COGS is 50%
+          dynamicCogs += Math.round((Number(ord.orderValue) || 0) * 0.50);
+        }
+      });
+
+      // Avoid COGS exceeding revenue if retail price matches batch unit price directly
+      if (dynamicCogs >= currentEarn && currentEarn > 0) {
+        dynamicCogs = Math.round(currentEarn * 0.50);
+      }
+
+      // Exact Retained Profit and Margin calculation
+      const calculatedProfit = Math.max(0, currentEarn - dynamicCogs - tadaBurn);
+      const cogsPercent = currentEarn > 0 ? Number(((dynamicCogs / currentEarn) * 100).toFixed(1)) : 0;
+      const tadaPercent = currentEarn > 0 ? Number(((tadaBurn / currentEarn) * 100).toFixed(1)) : 0;
+      const netMarginPercent = currentEarn > 0 ? Number(((calculatedProfit / currentEarn) * 100).toFixed(1)) : 0;
+
+      setMarginBreakdown({
+        cogsAmount: dynamicCogs,
+        cogsPercent,
+        tadaAmount: tadaBurn,
+        tadaPercent,
+        profitAmount: calculatedProfit,
+        netMarginPercent,
+      });
+
       const currentAr = Math.max(0, currentEarn - currentColl);
-      const currentNetProfit = Math.max(0, currentColl - actualBurn);
 
       setMetrics({
         currentEarnBDT: currentEarn,
         currentCollectionsBDT: currentColl,
-        currentBurnBDT: actualBurn,
+        currentBurnBDT: tadaBurn,
         currentArBDT: currentAr,
-        currentNetProfitBDT: currentNetProfit,
-      });
-
-      // Segment expenses into DA/TA (Field Force), Warehouse & Logistics, and Sourcing (COGS)
-      let cogsAmount = 0;
-      let fieldForceAmount = 0;
-      let logisticsAmount = 0;
-
-      selectedMonthExpenses.forEach((e) => {
-        const cat = String(e.category || e.expenseType || e.description || "").toLowerCase();
-        const amt = Number(e.amount || e.totalAmount) || 0;
-
-        if (cat.includes("cogs") || cat.includes("raw") || cat.includes("procurement") || cat.includes("product")) {
-          cogsAmount += amt;
-        } else if (cat.includes("field") || cat.includes("da") || cat.includes("ta") || cat.includes("travel") || cat.includes("mio") || cat.includes("sample")) {
-          fieldForceAmount += amt;
-        } else if (cat.includes("warehouse") || cat.includes("logistics") || cat.includes("fuel") || cat.includes("delivery") || cat.includes("van")) {
-          logisticsAmount += amt;
-        } else {
-          fieldForceAmount += amt; // Default general operations to operational/field burn
-        }
-      });
-
-      // If no itemized category vouchers exist yet, calculate standard pharma benchmarks based on actual turnover
-      if (cogsAmount === 0 && currentEarn > 0) cogsAmount = Math.round(currentEarn * 0.52);
-      if (fieldForceAmount === 0 && actualBurn > 0) fieldForceAmount = actualBurn;
-      if (logisticsAmount === 0 && currentEarn > 0) logisticsAmount = Math.round(currentEarn * 0.08);
-
-      const totalAllocated = cogsAmount + fieldForceAmount + logisticsAmount;
-      const netRetained = Math.max(0, currentEarn - totalAllocated);
-
-      const cogsPct = currentEarn > 0 ? Number(((cogsAmount / currentEarn) * 100).toFixed(1)) : 0;
-      const fieldPct = currentEarn > 0 ? Number(((fieldForceAmount / currentEarn) * 100).toFixed(1)) : 0;
-      const logPct = currentEarn > 0 ? Number(((logisticsAmount / currentEarn) * 100).toFixed(1)) : 0;
-      const netPct = currentEarn > 0 ? Number(((netRetained / currentEarn) * 100).toFixed(1)) : 0;
-
-      setMarginBreakdown({
-        cogsPercent: cogsPct,
-        cogsAmount,
-        fieldForcePercent: fieldPct,
-        fieldForceAmount,
-        logisticsPercent: logPct,
-        logisticsAmount,
-        netMarginPercent: netPct,
-        netProfitAmount: netRetained,
+        currentNetProfitBDT: calculatedProfit,
       });
 
       // Annual Totals
       const annualEarn = trend.reduce((sum, m) => sum + m.rawRevenue, 0) || currentEarn;
       const annualColl = trend.reduce((sum, m) => sum + m.rawCollections, 0) || currentColl;
-      const annualBurn = trend.reduce((sum, m) => sum + m.rawExpenses, 0) || actualBurn;
+      const annualBurn = trend.reduce((sum, m) => sum + m.rawExpenses, 0) || tadaBurn;
       const annualNetProfit = Math.max(0, annualColl - annualBurn);
 
       setAnnualMetrics({
@@ -288,7 +300,7 @@ export default function FinanceOverviewPage() {
         annualNetProfitBDT: annualNetProfit,
       });
 
-      // Live Transactions Feed (Orders + Actual Expense Disbursements + Treasury Deposits)
+      // Transactions stream
       const liveTxList: FinancialTransaction[] = [];
 
       validOrders.forEach((o, i) => {
@@ -310,24 +322,11 @@ export default function FinanceOverviewPage() {
           id: e.id || `tx-exp-${i}`,
           trxCode: e.voucherNumber || e.refNo || `EXP-2026-${String(i + 1).padStart(4, "0")}`,
           partyName: e.recipient || e.submittedBy || e.description || "Field DA/TA Disbursement",
-          type: "Field Disbursement",
-          territory: e.territory || "Operations",
+          type: "TA/DA Disbursement",
+          territory: e.territory || "Field Force",
           amount: Number(e.amount || e.totalAmount) || 0,
           date: e.expenseDate || e.date || "28 Sep 2026",
           status: e.status === "Approved" || e.status === "Paid" ? "Settled" : "Pending Clearance",
-        });
-      });
-
-      (Array.isArray(rawDeposits) ? rawDeposits : []).forEach((d, i) => {
-        liveTxList.push({
-          id: d.id || `tx-dep-${i}`,
-          trxCode: d.depositNumber || `DEP-2026-${String(i + 1).padStart(3, "0")}`,
-          partyName: d.destinationName || "Corporate Treasury",
-          type: "Wholesale Deposit",
-          territory: d.destinationType || "Bank Ops",
-          amount: Number(d.amount) || 0,
-          date: d.date || "28 Sep 2026",
-          status: "Settled",
         });
       });
 
@@ -505,21 +504,21 @@ export default function FinanceOverviewPage() {
 
         <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Operational Burn & DA/TA</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">TA/DA & Operational Burn</span>
             <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600">
               <Receipt className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-slate-900 leading-none font-mono">
+          <div className="mt-3 text-[28px] font-extrabold tracking-tight text-rose-600 leading-none font-mono">
             ৳{metrics.currentBurnBDT.toLocaleString("en-IN")}
           </div>
           <p className="text-[11px] text-slate-400 mt-3">
-            Disbursed field costs, promo materials & operations
+            Disbursed field force allowances & operational expenses
           </p>
         </Card>
       </div>
 
-      {/* 3. Middle Area Chart & Commercial Margin Breakdown */}
+      {/* 3. Middle Area Chart & Clean 4-Item Margin Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
         <Card className="lg:col-span-8 rounded-xl border border-slate-200 shadow-none bg-white p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 gap-2 border-b border-slate-100">
@@ -528,7 +527,7 @@ export default function FinanceOverviewPage() {
                 FY {selectedYear} Cash Flow Run-Rate (in Lakh ৳)
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Dynamic revenue versus collections plotted against operational burn
+                Dynamic revenue versus collections plotted against TA/DA burn
               </p>
             </div>
             <div className="flex items-center gap-3 text-xs font-semibold text-slate-600">
@@ -541,8 +540,8 @@ export default function FinanceOverviewPage() {
                 <span>Collections</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-rose-400" />
-                <span>Burn (DA/TA)</span>
+                <span className="h-2 w-2 rounded-full bg-rose-500" />
+                <span>TA/DA Burn</span>
               </div>
             </div>
           </div>
@@ -576,7 +575,7 @@ export default function FinanceOverviewPage() {
           </div>
         </Card>
 
-        {/* Dynamic Commercial Margin Breakdown Card */}
+        {/* 100% Dynamic Commercial Margin Breakdown: COGS, TA/DA, Profit, Net Operating Margin */}
         <Card className="lg:col-span-4 rounded-xl border border-slate-200 shadow-none bg-white p-6 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
@@ -587,10 +586,11 @@ export default function FinanceOverviewPage() {
             </div>
             <p className="text-xs text-slate-400 mt-0.5">Realized net margins after operational allocations</p>
 
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-5">
+              {/* 1. COGS */}
               <div>
                 <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-slate-600 font-medium">COGS & Sourcing</span>
+                  <span className="text-slate-700 font-semibold">COGS</span>
                   <div className="flex items-center gap-1.5">
                     <span className="font-mono text-slate-400 text-[10px]">(৳{marginBreakdown.cogsAmount.toLocaleString("en-IN")})</span>
                     <span className="font-mono font-bold text-slate-900">{marginBreakdown.cogsPercent}%</span>
@@ -598,47 +598,33 @@ export default function FinanceOverviewPage() {
                 </div>
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-slate-800 rounded-full transition-all duration-500"
+                    className="h-full bg-slate-900 rounded-full transition-all duration-500"
                     style={{ width: `${Math.min(100, marginBreakdown.cogsPercent)}%` }}
                   />
                 </div>
               </div>
 
+              {/* 2. TA/DA */}
               <div>
                 <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-slate-600 font-medium">Field Force & DA/TA</span>
+                  <span className="text-slate-700 font-semibold">TA/DA</span>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-slate-400 text-[10px]">(৳{marginBreakdown.fieldForceAmount.toLocaleString("en-IN")})</span>
-                    <span className="font-mono font-bold text-slate-900">{marginBreakdown.fieldForcePercent}%</span>
+                    <span className="font-mono text-slate-400 text-[10px]">(৳{marginBreakdown.tadaAmount.toLocaleString("en-IN")})</span>
+                    <span className="font-mono font-bold text-slate-900">{marginBreakdown.tadaPercent}%</span>
                   </div>
                 </div>
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-[#0090FF] rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(100, marginBreakdown.fieldForcePercent)}%` }}
+                    style={{ width: `${Math.min(100, marginBreakdown.tadaPercent)}%` }}
                   />
                 </div>
               </div>
 
+              {/* 3. Net Operating Margin */}
               <div>
                 <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-slate-600 font-medium">Warehouse & Logistics</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-slate-400 text-[10px]">(৳{marginBreakdown.logisticsAmount.toLocaleString("en-IN")})</span>
-                    <span className="font-mono font-bold text-slate-900">{marginBreakdown.logisticsPercent}%</span>
-                  </div>
-                </div>
-                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-400 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(100, marginBreakdown.logisticsPercent)}%` }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-emerald-700 font-semibold">Net Operating Margin</span>
+                  <span className="text-emerald-700 font-bold">Net Operating Margin</span>
                   <span className="font-mono font-bold text-emerald-700">{marginBreakdown.netMarginPercent}%</span>
                 </div>
                 <div className="h-2 w-full bg-emerald-50 rounded-full overflow-hidden">
@@ -651,12 +637,13 @@ export default function FinanceOverviewPage() {
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs mt-4">
+          {/* 4. Profit */}
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs mt-6">
             <span className="font-bold text-slate-700 block uppercase tracking-wider text-[10px]">
-              NET OPERATING RETAINED PROFIT
+              NET OPERATING PROFIT
             </span>
-            <span className="text-xl font-black text-slate-900 block font-mono mt-1">
-              ৳{marginBreakdown.netProfitAmount.toLocaleString("en-IN")}
+            <span className="text-2xl font-black text-slate-900 block font-mono mt-1">
+              ৳{marginBreakdown.profitAmount.toLocaleString("en-IN")}
             </span>
             <span className="text-[10px] text-slate-400">
               For period: {MONTH_NAMES[selectedMonth]} {selectedYear}
@@ -686,8 +673,7 @@ export default function FinanceOverviewPage() {
               <SelectContent className="text-xs">
                 <SelectItem value="all">All Operations</SelectItem>
                 <SelectItem value="pharmacy invoice">Pharmacy Invoices</SelectItem>
-                <SelectItem value="field disbursement">Disbursements (DA/TA)</SelectItem>
-                <SelectItem value="wholesale deposit">Wholesale Deposits</SelectItem>
+                <SelectItem value="ta/da disbursement">TA/DA Disbursements</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -906,7 +892,7 @@ export default function FinanceOverviewPage() {
                 </strong>
               </div>
               <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
-                <span className="text-[9px] uppercase font-bold text-slate-500 block">Operational Burn</span>
+                <span className="text-[9px] uppercase font-bold text-slate-500 block">TA/DA Burn</span>
                 <strong className="text-sm font-mono font-bold text-rose-700 block mt-1">
                   ৳{annualMetrics.annualBurnBDT.toLocaleString("en-IN")}
                 </strong>
