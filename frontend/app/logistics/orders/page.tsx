@@ -165,8 +165,6 @@ function LogisticsOrdersContent() {
   const [assignedMio, setAssignedMio] = React.useState("");
   const [deliveryMethod, setDeliveryMethod] = React.useState<SalesOrder["deliveryMethod"]>("Sales Representative");
   const [orderComments, setOrderComments] = React.useState("");
-  
-  // Percentage State (0-100%)
   const [discountPercent, setDiscountPercent] = React.useState<number>(0);
 
   const [lineItems, setLineItems] = React.useState<InvoiceItem[]>([
@@ -179,34 +177,46 @@ function LogisticsOrdersContent() {
 
   const fetchBackendData = React.useCallback(async () => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pharma-management-b7fk.onrender.com/api";
       
-      const [ordRes, clientRes, staffRes, productRes] = await Promise.all([
+      const [ordRes, clientRes, staffRes, invRes] = await Promise.all([
         fetch(`${API_URL}/orders`).catch(() => ({ ok: false, json: async () => [] })),
         fetch(`${API_URL}/clients`).catch(() => ({ ok: false, json: async () => [] })),
         fetch(`${API_URL}/staff`).catch(() => ({ ok: false, json: async () => [] })),
-        fetch(`${API_URL}/products`).catch(() => ({ ok: false, json: async () => [] })),
+        // Connected directly to the live inventory batch ledger
+        fetch(`${API_URL}/inventory`).catch(() => ({ ok: false, json: async () => [] })),
       ]);
 
-      if (productRes.ok) {
-        const prodData = await productRes.json();
-        if (Array.isArray(prodData) && prodData.length > 0) {
-          setProductCatalog(prodData.map((p: any) => ({
-            id: p.id,
-            name: p.name || p.productName || "Medicine",
-            stockQty: Number(p.stockQty ?? p.quantity ?? 100),
-            unitPrice: Number(p.unitPrice ?? p.price ?? 500),
-          })));
+      // Dynamic Product Catalog mapped from live inventory batches
+      if (invRes.ok) {
+        const batchData = await invRes.json();
+        if (Array.isArray(batchData) && batchData.length > 0) {
+          // Group by medicine brand name and sum total available units
+          const groupedMap = new Map<string, StockProduct>();
+
+          batchData.forEach((b: any) => {
+            const name = (b.brandName || b.name || "Medicine").trim();
+            const units = Number(b.availableUnits ?? b.stockQty ?? 0);
+            const price = Number(b.unitPrice ?? 0);
+
+            if (!groupedMap.has(name)) {
+              groupedMap.set(name, {
+                id: b.id,
+                name: name,
+                stockQty: units,
+                unitPrice: price,
+              });
+            } else {
+              const current = groupedMap.get(name)!;
+              current.stockQty += units;
+              // Keep latest unit price if available
+              if (price > 0) current.unitPrice = price;
+            }
+          });
+
+          setProductCatalog(Array.from(groupedMap.values()));
         } else {
-          setProductCatalog([
-            { id: "p-1", name: "Rosuvastatin 10mg Tablets", stockQty: 240, unitPrice: 420 },
-            { id: "p-2", name: "Cardiloc 5mg Tablets", stockQty: 180, unitPrice: 350 },
-            { id: "p-3", name: "Cef-3 200mg Suspension", stockQty: 95, unitPrice: 620 },
-            { id: "p-4", name: "Fefol-Z Capsules", stockQty: 310, unitPrice: 280 },
-            { id: "p-5", name: "Napa Extra 500mg", stockQty: 500, unitPrice: 120 },
-            { id: "p-6", name: "Maxpro 20mg Capsules", stockQty: 140, unitPrice: 450 },
-            { id: "p-7", name: "Azithromycin 500mg", stockQty: 85, unitPrice: 750 },
-          ]);
+          setProductCatalog([]);
         }
       }
 
@@ -230,7 +240,6 @@ function LogisticsOrdersContent() {
           const rawDiscount = Number(item.discountPercent ?? item.discount ?? 0);
           const computedSubtotal = parsedItems.reduce((acc, curr) => acc + (curr.total || 0), 0);
           
-          // Backwards compatibility if previous records stored flat discount values
           const pct = item.discountPercent !== undefined 
             ? rawDiscount 
             : computedSubtotal > 0 && rawDiscount <= 100 
@@ -244,10 +253,10 @@ function LogisticsOrdersContent() {
           return {
             id: item.id,
             orderNumber: item.orderNumber || `SO-2026-${String(idx + 1).padStart(4, "0")}`,
-            orderDate: item.orderDate || "27 Sep 2026",
+            orderDate: item.orderDate || "28 Sep 2026",
             pharmacyName: item.pharmacyName,
             territory: item.territory || "Dhaka North",
-            assignedMio: item.assignedMio || "Unassigned",
+            assignedMio: item.assignedMio || "General MIO",
             itemsSummary: item.itemsSummary || "General Formulations",
             itemsDetail: parsedItems,
             totalBoxes: Number(item.totalBoxes) || 1,
@@ -425,7 +434,6 @@ function LogisticsOrdersContent() {
     [validLineItems]
   );
 
-  // Percentage-based calculation
   const calculatedDiscountAmount = Math.round((calculatedSubtotal * (discountPercent || 0)) / 100);
   const calculatedGrandTotal = Math.max(0, calculatedSubtotal - calculatedDiscountAmount);
 
@@ -452,7 +460,7 @@ function LogisticsOrdersContent() {
     }
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pharma-management-b7fk.onrender.com/api";
       const isHold = clientCreditNotice?.status === "Credit Hold";
 
       const payload = {
@@ -481,18 +489,6 @@ function LogisticsOrdersContent() {
 
       if (!res.ok) throw new Error("Failed to submit sales order");
 
-      // Auto-minus quantities from Stock Management
-      await fetch(`${API_URL}/products/deduct-stock`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deductions: validLineItems.map((item) => ({
-            name: item.description,
-            quantity: item.quantity,
-          })),
-        }),
-      }).catch((err) => console.log("Stock deduction sync:", err));
-
       setIsNewOrderOpen(false);
       setPharmacyInput("");
       setLineItems([{ no: 1, description: "", quantity: 1, unitCost: 0, total: 0 }]);
@@ -508,7 +504,7 @@ function LogisticsOrdersContent() {
 
   const handleUpdateStatus = async (id: string, newStatus: SalesOrder["status"]) => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pharma-management-b7fk.onrender.com/api";
       const res = await fetch(`${API_URL}/orders/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -525,7 +521,7 @@ function LogisticsOrdersContent() {
   const handleDeleteOrder = async (id: string) => {
     if (!confirm("Are you sure you want to delete this sales order?")) return;
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pharma-management-b7fk.onrender.com/api";
       const res = await fetch(`${API_URL}/orders/${id}`, {
         method: "DELETE",
       });
@@ -590,6 +586,20 @@ function LogisticsOrdersContent() {
   }, [orders]);
 
   const pendingCreditCount = React.useMemo(() => orders.filter((o) => o.status === "Pending Credit Check").length, [orders]);
+
+  // Dynamic OTIF Calculation (Delivered & Invoiced / Total non-cancelled orders)
+  const otifMetrics = React.useMemo(() => {
+    const nonCancelled = orders.filter((o) => o.status !== "Cancelled");
+    if (nonCancelled.length === 0) {
+      return { percentage: "100.0%", isTargetMet: true };
+    }
+    const delivered = nonCancelled.filter((o) => o.status === "Delivered & Invoiced").length;
+    const rate = ((delivered / nonCancelled.length) * 100).toFixed(1);
+    return {
+      percentage: `${rate}%`,
+      isTargetMet: parseFloat(rate) >= 95,
+    };
+  }, [orders]);
 
   const matchedClient = React.useMemo(
     () => (selectedOrder ? clientList.find((c) => c.pharmacyName === selectedOrder.pharmacyName) : null),
@@ -842,21 +852,31 @@ function LogisticsOrdersContent() {
                                 className="h-7 text-xs border-slate-200 font-medium"
                               />
                               {activeSuggestionRow === idx && (
-                                <div className="absolute z-50 left-2 right-2 bg-white border border-slate-300 rounded shadow-lg max-h-40 overflow-y-auto mt-0.5">
+                                <div className="absolute z-50 left-2 right-2 bg-white border border-slate-300 rounded shadow-lg max-h-48 overflow-y-auto mt-0.5">
                                   {productCatalog
-                                    .filter((p) => p.name.toLowerCase().includes(item.description.toLowerCase()))
+                                    .filter((p) => p.name.toLowerCase().includes((item.description || "").toLowerCase()))
                                     .map((prod) => (
                                       <div
                                         key={prod.id}
                                         onClick={() => handleSelectStockProduct(idx, prod)}
-                                        className="px-2.5 py-1.5 text-xs hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50 last:border-0"
+                                        className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-100 last:border-0"
                                       >
-                                        <span className="font-semibold text-slate-900">{prod.name}</span>
-                                        <span className="text-[10px] text-slate-500 font-mono">
-                                          Stock: {prod.stockQty} boxes | ৳{prod.unitPrice}
+                                        <div>
+                                          <span className="font-bold text-slate-900 block">{prod.name}</span>
+                                          <span className="text-[11px] text-emerald-600 font-mono font-semibold">
+                                            Stock: {prod.stockQty} boxes
+                                          </span>
+                                        </div>
+                                        <span className="text-xs font-mono font-bold text-slate-700">
+                                          ৳{prod.unitPrice.toLocaleString("en-IN")}
                                         </span>
                                       </div>
                                     ))}
+                                  {productCatalog.filter((p) => p.name.toLowerCase().includes((item.description || "").toLowerCase())).length === 0 && (
+                                    <div className="px-3 py-2 text-xs text-slate-400 italic">
+                                      No matching inventory products found
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </td>
@@ -1017,15 +1037,23 @@ function LogisticsOrdersContent() {
           </p>
         </Card>
 
+        {/* Dynamic Fulfillment Efficiency (OTIF) */}
         <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">Fulfillment Efficiency (OTIF)</span>
-            <Badge variant="outline" className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border-emerald-200 px-2 py-0.5 rounded-md">
+            <Badge
+              variant="outline"
+              className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${
+                otifMetrics.isTargetMet
+                  ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                  : "text-amber-700 bg-amber-50 border-amber-200"
+              }`}
+            >
               Target: 95%
             </Badge>
           </div>
           <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none font-mono">
-            97.2%
+            {otifMetrics.percentage}
           </div>
           <p className="text-[11px] text-slate-400 mt-3">
             On-Time & In-Full delivery index
