@@ -98,31 +98,53 @@ export default function RBACManagementPage() {
   // Feedback states
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const [saveToast, setSaveToast] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  const API_URL =
+    process.env.NEXT_PUBLIC_API_URL || "https://pharma-management-b7fk.onrender.com/api";
 
-  // Fetch RBAC data without infinite loop triggers
+  const getAuthHeaders = (): HeadersInit => {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+    }
+    return headers;
+  };
+
   const fetchRBACData = React.useCallback(async (isManualRefresh = false) => {
     try {
       if (isManualRefresh) setLoading(true);
+
       const [rolesRes, usersRes] = await Promise.all([
-        fetch(`${API_URL}/rbac/roles`).catch(() => null),
-        fetch(`${API_URL}/rbac/users`).catch(() => null),
+        fetch(`${API_URL}/rbac/roles`, {
+          headers: getAuthHeaders(),
+        }).catch(() => null),
+        fetch(`${API_URL}/rbac/users`, {
+          headers: getAuthHeaders(),
+        }).catch(() => null),
       ]);
 
       if (rolesRes && rolesRes.ok) {
         const rolesData: SystemRole[] = await rolesRes.json();
-        setRoles(rolesData);
-        // Default select first role once if not already chosen
-        setSelectedRoleId((curr) => {
-          if (curr && rolesData.some((r) => r.id === curr)) return curr;
-          return rolesData[0]?.id || "";
-        });
+        if (Array.isArray(rolesData) && rolesData.length > 0) {
+          setRoles(rolesData);
+          setSelectedRoleId((curr) => {
+            if (curr && rolesData.some((r) => r.id === curr)) return curr;
+            return rolesData[0].id;
+          });
+        }
       }
 
       if (usersRes && usersRes.ok) {
         const usersData = await usersRes.json();
-        setAssignments(usersData);
+        if (Array.isArray(usersData)) {
+          setAssignments(usersData);
+        }
       }
     } catch (err) {
       console.error("Error loading RBAC settings:", err);
@@ -131,7 +153,6 @@ export default function RBACManagementPage() {
     }
   }, [API_URL]);
 
-  // Load once on initial mount only
   React.useEffect(() => {
     fetchRBACData(false);
   }, [fetchRBACData]);
@@ -151,7 +172,7 @@ export default function RBACManagementPage() {
         if (role.id === selectedRole.id) {
           return {
             ...role,
-            permissions: role.permissions.map((p) => {
+            permissions: (role.permissions || []).map((p) => {
               if (p.module === moduleName) {
                 return { ...p, [action]: !p[action] };
               }
@@ -169,9 +190,10 @@ export default function RBACManagementPage() {
   const handleSaveRolePermissions = async () => {
     if (!selectedRole) return;
     try {
+      setIsSaving(true);
       const res = await fetch(`${API_URL}/rbac/roles/${selectedRole.id}/permissions`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ permissions: selectedRole.permissions }),
       });
 
@@ -179,9 +201,11 @@ export default function RBACManagementPage() {
 
       setHasUnsavedChanges(false);
       setSaveToast(true);
-      setTimeout(() => setSaveToast(false), 2000);
+      setTimeout(() => setSaveToast(false), 2500);
     } catch {
       alert("Failed to save permission matrix to database.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -192,7 +216,7 @@ export default function RBACManagementPage() {
     try {
       const res = await fetch(`${API_URL}/rbac/users`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           name: provName,
           email: provEmail,
@@ -220,10 +244,17 @@ export default function RBACManagementPage() {
 
   const handleToggleUserStatus = async (userId: string) => {
     try {
-      const res = await fetch(`${API_URL}/rbac/users/${userId}/status`, { method: "PUT" });
+      const res = await fetch(`${API_URL}/rbac/users/${userId}/status`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+      });
       if (!res.ok) throw new Error("Failed to update status");
       setAssignments((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, status: u.status === "Active" ? "Restricted" : "Active" } : u))
+        prev.map((u) =>
+          u.id === userId
+            ? { ...u, status: u.status === "Active" ? "Restricted" : "Active" }
+            : u
+        )
       );
     } catch {
       alert("Could not update account status.");
@@ -231,9 +262,13 @@ export default function RBACManagementPage() {
   };
 
   const handleDeleteUser = async (userId: string, name: string) => {
-    if (!confirm(`Are you sure you want to permanently revoke credentials for "${name}"?`)) return;
+    if (!confirm(`Are you sure you want to permanently revoke credentials for "${name}"?`))
+      return;
     try {
-      const res = await fetch(`${API_URL}/rbac/users/${userId}`, { method: "DELETE" });
+      const res = await fetch(`${API_URL}/rbac/users/${userId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
       if (!res.ok) throw new Error("Failed to delete user");
       setAssignments((prev) => prev.filter((u) => u.id !== userId));
     } catch {
@@ -254,16 +289,19 @@ export default function RBACManagementPage() {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "RBAC Security Audit");
-    XLSX.writeFile(workbook, `AK_Pharma_RBAC_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(
+      workbook,
+      `AK_Pharma_RBAC_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`
+    );
   };
 
   const filteredUsers = assignments.filter((u) => {
     const q = searchUserQuery.toLowerCase();
     return (
-      u.name.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      u.roleCode.toLowerCase().includes(q) ||
-      u.territory.toLowerCase().includes(q)
+      (u.name || "").toLowerCase().includes(q) ||
+      (u.email || "").toLowerCase().includes(q) ||
+      (u.roleCode || "").toLowerCase().includes(q) ||
+      (u.territory || "").toLowerCase().includes(q)
     );
   });
 
@@ -405,7 +443,7 @@ export default function RBACManagementPage() {
                       <span className="text-[10px] font-mono text-[#0090FF] block mt-0.5">{r.code}</span>
                     </div>
                     <Badge variant="outline" className="text-[10px] font-medium bg-white text-slate-600">
-                      {r.userCount} Users
+                      {r.userCount ?? 0} Users
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-2 line-clamp-2 leading-relaxed">
@@ -445,12 +483,12 @@ export default function RBACManagementPage() {
                   )}
                   <Button
                     size="sm"
-                    disabled={!hasUnsavedChanges}
+                    disabled={!hasUnsavedChanges || isSaving}
                     onClick={handleSaveRolePermissions}
-                    className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white gap-1.5 shadow-none"
+                    className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white gap-1.5 shadow-none disabled:opacity-50"
                   >
                     <Save className="h-3.5 w-3.5" />
-                    Save Permissions
+                    {isSaving ? "Saving..." : "Save Permissions"}
                   </Button>
                 </div>
               </div>
@@ -468,7 +506,7 @@ export default function RBACManagementPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedRole.permissions.map((perm) => (
+                    {(selectedRole.permissions || []).map((perm) => (
                       <TableRow key={perm.module} className="border-b border-slate-50 hover:bg-slate-50/50">
                         <TableCell className="py-3 pl-0">
                           <div>
@@ -480,7 +518,7 @@ export default function RBACManagementPage() {
                         <TableCell className="py-3 text-center">
                           <input
                             type="checkbox"
-                            checked={perm.read}
+                            checked={Boolean(perm.read)}
                             onChange={() => handleTogglePermission(perm.module, "read")}
                             className="h-3.5 w-3.5 rounded border-slate-300 text-[#0090FF] focus:ring-0 cursor-pointer"
                           />
@@ -489,7 +527,7 @@ export default function RBACManagementPage() {
                         <TableCell className="py-3 text-center">
                           <input
                             type="checkbox"
-                            checked={perm.create}
+                            checked={Boolean(perm.create)}
                             onChange={() => handleTogglePermission(perm.module, "create")}
                             className="h-3.5 w-3.5 rounded border-slate-300 text-[#0090FF] focus:ring-0 cursor-pointer"
                           />
@@ -498,7 +536,7 @@ export default function RBACManagementPage() {
                         <TableCell className="py-3 text-center">
                           <input
                             type="checkbox"
-                            checked={perm.edit}
+                            checked={Boolean(perm.edit)}
                             onChange={() => handleTogglePermission(perm.module, "edit")}
                             className="h-3.5 w-3.5 rounded border-slate-300 text-[#0090FF] focus:ring-0 cursor-pointer"
                           />
@@ -507,7 +545,7 @@ export default function RBACManagementPage() {
                         <TableCell className="py-3 text-center">
                           <input
                             type="checkbox"
-                            checked={perm.delete}
+                            checked={Boolean(perm.delete)}
                             onChange={() => handleTogglePermission(perm.module, "delete")}
                             className="h-3.5 w-3.5 rounded border-slate-300 text-[#0090FF] focus:ring-0 cursor-pointer"
                           />
@@ -520,7 +558,7 @@ export default function RBACManagementPage() {
                                 {perm.specialAction}
                               </span>
                               <Switch
-                                checked={perm.specialGranted}
+                                checked={Boolean(perm.specialGranted)}
                                 onCheckedChange={() => handleTogglePermission(perm.module, "specialGranted")}
                                 className="scale-75"
                               />
@@ -590,7 +628,7 @@ export default function RBACManagementPage() {
                     <div className="flex items-center gap-2.5">
                       <Avatar className="h-7 w-7 rounded-full border border-slate-200">
                         <AvatarFallback className="bg-slate-100 text-slate-700 text-xs font-semibold">
-                          {user.name.slice(0, 2).toUpperCase()}
+                          {(user.name || "OP").slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div>
@@ -613,7 +651,7 @@ export default function RBACManagementPage() {
                   </TableCell>
 
                   <TableCell className="py-3 text-xs text-slate-500 font-mono">
-                    {user.lastLogin}
+                    {user.lastLogin || "Never"}
                   </TableCell>
 
                   <TableCell className="py-3 text-xs text-center">
@@ -740,10 +778,18 @@ export default function RBACManagementPage() {
             </div>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsProvisionOpen(false)} className="h-8 text-xs">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsProvisionOpen(false)}
+                className="h-8 text-xs"
+              >
                 Cancel
               </Button>
-              <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white font-semibold">
+              <Button
+                type="submit"
+                className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white font-semibold"
+              >
                 Save to Database & Grant Access
               </Button>
             </DialogFooter>
