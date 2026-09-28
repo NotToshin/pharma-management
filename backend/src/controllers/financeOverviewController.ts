@@ -8,33 +8,31 @@ const MONTH_NAMES = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 ];
 
-// Robust multi-format date parser (handles "27 Sep 2026", "2026-09-27", "27/09/2026", ISO)
-function parseRecordDate(dateStr?: string | Date | null): { month: number; year: number } | null {
-  if (!dateStr) return null;
-  if (dateStr instanceof Date) {
-    return isNaN(dateStr.getTime()) ? null : { month: dateStr.getMonth(), year: dateStr.getFullYear() };
+function parseRecordDate(dateVal?: string | Date | null): { month: number; year: number } | null {
+  if (!dateVal) return null;
+  if (dateVal instanceof Date) {
+    return isNaN(dateVal.getTime()) ? null : { month: dateVal.getMonth(), year: dateVal.getFullYear() };
   }
 
-  // Try standard parse
-  const parsed = new Date(dateStr);
+  const str = String(dateVal).trim();
+  const parsed = new Date(str);
   if (!isNaN(parsed.getTime())) {
     return { month: parsed.getMonth(), year: parsed.getFullYear() };
   }
 
   // Handle DD/MM/YYYY or DD-MM-YYYY
-  const dmyMatch = String(dateStr).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
   if (dmyMatch) {
     return { month: parseInt(dmyMatch[2], 10) - 1, year: parseInt(dmyMatch[3], 10) };
   }
 
-  // Handle "DD Mon YYYY" e.g., "27 Sep 2026"
-  const textMatch = String(dateStr).match(/(\w{3})\s+(\d{4})/i);
-  if (textMatch) {
-    const mIdx = MONTH_NAMES.findIndex(
-      (m) => m.toLowerCase() === textMatch[1].slice(0, 3).toLowerCase()
-    );
-    if (mIdx !== -1) {
-      return { month: mIdx, year: parseInt(textMatch[2], 10) };
+  // Match month names including 'Sept' or full names like 'September'
+  for (let i = 0; i < MONTH_NAMES.length; i++) {
+    const mPrefix = MONTH_NAMES[i].toLowerCase();
+    if (str.toLowerCase().includes(mPrefix)) {
+      const yearMatch = str.match(/\b(202\d)\b/);
+      const year = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
+      return { month: i, year };
     }
   }
 
@@ -46,16 +44,24 @@ export const getFinancialOverview = async (req: Request, res: Response): Promise
     const yearParam = req.query.year ? parseInt(req.query.year as string, 10) : 2026;
     const monthParam = req.query.month !== undefined ? parseInt(req.query.month as string, 10) : new Date().getMonth();
 
-    const [orders, expenses, journalTxs] = await Promise.all([
-      prisma.order.findMany({ orderBy: { createdAt: "desc" } }),
+    const [orders, expenses, batches, journalTxs] = await Promise.all([
+      prisma.order.findMany({ where: { status: { not: "Cancelled" } }, orderBy: { createdAt: "desc" } }),
       prisma.expenseVoucher.findMany({ orderBy: { createdAt: "desc" } }).catch(() => []),
+      prisma.inventoryBatch.findMany().catch(() => []),
       prisma.journalTransaction.findMany({
         include: { sourceAccount: true, destinationAccount: true },
         orderBy: { createdAt: "desc" },
       }).catch(() => []),
     ]);
 
-    // 1. Calculate 12-month Trend
+    // Build batch unit-cost lookup
+    const batchCostMap = new Map<string, number>();
+    batches.forEach((b) => {
+      const brand = (b.brandName || "").trim().toLowerCase();
+      if (brand) batchCostMap.set(brand, Number(b.unitPrice) || 0);
+    });
+
+    // 1. Calculate Monthly Trend
     const monthlyTrend = MONTH_NAMES.map((mName, idx) => {
       const mOrders = orders.filter((o: any) => {
         const d = parseRecordDate(o.orderDate) || parseRecordDate(o.createdAt);
@@ -64,7 +70,7 @@ export const getFinancialOverview = async (req: Request, res: Response): Promise
 
       const revenueBDT = mOrders.reduce((sum, o: any) => sum + Number(o.orderValue || 0), 0);
       const collectionsBDT = mOrders
-        .filter((o: any) => o.status === "Delivered & Invoiced")
+        .filter((o: any) => o.status === "Delivered & Invoiced" || o.status === "Settled")
         .reduce((sum, o: any) => sum + Number(o.orderValue || 0), 0);
 
       const mExpenses = (expenses as any[]).filter((e: any) => {
@@ -77,7 +83,7 @@ export const getFinancialOverview = async (req: Request, res: Response): Promise
         month: mName,
         monthIndex: idx,
         year: yearParam,
-        Revenue: Number((revenueBDT / 100000).toFixed(2)),       // in Lakhs
+        Revenue: Number((revenueBDT / 100000).toFixed(2)),
         Collections: Number((collectionsBDT / 100000).toFixed(2)),
         Expenses: Number((expensesBDT / 100000).toFixed(2)),
         rawRevenue: revenueBDT,
@@ -86,63 +92,74 @@ export const getFinancialOverview = async (req: Request, res: Response): Promise
       };
     });
 
-    // 2. Focused Month Data & Category Breakdown
+    // 2. Focused Month Data
     const focusedMonth = monthlyTrend[monthParam] || monthlyTrend[0];
-    const currentEarnBDT = focusedMonth.rawRevenue;
-    const currentCollectionsBDT = focusedMonth.rawCollections;
-    const currentBurnBDT = focusedMonth.rawExpenses;
-    const currentArBDT = Math.max(0, currentEarnBDT - currentCollectionsBDT);
-    const currentNetProfitBDT = Math.max(0, currentCollectionsBDT - currentBurnBDT);
+    const activeOrders = orders.filter((o: any) => {
+      const d = parseRecordDate(o.orderDate) || parseRecordDate(o.createdAt);
+      return d ? d.month === monthParam && d.year === yearParam : false;
+    });
 
-    // Categorized Month Expenses
+    const evaluatedOrders = activeOrders.length > 0 ? activeOrders : orders;
+
+    const currentEarnBDT = focusedMonth.rawRevenue > 0
+      ? focusedMonth.rawRevenue
+      : evaluatedOrders.reduce((sum, o: any) => sum + Number(o.orderValue || 0), 0);
+
+    const currentCollectionsBDT = focusedMonth.rawCollections > 0
+      ? focusedMonth.rawCollections
+      : evaluatedOrders
+          .filter((o: any) => o.status === "Delivered & Invoiced" || o.status === "Settled")
+          .reduce((sum, o: any) => sum + Number(o.orderValue || 0), 0);
+
     const activeMonthExpenses = (expenses as any[]).filter((e: any) => {
       const d = parseRecordDate(e.paymentDate) || parseRecordDate(e.createdAt);
       return d ? d.month === monthParam && d.year === yearParam : false;
     });
 
-    let cogsAmount = 0;
-    let fieldForceAmount = 0;
-    let logisticsAmount = 0;
+    const currentBurnBDT = activeMonthExpenses.length > 0
+      ? activeMonthExpenses.reduce((sum, e: any) => sum + Number(e.amount || 0), 0)
+      : (expenses as any[]).reduce((sum, e: any) => sum + Number(e.amount || 0), 0);
 
-    activeMonthExpenses.forEach((e: any) => {
-      const cat = String(e.category || "").toLowerCase();
-      const payee = String(e.payeeName || "").toLowerCase();
-      const desc = String(e.particulars || "").toLowerCase();
+    // Dynamic COGS calculation from order items and inventory batches
+    let dynamicCogs = 0;
+    evaluatedOrders.forEach((o: any) => {
+      let items: any[] = [];
+      if (Array.isArray(o.itemsDetail)) items = o.itemsDetail;
+      else if (typeof o.itemsDetail === "string") {
+        try { items = JSON.parse(o.itemsDetail); } catch { items = []; }
+      }
 
-      if (cat.includes("procurement") || cat.includes("raw") || cat.includes("cogs") || desc.includes("api")) {
-        cogsAmount += Number(e.amount || 0);
-      } else if (cat.includes("field") || cat.includes("mio") || cat.includes("sampling") || payee.includes("mio")) {
-        fieldForceAmount += Number(e.amount || 0);
-      } else if (cat.includes("logistics") || cat.includes("courier") || cat.includes("fleet") || cat.includes("delivery")) {
-        logisticsAmount += Number(e.amount || 0);
+      if (items.length > 0) {
+        items.forEach((item: any) => {
+          const name = (item.description || "").trim().toLowerCase();
+          const qty = Number(item.quantity) || 1;
+          const cost = batchCostMap.get(name) || Number(item.unitCost) || 0;
+          dynamicCogs += qty * cost;
+        });
       } else {
-        // Distribute general operational expenses proportionally
-        fieldForceAmount += Number(e.amount || 0) * 0.6;
-        logisticsAmount += Number(e.amount || 0) * 0.4;
+        dynamicCogs += Math.round(Number(o.orderValue || 0) * 0.50);
       }
     });
 
-    // If no explicit expense vouchers exist yet, calculate standard pharma COGS baseline
-    if (activeMonthExpenses.length === 0 && currentEarnBDT > 0) {
-      cogsAmount = currentEarnBDT * 0.542;
-      fieldForceAmount = currentEarnBDT * 0.184;
-      logisticsAmount = currentEarnBDT * 0.078;
+    if (dynamicCogs >= currentEarnBDT && currentEarnBDT > 0) {
+      dynamicCogs = Math.round(currentEarnBDT * 0.50);
     }
 
-    // Dynamic Percentages relative to Earned Revenue
-    const divisor = currentEarnBDT > 0 ? currentEarnBDT : 1;
-    const cogsPercent = currentEarnBDT > 0 ? Math.min(100, (cogsAmount / divisor) * 100) : 0;
-    const fieldForcePercent = currentEarnBDT > 0 ? Math.min(100, (fieldForceAmount / divisor) * 100) : 0;
-    const logisticsPercent = currentEarnBDT > 0 ? Math.min(100, (logisticsAmount / divisor) * 100) : 0;
-    const netMarginPercent = currentEarnBDT > 0 ? Math.max(0, (currentNetProfitBDT / divisor) * 100) : 0;
+    const tadaBurn = currentBurnBDT;
+    const profitAmount = Math.max(0, currentEarnBDT - dynamicCogs - tadaBurn);
+    const cogsPercent = currentEarnBDT > 0 ? Number(((dynamicCogs / currentEarnBDT) * 100).toFixed(1)) : 0;
+    const tadaPercent = currentEarnBDT > 0 ? Number(((tadaBurn / currentEarnBDT) * 100).toFixed(1)) : 0;
+    const netMarginPercent = currentEarnBDT > 0 ? Number(((profitAmount / currentEarnBDT) * 100).toFixed(1)) : 0;
 
-    // 3. Fiscal Year Totals
-    const annualEarnBDT = monthlyTrend.reduce((sum, m) => sum + m.rawRevenue, 0);
-    const annualCollectionsBDT = monthlyTrend.reduce((sum, m) => sum + m.rawCollections, 0);
-    const annualBurnBDT = monthlyTrend.reduce((sum, m) => sum + m.rawExpenses, 0);
+    const currentArBDT = Math.max(0, currentEarnBDT - currentCollectionsBDT);
+
+    // 3. Annual Totals
+    const annualEarnBDT = monthlyTrend.reduce((sum, m) => sum + m.rawRevenue, 0) || currentEarnBDT;
+    const annualCollectionsBDT = monthlyTrend.reduce((sum, m) => sum + m.rawCollections, 0) || currentCollectionsBDT;
+    const annualBurnBDT = monthlyTrend.reduce((sum, m) => sum + m.rawExpenses, 0) || tadaBurn;
     const annualNetProfitBDT = Math.max(0, annualCollectionsBDT - annualBurnBDT);
 
-    // 4. Combined Recent Transactions
+    // 4. Combined Transaction Stream
     const transactions: any[] = [];
 
     orders.forEach((o: any) => {
@@ -154,7 +171,7 @@ export const getFinancialOverview = async (req: Request, res: Response): Promise
         territory: o.territory,
         amount: Number(o.orderValue),
         date: o.orderDate,
-        status: o.status === "Delivered & Invoiced" ? "Settled" : o.status === "Pending Credit Check" ? "Pending Clearance" : "Overdue",
+        status: o.status === "Delivered & Invoiced" || o.status === "Settled" ? "Settled" : "Pending Clearance",
       });
     });
 
@@ -163,27 +180,12 @@ export const getFinancialOverview = async (req: Request, res: Response): Promise
         id: `exp-${e.id}`,
         trxCode: e.voucherNo,
         partyName: `${e.payeeName} (${e.category})`,
-        type: "Field Disbursement",
-        territory: e.fundingSource,
+        type: "TA/DA Disbursement",
+        territory: e.fundingSource || "Field Force",
         amount: Number(e.amount),
         date: e.paymentDate,
         status: "Settled",
       });
-    });
-
-    (journalTxs as any[]).forEach((j: any) => {
-      if (j.flowType === "INFLOW" || j.flowType === "LOAN") {
-        transactions.push({
-          id: `jrn-${j.id}`,
-          trxCode: j.refCode,
-          partyName: j.particulars,
-          type: j.flowType === "LOAN" ? "Loan Intake" : "Wholesale Deposit",
-          territory: j.destinationAccount?.accountTitle || "Corporate Bank",
-          amount: Number(j.amount),
-          date: j.entryDate,
-          status: j.reconciliationStatus === "Reconciled" ? "Settled" : "Pending Clearance",
-        });
-      }
     });
 
     transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -194,19 +196,17 @@ export const getFinancialOverview = async (req: Request, res: Response): Promise
       metrics: {
         currentEarnBDT,
         currentCollectionsBDT,
-        currentBurnBDT,
+        currentBurnBDT: tadaBurn,
         currentArBDT,
-        currentNetProfitBDT,
+        currentNetProfitBDT: profitAmount,
       },
       marginBreakdown: {
-        cogsPercent: Number(cogsPercent.toFixed(1)),
-        cogsAmount: Math.round(cogsAmount),
-        fieldForcePercent: Number(fieldForcePercent.toFixed(1)),
-        fieldForceAmount: Math.round(fieldForceAmount),
-        logisticsPercent: Number(logisticsPercent.toFixed(1)),
-        logisticsAmount: Math.round(logisticsAmount),
-        netMarginPercent: Number(netMarginPercent.toFixed(1)),
-        netProfitAmount: Math.round(currentNetProfitBDT),
+        cogsPercent,
+        cogsAmount: Math.round(dynamicCogs),
+        tadaPercent,
+        tadaAmount: Math.round(tadaBurn),
+        netMarginPercent,
+        profitAmount: Math.round(profitAmount),
       },
       annualMetrics: {
         annualEarnBDT,
