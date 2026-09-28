@@ -1543,13 +1543,13 @@ function LogisticsOrdersContent() {
             <div className="mt-16 pt-8 border-t-2 border-slate-200 grid grid-cols-2 gap-12 text-[10px] text-center">
               <div>
                 <div className="w-48 border-b border-slate-400 mx-auto mb-1.5" />
-                <strong className="text-slate-900 block text-xs">Chief Executive Officer (CEO)</strong>
-                <span className="text-slate-500">Authorized Signature</span>
+                <strong className="text-slate-900 block text-xs">Authorized Signature</strong>
+                <span className="text-slate-500"></span>
               </div>
               <div>
                 <div className="w-48 border-b border-slate-400 mx-auto mb-1.5" />
-                <strong className="text-slate-900 block text-xs">Managing Director (MD)</strong>
-                <span className="text-slate-500">Authorized Signature</span>
+                <strong className="text-slate-900 block text-xs">MIO/SR Signature</strong>
+                <span className="text-slate-500"></span>
               </div>
             </div>
 
