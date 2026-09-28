@@ -55,6 +55,7 @@ import {
   ShieldAlert,
   Trash2,
   UserCheck,
+  PackageCheck,
 } from "lucide-react";
 
 interface InvoiceItem {
@@ -76,7 +77,8 @@ interface SalesOrder {
   itemsDetail: InvoiceItem[];
   totalBoxes: number;
   orderValue: number;
-  discount: number;
+  discountPercent: number;
+  discountAmount: number;
   comments: string;
   deliveryMethod: "Sales Representative" | "Medical Information Officer" | "Third Party Courier";
   status: "Pending Credit Check" | "FEFO Allocated" | "Out for Delivery" | "Delivered & Invoiced" | "Cancelled";
@@ -115,7 +117,7 @@ function parseSummaryToRows(summary: string, totalVal: number, totalBoxes: numbe
 
   const parts = summary.split(",").map((s) => s.trim()).filter(Boolean);
   if (parts.length <= 1 && !summary.includes("(")) {
-    return [{ no: 1, description: summary, quantity: totalBoxes || 1, unitCost: totalBoxes ? totalVal / totalBoxes : totalVal, total: totalVal }];
+    return [{ no: 1, description: summary, quantity: totalBoxes || 1, unitCost: totalBoxes ? Math.round(totalVal / totalBoxes) : totalVal, total: totalVal }];
   }
 
   const parsed: InvoiceItem[] = [];
@@ -163,7 +165,9 @@ function LogisticsOrdersContent() {
   const [assignedMio, setAssignedMio] = React.useState("");
   const [deliveryMethod, setDeliveryMethod] = React.useState<SalesOrder["deliveryMethod"]>("Sales Representative");
   const [orderComments, setOrderComments] = React.useState("");
-  const [discountAmount, setDiscountAmount] = React.useState<number>(0);
+  
+  // Percentage State (0-100%)
+  const [discountPercent, setDiscountPercent] = React.useState<number>(0);
 
   const [lineItems, setLineItems] = React.useState<InvoiceItem[]>([
     { no: 1, description: "", quantity: 1, unitCost: 0, total: 0 },
@@ -223,6 +227,19 @@ function LogisticsOrdersContent() {
           }
 
           const sequentialInvoiceNo = item.invoiceNumber || `INV-2026-${String(idx + 1).padStart(4, "0")}`;
+          const rawDiscount = Number(item.discountPercent ?? item.discount ?? 0);
+          const computedSubtotal = parsedItems.reduce((acc, curr) => acc + (curr.total || 0), 0);
+          
+          // Backwards compatibility if previous records stored flat discount values
+          const pct = item.discountPercent !== undefined 
+            ? rawDiscount 
+            : computedSubtotal > 0 && rawDiscount <= 100 
+              ? rawDiscount 
+              : computedSubtotal > 0 
+                ? Math.round((rawDiscount / computedSubtotal) * 100) 
+                : 0;
+                
+          const monetaryDiscount = Math.round((computedSubtotal * pct) / 100);
 
           return {
             id: item.id,
@@ -234,8 +251,9 @@ function LogisticsOrdersContent() {
             itemsSummary: item.itemsSummary || "General Formulations",
             itemsDetail: parsedItems,
             totalBoxes: Number(item.totalBoxes) || 1,
-            orderValue: Number(item.orderValue) || 25000,
-            discount: Number(item.discount) || 0,
+            orderValue: Number(item.orderValue) || Math.max(0, computedSubtotal - monetaryDiscount),
+            discountPercent: pct,
+            discountAmount: monetaryDiscount,
             comments: item.comments || "",
             deliveryMethod: item.deliveryMethod || "Sales Representative",
             status: item.status || "FEFO Allocated",
@@ -407,7 +425,9 @@ function LogisticsOrdersContent() {
     [validLineItems]
   );
 
-  const calculatedGrandTotal = Math.max(0, calculatedSubtotal - discountAmount);
+  // Percentage-based calculation
+  const calculatedDiscountAmount = Math.round((calculatedSubtotal * (discountPercent || 0)) / 100);
+  const calculatedGrandTotal = Math.max(0, calculatedSubtotal - calculatedDiscountAmount);
 
   const totalBoxesCalculated = React.useMemo(
     () => validLineItems.reduce((acc, curr) => acc + (Number(curr.quantity) || 0), 0),
@@ -445,7 +465,8 @@ function LogisticsOrdersContent() {
         itemsDetail: validLineItems,
         totalBoxes: totalBoxesCalculated,
         orderValue: calculatedGrandTotal,
-        discount: discountAmount,
+        discountPercent: discountPercent,
+        discountAmount: calculatedDiscountAmount,
         comments: orderComments,
         deliveryMethod,
         status: isHold ? "Pending Credit Check" : "FEFO Allocated",
@@ -475,7 +496,7 @@ function LogisticsOrdersContent() {
       setIsNewOrderOpen(false);
       setPharmacyInput("");
       setLineItems([{ no: 1, description: "", quantity: 1, unitCost: 0, total: 0 }]);
-      setDiscountAmount(0);
+      setDiscountPercent(0);
       setOrderComments("");
       setClientCreditNotice(null);
       fetchBackendData();
@@ -526,6 +547,8 @@ function LogisticsOrdersContent() {
       "Assigned MIO": o.assignedMio,
       "Item Breakdown": o.itemsSummary,
       "Boxes": o.totalBoxes,
+      "Discount (%)": `${o.discountPercent}%`,
+      "Discount Value (৳)": o.discountAmount,
       "Total Amount (৳)": o.orderValue,
       "Logistics Method": o.deliveryMethod,
       "Fulfillment Status": o.status,
@@ -561,7 +584,6 @@ function LogisticsOrdersContent() {
 
   const totalRevenue = React.useMemo(() => orders.reduce((acc, curr) => acc + curr.orderValue, 0), [orders]);
   
-  // Active Sales Representatives count
   const activeRepsCount = React.useMemo(() => {
     const reps = new Set(orders.map((o) => o.assignedMio).filter((m) => m && m !== "Unassigned"));
     return reps.size;
@@ -588,8 +610,9 @@ function LogisticsOrdersContent() {
     [activeInvoiceRows]
   );
 
-  const inspectDiscount = selectedOrder?.discount || 0;
-  const inspectGrandTotal = selectedOrder?.orderValue || Math.max(0, inspectSubtotal - inspectDiscount);
+  const inspectDiscountPercent = selectedOrder?.discountPercent || 0;
+  const inspectDiscountAmount = selectedOrder?.discountAmount ?? Math.round((inspectSubtotal * inspectDiscountPercent) / 100);
+  const inspectGrandTotal = selectedOrder?.orderValue || Math.max(0, inspectSubtotal - inspectDiscountAmount);
 
   return (
     <div className="space-y-6 max-w-[1360px] mx-auto pb-10">
@@ -897,19 +920,31 @@ function LogisticsOrdersContent() {
                         ৳{calculatedSubtotal.toLocaleString("en-IN")}
                       </div>
                     </div>
+                    
+                    {/* Discount in % */}
                     <div className="flex border-b border-black items-center">
                       <div className="w-28 bg-black text-white px-2 py-1.5 font-bold uppercase text-[10px] flex items-center">
-                        DISCOUNT (৳)
+                        DISCOUNT (%)
                       </div>
-                      <div className="flex-1 px-2">
-                        <Input
-                          type="number"
-                          value={discountAmount}
-                          onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value) || 0))}
-                          className="h-6 text-xs font-mono text-right border-0 bg-transparent p-0"
-                        />
+                      <div className="flex-1 flex items-center justify-end px-2 gap-2">
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.5"
+                            value={discountPercent}
+                            onChange={(e) => setDiscountPercent(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                            className="h-6 w-16 text-xs font-mono text-right border-slate-200 bg-white px-1.5 py-0"
+                          />
+                          <span className="font-bold text-slate-700">%</span>
+                        </div>
+                        <span className="font-mono text-slate-500 text-[11px]">
+                          (-৳{calculatedDiscountAmount.toLocaleString("en-IN")})
+                        </span>
                       </div>
                     </div>
+
                     <div className="flex bg-slate-50">
                       <div className="w-28 bg-black text-white px-2 py-1.5 font-bold uppercase text-[10px] flex items-center">
                         GRAND TOTAL
@@ -952,7 +987,6 @@ function LogisticsOrdersContent() {
           </p>
         </Card>
 
-        {/* Updated KPI Card to show Sales Representative */}
         <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">Sales Representative</span>
@@ -1042,7 +1076,7 @@ function LogisticsOrdersContent() {
         </div>
       </div>
 
-      {/* 4. Main Order Ledger Table (Updated with "Boxes" and "Invoice No.") */}
+      {/* 4. Main Order Ledger Table */}
       <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6 print:hidden">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -1117,7 +1151,14 @@ function LogisticsOrdersContent() {
                   </TableCell>
 
                   <TableCell className="py-3 text-xs text-right font-mono font-bold text-slate-900">
-                    ৳{ord.orderValue.toLocaleString("en-IN")}
+                    <div>
+                      <span>৳{ord.orderValue.toLocaleString("en-IN")}</span>
+                      {ord.discountPercent > 0 && (
+                        <span className="block text-[10px] text-emerald-600 font-normal">
+                          {ord.discountPercent}% OFF
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
 
                   <TableCell className="py-3 text-xs">
@@ -1315,9 +1356,9 @@ function LogisticsOrdersContent() {
                       </div>
                     </div>
 
-                    <div className="w-56 border border-black">
+                    <div className="w-64 border border-black">
                       <div className="flex border-b border-black">
-                        <div className="w-24 bg-black text-white px-2 py-1 font-bold text-[10px] uppercase flex items-center">
+                        <div className="w-28 bg-black text-white px-2 py-1 font-bold text-[10px] uppercase flex items-center">
                           SUBTOTAL
                         </div>
                         <div className="flex-1 p-1 text-right font-mono font-medium">
@@ -1325,18 +1366,18 @@ function LogisticsOrdersContent() {
                         </div>
                       </div>
                       <div className="flex border-b border-black">
-                        <div className="w-24 bg-black text-white px-2 py-1 font-bold text-[10px] uppercase flex items-center">
-                          DISCOUNT
+                        <div className="w-28 bg-black text-white px-2 py-1 font-bold text-[10px] uppercase flex items-center">
+                          DISCOUNT ({inspectDiscountPercent}%)
                         </div>
                         <div className="flex-1 p-1 text-right font-mono">
-                          ৳{inspectDiscount.toLocaleString("en-IN")}
+                          -৳{inspectDiscountAmount.toLocaleString("en-IN")}
                         </div>
                       </div>
                       <div className="flex bg-neutral-50">
-                        <div className="w-24 bg-black text-white px-2 py-1 font-bold text-[10px] uppercase flex items-center">
+                        <div className="w-28 bg-black text-white px-2 py-1 font-bold text-[10px] uppercase flex items-center">
                           GRAND TOTAL
                         </div>
-                        <div className="flex-1 p-1 text-right font-mono font-bold text-sm">
+                        <div className="flex-1 p-1 text-right font-mono font-bold text-sm text-[#0090FF]">
                           ৳{inspectGrandTotal.toLocaleString("en-IN")}
                         </div>
                       </div>
@@ -1381,7 +1422,7 @@ function LogisticsOrdersContent() {
         </DialogContent>
       </Dialog>
 
-      {/* 6. Isolated Standalone Printable Invoice Sheet: Matches Design Exactly */}
+      {/* 6. Isolated Standalone Printable Invoice Sheet */}
       {selectedOrder && (
         <div id="print-standalone-invoice" className="hidden font-sans text-black bg-white">
           <div className="border-2 border-black p-8 w-full max-w-[760px] mx-auto text-xs">
@@ -1443,9 +1484,9 @@ function LogisticsOrdersContent() {
                 </div>
               </div>
 
-              <div className="w-64 border border-black">
+              <div className="w-72 border border-black">
                 <div className="flex border-b border-black">
-                  <div className="w-28 bg-black text-white px-2.5 py-1.5 font-bold text-[11px] uppercase flex items-center">
+                  <div className="w-32 bg-black text-white px-2.5 py-1.5 font-bold text-[11px] uppercase flex items-center">
                     SUBTOTAL
                   </div>
                   <div className="flex-1 p-1.5 text-right font-mono font-medium text-xs">
@@ -1453,15 +1494,15 @@ function LogisticsOrdersContent() {
                   </div>
                 </div>
                 <div className="flex border-b border-black">
-                  <div className="w-28 bg-black text-white px-2.5 py-1.5 font-bold text-[11px] uppercase flex items-center">
-                    DISCOUNT
+                  <div className="w-32 bg-black text-white px-2.5 py-1.5 font-bold text-[11px] uppercase flex items-center">
+                    DISCOUNT ({inspectDiscountPercent}%)
                   </div>
                   <div className="flex-1 p-1.5 text-right font-mono text-xs">
-                    ৳{inspectDiscount.toLocaleString("en-IN")}
+                    -৳{inspectDiscountAmount.toLocaleString("en-IN")}
                   </div>
                 </div>
                 <div className="flex">
-                  <div className="w-28 bg-black text-white px-2.5 py-1.5 font-bold text-[11px] uppercase flex items-center">
+                  <div className="w-32 bg-black text-white px-2.5 py-1.5 font-bold text-[11px] uppercase flex items-center">
                     GRAND TOTAL
                   </div>
                   <div className="flex-1 p-1.5 text-right font-mono font-bold text-sm">
