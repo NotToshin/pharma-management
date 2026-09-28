@@ -77,7 +77,7 @@ export default function MasterExecutiveDashboardPage() {
     keyOpinionLeaders: [],
   });
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pharma-management-b7fk.onrender.com/api";
 
   const fetchDashboardTelemetry = React.useCallback(async () => {
     try {
@@ -196,18 +196,18 @@ export default function MasterExecutiveDashboardPage() {
         {/* Action Command Ribbon */}
         <div className="mt-6 pt-5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
           <Link
-            href="/logistics/orders"
+            href="/orders"
             className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-slate-200"
           >
             <Plus className="h-3.5 w-3.5 text-[#0090FF]" />
             <span>Book Sales Order</span>
           </Link>
           <Link
-            href="/doctors/new"
+            href="/doctors"
             className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-slate-200"
           >
             <Stethoscope className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Enroll Doctor</span>
+            <span>Doctor Registry</span>
           </Link>
           <Link
             href="/finance/payments"
@@ -217,7 +217,7 @@ export default function MasterExecutiveDashboardPage() {
             <span>Issue Payment</span>
           </Link>
           <Link
-            href="/hr/salary"
+            href="/salary"
             className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-slate-200"
           >
             <Zap className="h-3.5 w-3.5 text-amber-400" />
@@ -228,7 +228,6 @@ export default function MasterExecutiveDashboardPage() {
 
       {/* 2. Top-Level Operational KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Gross Revenue */}
         <Card className="rounded-xl border border-slate-200 shadow-sm bg-white p-5 hover:shadow-md hover:border-blue-300 transition-all relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-bl-full pointer-events-none group-hover:scale-110 transition-transform" />
           <div className="flex items-center justify-between">
@@ -248,7 +247,6 @@ export default function MasterExecutiveDashboardPage() {
           </div>
         </Card>
 
-        {/* Realized Cash Collections */}
         <Card className="rounded-xl border border-slate-200 shadow-sm bg-white p-5 hover:shadow-md hover:border-emerald-300 transition-all relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-bl-full pointer-events-none group-hover:scale-110 transition-transform" />
           <div className="flex items-center justify-between">
@@ -268,7 +266,6 @@ export default function MasterExecutiveDashboardPage() {
           </div>
         </Card>
 
-        {/* FEFO Stock Value & Expiry Alert */}
         <Card className="rounded-xl border border-slate-200 shadow-sm bg-white p-5 hover:shadow-md hover:border-rose-300 transition-all relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 rounded-bl-full pointer-events-none group-hover:scale-110 transition-transform" />
           <div className="flex items-center justify-between">
@@ -290,7 +287,6 @@ export default function MasterExecutiveDashboardPage() {
           </div>
         </Card>
 
-        {/* Corporate Liquid Liquidity */}
         <Card className="rounded-xl border border-slate-200 shadow-sm bg-white p-5 hover:shadow-md hover:border-purple-300 transition-all relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-bl-full pointer-events-none group-hover:scale-110 transition-transform" />
           <div className="flex items-center justify-between">
@@ -306,7 +302,7 @@ export default function MasterExecutiveDashboardPage() {
             <span className="text-slate-500 text-[11px] font-medium">
               {dashboardData.kpis.reconciledAccountsCount} Reconciled Accounts
             </span>
-            <Link href="/finance/account-ledger" className="text-[#0090FF] text-[11px] font-bold hover:underline">
+            <Link href="/finance/bank-ledger" className="text-[#0090FF] text-[11px] font-bold hover:underline">
               Balances &gt;
             </Link>
           </div>
@@ -424,7 +420,6 @@ export default function MasterExecutiveDashboardPage() {
 
       {/* 4. Real-Time Operational Activity Feeds */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Left: Dynamic FEFO Batch Expiry Surveillance */}
         <Card className="rounded-2xl border border-slate-200 shadow-sm bg-white p-6">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
@@ -483,7 +478,6 @@ export default function MasterExecutiveDashboardPage() {
           </div>
         </Card>
 
-        {/* Right: Dynamic Logistics Dispatch & Challan Stream */}
         <Card className="rounded-2xl border border-slate-200 shadow-sm bg-white p-6">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
@@ -497,7 +491,7 @@ export default function MasterExecutiveDashboardPage() {
                 <p className="text-[11px] text-slate-400">Live consignments and commercial orders</p>
               </div>
             </div>
-            <Link href="/logistics/orders">
+            <Link href="/orders">
               <Button size="sm" variant="ghost" className="h-7 text-xs text-[#0090FF] gap-1 px-2 font-semibold">
                 Dispatch Hub <ArrowRight className="h-3 w-3" />
               </Button>
@@ -552,7 +546,7 @@ export default function MasterExecutiveDashboardPage() {
 
       {/* 5. Bottom Multi-Deck: Dynamic Liquid Banks & Real Enrolled Doctors */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Dynamic Bank Accounts */}
+        {/* Dynamic Bank Accounts Linking to /finance/bank-ledger */}
         <Card className="lg:col-span-6 rounded-2xl border border-slate-200 shadow-sm bg-white p-6">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
@@ -566,7 +560,7 @@ export default function MasterExecutiveDashboardPage() {
                 <p className="text-[11px] text-slate-400">Live ledger accounts from Treasury</p>
               </div>
             </div>
-            <Link href="/finance/account-ledger">
+            <Link href="/finance/bank-ledger">
               <Button size="sm" variant="ghost" className="h-7 text-xs text-[#0090FF] gap-1 px-2 font-semibold">
                 Treasury <ArrowRight className="h-3 w-3" />
               </Button>
@@ -674,11 +668,11 @@ export default function MasterExecutiveDashboardPage() {
             Audit Ledger
           </Link>
           <span className="text-slate-300">•</span>
-          <Link href="/hr/staff-directory" className="hover:text-[#0090FF] transition-colors">
+          <Link href="/staff" className="hover:text-[#0090FF] transition-colors">
             Staff Directory
           </Link>
           <span className="text-slate-300">•</span>
-          <Link href="/hr/salary" className="hover:text-[#0090FF] transition-colors">
+          <Link href="/salary" className="hover:text-[#0090FF] transition-colors">
             Payroll Engine
           </Link>
         </div>
