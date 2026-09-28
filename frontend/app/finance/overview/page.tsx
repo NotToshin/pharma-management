@@ -123,27 +123,31 @@ export default function FinanceOverviewPage() {
     try {
       setLoading(true);
 
-      // Fetch live orders, expenses, and treasury records in parallel
-      const [ordRes, expRes, depRes] = await Promise.all([
+      // Query live orders, expense vouchers, and treasury records concurrently
+      const [ordRes, expRes, voucherRes, depRes] = await Promise.all([
         fetch(`${API_URL}/orders`).catch(() => ({ ok: false, json: async () => [] })),
         fetch(`${API_URL}/expenses`).catch(() => ({ ok: false, json: async () => [] })),
+        fetch(`${API_URL}/expense-vouchers`).catch(() => ({ ok: false, json: async () => [] })),
         fetch(`${API_URL}/treasury/deposits`).catch(() => ({ ok: false, json: async () => [] })),
       ]);
 
-      const ordersData = ordRes.ok ? await ordRes.json() : [];
-      const expensesData = expRes.ok ? await expRes.json() : [];
-      const depositsData = depRes.ok ? await depRes.json() : [];
+      const rawOrders: any[] = ordRes.ok ? await ordRes.json() : [];
+      const standardExpenses: any[] = expRes.ok ? await expRes.json() : [];
+      const voucherExpenses: any[] = voucherRes.ok ? await voucherRes.json() : [];
+      const rawDeposits: any[] = depRes.ok ? await depRes.json() : [];
 
-      const rawOrders: any[] = Array.isArray(ordersData) ? ordersData : [];
-      const rawExpenses: any[] = Array.isArray(expensesData) ? expensesData : [];
-      const rawDeposits: any[] = Array.isArray(depositsData) ? depositsData : [];
+      // Combine both standard expenses and ExpenseVouchers
+      const allExpenses: any[] = [
+        ...(Array.isArray(standardExpenses) ? standardExpenses : []),
+        ...(Array.isArray(voucherExpenses) ? voucherExpenses : [])
+      ];
 
-      // Filter out cancelled orders
-      const validOrders = rawOrders.filter((o) => o.status !== "Cancelled");
+      const validOrders = (Array.isArray(rawOrders) ? rawOrders : []).filter(
+        (o) => o.status !== "Cancelled"
+      );
 
-      // Build Monthly Trend across all 12 months for selectedYear
+      // Calculate 12-month Trend dynamically
       const trend: MonthlyMetrics[] = MONTH_NAMES.map((name, mIdx) => {
-        // Match orderDate (e.g., "28 Sep 2026", "2026-09-28", etc.)
         const monthOrders = validOrders.filter((o) => {
           const dateStr = String(o.orderDate || o.createdAt || "");
           const d = new Date(dateStr);
@@ -154,14 +158,21 @@ export default function FinanceOverviewPage() {
         });
 
         const rev = monthOrders.reduce((sum, o) => sum + (Number(o.orderValue) || 0), 0);
-        
-        // Delivered or Settled orders count toward collections
         const coll = monthOrders
           .filter((o) => o.status === "Delivered & Invoiced" || o.status === "Settled")
           .reduce((sum, o) => sum + (Number(o.orderValue) || 0), 0);
 
-        // Approximate operational burn / standard overhead (12% baseline)
-        const exp = Math.round(rev * 0.12);
+        // Filter actual operational expenses & DA/TA vouchers for this month
+        const monthExpenses = allExpenses.filter((e) => {
+          const expDate = String(e.expenseDate || e.date || e.createdAt || "");
+          const d = new Date(expDate);
+          if (!isNaN(d.getTime())) {
+            return d.getFullYear() === selectedYear && d.getMonth() === mIdx;
+          }
+          return expDate.includes(name) && expDate.includes(String(selectedYear));
+        });
+
+        const expTotal = monthExpenses.reduce((sum, e) => sum + (Number(e.amount || e.totalAmount) || 0), 0);
 
         return {
           month: name,
@@ -169,25 +180,24 @@ export default function FinanceOverviewPage() {
           year: selectedYear,
           Revenue: Number((rev / 100000).toFixed(2)),
           Collections: Number((coll / 100000).toFixed(2)),
-          Expenses: Number((exp / 100000).toFixed(2)),
+          Expenses: Number((expTotal / 100000).toFixed(2)),
           rawRevenue: rev,
           rawCollections: coll,
-          rawExpenses: exp,
+          rawExpenses: expTotal,
         };
       });
 
       setMonthlyTrend(trend);
 
-      // Selected Month Metrics
+      // Selected Month Target Data
       const targetMonthData = trend[selectedMonth] || {
         rawRevenue: 0,
         rawCollections: 0,
         rawExpenses: 0,
       };
 
-      // Fallback: If no date-specific orders match, calculate from total live pipeline
-      const currentEarn = targetMonthData.rawRevenue > 0 
-        ? targetMonthData.rawRevenue 
+      const currentEarn = targetMonthData.rawRevenue > 0
+        ? targetMonthData.rawRevenue
         : validOrders.reduce((sum, o) => sum + (Number(o.orderValue) || 0), 0);
 
       const currentColl = targetMonthData.rawCollections > 0
@@ -196,42 +206,79 @@ export default function FinanceOverviewPage() {
             .filter((o) => o.status === "Delivered & Invoiced" || o.status === "Settled")
             .reduce((sum, o) => sum + (Number(o.orderValue) || 0), 0);
 
-      const currentBurn = targetMonthData.rawExpenses > 0 
-        ? targetMonthData.rawExpenses 
-        : Math.round(currentEarn * 0.12);
+      // Actual Burn & DA/TA calculated from Expense vouchers
+      const selectedMonthExpenses = allExpenses.filter((e) => {
+        const expDate = String(e.expenseDate || e.date || e.createdAt || "");
+        const d = new Date(expDate);
+        if (!isNaN(d.getTime())) {
+          return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
+        }
+        return expDate.includes(MONTH_NAMES[selectedMonth]) && expDate.includes(String(selectedYear));
+      });
+
+      const actualBurn = selectedMonthExpenses.length > 0
+        ? selectedMonthExpenses.reduce((sum, e) => sum + (Number(e.amount || e.totalAmount) || 0), 0)
+        : allExpenses.reduce((sum, e) => sum + (Number(e.amount || e.totalAmount) || 0), 0);
 
       const currentAr = Math.max(0, currentEarn - currentColl);
-      const currentNetProfit = Math.max(0, currentColl - currentBurn);
+      const currentNetProfit = Math.max(0, currentColl - actualBurn);
 
       setMetrics({
         currentEarnBDT: currentEarn,
         currentCollectionsBDT: currentColl,
-        currentBurnBDT: currentBurn,
+        currentBurnBDT: actualBurn,
         currentArBDT: currentAr,
         currentNetProfitBDT: currentNetProfit,
       });
 
-      // Commercial Margins Calculation
-      const cogs = Math.round(currentEarn * 0.52);
-      const fieldForce = Math.round(currentEarn * 0.18);
-      const logistics = Math.round(currentEarn * 0.08);
-      const netProfit = Math.max(0, currentEarn - cogs - fieldForce - logistics);
+      // Segment expenses into DA/TA (Field Force), Warehouse & Logistics, and Sourcing (COGS)
+      let cogsAmount = 0;
+      let fieldForceAmount = 0;
+      let logisticsAmount = 0;
 
-      setMarginBreakdown({
-        cogsPercent: currentEarn > 0 ? 52 : 0,
-        cogsAmount: cogs,
-        fieldForcePercent: currentEarn > 0 ? 18 : 0,
-        fieldForceAmount: fieldForce,
-        logisticsPercent: currentEarn > 0 ? 8 : 0,
-        logisticsAmount: logistics,
-        netMarginPercent: currentEarn > 0 ? Number(((netProfit / currentEarn) * 100).toFixed(1)) : 0,
-        netProfitAmount: netProfit,
+      selectedMonthExpenses.forEach((e) => {
+        const cat = String(e.category || e.expenseType || e.description || "").toLowerCase();
+        const amt = Number(e.amount || e.totalAmount) || 0;
+
+        if (cat.includes("cogs") || cat.includes("raw") || cat.includes("procurement") || cat.includes("product")) {
+          cogsAmount += amt;
+        } else if (cat.includes("field") || cat.includes("da") || cat.includes("ta") || cat.includes("travel") || cat.includes("mio") || cat.includes("sample")) {
+          fieldForceAmount += amt;
+        } else if (cat.includes("warehouse") || cat.includes("logistics") || cat.includes("fuel") || cat.includes("delivery") || cat.includes("van")) {
+          logisticsAmount += amt;
+        } else {
+          fieldForceAmount += amt; // Default general operations to operational/field burn
+        }
       });
 
-      // Annual Metrics
+      // If no itemized category vouchers exist yet, calculate standard pharma benchmarks based on actual turnover
+      if (cogsAmount === 0 && currentEarn > 0) cogsAmount = Math.round(currentEarn * 0.52);
+      if (fieldForceAmount === 0 && actualBurn > 0) fieldForceAmount = actualBurn;
+      if (logisticsAmount === 0 && currentEarn > 0) logisticsAmount = Math.round(currentEarn * 0.08);
+
+      const totalAllocated = cogsAmount + fieldForceAmount + logisticsAmount;
+      const netRetained = Math.max(0, currentEarn - totalAllocated);
+
+      const cogsPct = currentEarn > 0 ? Number(((cogsAmount / currentEarn) * 100).toFixed(1)) : 0;
+      const fieldPct = currentEarn > 0 ? Number(((fieldForceAmount / currentEarn) * 100).toFixed(1)) : 0;
+      const logPct = currentEarn > 0 ? Number(((logisticsAmount / currentEarn) * 100).toFixed(1)) : 0;
+      const netPct = currentEarn > 0 ? Number(((netRetained / currentEarn) * 100).toFixed(1)) : 0;
+
+      setMarginBreakdown({
+        cogsPercent: cogsPct,
+        cogsAmount,
+        fieldForcePercent: fieldPct,
+        fieldForceAmount,
+        logisticsPercent: logPct,
+        logisticsAmount,
+        netMarginPercent: netPct,
+        netProfitAmount: netRetained,
+      });
+
+      // Annual Totals
       const annualEarn = trend.reduce((sum, m) => sum + m.rawRevenue, 0) || currentEarn;
       const annualColl = trend.reduce((sum, m) => sum + m.rawCollections, 0) || currentColl;
-      const annualBurn = trend.reduce((sum, m) => sum + m.rawExpenses, 0) || currentBurn;
+      const annualBurn = trend.reduce((sum, m) => sum + m.rawExpenses, 0) || actualBurn;
       const annualNetProfit = Math.max(0, annualColl - annualBurn);
 
       setAnnualMetrics({
@@ -241,7 +288,7 @@ export default function FinanceOverviewPage() {
         annualNetProfitBDT: annualNetProfit,
       });
 
-      // Live Transactions Feed (Combined from Orders & Treasury)
+      // Live Transactions Feed (Orders + Actual Expense Disbursements + Treasury Deposits)
       const liveTxList: FinancialTransaction[] = [];
 
       validOrders.forEach((o, i) => {
@@ -253,12 +300,25 @@ export default function FinanceOverviewPage() {
           type: "Pharmacy Invoice",
           territory: o.territory || "Dhaka North",
           amount: Number(o.orderValue) || 0,
-          date: o.orderDate || new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+          date: o.orderDate || "28 Sep 2026",
           status: isSettled ? "Settled" : "Pending Clearance",
         });
       });
 
-      rawDeposits.forEach((d, i) => {
+      allExpenses.forEach((e, i) => {
+        liveTxList.push({
+          id: e.id || `tx-exp-${i}`,
+          trxCode: e.voucherNumber || e.refNo || `EXP-2026-${String(i + 1).padStart(4, "0")}`,
+          partyName: e.recipient || e.submittedBy || e.description || "Field DA/TA Disbursement",
+          type: "Field Disbursement",
+          territory: e.territory || "Operations",
+          amount: Number(e.amount || e.totalAmount) || 0,
+          date: e.expenseDate || e.date || "28 Sep 2026",
+          status: e.status === "Approved" || e.status === "Paid" ? "Settled" : "Pending Clearance",
+        });
+      });
+
+      (Array.isArray(rawDeposits) ? rawDeposits : []).forEach((d, i) => {
         liveTxList.push({
           id: d.id || `tx-dep-${i}`,
           trxCode: d.depositNumber || `DEP-2026-${String(i + 1).padStart(3, "0")}`,
@@ -361,7 +421,6 @@ export default function FinanceOverviewPage() {
             Refresh
           </Button>
 
-          {/* Dynamic Working Calendar Trigger */}
           <Button
             size="sm"
             variant="outline"
@@ -374,7 +433,6 @@ export default function FinanceOverviewPage() {
             </span>
           </Button>
 
-          {/* Annual Statement Trigger */}
           <Button
             size="sm"
             variant="outline"
@@ -461,7 +519,7 @@ export default function FinanceOverviewPage() {
         </Card>
       </div>
 
-      {/* 3. Middle Area Chart & Fully Dynamic Margin Breakdown */}
+      {/* 3. Middle Area Chart & Commercial Margin Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
         <Card className="lg:col-span-8 rounded-xl border border-slate-200 shadow-none bg-white p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 gap-2 border-b border-slate-100">
@@ -483,8 +541,8 @@ export default function FinanceOverviewPage() {
                 <span>Collections</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-slate-400" />
-                <span>Burn</span>
+                <span className="h-2 w-2 rounded-full bg-rose-400" />
+                <span>Burn (DA/TA)</span>
               </div>
             </div>
           </div>
@@ -512,13 +570,13 @@ export default function FinanceOverviewPage() {
                 />
                 <Area type="monotone" dataKey="Revenue" stroke="#0090FF" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" />
                 <Area type="monotone" dataKey="Collections" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorColl)" />
-                <Area type="monotone" dataKey="Expenses" stroke="#94a3b8" strokeWidth={1.5} fillOpacity={0} />
+                <Area type="monotone" dataKey="Expenses" stroke="#f43f5e" strokeWidth={1.5} fillOpacity={0} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
-        {/* 100% Dynamic Commercial Margin Breakdown Card */}
+        {/* Dynamic Commercial Margin Breakdown Card */}
         <Card className="lg:col-span-4 rounded-xl border border-slate-200 shadow-none bg-white p-6 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
@@ -533,7 +591,10 @@ export default function FinanceOverviewPage() {
               <div>
                 <div className="flex items-center justify-between text-xs mb-1.5">
                   <span className="text-slate-600 font-medium">COGS & Sourcing</span>
-                  <span className="font-mono font-bold text-slate-900">{marginBreakdown.cogsPercent}%</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-slate-400 text-[10px]">(৳{marginBreakdown.cogsAmount.toLocaleString("en-IN")})</span>
+                    <span className="font-mono font-bold text-slate-900">{marginBreakdown.cogsPercent}%</span>
+                  </div>
                 </div>
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -545,8 +606,11 @@ export default function FinanceOverviewPage() {
 
               <div>
                 <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-slate-600 font-medium">Field Force & Sampling</span>
-                  <span className="font-mono font-bold text-slate-900">{marginBreakdown.fieldForcePercent}%</span>
+                  <span className="text-slate-600 font-medium">Field Force & DA/TA</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-slate-400 text-[10px]">(৳{marginBreakdown.fieldForceAmount.toLocaleString("en-IN")})</span>
+                    <span className="font-mono font-bold text-slate-900">{marginBreakdown.fieldForcePercent}%</span>
+                  </div>
                 </div>
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -559,7 +623,10 @@ export default function FinanceOverviewPage() {
               <div>
                 <div className="flex items-center justify-between text-xs mb-1.5">
                   <span className="text-slate-600 font-medium">Warehouse & Logistics</span>
-                  <span className="font-mono font-bold text-slate-900">{marginBreakdown.logisticsPercent}%</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-slate-400 text-[10px]">(৳{marginBreakdown.logisticsAmount.toLocaleString("en-IN")})</span>
+                    <span className="font-mono font-bold text-slate-900">{marginBreakdown.logisticsPercent}%</span>
+                  </div>
                 </div>
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -619,6 +686,7 @@ export default function FinanceOverviewPage() {
               <SelectContent className="text-xs">
                 <SelectItem value="all">All Operations</SelectItem>
                 <SelectItem value="pharmacy invoice">Pharmacy Invoices</SelectItem>
+                <SelectItem value="field disbursement">Disbursements (DA/TA)</SelectItem>
                 <SelectItem value="wholesale deposit">Wholesale Deposits</SelectItem>
               </SelectContent>
             </Select>
@@ -777,7 +845,7 @@ export default function FinanceOverviewPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 6. Comprehensive Annual Financial Statement Modal */}
+      {/* 6. Annual Statement Modal */}
       <Dialog open={isStatementOpen} onOpenChange={setIsStatementOpen}>
         <DialogContent className="sm:max-w-[760px] bg-white rounded-2xl max-h-[95vh] overflow-y-auto p-0">
           <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between print:hidden">
