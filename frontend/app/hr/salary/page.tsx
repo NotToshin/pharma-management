@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -38,6 +39,9 @@ import {
   Calendar,
   CheckCircle2,
   Search,
+  CreditCard,
+  Building2,
+  Loader2,
 } from "lucide-react";
 
 const PRINT_STYLES = `
@@ -76,13 +80,21 @@ export interface EmployeeSalary {
   status: "Draft" | "Approved" | "Disbursed";
 }
 
+interface TreasuryAccount {
+  id: string;
+  accountTitle: string;
+  institution: string;
+  balance: number;
+  accountNumber: string;
+}
+
 const generateDynamicMonths = () => {
   const months: string[] = [];
   const currentDate = new Date();
 
   for (let i = -6; i <= 6; i++) {
     const d = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
-    const monthName = d.toLocaleString('en-US', { month: 'long' });
+    const monthName = d.toLocaleString("en-US", { month: "long" });
     const year = d.getFullYear();
     months.push(`${monthName} ${year}`);
   }
@@ -94,19 +106,20 @@ const MONTHS_LIST = generateDynamicMonths();
 
 const getCurrentMonthString = () => {
   const d = new Date();
-  return `${d.toLocaleString('en-US', { month: 'long' })} ${d.getFullYear()}`;
+  return `${d.toLocaleString("en-US", { month: "long" })} ${d.getFullYear()}`;
 };
 
 export default function SalaryManagementPage() {
   const [salaries, setSalaries] = React.useState<EmployeeSalary[]>([]);
   const [staffDirectory, setStaffDirectory] = React.useState<any[]>([]);
+  const [treasuryAccounts, setTreasuryAccounts] = React.useState<TreasuryAccount[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedMonth, setSelectedMonth] = React.useState(getCurrentMonthString());
   const [searchQuery, setSearchQuery] = React.useState("");
 
   const [isAssignOpen, setIsAssignOpen] = React.useState(false);
   const [selectedStaffEmpId, setSelectedStaffEmpId] = React.useState("");
-  
+
   // Assign Form State
   const [salaryFormState, setSalaryFormState] = React.useState({
     basicSalary: "25000",
@@ -133,52 +146,69 @@ export default function SalaryManagementPage() {
   const [isPrintOpen, setIsPrintOpen] = React.useState(false);
   const [successToast, setSuccessToast] = React.useState<string | null>(null);
 
+  // Pay / Disburse to Treasury Modal State
+  const [payingRecord, setPayingRecord] = React.useState<EmployeeSalary | null>(null);
+  const [isPayOpen, setIsPayOpen] = React.useState(false);
+  const [selectedTreasuryAccountId, setSelectedTreasuryAccountId] = React.useState("");
+  const [disbursementMethod, setDisbursementMethod] = React.useState("BEFTN Electronic Advice");
+  const [disbursing, setDisbursing] = React.useState(false);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pharma-management-1y5a.vercel.app/api";
+
   const fetchData = async () => {
     try {
       setLoading(true);
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
-      const [staffRes, salaryRes] = await Promise.all([
+      const [staffRes, salaryRes, accountsRes] = await Promise.all([
         fetch(`${API_URL}/staff`),
-        fetch(`${API_URL}/salary?month=${encodeURIComponent(selectedMonth)}`)
+        fetch(`${API_URL}/salary?month=${encodeURIComponent(selectedMonth)}`),
+        fetch(`${API_URL}/account-ledger/accounts`).catch(() => null),
       ]);
 
       const staffRaw = staffRes.ok ? await staffRes.json() : [];
       const salaryRaw = salaryRes.ok ? await salaryRes.json() : [];
+      const accountsRaw = accountsRes && accountsRes.ok ? await accountsRes.json() : [];
 
       const staffData = Array.isArray(staffRaw) ? staffRaw : [];
       const salaryData = Array.isArray(salaryRaw) ? salaryRaw : [];
+      const accountsData = Array.isArray(accountsRaw) ? accountsRaw : [];
 
-      setStaffDirectory(staffData.map((s: any) => ({
-        empId: s.empId,
-        fullName: s.fullName,
-        designation: s.role?.name || s.department || "Staff",
-        department: s.department || "General",
-        territory: s.territory || "Dhaka HQ",
-      })));
+      setTreasuryAccounts(accountsData);
 
-      setSalaries(salaryData.map((sal: any) => ({
-        id: String(sal.id),
-        empId: String(sal.staff?.empId || ""),
-        fullName: String(sal.staff?.fullName || "Staff Member"),
-        designation: String(sal.staff?.role?.name || sal.staff?.department || "Staff"),
-        department: String(sal.staff?.department || "General"),
-        territory: String(sal.staff?.territory || "Dhaka HQ"),
-        bankName: String(sal.bankName || "Eastern Bank PLC"),
-        bankAccount: String(sal.bankAccount || "104-102-000000"),
-        payPeriod: String(sal.payPeriod || selectedMonth),
-        basicSalary: Number(sal.baseSalary) || 0,
-        houseRent: Number(sal.houseRent) || 0,
-        medicalAllowance: Number(sal.medicalAllowance) || 0,
-        conveyanceTaDa: Number(sal.conveyanceTaDa) || 0,
-        salesIncentive: Number(sal.salesIncentive) || 0,
-        specialBonus: Number(sal.specialBonus) || 0,
-        providentFund: Number(sal.providentFund) || 0,
-        taxDeduction: Number(sal.taxDeduction) || 0,
-        otherDeductions: Number(sal.otherDeductions) || 0,
-        leaveDays: Number(sal.leaveDays) || 0,
-        status: "Draft",
-      })));
+      setStaffDirectory(
+        staffData.map((s: any) => ({
+          empId: s.empId,
+          fullName: s.fullName,
+          designation: s.role?.name || s.department || "Staff",
+          department: s.department || "General",
+          territory: s.territory || "Dhaka HQ",
+        }))
+      );
+
+      setSalaries(
+        salaryData.map((sal: any) => ({
+          id: String(sal.id),
+          empId: String(sal.staff?.empId || sal.empId || ""),
+          fullName: String(sal.staff?.fullName || sal.fullName || "Staff Member"),
+          designation: String(sal.staff?.role?.name || sal.staff?.department || sal.designation || "Staff"),
+          department: String(sal.staff?.department || sal.department || "General"),
+          territory: String(sal.staff?.territory || sal.territory || "Dhaka HQ"),
+          bankName: String(sal.bankName || "Eastern Bank PLC"),
+          bankAccount: String(sal.bankAccount || "104-102-000000"),
+          payPeriod: String(sal.payPeriod || selectedMonth),
+          basicSalary: Number(sal.baseSalary || sal.basicSalary) || 0,
+          houseRent: Number(sal.houseRent) || 0,
+          medicalAllowance: Number(sal.medicalAllowance) || 0,
+          conveyanceTaDa: Number(sal.conveyanceTaDa) || 0,
+          salesIncentive: Number(sal.salesIncentive) || 0,
+          specialBonus: Number(sal.specialBonus) || 0,
+          providentFund: Number(sal.providentFund) || 0,
+          taxDeduction: Number(sal.taxDeduction) || 0,
+          otherDeductions: Number(sal.otherDeductions) || 0,
+          leaveDays: Number(sal.leaveDays) || 0,
+          status: (sal.status as any) || "Draft",
+        }))
+      );
       setLoading(false);
     } catch (err) {
       console.error("Error fetching payroll data:", err);
@@ -190,11 +220,26 @@ export default function SalaryManagementPage() {
     fetchData();
   }, [selectedMonth]);
 
-  const getGross = (r: { basicSalary: number; houseRent: number; medicalAllowance: number; conveyanceTaDa: number; salesIncentive: number; specialBonus: number }) =>
-    r.basicSalary + r.houseRent + r.medicalAllowance + r.conveyanceTaDa + r.salesIncentive + r.specialBonus;
+  const getGross = (r: {
+    basicSalary: number;
+    houseRent: number;
+    medicalAllowance: number;
+    conveyanceTaDa: number;
+    salesIncentive: number;
+    specialBonus: number;
+  }) =>
+    r.basicSalary +
+    r.houseRent +
+    r.medicalAllowance +
+    r.conveyanceTaDa +
+    r.salesIncentive +
+    r.specialBonus;
 
-  const getDeductions = (r: { providentFund: number; taxDeduction: number; otherDeductions: number }) =>
-    r.providentFund + r.taxDeduction + r.otherDeductions;
+  const getDeductions = (r: {
+    providentFund: number;
+    taxDeduction: number;
+    otherDeductions: number;
+  }) => r.providentFund + r.taxDeduction + r.otherDeductions;
 
   const getNet = (r: any) => getGross(r) - getDeductions(r);
 
@@ -208,7 +253,6 @@ export default function SalaryManagementPage() {
     if (!staff) return;
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
       const res = await fetch(`${API_URL}/salary`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -245,7 +289,6 @@ export default function SalaryManagementPage() {
     if (!editingRecord) return;
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
       const res = await fetch(`${API_URL}/salary/${editingRecord.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -277,7 +320,6 @@ export default function SalaryManagementPage() {
   const handleDeleteSalary = async (id: string) => {
     if (!confirm("Are you sure you want to delete this salary record for this month?")) return;
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
       const res = await fetch(`${API_URL}/salary/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete");
       fetchData();
@@ -285,6 +327,68 @@ export default function SalaryManagementPage() {
       setTimeout(() => setSuccessToast(null), 3000);
     } catch (err) {
       alert("Failed to delete salary record.");
+    }
+  };
+
+  // Upload/Disburse directly to Treasury
+  const handleDisburseToTreasury = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payingRecord || !selectedTreasuryAccountId) {
+      alert("Please select a Treasury Source Account.");
+      return;
+    }
+
+    try {
+      setDisbursing(true);
+      const netAmount = getNet(payingRecord);
+
+      // 1. Post OUTFLOW Transaction to Treasury Journal
+      const journalRes = await fetch(`${API_URL}/account-ledger/transactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entryDate: new Date().toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          }),
+          flowType: "OUTFLOW",
+          particulars: `Monthly Remuneration & Payroll — ${payingRecord.fullName} (${payingRecord.empId}) for ${payingRecord.payPeriod}`,
+          fundingEntity: `${payingRecord.fullName} (${payingRecord.designation})`,
+          method: disbursementMethod,
+          amount: netAmount,
+          sourceAccountId: selectedTreasuryAccountId,
+          reconciliationStatus: "Reconciled",
+        }),
+      });
+
+      if (!journalRes.ok) {
+        const errorData = await journalRes.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to post Treasury Outflow entry");
+      }
+
+      // 2. Update Salary Status to Disbursed
+      await fetch(`${API_URL}/salary/${payingRecord.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "Disbursed",
+        }),
+      }).catch(() => null);
+
+      setIsPayOpen(false);
+      setPayingRecord(null);
+      fetchData();
+
+      setSuccessToast(
+        `Disbursed ৳${netAmount.toLocaleString("en-IN")} to ${payingRecord.fullName}. Updated in Treasury Overview.`
+      );
+      setTimeout(() => setSuccessToast(null), 4000);
+    } catch (err: any) {
+      console.error("Disbursement Error:", err);
+      alert(err.message || "Failed to post disbursement to Treasury.");
+    } finally {
+      setDisbursing(false);
     }
   };
 
@@ -304,8 +408,15 @@ export default function SalaryManagementPage() {
     iframe.style.border = "none";
     document.body.appendChild(iframe);
 
-    const grossEarnings = printRecord.basicSalary + printRecord.houseRent + printRecord.medicalAllowance + printRecord.conveyanceTaDa + printRecord.salesIncentive + printRecord.specialBonus;
-    const totalDeductions = printRecord.providentFund + printRecord.taxDeduction + printRecord.otherDeductions;
+    const grossEarnings =
+      printRecord.basicSalary +
+      printRecord.houseRent +
+      printRecord.medicalAllowance +
+      printRecord.conveyanceTaDa +
+      printRecord.salesIncentive +
+      printRecord.specialBonus;
+    const totalDeductions =
+      printRecord.providentFund + printRecord.taxDeduction + printRecord.otherDeductions;
     const netPayable = grossEarnings - totalDeductions;
 
     const htmlContent = `
@@ -406,9 +517,10 @@ export default function SalaryManagementPage() {
     }
   };
 
-  const filtered = salaries.filter((s) =>
-    s.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.empId.toLowerCase().includes(searchQuery.toLowerCase())
+  const filtered = salaries.filter(
+    (s) =>
+      s.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.empId.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -429,7 +541,7 @@ export default function SalaryManagementPage() {
             Salary & Monthly Payroll Management
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Manage month-isolated remuneration, allowances, deductions, and print payslips.
+            Manage month-isolated remuneration, disburse through Treasury, and print payslips.
           </p>
         </div>
 
@@ -442,7 +554,9 @@ export default function SalaryManagementPage() {
               </SelectTrigger>
               <SelectContent className="text-xs">
                 {MONTHS_LIST.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -450,42 +564,133 @@ export default function SalaryManagementPage() {
 
           <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="h-9 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs font-semibold px-3.5 rounded-lg">
+              <Button
+                size="sm"
+                className="h-9 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs font-semibold px-3.5 rounded-lg"
+              >
                 <UserPlus className="h-4 w-4" />
                 Assign Salary ({selectedMonth})
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[580px] bg-white rounded-xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="text-base font-bold text-slate-900">Assign Salary Structure</DialogTitle>
-                <DialogDescription className="text-xs text-slate-500">Configure pay components for {selectedMonth}.</DialogDescription>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Assign Salary Structure
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Configure pay components for {selectedMonth}.
+                </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleAssignSalary} className="space-y-4 py-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">Staff Member</Label>
-                  <Select value={selectedStaffEmpId} onValueChange={setSelectedStaffEmpId} required>
-                    <SelectTrigger className="h-8 text-xs bg-white"><SelectValue placeholder="Select staff..." /></SelectTrigger>
+                  <Select
+                    value={selectedStaffEmpId}
+                    onValueChange={setSelectedStaffEmpId}
+                    required
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-white">
+                      <SelectValue placeholder="Select staff..." />
+                    </SelectTrigger>
                     <SelectContent className="text-xs">
                       {unassignedStaff.map((s) => (
-                        <SelectItem key={s.empId} value={s.empId}>{s.fullName} ({s.empId})</SelectItem>
+                        <SelectItem key={s.empId} value={s.empId}>
+                          {s.fullName} ({s.empId})
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><Label className="text-xs">Basic (৳)</Label><Input type="number" value={salaryFormState.basicSalary} onChange={(e) => handleSalaryFormChange("basicSalary", e.target.value)} className="h-8 text-xs font-mono" required /></div>
-                  <div><Label className="text-xs">Rent (৳)</Label><Input type="number" value={salaryFormState.houseRent} onChange={(e) => handleSalaryFormChange("houseRent", e.target.value)} className="h-8 text-xs font-mono" required /></div>
-                  <div><Label className="text-xs">Medical (৳)</Label><Input type="number" value={salaryFormState.medicalAllowance} onChange={(e) => handleSalaryFormChange("medicalAllowance", e.target.value)} className="h-8 text-xs font-mono" required /></div>
+                  <div>
+                    <Label className="text-xs">Basic (৳)</Label>
+                    <Input
+                      type="number"
+                      value={salaryFormState.basicSalary}
+                      onChange={(e) => handleSalaryFormChange("basicSalary", e.target.value)}
+                      className="h-8 text-xs font-mono"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Rent (৳)</Label>
+                    <Input
+                      type="number"
+                      value={salaryFormState.houseRent}
+                      onChange={(e) => handleSalaryFormChange("houseRent", e.target.value)}
+                      className="h-8 text-xs font-mono"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Medical (৳)</Label>
+                    <Input
+                      type="number"
+                      value={salaryFormState.medicalAllowance}
+                      onChange={(e) => handleSalaryFormChange("medicalAllowance", e.target.value)}
+                      className="h-8 text-xs font-mono"
+                      required
+                    />
+                  </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><Label className="text-xs">TA-DA (৳)</Label><Input type="number" value={salaryFormState.conveyanceTaDa} onChange={(e) => handleSalaryFormChange("conveyanceTaDa", e.target.value)} className="h-8 text-xs font-mono" required /></div>
-                  <div><Label className="text-xs">Incentive (৳)</Label><Input type="number" value={salaryFormState.salesIncentive} onChange={(e) => handleSalaryFormChange("salesIncentive", e.target.value)} className="h-8 text-xs font-mono text-emerald-600" /></div>
-                  <div><Label className="text-xs">Bonus (৳)</Label><Input type="number" value={salaryFormState.specialBonus} onChange={(e) => handleSalaryFormChange("specialBonus", e.target.value)} className="h-8 text-xs font-mono" /></div>
+                  <div>
+                    <Label className="text-xs">TA-DA (৳)</Label>
+                    <Input
+                      type="number"
+                      value={salaryFormState.conveyanceTaDa}
+                      onChange={(e) => handleSalaryFormChange("conveyanceTaDa", e.target.value)}
+                      className="h-8 text-xs font-mono"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Incentive (৳)</Label>
+                    <Input
+                      type="number"
+                      value={salaryFormState.salesIncentive}
+                      onChange={(e) => handleSalaryFormChange("salesIncentive", e.target.value)}
+                      className="h-8 text-xs font-mono text-emerald-600"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Bonus (৳)</Label>
+                    <Input
+                      type="number"
+                      value={salaryFormState.specialBonus}
+                      onChange={(e) => handleSalaryFormChange("specialBonus", e.target.value)}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><Label className="text-xs">Provident Fund (৳)</Label><Input type="number" value={salaryFormState.providentFund} onChange={(e) => handleSalaryFormChange("providentFund", e.target.value)} className="h-8 text-xs font-mono text-rose-500" /></div>
-                  <div><Label className="text-xs">Tax Deduction (৳)</Label><Input type="number" value={salaryFormState.taxDeduction} onChange={(e) => handleSalaryFormChange("taxDeduction", e.target.value)} className="h-8 text-xs font-mono text-rose-500" /></div>
-                  <div><Label className="text-xs">Other Deductions (৳)</Label><Input type="number" value={salaryFormState.otherDeductions} onChange={(e) => handleSalaryFormChange("otherDeductions", e.target.value)} className="h-8 text-xs font-mono text-rose-500" /></div>
+                  <div>
+                    <Label className="text-xs">Provident Fund (৳)</Label>
+                    <Input
+                      type="number"
+                      value={salaryFormState.providentFund}
+                      onChange={(e) => handleSalaryFormChange("providentFund", e.target.value)}
+                      className="h-8 text-xs font-mono text-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Tax Deduction (৳)</Label>
+                    <Input
+                      type="number"
+                      value={salaryFormState.taxDeduction}
+                      onChange={(e) => handleSalaryFormChange("taxDeduction", e.target.value)}
+                      className="h-8 text-xs font-mono text-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Other Deductions (৳)</Label>
+                    <Input
+                      type="number"
+                      value={salaryFormState.otherDeductions}
+                      onChange={(e) => handleSalaryFormChange("otherDeductions", e.target.value)}
+                      className="h-8 text-xs font-mono text-rose-500"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs font-medium text-slate-700">Leave Days Taken</Label>
@@ -498,8 +703,17 @@ export default function SalaryManagementPage() {
                   />
                 </div>
                 <DialogFooter className="pt-2">
-                  <Button type="button" variant="outline" onClick={() => setIsAssignOpen(false)} className="h-8 text-xs">Cancel</Button>
-                  <Button type="submit" className="h-8 text-xs bg-[#0090FF] text-white">Save Salary</Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAssignOpen(false)}
+                    className="h-8 text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="h-8 text-xs bg-[#0090FF] text-white">
+                    Save Salary
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -510,10 +724,17 @@ export default function SalaryManagementPage() {
       {/* Salary Table */}
       <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6 print:hidden">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">Payroll Register — {selectedMonth}</h3>
+          <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
+            Payroll Register — {selectedMonth}
+          </h3>
           <div className="flex items-center gap-2">
             <Search className="h-4 w-4 text-slate-400" />
-            <Input placeholder="Search staff..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 w-[220px] text-xs" />
+            <Input
+              placeholder="Search staff..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 w-[220px] text-xs"
+            />
           </div>
         </div>
 
@@ -522,55 +743,134 @@ export default function SalaryManagementPage() {
             <TableRow className="border-b border-slate-100 text-xs text-slate-600">
               <TableHead className="pl-0">Employee</TableHead>
               <TableHead className="text-right">Basic</TableHead>
-              <TableHead className="text-right">Rent</TableHead>
-              <TableHead className="text-right">Medical</TableHead>
-              <TableHead className="text-right">TA-DA</TableHead>
-              <TableHead className="text-right">Incentive</TableHead>
+              <TableHead className="text-right">Allowances</TableHead>
               <TableHead className="text-right">Deductions</TableHead>
-              <TableHead className="text-right">Leave Days</TableHead>
               <TableHead className="text-right">Net Payable</TableHead>
+              <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-right pr-0">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-6 text-slate-400">Loading...</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-6 text-slate-400">
+                  Loading...
+                </TableCell>
+              </TableRow>
             ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-6 text-slate-400">No records found for {selectedMonth}.</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-6 text-slate-400">
+                  No records found for {selectedMonth}.
+                </TableCell>
+              </TableRow>
             ) : (
               filtered.map((emp) => {
+                const allowances =
+                  emp.houseRent +
+                  emp.medicalAllowance +
+                  emp.conveyanceTaDa +
+                  emp.salesIncentive +
+                  emp.specialBonus;
                 const ded = getDeductions(emp);
                 const net = getNet(emp);
+                const isPaid = emp.status === "Disbursed";
+
                 return (
                   <TableRow key={emp.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                     <TableCell className="py-3 pl-0">
                       <div className="flex items-center gap-2.5">
                         <Avatar className="h-8 w-8 rounded-full border border-slate-200">
-                          <AvatarFallback className="bg-slate-100 text-slate-700 text-xs font-semibold">{emp.fullName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                          <AvatarFallback className="bg-slate-100 text-slate-700 text-xs font-semibold">
+                            {emp.fullName.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
                         </Avatar>
                         <div>
-                          <span className="text-xs font-bold text-slate-900 block">{emp.fullName}</span>
-                          <span className="text-[10px] text-slate-400">{emp.empId} — {emp.designation}</span>
+                          <span className="text-xs font-bold text-slate-900 block">
+                            {emp.fullName}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            {emp.empId} — {emp.designation}
+                          </span>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-mono">৳{emp.basicSalary.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right font-mono">৳{emp.houseRent.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right font-mono">৳{emp.medicalAllowance.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right font-mono">৳{emp.conveyanceTaDa.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right font-mono text-emerald-600">+৳{(emp.salesIncentive + emp.specialBonus).toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right font-mono text-rose-500">-৳{ded.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right font-mono text-slate-700">{emp.leaveDays || 0}d</TableCell>
-                    <TableCell className="text-right font-mono font-bold text-slate-900">৳{net.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      ৳{emp.basicSalary.toLocaleString("en-IN")}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-emerald-600">
+                      +৳{allowances.toLocaleString("en-IN")}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-rose-500">
+                      -৳{ded.toLocaleString("en-IN")}
+                    </TableCell>
+                    <TableCell className="text-right font-mono font-bold text-slate-900">
+                      ৳{net.toLocaleString("en-IN")}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-bold ${
+                          isPaid
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}
+                      >
+                        {isPaid ? "Disbursed" : "Draft"}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right pr-0">
                       <div className="flex items-center justify-end gap-1.5">
-                        <Button size="sm" variant="outline" onClick={() => { setEditingRecord({ ...emp }); setIsEditOpen(true); }} className="h-7 px-2 text-xs">
+                        {/* Treasury Pay Button */}
+                        <Button
+                          size="sm"
+                          disabled={isPaid}
+                          onClick={() => {
+                            setPayingRecord(emp);
+                            if (treasuryAccounts.length > 0) {
+                              setSelectedTreasuryAccountId(treasuryAccounts[0].id);
+                            }
+                            setIsPayOpen(true);
+                          }}
+                          className={`h-7 px-2.5 text-xs font-bold rounded-md shadow-none gap-1 ${
+                            isPaid
+                              ? "bg-emerald-100 text-emerald-800 opacity-60 cursor-not-allowed"
+                              : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          }`}
+                        >
+                          <CreditCard className="h-3 w-3" />
+                          {isPaid ? "Paid" : "Pay via Treasury"}
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingRecord({ ...emp });
+                            setIsEditOpen(true);
+                          }}
+                          className="h-7 px-2 text-xs"
+                        >
                           <Pencil className="h-3 w-3 mr-1" /> Edit
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => { setPrintRecord(emp); setIsPrintOpen(true); }} className="h-7 px-2 text-xs text-[#0090FF]">
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setPrintRecord(emp);
+                            setIsPrintOpen(true);
+                          }}
+                          className="h-7 px-2 text-xs text-[#0090FF]"
+                        >
                           <Printer className="h-3 w-3 mr-1" /> Payslip
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDeleteSalary(emp.id)} className="h-7 px-2 text-xs text-rose-600 hover:text-rose-700">
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteSalary(emp.id)}
+                          className="h-7 px-2 text-xs text-rose-600 hover:text-rose-700"
+                        >
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
@@ -583,28 +883,250 @@ export default function SalaryManagementPage() {
         </Table>
       </Card>
 
+      {/* Disburse to Treasury Modal */}
+      <Dialog open={isPayOpen} onOpenChange={setIsPayOpen}>
+        <DialogContent className="sm:max-w-[480px] bg-white rounded-xl">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Treasury Salary Disbursement
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Deducts from company vaults/banks & creates Treasury ledger entry.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {payingRecord && (
+            <form onSubmit={handleDisburseToTreasury} className="space-y-4 py-2">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-slate-900 block">
+                    {payingRecord.fullName}
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {payingRecord.empId} • {payingRecord.payPeriod}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-slate-400 block">Net Payable Amount</span>
+                  <span className="text-sm font-extrabold font-mono text-emerald-600">
+                    ৳{getNet(payingRecord).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700">Source Treasury Account</Label>
+                <Select
+                  value={selectedTreasuryAccountId}
+                  onValueChange={setSelectedTreasuryAccountId}
+                  required
+                >
+                  <SelectTrigger className="h-9 text-xs bg-white">
+                    <SelectValue placeholder="Choose bank account or cash safe..." />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs">
+                    {treasuryAccounts.length === 0 ? (
+                      <SelectItem value="none" disabled>
+                        No bank accounts registered in Treasury
+                      </SelectItem>
+                    ) : (
+                      treasuryAccounts.map((acc) => (
+                        <SelectItem key={acc.id} value={acc.id}>
+                          {acc.accountTitle} — Balance: ৳{Number(acc.balance || 0).toLocaleString("en-IN")}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700">Disbursement Method</Label>
+                <Select
+                  value={disbursementMethod}
+                  onValueChange={setDisbursementMethod}
+                >
+                  <SelectTrigger className="h-9 text-xs bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs">
+                    <SelectItem value="BEFTN Electronic Advice">BEFTN Electronic Advice</SelectItem>
+                    <SelectItem value="NPSB Instant Transfer">NPSB Instant Transfer</SelectItem>
+                    <SelectItem value="Account Payee Cheque">Account Payee Cheque</SelectItem>
+                    <SelectItem value="Corporate Safe Physical Cash">Corporate Safe Physical Cash</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-100 text-[11px] text-blue-900 leading-relaxed">
+                Employee Bank Account on file: <strong>{payingRecord.bankName}</strong> (<code>{payingRecord.bankAccount}</code>).
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsPayOpen(false)}
+                  className="h-9 text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={disbursing || !selectedTreasuryAccountId}
+                  className="h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+                >
+                  {disbursing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {disbursing ? "Disbursing & Updating..." : "Confirm & Post to Treasury"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Modal */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-[650px] bg-white rounded-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900">Edit Remuneration — {editingRecord?.fullName}</DialogTitle>
+            <DialogTitle className="text-base font-bold text-slate-900">
+              Edit Remuneration — {editingRecord?.fullName}
+            </DialogTitle>
           </DialogHeader>
           {editingRecord && (
             <form onSubmit={handleSaveEdit} className="space-y-4 py-2">
               <div className="grid grid-cols-3 gap-3">
-                <div><Label className="text-xs">Basic Salary (৳)</Label><Input type="number" value={editingRecord.basicSalary} onChange={(e) => setEditingRecord({ ...editingRecord, basicSalary: Number(e.target.value) })} className="h-8 text-xs font-mono" /></div>
-                <div><Label className="text-xs">House Rent (৳)</Label><Input type="number" value={editingRecord.houseRent} onChange={(e) => setEditingRecord({ ...editingRecord, houseRent: Number(e.target.value) })} className="h-8 text-xs font-mono" /></div>
-                <div><Label className="text-xs">Medical (৳)</Label><Input type="number" value={editingRecord.medicalAllowance} onChange={(e) => setEditingRecord({ ...editingRecord, medicalAllowance: Number(e.target.value) })} className="h-8 text-xs font-mono" /></div>
+                <div>
+                  <Label className="text-xs">Basic Salary (৳)</Label>
+                  <Input
+                    type="number"
+                    value={editingRecord.basicSalary}
+                    onChange={(e) =>
+                      setEditingRecord({ ...editingRecord, basicSalary: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">House Rent (৳)</Label>
+                  <Input
+                    type="number"
+                    value={editingRecord.houseRent}
+                    onChange={(e) =>
+                      setEditingRecord({ ...editingRecord, houseRent: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Medical (৳)</Label>
+                  <Input
+                    type="number"
+                    value={editingRecord.medicalAllowance}
+                    onChange={(e) =>
+                      setEditingRecord({
+                        ...editingRecord,
+                        medicalAllowance: Number(e.target.value),
+                      })
+                    }
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <div><Label className="text-xs">TA-DA (৳)</Label><Input type="number" value={editingRecord.conveyanceTaDa} onChange={(e) => setEditingRecord({ ...editingRecord, conveyanceTaDa: Number(e.target.value) })} className="h-8 text-xs font-mono" /></div>
-                <div><Label className="text-xs">Sales Incentive (৳)</Label><Input type="number" value={editingRecord.salesIncentive} onChange={(e) => setEditingRecord({ ...editingRecord, salesIncentive: Number(e.target.value) })} className="h-8 text-xs font-mono text-emerald-600" /></div>
-                <div><Label className="text-xs">Special Bonus (৳)</Label><Input type="number" value={editingRecord.specialBonus} onChange={(e) => setEditingRecord({ ...editingRecord, specialBonus: Number(e.target.value) })} className="h-8 text-xs font-mono" /></div>
+                <div>
+                  <Label className="text-xs">TA-DA (৳)</Label>
+                  <Input
+                    type="number"
+                    value={editingRecord.conveyanceTaDa}
+                    onChange={(e) =>
+                      setEditingRecord({
+                        ...editingRecord,
+                        conveyanceTaDa: Number(e.target.value),
+                      })
+                    }
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Sales Incentive (৳)</Label>
+                  <Input
+                    type="number"
+                    value={editingRecord.salesIncentive}
+                    onChange={(e) =>
+                      setEditingRecord({
+                        ...editingRecord,
+                        salesIncentive: Number(e.target.value),
+                      })
+                    }
+                    className="h-8 text-xs font-mono text-emerald-600"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Special Bonus (৳)</Label>
+                  <Input
+                    type="number"
+                    value={editingRecord.specialBonus}
+                    onChange={(e) =>
+                      setEditingRecord({
+                        ...editingRecord,
+                        specialBonus: Number(e.target.value),
+                      })
+                    }
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <div><Label className="text-xs">Provident Fund (৳)</Label><Input type="number" value={editingRecord.providentFund} onChange={(e) => setEditingRecord({ ...editingRecord, providentFund: Number(e.target.value) })} className="h-8 text-xs font-mono text-rose-500" /></div>
-                <div><Label className="text-xs">Tax Deduction (৳)</Label><Input type="number" value={editingRecord.taxDeduction} onChange={(e) => setEditingRecord({ ...editingRecord, taxDeduction: Number(e.target.value) })} className="h-8 text-xs font-mono text-rose-500" /></div>
-                <div><Label className="text-xs">Other Deductions (৳)</Label><Input type="number" value={editingRecord.otherDeductions} onChange={(e) => setEditingRecord({ ...editingRecord, otherDeductions: Number(e.target.value) })} className="h-8 text-xs font-mono text-rose-500" /></div>
+                <div>
+                  <Label className="text-xs">Provident Fund (৳)</Label>
+                  <Input
+                    type="number"
+                    value={editingRecord.providentFund}
+                    onChange={(e) =>
+                      setEditingRecord({
+                        ...editingRecord,
+                        providentFund: Number(e.target.value),
+                      })
+                    }
+                    className="h-8 text-xs font-mono text-rose-500"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Tax Deduction (৳)</Label>
+                  <Input
+                    type="number"
+                    value={editingRecord.taxDeduction}
+                    onChange={(e) =>
+                      setEditingRecord({
+                        ...editingRecord,
+                        taxDeduction: Number(e.target.value),
+                      })
+                    }
+                    className="h-8 text-xs font-mono text-rose-500"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Other Deductions (৳)</Label>
+                  <Input
+                    type="number"
+                    value={editingRecord.otherDeductions}
+                    onChange={(e) =>
+                      setEditingRecord({
+                        ...editingRecord,
+                        otherDeductions: Number(e.target.value),
+                      })
+                    }
+                    className="h-8 text-xs font-mono text-rose-500"
+                  />
+                </div>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">Leave Days Taken</Label>
@@ -612,17 +1134,30 @@ export default function SalaryManagementPage() {
                   type="number"
                   min="0"
                   value={editingRecord.leaveDays}
-                  onChange={(e) => setEditingRecord({ ...editingRecord, leaveDays: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setEditingRecord({ ...editingRecord, leaveDays: Number(e.target.value) })
+                  }
                   className="h-8 text-xs"
                 />
               </div>
               <div className="p-3 bg-slate-50 rounded-lg flex items-center justify-between text-xs font-bold text-slate-900">
                 <span>Calculated Net Payable:</span>
-                <span className="text-sm font-mono text-[#0090FF]">৳{getNet(editingRecord).toLocaleString("en-IN")}</span>
+                <span className="text-sm font-mono text-[#0090FF]">
+                  ৳{getNet(editingRecord).toLocaleString("en-IN")}
+                </span>
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} className="h-8 text-xs">Cancel</Button>
-                <Button type="submit" className="h-8 text-xs bg-[#0090FF] text-white">Save Changes</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditOpen(false)}
+                  className="h-8 text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" className="h-8 text-xs bg-[#0090FF] text-white">
+                  Save Changes
+                </Button>
               </DialogFooter>
             </form>
           )}
@@ -638,11 +1173,17 @@ export default function SalaryManagementPage() {
                 <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                   <div>
                     <h2 className="text-lg font-extrabold text-slate-900">AK PHARMA LTD.</h2>
-                    <p className="text-[11px] text-slate-500">Official Monthly Pay Advice / Salary Payslip</p>
+                    <p className="text-[11px] text-slate-500">
+                      Official Monthly Pay Advice / Salary Payslip
+                    </p>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs font-bold text-[#0090FF] block">{printRecord.payPeriod}</span>
-                    <span className="text-[10px] text-slate-400 font-mono">Ref: AKP/{printRecord.empId}/SAL</span>
+                    <span className="text-xs font-bold text-[#0090FF] block">
+                      {printRecord.payPeriod}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      Ref: AKP/{printRecord.empId}/SAL
+                    </span>
                   </div>
                 </div>
 
@@ -651,32 +1192,83 @@ export default function SalaryManagementPage() {
                     <p className="text-slate-500">Employee Name:</p>
                     <p className="font-bold text-slate-900">{printRecord.fullName}</p>
                     <p className="text-slate-500 mt-2">Emp ID & Designation:</p>
-                    <p className="font-semibold text-slate-800">{printRecord.empId} — {printRecord.designation}</p>
+                    <p className="font-semibold text-slate-800">
+                      {printRecord.empId} — {printRecord.designation}
+                    </p>
                   </div>
                   <div>
                     <p className="text-slate-500">Department & Territory:</p>
-                    <p className="font-semibold text-slate-800">{printRecord.department} ({printRecord.territory})</p>
+                    <p className="font-semibold text-slate-800">
+                      {printRecord.department} ({printRecord.territory})
+                    </p>
                     <p className="text-slate-500 mt-2">Disbursement Account:</p>
-                    <p className="font-mono text-slate-800">{printRecord.bankName} ({printRecord.bankAccount})</p>
+                    <p className="font-mono text-slate-800">
+                      {printRecord.bankName} ({printRecord.bankAccount})
+                    </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6 text-xs">
                   <div className="space-y-2 border rounded-lg p-3">
                     <p className="font-bold text-slate-900 border-b pb-1">Earnings</p>
-                    <div className="flex justify-between"><span>Basic Salary</span><span className="font-mono">৳{printRecord.basicSalary.toLocaleString("en-IN")}</span></div>
-                    <div className="flex justify-between"><span>House Rent</span><span className="font-mono">৳{printRecord.houseRent.toLocaleString("en-IN")}</span></div>
-                    <div className="flex justify-between"><span>Medical Allowance</span><span className="font-mono">৳{printRecord.medicalAllowance.toLocaleString("en-IN")}</span></div>
-                    <div className="flex justify-between"><span>TA-DA Allowance</span><span className="font-mono">৳{printRecord.conveyanceTaDa.toLocaleString("en-IN")}</span></div>
-                    <div className="flex justify-between"><span>Sales Incentive</span><span className="font-mono text-emerald-600">+৳{printRecord.salesIncentive.toLocaleString("en-IN")}</span></div>
-                    <div className="flex justify-between"><span>Special Bonus</span><span className="font-mono text-emerald-600">+৳{printRecord.specialBonus.toLocaleString("en-IN")}</span></div>
+                    <div className="flex justify-between">
+                      <span>Basic Salary</span>
+                      <span className="font-mono">
+                        ৳{printRecord.basicSalary.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>House Rent</span>
+                      <span className="font-mono">
+                        ৳{printRecord.houseRent.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Medical Allowance</span>
+                      <span className="font-mono">
+                        ৳{printRecord.medicalAllowance.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>TA-DA Allowance</span>
+                      <span className="font-mono">
+                        ৳{printRecord.conveyanceTaDa.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Sales Incentive</span>
+                      <span className="font-mono text-emerald-600">
+                        +৳{printRecord.salesIncentive.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Special Bonus</span>
+                      <span className="font-mono text-emerald-600">
+                        +৳{printRecord.specialBonus.toLocaleString("en-IN")}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-2 border rounded-lg p-3">
                     <p className="font-bold text-slate-900 border-b pb-1">Deductions</p>
-                    <div className="flex justify-between"><span>Provident Fund</span><span className="font-mono text-rose-500">৳{printRecord.providentFund.toLocaleString("en-IN")}</span></div>
-                    <div className="flex justify-between"><span>Tax Deduction</span><span className="font-mono text-rose-500">৳{printRecord.taxDeduction.toLocaleString("en-IN")}</span></div>
-                    <div className="flex justify-between"><span>Other Deductions</span><span className="font-mono text-rose-500">৳{printRecord.otherDeductions.toLocaleString("en-IN")}</span></div>
+                    <div className="flex justify-between">
+                      <span>Provident Fund</span>
+                      <span className="font-mono text-rose-500">
+                        ৳{printRecord.providentFund.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Tax Deduction</span>
+                      <span className="font-mono text-rose-500">
+                        ৳{printRecord.taxDeduction.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Other Deductions</span>
+                      <span className="font-mono text-rose-500">
+                        ৳{printRecord.otherDeductions.toLocaleString("en-IN")}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -687,7 +1279,9 @@ export default function SalaryManagementPage() {
 
                 <div className="bg-[#0090FF]/10 p-4 rounded-lg flex items-center justify-between text-sm font-bold text-slate-900">
                   <span>Net Payable Salary:</span>
-                  <span className="font-mono text-base text-[#0090FF]">৳{getNet(printRecord).toLocaleString("en-IN")}</span>
+                  <span className="font-mono text-base text-[#0090FF]">
+                    ৳{getNet(printRecord).toLocaleString("en-IN")}
+                  </span>
                 </div>
 
                 <div className="flex justify-between pt-8 text-[11px] text-slate-400 border-t">
@@ -697,8 +1291,17 @@ export default function SalaryManagementPage() {
               </div>
 
               <div className="flex justify-end gap-2 print:hidden">
-                <Button variant="outline" onClick={() => setIsPrintOpen(false)} className="text-xs">Close</Button>
-                <Button onClick={handleTriggerPrint} className="bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs gap-1.5">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsPrintOpen(false)}
+                  className="text-xs"
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={handleTriggerPrint}
+                  className="bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs gap-1.5"
+                >
                   <Printer className="h-4 w-4" /> Print Payslip
                 </Button>
               </div>
