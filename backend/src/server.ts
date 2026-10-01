@@ -58,6 +58,12 @@ app.get("/", (req: Request, res: Response) => {
   res.send("AK Pharma TypeScript Backend Server with Supabase is running!");
 });
 
-app.listen(Number(PORT), () => {
-  console.log(`🚀 AK Pharma Backend running on port ${PORT}`);
-});
+// Only listen when running standalone in local development
+if (process.env.NODE_ENV !== "production") {
+  app.listen(Number(PORT), () => {
+    console.log(`🚀 AK Pharma Backend running on port ${PORT}`);
+  });
+}
+
+// Export app for Vercel Serverless Functions
+export default app;
