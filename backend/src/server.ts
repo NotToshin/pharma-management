@@ -39,10 +39,14 @@ app.use("/api/finance-overview", financeOverviewRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/salary", salaryRoutes);
-app.use("/api/rbac", rbacRoutes);
-app.use("/api/auth", rbacRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/expense-vouchers", paymentRoutes);
+
+// Auth & RBAC routes mounted across all potential route paths
+app.use("/api/rbac", rbacRoutes);
+app.use("/api/auth", rbacRoutes);
+app.use("/api", rbacRoutes);   // Handles /api/login
+app.use("/", rbacRoutes);      // Handles /login directly if proxy rewrites strip /api
 
 // Dedicated Health Check Endpoint
 app.get("/api/health", (req: Request, res: Response) => {
