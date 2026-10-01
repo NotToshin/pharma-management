@@ -16,7 +16,21 @@ export default function LoginPage() {
   const [loading, setLoading] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  // If NEXT_PUBLIC_API_URL is set, use it; otherwise use relative "/api" on Vercel
+  const getApiUrl = () => {
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+    }
+    if (typeof window !== "undefined") {
+      // If running on local development (localhost), talk to port 5000
+      if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+        return "http://localhost:5000/api";
+      }
+      // On production Vercel, use relative path to route through Vercel's rewrite
+      return "/api";
+    }
+    return "/api";
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +44,7 @@ export default function LoginPage() {
     try {
       setLoading(true);
 
+      const API_URL = getApiUrl();
       const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -39,26 +54,36 @@ export default function LoginPage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        setErrorMessage(data.error || "Authentication failed. Please verify credentials.");
+        setErrorMessage(data?.error || "Authentication failed. Please verify credentials.");
         return;
       }
 
-      // Store security credentials and permission matrix
+      if (!data) {
+        setErrorMessage("Invalid response from server. Please check backend deployment.");
+        return;
+      }
+
+      // Store security credentials across all standard storage keys
       if (data.token) {
+        localStorage.setItem("token", data.token);
         localStorage.setItem("ak_token", data.token);
       }
       if (data.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
         localStorage.setItem("ak_user", JSON.stringify(data.user));
       }
 
-      // Redirect directly to the Command Center Dashboard
-      router.push("/");
+      // Redirect directly to Command Center
+      router.push("/dashboard");
       router.refresh();
-    } catch {
-      setErrorMessage("Unable to connect to the authentication server. Please verify backend service.");
+    } catch (err: any) {
+      console.error("Login request failed:", err);
+      setErrorMessage(
+        `Unable to reach authentication server at ${getApiUrl()}. Please check backend service.`
+      );
     } finally {
       setLoading(false);
     }
