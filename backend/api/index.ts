@@ -1,20 +1,26 @@
-import app from "../backend/src/server";
+import app from "../src/server";
 
 export default function handler(req: any, res: any) {
-  // If Vercel rewrote the path to /api/index.ts, restore the original requested URL
+  // 1. Recover the original URL requested by the browser
+  const originalUrl =
+    req.headers["x-matched-path"] ||
+    req.headers["x-forwarded-uri"] ||
+    req.url;
+
+  // 2. If Vercel rewrote the URL to /api/index.ts or /index.ts, strip it back
   if (req.url && (req.url.startsWith("/api/index.ts") || req.url.startsWith("/index.ts"))) {
     try {
       const parsed = new URL(req.url, "http://localhost");
-      const target = parsed.searchParams.get("__url");
-      if (target) {
+      const paramUrl = parsed.searchParams.get("__url");
+      if (paramUrl) {
         parsed.searchParams.delete("__url");
-        const remainingQuery = parsed.searchParams.toString();
-        req.url = remainingQuery ? `${target}?${remainingQuery}` : target;
-      } else if (req.headers["x-forwarded-uri"]) {
-        req.url = req.headers["x-forwarded-uri"] as string;
+        const remaining = parsed.searchParams.toString();
+        req.url = remaining ? `${paramUrl}?${remaining}` : paramUrl;
+      } else if (originalUrl && !originalUrl.includes("index.ts")) {
+        req.url = originalUrl;
       }
-    } catch (err) {
-      console.error("URL restoration error:", err);
+    } catch {
+      // fallback
     }
   }
 
