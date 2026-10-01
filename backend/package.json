@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "postinstall": "prisma generate",
-    "build": "tsc",
-    "start": "node dist/server.js"
+  "dev": "tsx watch src/server.ts",
+  "postinstall": "npx prisma generate",
+  "build": "tsc",
+  "start": "node dist/server.js"
   },
   "dependencies": {
     "@prisma/client": "^5.10.0",
