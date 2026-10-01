@@ -19,14 +19,38 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  })
+);
 app.options("*", cors());
 app.use(express.json());
+
+// --- Vercel Serverless URL Normalizer ---
+// Fixes "Cannot GET /api/index.ts" by stripping Vercel rewrite artifacts
+app.use((req, res, next) => {
+  // Check if original URL was passed in query by vercel.json
+  const parsedUrl = new URL(req.url, "http://localhost");
+  const targetUrl = parsedUrl.searchParams.get("__url");
+
+  if (targetUrl) {
+    parsedUrl.searchParams.delete("__url");
+    const qs = parsedUrl.searchParams.toString();
+    req.url = qs ? `${targetUrl}?${qs}` : targetUrl;
+  } else if (req.headers["x-forwarded-uri"]) {
+    req.url = req.headers["x-forwarded-uri"] as string;
+  } else if (req.url.startsWith("/api/index.ts")) {
+    req.url = req.url.replace(/^\/api\/index\.ts/, "") || "/";
+  } else if (req.url.startsWith("/index.ts")) {
+    req.url = req.url.replace(/^\/index\.ts/, "") || "/";
+  }
+
+  next();
+});
 
 // Register API Modules
 app.use("/api/clients", clientRoutes);
@@ -48,8 +72,8 @@ app.use("/api/auth", rbacRoutes);
 app.use("/api", rbacRoutes);   // Handles /api/login
 app.use("/", rbacRoutes);      // Handles /login directly if proxy rewrites strip /api
 
-// Dedicated Health Check Endpoint
-app.get("/api/health", (req: Request, res: Response) => {
+// Dedicated Health Check Endpoint (Both with and without /api prefix)
+app.get(["/api/health", "/health"], (req: Request, res: Response) => {
   res.status(200).json({
     status: "online",
     service: "AK Pharma Backend API",
