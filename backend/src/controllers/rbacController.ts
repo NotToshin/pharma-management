@@ -95,6 +95,32 @@ async function ensureRolesSeeded() {
   }
 }
 
+// Helper to seed initial Super Admin operator if no user exists
+async function ensureAdminUserSeeded() {
+  await ensureRolesSeeded();
+  const userCount = await prisma.systemUser.count();
+  if (userCount === 0) {
+    const adminRole = await prisma.systemRole.findUnique({
+      where: { code: "SUPER_ADMIN" },
+    });
+    if (adminRole) {
+      const salt = await bcrypt.genSalt(12);
+      const passwordHash = await bcrypt.hash("admin123456", salt);
+
+      await prisma.systemUser.create({
+        data: {
+          name: "Toshin Bin Azad (Super Admin)",
+          email: "toshin@admin.com",
+          passwordHash,
+          roleId: adminRole.id,
+          territory: "Dhaka Central HQ",
+          status: "Active",
+        },
+      });
+    }
+  }
+}
+
 // 1. GET /api/rbac/roles — Fetch all roles & associated permissions
 export const getRoles = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -176,6 +202,7 @@ export const updateRolePermissions = async (req: Request, res: Response): Promis
 // 3. GET /api/rbac/users — Fetch all provisioned database users
 export const getUsers = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureAdminUserSeeded();
     const users = await prisma.systemUser.findMany({
       include: {
         role: { select: { name: true, code: true } },
@@ -299,14 +326,24 @@ export const toggleUserStatus = async (req: Request, res: Response): Promise<voi
 // 7. POST /api/auth/login — Enterprise Login Endpoint (Closed Registration)
 export const loginOperator = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureAdminUserSeeded();
+
     const { email, password } = req.body;
     if (!email || !password) {
       res.status(400).json({ error: "Email and password are required." });
       return;
     }
 
-    const user = await prisma.systemUser.findUnique({
-      where: { email: email.trim().toLowerCase() },
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Look up by clean email OR match to toshin@admin.com if user types toshin@admin
+    const user = await prisma.systemUser.findFirst({
+      where: {
+        OR: [
+          { email: cleanEmail },
+          { email: `${cleanEmail}.com` },
+        ],
+      },
       include: {
         role: {
           include: { permissions: true },
