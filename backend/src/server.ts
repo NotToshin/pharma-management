@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: "*",
+    origin: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -31,22 +31,27 @@ app.options("*", cors());
 app.use(express.json());
 
 // --- Vercel Serverless URL Normalizer ---
-// Fixes "Cannot GET /api/index.ts" by stripping Vercel rewrite artifacts
 app.use((req, res, next) => {
-  // Check if original URL was passed in query by vercel.json
-  const parsedUrl = new URL(req.url, "http://localhost");
-  const targetUrl = parsedUrl.searchParams.get("__url");
+  try {
+    const rawUrl = req.url || "/";
+    const parsedUrl = new URL(rawUrl, "http://localhost");
+    const targetUrl = parsedUrl.searchParams.get("__url");
 
-  if (targetUrl) {
-    parsedUrl.searchParams.delete("__url");
-    const qs = parsedUrl.searchParams.toString();
-    req.url = qs ? `${targetUrl}?${qs}` : targetUrl;
-  } else if (req.headers["x-forwarded-uri"]) {
-    req.url = req.headers["x-forwarded-uri"] as string;
-  } else if (req.url.startsWith("/api/index.ts")) {
-    req.url = req.url.replace(/^\/api\/index\.ts/, "") || "/";
-  } else if (req.url.startsWith("/index.ts")) {
-    req.url = req.url.replace(/^\/index\.ts/, "") || "/";
+    if (targetUrl) {
+      parsedUrl.searchParams.delete("__url");
+      const remainingQs = parsedUrl.searchParams.toString();
+      req.url = remainingQs ? `${targetUrl}?${remainingQs}` : targetUrl;
+    } else if (req.headers["x-matched-path"] && !req.headers["x-matched-path"].toString().includes("index.ts")) {
+      req.url = req.headers["x-matched-path"] as string;
+    } else if (req.headers["x-forwarded-uri"]) {
+      req.url = req.headers["x-forwarded-uri"] as string;
+    } else if (req.url.startsWith("/api/index.ts")) {
+      req.url = req.url.replace(/^\/api\/index\.ts/, "") || "/";
+    } else if (req.url.startsWith("/index.ts")) {
+      req.url = req.url.replace(/^\/index\.ts/, "") || "/";
+    }
+  } catch (err) {
+    console.error("URL Normalizer Error:", err);
   }
 
   next();
