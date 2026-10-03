@@ -5,12 +5,18 @@ import {
   updateClient,
   deleteClient,
 } from "../controllers/clientController";
+import { validateBody, validateParams } from "../utils/validate";
+import {
+  createClientSchema,
+  updateClientSchema,
+  clientIdParamSchema,
+} from "../validations/clientValidation";
 
 const router = Router();
 
 router.get("/", getAllClients);
-router.post("/", createClient);
-router.put("/:id", updateClient);
-router.delete("/:id", deleteClient);
+router.post("/", validateBody(createClientSchema), createClient);
+router.put("/:id", validateParams(updateClientSchema), validateBody(updateClientSchema), updateClient);
+router.delete("/:id", validateParams(clientIdParamSchema), deleteClient);
 
 export default router;
