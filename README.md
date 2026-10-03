@@ -4,10 +4,39 @@ A full-stack pharmaceutical management application with Next.js frontend and Exp
 
 ## Tech Stack
 
-- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS
-- **Backend**: Express.js, TypeScript, Prisma ORM, PostgreSQL
-- **Auth**: JWT with bcrypt password hashing
-- **Database**: PostgreSQL (via Prisma)
+### Frontend
+- **Framework**: Next.js 16 (App Router)
+- **UI Library**: React 19, TypeScript
+- **Styling**: Tailwind CSS
+- **State Management**: React Context / Server Components
+- **Forms**: React Hook Form with Zod validation
+- **Charts**: Recharts / Chart.js
+
+### Backend
+- **Runtime**: Node.js 20+ with TypeScript
+- **Framework**: Express.js
+- **Database ORM**: Prisma ORM
+- **Database**: PostgreSQL
+- **Authentication**: JWT (jsonwebtoken) with bcryptjs password hashing
+- **Validation**: Zod (schema validation)
+- **Architecture**: Layered architecture (Controller → Service → Prisma)
+
+### Development & Deployment
+- **Package Manager**: npm
+- **Type Checking**: TypeScript 5.3+
+- **Dev Server**: tsx (TypeScript execution)
+- **Process Manager**: PM2 (production)
+- **Deployment**: Vercel (Frontend), Vercel/Render/Railway (Backend)
+
+### Key Libraries
+| Category | Libraries |
+|----------|-----------|
+| HTTP & Routing | express, cors |
+| Database | @prisma/client, prisma |
+| Auth | jsonwebtoken, bcryptjs |
+| Validation | zod |
+| Environment | dotenv |
+| Dev Tools | tsx, typescript, @types/* |
 
 ---
 
@@ -98,8 +127,10 @@ After seeding, a default super admin is created:
 pharma-management/
 ├── backend/
 │   ├── src/
-│   │   ├── controllers/    # Route handlers
+│   │   ├── controllers/    # Route handlers (HTTP layer)
+│   │   ├── services/       # Business logic layer
 │   │   ├── routes/         # API route definitions
+│   │   ├── utils/          # Shared utilities (catchAsync, sendResponse)
 │   │   ├── server.ts       # Express app entry
 │   │   └── ...
 │   ├── prisma/
@@ -111,6 +142,52 @@ pharma-management/
 │   ├── lib/                # Utilities
 │   └── package.json
 └── README.md
+```
+
+## Backend Architecture
+
+The backend follows a **layered architecture** pattern:
+
+```
+Request → Route → Controller → Service → Prisma → Database
+                ↓
+            Response (via sendResponse utility)
+```
+
+### Layers
+
+| Layer | Responsibility | Files |
+|-------|---------------|-------|
+| **Routes** | Define API endpoints, mount controllers | `src/routes/*.ts` |
+| **Controllers** | Handle HTTP requests/responses, validation | `src/controllers/*.ts` |
+| **Services** | Business logic, data transformations | `src/services/*.ts` |
+| **Utils** | Shared helpers (error handling, responses) | `src/utils/*.ts` |
+
+### Key Utilities
+
+- **`catchAsync`** - Wrapper to catch async errors and pass to Express error handler
+- **`sendResponse`** - Standardized API response format
+
+```typescript
+// Example usage in controller
+export const getAllDoctors = catchAsync(async (req: Request, res: Response) => {
+  const doctors = await doctorService.getAllDoctors();
+  sendResponse(res, 200, "Doctors retrieved successfully", doctors);
+});
+```
+
+### Response Format
+
+All API responses follow a consistent structure:
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Operation successful",
+  "data": { ... },
+  "meta": { ... }
+}
 ```
 
 ---

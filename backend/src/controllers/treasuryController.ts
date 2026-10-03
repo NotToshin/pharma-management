@@ -1,35 +1,21 @@
 import { Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
+import { treasuryService } from "../services/treasuryService";
+import { sendResponse } from "../utils/response";
+import { catchAsync } from "../utils/catchAsync";
 
-const prisma = new PrismaClient();
+export const getAllTreasuryDeposits = catchAsync(async (req: Request, res: Response) => {
+  const deposits = await treasuryService.getAllDeposits();
+  sendResponse(res, 200, "Treasury deposits retrieved successfully", deposits);
+});
 
-export const getAllTreasuryDeposits = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const deposits = await prisma.treasuryDeposit.findMany({
-      orderBy: { createdAt: "desc" },
-    });
-    res.status(200).json(deposits);
-  } catch (error) {
-    console.error("Error fetching treasury deposits:", error);
-    res.status(500).json({ error: "Failed to fetch deposits" });
-  }
-};
+export const postTreasuryDeposit = catchAsync(async (req: Request, res: Response) => {
+  const { destinationType, destinationName, amount } = req.body;
 
-export const postTreasuryDeposit = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { destinationType, destinationName, amount } = req.body;
+  const depositRecord = await treasuryService.createDeposit({
+    destinationType,
+    destinationName,
+    amount: Number(amount) || 0,
+  });
 
-    const depositRecord = await prisma.treasuryDeposit.create({
-      data: {
-        destinationType,
-        destinationName,
-        amount: Number(amount) || 0,
-      },
-    });
-
-    res.status(201).json(depositRecord);
-  } catch (error: any) {
-    console.error("Error posting treasury deposit:", error);
-    res.status(400).json({ error: error.message || "Failed to post treasury deposit." });
-  }
-};
+  sendResponse(res, 201, "Treasury deposit created successfully", depositRecord);
+});
