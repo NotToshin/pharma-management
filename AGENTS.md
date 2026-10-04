@@ -123,5 +123,5 @@ NEXT_PUBLIC_API_URL="http://localhost:5000/api"
 1. Create service: `src/services/{module}Service.ts`
 2. Create controller: `src/controllers/{module}Controller.ts`
 3. Create routes: `src/routes/{module}Routes.ts`
-4. Register in `src/server.ts`
+4. Register in `src/app.ts`
 5. Follow existing patterns exactly

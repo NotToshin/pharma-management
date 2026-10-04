@@ -1,4 +1,4 @@
-import app from "../src/server";
+import app from "../src/app";
 
 export default function handler(req: any, res: any) {
   // 1. Recover the original URL requested by the browser
