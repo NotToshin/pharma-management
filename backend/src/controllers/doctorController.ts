@@ -8,6 +8,12 @@ export const getAllDoctors = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, 200, "Doctors retrieved successfully", doctors);
 });
 
+export const getDoctorById = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const doctor = await doctorService.getDoctorById(id);
+  sendResponse(res, 200, "Doctor retrieved successfully", doctor);
+});
+
 export const createDoctor = catchAsync(async (req: Request, res: Response) => {
   const { doctorName, phone, bmdcRegNumber, specialtyAndInstitute, chamber, territoryAndMio, email, tier, patientVolumeDaily } = req.body;
 

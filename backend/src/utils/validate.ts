@@ -17,9 +17,6 @@ export const validate = (schema: ZodSchema): RequestHandler => {
       });
       return next();
     } catch (error) {
-      if (error instanceof ZodError) {
-        return sendResponse(res, 400, `Validation error: ${formatZodError(error)}`);
-      }
       return next(error);
     }
   };
@@ -31,9 +28,6 @@ export const validateBody = (schema: ZodSchema): RequestHandler => {
       req.body = await schema.parseAsync(req.body);
       return next();
     } catch (error) {
-      if (error instanceof ZodError) {
-        return sendResponse(res, 400, `Validation error: ${formatZodError(error)}`);
-      }
       return next(error);
     }
   };
@@ -46,9 +40,6 @@ export const validateParams = (schema: ZodSchema): RequestHandler => {
       req.params = parsed as Record<string, string>;
       return next();
     } catch (error) {
-      if (error instanceof ZodError) {
-        return sendResponse(res, 400, `Validation error: ${formatZodError(error)}`);
-      }
       return next(error);
     }
   };
@@ -61,9 +52,6 @@ export const validateQuery = (schema: ZodSchema): RequestHandler => {
       req.query = parsed as Record<string, string>;
       return next();
     } catch (error) {
-      if (error instanceof ZodError) {
-        return sendResponse(res, 400, `Validation error: ${formatZodError(error)}`);
-      }
       return next(error);
     }
   };

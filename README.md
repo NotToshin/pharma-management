@@ -126,11 +126,13 @@ After seeding, a default super admin is created:
 ```
 pharma-management/
 ├── backend/
+│   ├── api/                # Serverless deployment entry
 │   ├── src/
 │   │   ├── controllers/    # Route handlers (HTTP layer)
-│   │   ├── services/       # Business logic layer
 │   │   ├── routes/         # API route definitions
+│   │   ├── services/       # Business logic layer
 │   │   ├── utils/          # Shared utilities (catchAsync, sendResponse)
+│   │   ├── validations/    # Request validation schemas
 │   │   ├── server.ts       # Express app entry
 │   │   └── ...
 │   ├── prisma/

@@ -13,6 +13,7 @@ import financeOverviewRoutes from "./routes/financeOverviewRoutes";
 import dashboardRoutes from "./routes/dashboardRoutes";
 import rbacRoutes from "./routes/rbacRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
+import { globalErrorHandler, notFoundHandler } from "./errors";
 
 dotenv.config();
 
@@ -90,6 +91,12 @@ app.get(["/api/health", "/health"], (req: Request, res: Response) => {
 app.get("/", (req: Request, res: Response) => {
   res.send("AK Pharma TypeScript Backend Server with Supabase is running!");
 });
+
+// Handle 404 (Not Found) routes
+app.use(notFoundHandler);
+
+// Global Error Handler (intercepts all errors)
+app.use(globalErrorHandler);
 
 // Only listen when running standalone in local development
 if (process.env.NODE_ENV !== "production") {

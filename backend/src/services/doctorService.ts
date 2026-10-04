@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { AppError } from "../errors";
 
 const prisma = new PrismaClient();
 
@@ -7,6 +8,14 @@ export const doctorService = {
     return prisma.doctor.findMany({
       orderBy: { createdAt: "desc" },
     });
+  },
+
+  async getDoctorById(id: string) {
+    const doctor = await prisma.doctor.findUnique({ where: { id } });
+    if (!doctor) {
+      throw new AppError(`Doctor with ID '${id}' not found`, 404);
+    }
+    return doctor;
   },
 
   async createDoctor(data: {
@@ -20,6 +29,10 @@ export const doctorService = {
     tier: string;
     patientVolumeDaily?: number;
   }) {
+    if (!data.doctorName) {
+      throw new AppError("Doctor name is required", 400);
+    }
+
     return prisma.doctor.create({
       data: {
         doctorName: data.doctorName,
@@ -46,6 +59,9 @@ export const doctorService = {
     tier?: string;
     patientVolumeDaily?: number;
   }) {
+    // Ensures 404 AppError is thrown if record does not exist
+    await this.getDoctorById(id);
+
     const updateData: Record<string, any> = {};
     if (data.doctorName !== undefined) updateData.doctorName = data.doctorName;
     if (data.phone !== undefined) updateData.phone = data.phone;
@@ -64,6 +80,7 @@ export const doctorService = {
   },
 
   async deleteDoctor(id: string) {
+    await this.getDoctorById(id);
     return prisma.doctor.delete({ where: { id } });
   },
 };
