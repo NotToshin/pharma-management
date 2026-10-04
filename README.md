@@ -126,22 +126,80 @@ After seeding, a default super admin is created:
 ```
 pharma-management/
 ├── backend/
-│   ├── api/                # Serverless deployment entry
-│   ├── src/
-│   │   ├── controllers/    # Route handlers (HTTP layer)
-│   │   ├── routes/         # API route definitions
-│   │   ├── services/       # Business logic layer
-│   │   ├── utils/          # Shared utilities (catchAsync, sendResponse)
-│   │   ├── validations/    # Request validation schemas
-│   │   ├── server.ts       # Express app entry
-│   │   └── ...
+│   ├── api/                    # Vercel serverless deployment entry point (index.ts)
 │   ├── prisma/
-│   │   └── schema.prisma   # Database schema
-│   └── package.json
+│   │   ├── migrations/         # PostgreSQL database migration scripts
+│   │   └── schema.prisma       # Prisma ORM data models & relations
+│   ├── src/
+│   │   ├── controllers/        # HTTP route controllers (request parsing & response handling)
+│   │   │   ├── accountLedgerController.ts
+│   │   │   ├── clientController.ts
+│   │   │   ├── dashboardController.ts
+│   │   │   ├── doctorController.ts
+│   │   │   ├── financeOverviewController.ts
+│   │   │   ├── inventoryController.ts
+│   │   │   ├── orderController.ts
+│   │   │   ├── paymentController.ts
+│   │   │   ├── rbacController.ts
+│   │   │   ├── salaryController.ts
+│   │   │   ├── staffController.ts
+│   │   │   └── treasuryController.ts
+│   │   ├── errors/             # Operational error handling & middleware
+│   │   │   ├── AppError.ts              # Custom operational error class (statusCode, isOperational)
+│   │   │   ├── globalErrorHandler.ts    # Centralized Express error handling middleware
+│   │   │   ├── handlePrismaError.ts     # Prisma client error mapper
+│   │   │   ├── handleZodError.ts        # Zod validation error mapper
+│   │   │   └── index.ts
+│   │   ├── routes/             # Express route definitions & endpoint mappings
+│   │   │   ├── accountLedgerRoutes.ts
+│   │   │   ├── clientRoutes.ts
+│   │   │   ├── dashboardRoutes.ts
+│   │   │   ├── doctorRoutes.ts
+│   │   │   ├── financeOverviewRoutes.ts
+│   │   │   ├── inventoryRoutes.ts
+│   │   │   ├── orderRoutes.ts
+│   │   │   ├── paymentRoutes.ts
+│   │   │   ├── rbacRoutes.ts
+│   │   │   ├── salaryRoutes.ts
+│   │   │   ├── staffRoutes.ts
+│   │   │   └── treasuryRoutes.ts
+│   │   ├── services/           # Core business logic layer & Prisma database access
+│   │   │   ├── accountLedgerService.ts
+│   │   │   ├── clientService.ts
+│   │   │   ├── dashboardService.ts
+│   │   │   ├── doctorService.ts
+│   │   │   ├── financeOverviewService.ts
+│   │   │   ├── inventoryService.ts
+│   │   │   ├── orderService.ts
+│   │   │   ├── paymentService.ts
+│   │   │   ├── rbacService.ts
+│   │   │   ├── salaryService.ts
+│   │   │   ├── staffService.ts
+│   │   │   └── treasuryService.ts
+│   │   ├── utils/              # Shared helper functions
+│   │   │   ├── catchAsync.ts   # Async error wrapper for controllers
+│   │   │   ├── response.ts     # Standardized JSON API response helper (`sendResponse`)
+│   │   │   └── validate.ts     # Zod request validation middleware
+│   │   ├── validations/        # Zod validation schemas for request payloads
+│   │   │   ├── accountLedgerValidation.ts
+│   │   │   ├── clientValidation.ts
+│   │   │   ├── doctorValidation.ts
+│   │   │   ├── inventoryValidation.ts
+│   │   │   ├── orderValidation.ts
+│   │   │   ├── paymentValidation.ts
+│   │   │   ├── rbacValidation.ts
+│   │   │   ├── salaryValidation.ts
+│   │   │   ├── staffValidation.ts
+│   │   │   └── treasuryValidation.ts
+│   │   └── server.ts           # Express server setup, CORS, middleware & route registration
+│   ├── .env                    # Environment variables configuration
+│   ├── package.json            # Dependencies and npm scripts
+│   ├── tsconfig.json           # TypeScript configuration
+│   └── vercel.json             # Vercel deployment configuration
 ├── frontend/
-│   ├── app/                # Next.js App Router pages
-│   ├── components/         # React components
-│   ├── lib/                # Utilities
+│   ├── app/                    # Next.js App Router pages
+│   ├── components/             # React components
+│   ├── lib/                    # Utilities & API helpers
 │   └── package.json
 └── README.md
 ```
@@ -151,19 +209,21 @@ pharma-management/
 The backend follows a **layered architecture** pattern:
 
 ```
-Request → Route → Controller → Service → Prisma → Database
-                ↓
-            Response (via sendResponse utility)
+Request → Route → Validation → Controller → Service → Prisma → Database
+                      ↓
+                  Response (via sendResponse utility)
 ```
 
 ### Layers
 
-| Layer | Responsibility | Files |
-|-------|---------------|-------|
-| **Routes** | Define API endpoints, mount controllers | `src/routes/*.ts` |
-| **Controllers** | Handle HTTP requests/responses, validation | `src/controllers/*.ts` |
-| **Services** | Business logic, data transformations | `src/services/*.ts` |
-| **Utils** | Shared helpers (error handling, responses) | `src/utils/*.ts` |
+| Layer | Responsibility | Location |
+|-------|---------------|----------|
+| **Routes** | Define API endpoints, mount controllers & validation middleware | `src/routes/*.ts` |
+| **Validations** | Request body, query, and param validation schemas (Zod) | `src/validations/*.ts` |
+| **Controllers** | Handle HTTP request parsing, call services, return responses | `src/controllers/*.ts` |
+| **Services** | Core business logic, data calculations, Prisma database queries | `src/services/*.ts` |
+| **Errors** | Custom `AppError` class, Zod/Prisma error mappers & global error handler | `src/errors/*.ts` |
+| **Utils** | Shared helpers (`catchAsync`, `sendResponse`, `validate`) | `src/utils/*.ts` |
 
 ### Key Utilities
 

@@ -88,11 +88,6 @@ export const adjustStock = catchAsync(async (req: Request, res: Response) => {
 
 export const deleteBatch = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const count = await inventoryService.deleteBatch(id);
-
-  if (count === 0) {
-    return sendResponse(res, 200, "Record was not in database or already deleted");
-  }
-
-  sendResponse(res, 200, "Inventory batch removed successfully");
+  const deletedBatch = await inventoryService.deleteBatch(id);
+  sendResponse(res, 200, "Inventory batch removed successfully", deletedBatch);
 });
