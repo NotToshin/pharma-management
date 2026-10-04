@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+**/node_modules/
 
 # Build output
 dist/
@@ -9,6 +10,9 @@ build/
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
+!.env.example
 
 # IDE
 .vscode/
@@ -32,13 +36,13 @@ coverage/
 
 # Prisma
 prisma/migrations/.migration_lock.toml
+*.db
+*.sqlite
 
 # TypeScript
 *.tsbuildinfo
 
-# Vercel
+# Vercel & Temp
 .vercel
-
-# Temporary files
 *.tmp
 *.temp
