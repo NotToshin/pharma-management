@@ -1,5 +1,7 @@
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
+import authRoutes from "./routes/authRoutes";
 import doctorRoutes from "./routes/doctorRoutes";
 import staffRoutes from "./routes/staffRoutes";
 import salaryRoutes from "./routes/salaryRoutes";
@@ -27,6 +29,7 @@ app.use(
 );
 app.options("*", cors());
 app.use(express.json());
+app.use(cookieParser());
 
 // --- Vercel Serverless URL Normalizer ---
 app.use((req, res, next) => {
@@ -56,6 +59,14 @@ app.use((req, res, next) => {
 });
 
 // --- Register API Modules ---
+// Authentication & Token Lifecycle
+app.use("/api/auth", authRoutes);
+app.use("/auth", authRoutes);
+
+// RBAC Permissions & Roles Matrix
+app.use("/api/rbac", rbacRoutes);
+
+// Core Modules
 app.use("/api/clients", clientRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/treasury", treasuryRoutes);
@@ -68,12 +79,6 @@ app.use("/api/staff", staffRoutes);
 app.use("/api/salary", salaryRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/expense-vouchers", paymentRoutes);
-
-// Auth & RBAC routes mounted across all potential route paths
-app.use("/api/rbac", rbacRoutes);
-app.use("/api/auth", rbacRoutes);
-app.use("/api", rbacRoutes);   // Handles /api/login
-app.use("/", rbacRoutes);      // Handles /login directly if proxy rewrites strip /api
 
 // Dedicated Health Check Endpoint (Both with and without /api prefix)
 app.get(["/api/health", "/health"], (req: Request, res: Response) => {

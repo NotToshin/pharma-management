@@ -302,8 +302,9 @@ model SystemUser {
   id           String     @id @default(auto()) @map("_id") @db.ObjectId
   name         String
   email        String     @unique
-  passwordHash String
-  territory    String     @default("Dhaka HQ")
+  passwordHash     String
+  refreshTokenHash String?
+  territory        String     @default("Dhaka HQ")
   status       String     @default("Active") // "Active" | "Restricted"
   lastLogin    String     @default("Never logged in")
   roleId       String     @db.ObjectId
