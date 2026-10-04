@@ -1,4 +1,5 @@
 import { PrismaClient, StaffStatus } from "@prisma/client";
+import { AppError } from "../errors";
 
 const prisma = new PrismaClient();
 
@@ -47,13 +48,22 @@ export const staffService = {
     supervisor?: string;
     salary?: number;
   }) {
+    if (!data.empId?.trim()) {
+      throw new AppError("Employee ID is required", 400);
+    }
+
+    const existing = await prisma.staff.findUnique({ where: { empId: data.empId.trim() } });
+    if (existing) {
+      throw new AppError(`Staff member with Employee ID '${data.empId}' already exists`, 400);
+    }
+
     const defaultRole = await getOrCreateRole(data.designation || data.department || "General Staff");
     const numericSalary = Number(data.salary) || 20000;
     const dbStatus = mapStatusToDb(data.employmentStatus);
 
     return prisma.staff.create({
       data: {
-        empId: data.empId,
+        empId: data.empId.trim(),
         fullName: data.fullName,
         phone: data.phone,
         email: data.email || null,
@@ -99,6 +109,11 @@ export const staffService = {
     supervisor?: string;
     status?: string;
   }) {
+    const existing = await prisma.staff.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Staff member not found", 404);
+    }
+
     const resolvedStatus = mapStatusToDb(data.status || data.employmentStatus);
 
     let roleConnect = undefined;
@@ -130,6 +145,10 @@ export const staffService = {
   },
 
   async deleteStaff(id: string) {
+    const existing = await prisma.staff.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Staff member not found", 404);
+    }
     return prisma.staff.delete({ where: { id } });
   },
 };

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { AppError } from "../errors";
 
 const prisma = new PrismaClient();
 
@@ -81,6 +82,11 @@ export const inventoryService = {
     warehouseBin?: string;
     storageCondition?: string;
   }) {
+    const existing = await prisma.inventoryBatch.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Batch not found", 404);
+    }
+
     const updateData: Record<string, any> = {};
     if (data.brandName !== undefined) updateData.brandName = data.brandName.trim();
     if (data.genericName !== undefined) updateData.genericName = data.genericName.trim();
@@ -102,7 +108,7 @@ export const inventoryService = {
   async adjustStock(id: string, type: "IN" | "OUT", quantity: number) {
     const currentBatch = await prisma.inventoryBatch.findUnique({ where: { id } });
     if (!currentBatch) {
-      throw new Error("Batch not found");
+      throw new AppError("Batch not found", 404);
     }
 
     const newUnits = type === "IN"
@@ -116,10 +122,15 @@ export const inventoryService = {
   },
 
   async deleteBatch(id: string) {
-    const result = await prisma.inventoryBatch.deleteMany({
+    const existing = await prisma.inventoryBatch.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Batch not found", 404);
+    }
+
+    const result = await prisma.inventoryBatch.delete({
       where: { id },
     });
-    return result.count;
+    return result;
   },
 
   async findBatchesByMedicineName(medicineName: string) {
@@ -137,10 +148,10 @@ export const inventoryService = {
 
   async deductStock(batchId: string, deductUnits: number) {
     const batch = await prisma.inventoryBatch.findUnique({ where: { id: batchId } });
-    if (!batch) throw new Error("Batch not found");
+    if (!batch) throw new AppError("Batch not found", 404);
 
     const remainingUnits = batch.availableUnits - deductUnits;
-    if (remainingUnits < 0) throw new Error("Insufficient stock");
+    if (remainingUnits < 0) throw new AppError("Insufficient stock", 400);
 
     return prisma.inventoryBatch.update({
       where: { id: batchId },

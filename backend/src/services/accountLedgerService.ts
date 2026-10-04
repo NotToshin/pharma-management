@@ -1,4 +1,5 @@
 import { PrismaClient, AccountCategory } from "@prisma/client";
+import { AppError } from "../errors";
 
 const prisma = new PrismaClient();
 
@@ -64,6 +65,11 @@ export const accountLedgerService = {
     accountClass?: string;
     balance?: number;
   }) {
+    const existing = await prisma.financialAccount.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Account not found", 404);
+    }
+
     const updateData: Record<string, any> = {};
     if (data.accountTitle !== undefined) updateData.accountTitle = data.accountTitle.trim();
     if (data.category !== undefined) updateData.category = data.category;
@@ -80,6 +86,11 @@ export const accountLedgerService = {
   },
 
   async deleteAccount(id: string) {
+    const existing = await prisma.financialAccount.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Account not found", 404);
+    }
+
     const attachedTxCount = await prisma.journalTransaction.count({
       where: {
         OR: [{ sourceAccountId: id }, { destinationAccountId: id }],
@@ -87,7 +98,7 @@ export const accountLedgerService = {
     });
 
     if (attachedTxCount > 0) {
-      throw new Error(`Cannot delete account. There are ${attachedTxCount} journal transaction(s) associated with it.`);
+      throw new AppError(`Cannot delete account. There are ${attachedTxCount} journal transaction(s) associated with it.`, 400);
     }
 
     return prisma.financialAccount.delete({ where: { id } });
@@ -106,7 +117,7 @@ export const accountLedgerService = {
   async createTransaction(data: TransactionInput) {
     const numAmount = Number(data.amount);
     if (!numAmount || numAmount <= 0) {
-      throw new Error("Valid transaction amount is required");
+      throw new AppError("Valid transaction amount is required", 400);
     }
 
     const refCode = await generateRefCode();
@@ -157,7 +168,7 @@ export const accountLedgerService = {
   async deleteTransaction(id: string) {
     const existing = await prisma.journalTransaction.findUnique({ where: { id } });
     if (!existing) {
-      throw new Error("Transaction not found");
+      throw new AppError("Transaction not found", 404);
     }
 
     const numAmount = Number(existing.amount);

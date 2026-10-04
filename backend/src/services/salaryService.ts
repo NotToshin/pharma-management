@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { AppError } from "../errors";
 
 const prisma = new PrismaClient();
 
@@ -75,7 +76,7 @@ export const salaryService = {
   async upsertSalary(data: SalaryInput) {
     const staffMember = await prisma.staff.findUnique({ where: { empId: data.empId } });
     if (!staffMember) {
-      throw new Error("Staff member not found");
+      throw new AppError("Staff member not found", 404);
     }
 
     const calculated = calculateNetPay(data);
@@ -103,6 +104,11 @@ export const salaryService = {
   },
 
   async updateSalary(id: string, data: SalaryUpdateInput) {
+    const existing = await prisma.salary.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Salary record not found", 404);
+    }
+
     const calculated = calculateNetPay(data as SalaryInput);
 
     return prisma.salary.update({
@@ -115,6 +121,10 @@ export const salaryService = {
   },
 
   async deleteSalary(id: string) {
+    const existing = await prisma.salary.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Salary record not found", 404);
+    }
     return prisma.salary.delete({ where: { id } });
   },
 };

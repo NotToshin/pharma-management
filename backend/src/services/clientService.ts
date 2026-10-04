@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { AppError } from "../errors";
 
 const prisma = new PrismaClient();
 
@@ -33,15 +34,22 @@ export const clientService = {
     status?: string;
     lastBilledDate?: string;
   }) {
+    if (!data.pharmacyName?.trim()) {
+      throw new AppError("Pharmacy name is required", 400);
+    }
+    if (!data.phone?.trim()) {
+      throw new AppError("Phone number is required", 400);
+    }
+
     return prisma.client.create({
       data: {
         clientCode: data.clientCode || generateClientCode(),
-        pharmacyName: data.pharmacyName,
-        proprietor: data.proprietor || "N/A",
-        phone: data.phone,
-        drugLicenseNo: data.drugLicenseNo || "N/A",
-        tradeLicenseNo: data.tradeLicenseNo || "N/A",
-        address: data.address || "N/A",
+        pharmacyName: data.pharmacyName.trim(),
+        proprietor: data.proprietor?.trim() || "N/A",
+        phone: data.phone.trim(),
+        drugLicenseNo: data.drugLicenseNo?.trim() || "N/A",
+        tradeLicenseNo: data.tradeLicenseNo?.trim() || "N/A",
+        address: data.address?.trim() || "N/A",
         territory: data.territory || "Dhaka North",
         assignedMio: data.assignedMio || "Unassigned",
         creditLimitBDT: Number(data.creditLimitBDT) || 150000,
@@ -69,6 +77,11 @@ export const clientService = {
     status?: string;
     lastBilledDate?: string;
   }) {
+    const existing = await prisma.client.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Client not found", 404);
+    }
+
     const updateData: Record<string, any> = {};
     if (data.clientCode !== undefined) updateData.clientCode = data.clientCode;
     if (data.pharmacyName !== undefined) updateData.pharmacyName = data.pharmacyName;
@@ -92,6 +105,10 @@ export const clientService = {
   },
 
   async deleteClient(id: string) {
+    const existing = await prisma.client.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Client not found", 404);
+    }
     return prisma.client.delete({ where: { id } });
   },
 };

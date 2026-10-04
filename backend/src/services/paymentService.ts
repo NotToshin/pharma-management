@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { AppError } from "../errors";
 
 const prisma = new PrismaClient();
 
@@ -54,16 +55,24 @@ export const paymentService = {
     paymentDate?: string;
     notes?: string;
   }) {
+    if (!data.payeeName?.trim()) {
+      throw new AppError("Payee name is required", 400);
+    }
+    const numAmount = Number(data.amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      throw new AppError("Valid voucher amount is required", 400);
+    }
+
     const finalVoucherNo = data.voucherNo?.trim() ? data.voucherNo : await generateNextVoucherCode();
 
     return prisma.expenseVoucher.create({
       data: {
         voucherNo: finalVoucherNo,
-        payeeName: data.payeeName,
+        payeeName: data.payeeName.trim(),
         category: data.category || "General Operating Expense",
         fundingSource: data.fundingSource || "Cash Safe",
         sourceDetail: data.sourceDetail || "Head Office Cash Safe",
-        amount: Number(data.amount) || 0,
+        amount: numAmount,
         paymentDate: formatDate(data.paymentDate),
         notes: data.notes || "",
       },
@@ -80,6 +89,11 @@ export const paymentService = {
     paymentDate?: string;
     notes?: string;
   }) {
+    const existing = await prisma.expenseVoucher.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Expense voucher not found", 404);
+    }
+
     const updateData: Record<string, any> = {};
     if (data.voucherNo !== undefined) updateData.voucherNo = data.voucherNo;
     if (data.payeeName !== undefined) updateData.payeeName = data.payeeName;
@@ -97,6 +111,10 @@ export const paymentService = {
   },
 
   async deleteVoucher(id: string) {
+    const existing = await prisma.expenseVoucher.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Expense voucher not found", 404);
+    }
     return prisma.expenseVoucher.delete({ where: { id } });
   },
 };

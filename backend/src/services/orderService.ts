@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { AppError } from "../errors";
 
 const prisma = new PrismaClient();
 
@@ -37,6 +38,10 @@ export const orderService = {
     challanNumber?: string;
     invoiceNumber?: string;
   }) {
+    if (!data.pharmacyName?.trim()) {
+      throw new AppError("Pharmacy name is required", 400);
+    }
+
     return prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
         data: {
@@ -45,7 +50,7 @@ export const orderService = {
           pharmacyName: data.pharmacyName,
           territory: data.territory || "Dhaka North",
           assignedMio: data.assignedMio || "General MIO",
-          itemsSummary: data.itemsSummary,
+          itemsSummary: data.itemsSummary || "Pharmaceutical Products",
           totalBoxes: Number(data.totalBoxes) || 1,
           orderValue: Number(data.orderValue) || 0,
           deliveryMethod: data.deliveryMethod || "Sales Representative",
@@ -94,6 +99,11 @@ export const orderService = {
   },
 
   async updateOrderStatus(id: string, status: string) {
+    const existing = await prisma.order.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Order not found", 404);
+    }
+
     const isDelivered = status === "Delivered & Invoiced";
     const invoiceNum = isDelivered ? `INV-2026-${Math.floor(9020 + Math.random() * 80)}` : undefined;
 
@@ -107,6 +117,10 @@ export const orderService = {
   },
 
   async deleteOrder(id: string) {
+    const existing = await prisma.order.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError("Order not found", 404);
+    }
     return prisma.order.delete({ where: { id } });
   },
 };

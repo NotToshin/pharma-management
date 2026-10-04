@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { AppError } from "../errors";
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "ak_pharma_secure_jwt_secret_2026";
@@ -140,6 +141,11 @@ export const rbacService = {
   },
 
   async updateRolePermissions(id: string, permissions: any[]) {
+    const role = await prisma.systemRole.findUnique({ where: { id } });
+    if (!role) {
+      throw new AppError("System role not found", 404);
+    }
+
     await prisma.$transaction(async (tx) => {
       for (const p of permissions) {
         await tx.rolePermission.upsert({
@@ -203,12 +209,12 @@ export const rbacService = {
 
     const existing = await prisma.systemUser.findUnique({ where: { email: cleanEmail } });
     if (existing) {
-      throw new Error("An operator with this email is already provisioned.");
+      throw new AppError("An operator with this email is already provisioned.", 400);
     }
 
     const role = await prisma.systemRole.findUnique({ where: { code: roleCode } });
     if (!role) {
-      throw new Error(`Specified role '${roleCode}' does not exist.`);
+      throw new AppError(`Specified role '${roleCode}' does not exist.`, 404);
     }
 
     const salt = await bcrypt.genSalt(12);
@@ -242,14 +248,18 @@ export const rbacService = {
   },
 
   async deleteUser(id: string) {
-    await prisma.systemUser.deleteMany({ where: { id } });
+    const user = await prisma.systemUser.findUnique({ where: { id } });
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
+    await prisma.systemUser.delete({ where: { id } });
     return { message: "Operator deleted successfully" };
   },
 
   async toggleUserStatus(id: string) {
     const user = await prisma.systemUser.findUnique({ where: { id } });
     if (!user) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
 
     const nextStatus = user.status === "Active" ? "Restricted" : "Active";
@@ -281,16 +291,16 @@ export const rbacService = {
     });
 
     if (!user) {
-      throw new Error("Invalid credentials. Contact IT for access.");
+      throw new AppError("Invalid credentials. Contact IT for access.", 401);
     }
 
     if (user.status === "Restricted") {
-      throw new Error("This operator account is currently restricted. Contact management.");
+      throw new AppError("This operator account is currently restricted. Contact management.", 403);
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      throw new Error("Invalid credentials. Contact IT for access.");
+      throw new AppError("Invalid credentials. Contact IT for access.", 401);
     }
 
     const nowStr = new Date().toLocaleString("en-GB", {
