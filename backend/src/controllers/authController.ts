@@ -13,26 +13,32 @@ export const login = catchAsync(async (req: Request, res: Response) => {
 
   const result = await authService.login(email, password);
 
-  // Set tokens as secure, HttpOnly cookies - NEVER in the response body
+  // Set tokens as secure cookies
   res.cookie("accessToken", result.accessToken, getAccessTokenCookieOptions());
   res.cookie("refreshToken", result.refreshToken, getRefreshTokenCookieOptions());
 
   sendResponse(res, 200, "Login successful", {
     user: result.user,
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
+    token: result.accessToken,
   });
 });
 
 export const refreshToken = catchAsync(async (req: Request, res: Response) => {
-  const incomingRefreshToken = req.cookies?.refreshToken;
+  const incomingRefreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
   const result = await authService.refreshToken(incomingRefreshToken);
 
-  // Rotate tokens: set new access and refresh token in HttpOnly cookies
+  // Rotate tokens: set new access and refresh token in cookies
   res.cookie("accessToken", result.accessToken, getAccessTokenCookieOptions());
   res.cookie("refreshToken", result.refreshToken, getRefreshTokenCookieOptions());
 
   sendResponse(res, 200, "Token refreshed successfully", {
     user: result.user,
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
+    token: result.accessToken,
   });
 });
 

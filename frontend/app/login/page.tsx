@@ -1,195 +1,274 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { AlertCircle, Loader2 } from "lucide-react";
+import * as React from "react"
+import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { AlertCircle, CheckCircle2, Loader2, Lock } from "lucide-react"
+import { setAuthSession } from "@/lib/auth"
 
-export default function LoginPage() {
-  const router = useRouter();
+function LoginForm() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
-  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const fromUrl = searchParams.get("from")
+  const isExpired = searchParams.get("expired") === "1"
+
+  const [email, setEmail] = React.useState("")
+  const [password, setPassword] = React.useState("")
+  const [loading, setLoading] = React.useState(false)
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = React.useState<string | null>(
+    null
+  )
 
   // If NEXT_PUBLIC_API_URL is set, use it; otherwise use relative "/api" on Vercel
   const getApiUrl = () => {
     if (process.env.NEXT_PUBLIC_API_URL) {
-      return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+      return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")
     }
     if (typeof window !== "undefined") {
-      // If running on local development (localhost), talk to port 5000
-      if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-        return "http://localhost:5000/api";
+      if (
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1"
+      ) {
+        return "http://localhost:5000/api"
       }
-      // On production Vercel, use relative path to route through Vercel's rewrite
-      return "/api";
+      return "/api"
     }
-    return "/api";
-  };
+    return "/api"
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
+    e.preventDefault()
+    setErrorMessage(null)
+    setSuccessMessage(null)
 
     if (!email.trim() || !password) {
-      setErrorMessage("Please enter both email and password.");
-      return;
+      setErrorMessage("Please enter both email and password.")
+      return
     }
 
     try {
-      setLoading(true);
+      setLoading(true)
 
-      const API_URL = getApiUrl();
+      const API_URL = getApiUrl()
       const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           password,
         }),
-      });
+      })
 
-      const data = await res.json().catch(() => null);
+      const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        setErrorMessage(data?.error || "Authentication failed. Please verify credentials.");
-        return;
+        const errorText =
+          data?.message ||
+          data?.error ||
+          "Authentication failed. Please verify credentials."
+        setErrorMessage(errorText)
+        return
       }
 
       if (!data) {
-        setErrorMessage("Invalid response from server. Please check backend deployment.");
-        return;
+        setErrorMessage(
+          "Invalid response from server. Please check backend deployment."
+        )
+        return
       }
 
-      // Store security credentials across all standard storage keys
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("ak_token", data.token);
-      }
-      if (data.user) {
-        localStorage.setItem("user", JSON.stringify(data.user));
-        localStorage.setItem("ak_user", JSON.stringify(data.user));
+      const payload = data.data || data
+      const accessToken =
+        payload.accessToken || payload.token || data.accessToken || data.token
+      const refreshToken = payload.refreshToken || data.refreshToken
+      const user = payload.user || data.user
+
+      if (!accessToken) {
+        setErrorMessage(
+          "Session token was not received. Please verify server response."
+        )
+        return
       }
 
-      // Redirect directly to Command Center
-      router.push("/dashboard");
-      router.refresh();
+      // Store access token in cookies and sync localStorage
+      setAuthSession({
+        accessToken,
+        refreshToken,
+        user,
+      })
+
+      setSuccessMessage("Session verified. Redirecting...")
+
+      // Target redirect destination
+      const targetDestination =
+        fromUrl && fromUrl.startsWith("/") && !fromUrl.startsWith("//")
+          ? fromUrl
+          : "/dashboard"
+
+      router.push(targetDestination)
+      router.refresh()
     } catch (err: any) {
-      console.error("Login request failed:", err);
+      console.error("Login request failed:", err)
       setErrorMessage(
         `Unable to reach authentication server at ${getApiUrl()}. Please check backend service.`
-      );
+      )
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen w-full bg-white flex flex-col justify-between items-center py-12 px-4 selection:bg-slate-900 selection:text-white">
-      <div className="w-full" />
-
-      {/* Main Container */}
-      <div className="w-full max-w-[440px] flex flex-col items-center">
-        {/* AK Pharma Brand Header */}
-        <div className="flex items-center gap-2 mb-6">
-          <div className="h-7 w-7 rounded-md bg-black flex items-center justify-center text-white">
-            <span className="font-bold text-[11px] tracking-tighter">AK</span>
-          </div>
-          <span className="text-sm font-bold tracking-tight text-slate-900">
-            AK Pharma
-          </span>
+    <div className="flex w-full max-w-[440px] flex-col items-center">
+      {/* AK Pharma Brand Header */}
+      <div className="mb-6 flex items-center gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-black text-white">
+          <span className="text-[11px] font-bold tracking-tighter">AK</span>
         </div>
-
-        {/* Card Component */}
-        <div className="w-full bg-white border border-slate-200/90 rounded-2xl p-8 shadow-sm">
-          <div className="space-y-1 mb-6">
-            <h1 className="text-xl font-bold tracking-tight text-slate-950">
-              Login to your account
-            </h1>
-            <p className="text-xs text-slate-500">
-              Enter your email below to login to your account
-            </p>
-          </div>
-
-          {errorMessage && (
-            <div className="mb-5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 animate-in fade-in duration-200">
-              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-1.5 text-left">
-              <Label htmlFor="email" className="text-xs font-semibold text-slate-900">
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-                autoComplete="email"
-                className="h-10 text-xs border-slate-200 focus-visible:ring-1 focus-visible:ring-slate-950 rounded-lg placeholder:text-slate-400"
-              />
-            </div>
-
-            <div className="space-y-1.5 text-left">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-xs font-semibold text-slate-900">
-                  Password
-                </Label>
-                <button
-                  type="button"
-                  onClick={() => alert("Please contact your System Administrator to reset your security credentials.")}
-                  className="text-xs text-slate-500 hover:text-slate-900 transition-colors"
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-                autoComplete="current-password"
-                className="h-10 text-xs border-slate-200 focus-visible:ring-1 focus-visible:ring-slate-950 rounded-lg"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full h-10 mt-2 bg-[#18181B] hover:bg-black text-white text-xs font-semibold rounded-lg shadow-none transition-all flex items-center justify-center gap-2"
-            >
-              {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {loading ? "Authenticating..." : "Login"}
-            </Button>
-          </form>
-        </div>
+        <span className="text-sm font-bold tracking-tight text-slate-900">
+          AK Pharma ERP
+        </span>
       </div>
 
+      {/* Card Component */}
+      <div className="w-full rounded-2xl border border-slate-200/90 bg-white p-8 shadow-sm">
+        <div className="mb-6 space-y-1">
+          <h1 className="text-xl font-bold tracking-tight text-slate-950">
+            Login to your account
+          </h1>
+          <p className="text-xs text-slate-500">
+            Enter your enterprise credentials below to access the command center
+          </p>
+        </div>
+
+        {isExpired && !errorMessage && (
+          <div className="mb-5 flex animate-in items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 duration-200 fade-in">
+            <Lock className="h-4 w-4 shrink-0 text-amber-600" />
+            <span>
+              Your session has expired. Please sign in again to continue.
+            </span>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="mb-5 flex animate-in items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 duration-200 fade-in">
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mb-5 flex animate-in items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700 duration-200 fade-in">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="space-y-1.5 text-left">
+            <Label
+              htmlFor="email"
+              className="text-xs font-semibold text-slate-900"
+            >
+              Email Address
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="operator@akpharma.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+              autoComplete="email"
+              className="h-10 rounded-lg border-slate-200 text-xs placeholder:text-slate-400 focus-visible:ring-1 focus-visible:ring-slate-950"
+            />
+          </div>
+
+          <div className="space-y-1.5 text-left">
+            <div className="flex items-center justify-between">
+              <Label
+                htmlFor="password"
+                className="text-xs font-semibold text-slate-900"
+              >
+                Password
+              </Label>
+              <button
+                type="button"
+                onClick={() =>
+                  alert(
+                    "Please contact your System Administrator to reset your security credentials."
+                  )
+                }
+                className="text-xs text-slate-500 transition-colors hover:text-slate-900"
+              >
+                Forgot password?
+              </button>
+            </div>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={loading}
+              autoComplete="current-password"
+              className="h-10 rounded-lg border-slate-200 text-xs focus-visible:ring-1 focus-visible:ring-slate-950"
+            />
+          </div>
+
+          <Button
+            type="submit"
+            disabled={loading}
+            className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#18181B] text-xs font-semibold text-white shadow-none transition-all hover:bg-black"
+          >
+            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {loading ? "Authenticating..." : "Sign In"}
+          </Button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <div className="flex min-h-screen w-full flex-col items-center justify-between bg-[#FAFAFA] px-4 py-12 selection:bg-slate-900 selection:text-white">
+      <div className="w-full" />
+
+      <React.Suspense
+        fallback={
+          <div className="flex items-center justify-center p-8 font-mono text-xs text-slate-400">
+            Loading login portal...
+          </div>
+        }
+      >
+        <LoginForm />
+      </React.Suspense>
+
       {/* Footer */}
-      <div className="text-center text-[11px] text-slate-500 leading-relaxed max-w-sm mt-8">
-        By clicking continue, you agree to our{" "}
-        <Link href="#" className="underline underline-offset-4 hover:text-slate-900">
+      <div className="mt-8 max-w-sm text-center text-[11px] leading-relaxed text-slate-500">
+        By clicking continue, you agree to AK Pharma{" "}
+        <Link
+          href="#"
+          className="underline underline-offset-4 hover:text-slate-900"
+        >
           Terms of Service
         </Link>{" "}
         and{" "}
-        <Link href="#" className="underline underline-offset-4 hover:text-slate-900">
-          Privacy Policy
+        <Link
+          href="#"
+          className="underline underline-offset-4 hover:text-slate-900"
+        >
+          Statutory Compliance Policy
         </Link>
         .
       </div>
     </div>
-  );
+  )
 }

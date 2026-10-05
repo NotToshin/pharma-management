@@ -1,14 +1,9 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import * as React from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -16,7 +11,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui/table"
 import {
   Dialog,
   DialogContent,
@@ -24,7 +19,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog"
 import {
   CheckCircle2,
   XCircle,
@@ -36,21 +31,21 @@ import {
   Store,
   User,
   AlertCircle,
-} from "lucide-react";
+} from "lucide-react"
 
 interface PendingTP {
-  id: string;
-  tpCode: string;
-  mioName: string;
-  territory: string;
-  submissionDate: string;
-  scheduledDate: string;
-  doctorsCount: number;
-  pharmaciesCount: number;
-  routeSummary: string;
-  doctorList: string[];
-  notes: string;
-  status: "Pending" | "Approved" | "Rejected";
+  id: string
+  tpCode: string
+  mioName: string
+  territory: string
+  submissionDate: string
+  scheduledDate: string
+  doctorsCount: number
+  pharmaciesCount: number
+  routeSummary: string
+  doctorList: string[]
+  notes: string
+  status: "Pending" | "Approved" | "Rejected"
 }
 
 const initialQueue: PendingTP[] = [
@@ -126,133 +121,167 @@ const initialQueue: PendingTP[] = [
     notes: "Recovery route to improve quota realization in lagging territory.",
     status: "Pending",
   },
-];
+]
 
 export default function PendingApprovalsPage() {
-  const [queue, setQueue] = React.useState<PendingTP[]>(initialQueue);
-  const [selectedTP, setSelectedTP] = React.useState<PendingTP | null>(null);
-  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false);
+  const [queue, setQueue] = React.useState<PendingTP[]>(initialQueue)
+  const [selectedTP, setSelectedTP] = React.useState<PendingTP | null>(null)
+  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false)
 
   const handleAction = (id: string, newStatus: "Approved" | "Rejected") => {
     setQueue((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item))
-    );
+      prev.map((item) =>
+        item.id === id ? { ...item, status: newStatus } : item
+      )
+    )
     if (selectedTP && selectedTP.id === id) {
-      setIsDetailsOpen(false);
+      setIsDetailsOpen(false)
     }
-  };
+  }
 
-  const pendingItems = queue.filter((item) => item.status === "Pending");
-  const approvedToday = queue.filter((item) => item.status === "Approved").length;
-  const rejectedToday = queue.filter((item) => item.status === "Rejected").length;
+  const pendingItems = queue.filter((item) => item.status === "Pending")
+  const approvedToday = queue.filter(
+    (item) => item.status === "Approved"
+  ).length
+  const rejectedToday = queue.filter(
+    (item) => item.status === "Rejected"
+  ).length
 
   return (
-    <div className="space-y-6 max-w-[1360px] mx-auto pb-10">
+    <div className="mx-auto max-w-[1360px] space-y-6 pb-10">
       {/* 1. Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
             Pending Tour Programme Approvals
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Review, validate route itineraries, and authorize field officer movements.
+          <p className="mt-0.5 text-xs text-slate-500">
+            Review, validate route itineraries, and authorize field officer
+            movements.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs font-semibold text-slate-800 bg-white border-slate-200 px-3 py-1 rounded-lg">
-            <Clock4 className="h-3.5 w-3.5 mr-1.5 inline text-amber-500" />
+          <Badge
+            variant="outline"
+            className="rounded-lg border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-800"
+          >
+            <Clock4 className="mr-1.5 inline h-3.5 w-3.5 text-amber-500" />
             {pendingItems.length} Awaiting Authorization
           </Badge>
         </div>
       </div>
 
       {/* 2. Top Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">In Review Queue</span>
-            <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600">
+            <span className="text-xs font-medium text-slate-500">
+              In Review Queue
+            </span>
+            <div className="rounded-lg bg-amber-50 p-1.5 text-amber-600">
               <Clock4 className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none">
+          <div className="mt-3 text-[28px] leading-none font-bold tracking-tight text-slate-900">
             {pendingItems.length}
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">
+          <p className="mt-3 text-[11px] text-slate-400">
             Requires Area Manager sign-off
           </p>
         </Card>
 
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
+        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Authorized This Session</span>
-            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+            <span className="text-xs font-medium text-slate-500">
+              Authorized This Session
+            </span>
+            <div className="rounded-lg bg-emerald-50 p-1.5 text-emerald-600">
               <CheckCircle2 className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none">
+          <div className="mt-3 text-[28px] leading-none font-bold tracking-tight text-slate-900">
             {approvedToday}
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">
+          <p className="mt-3 text-[11px] text-slate-400">
             Ready for execution by field officers
           </p>
         </Card>
 
-        <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-5">
+        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Returned / Rejected</span>
-            <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600">
+            <span className="text-xs font-medium text-slate-500">
+              Returned / Rejected
+            </span>
+            <div className="rounded-lg bg-rose-50 p-1.5 text-rose-600">
               <XCircle className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900 leading-none">
+          <div className="mt-3 text-[28px] leading-none font-bold tracking-tight text-slate-900">
             {rejectedToday}
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">
+          <p className="mt-3 text-[11px] text-slate-400">
             Returned for route correction
           </p>
         </Card>
       </div>
 
       {/* 3. Pending Queue Table */}
-      <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6">
-        <div className="flex items-center justify-between mb-4">
+      <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
+        <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
               Actionable Review Roster
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Inspect submitted doctor visit paths before authorizing sample distribution
+            <p className="mt-0.5 text-xs text-slate-400">
+              Inspect submitted doctor visit paths before authorizing sample
+              distribution
             </p>
           </div>
-          <span className="text-xs text-slate-400 font-medium">
+          <span className="text-xs font-medium text-slate-400">
             {pendingItems.length} Pending Actions
           </span>
         </div>
 
         <Table>
           <TableHeader>
-            <TableRow className="border-b border-slate-100 hover:bg-transparent text-xs text-slate-600">
-              <TableHead className="text-xs font-medium text-slate-600 pl-0">TP Code</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">MIO Officer</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Territory</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Target Date</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Route Waypoints</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-center">Docs / Stores</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600 text-right pr-0">Quick Decisions</TableHead>
+            <TableRow className="border-b border-slate-100 text-xs text-slate-600 hover:bg-transparent">
+              <TableHead className="pl-0 text-xs font-medium text-slate-600">
+                TP Code
+              </TableHead>
+              <TableHead className="text-xs font-medium text-slate-600">
+                MIO Officer
+              </TableHead>
+              <TableHead className="text-xs font-medium text-slate-600">
+                Territory
+              </TableHead>
+              <TableHead className="text-xs font-medium text-slate-600">
+                Target Date
+              </TableHead>
+              <TableHead className="text-xs font-medium text-slate-600">
+                Route Waypoints
+              </TableHead>
+              <TableHead className="text-center text-xs font-medium text-slate-600">
+                Docs / Stores
+              </TableHead>
+              <TableHead className="pr-0 text-right text-xs font-medium text-slate-600">
+                Quick Decisions
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {queue.map((item) => (
-              <TableRow key={item.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                <TableCell className="py-3 text-xs font-mono font-semibold text-[#0090FF] pl-0">
+              <TableRow
+                key={item.id}
+                className="border-b border-slate-50 hover:bg-slate-50/50"
+              >
+                <TableCell className="py-3 pl-0 font-mono text-xs font-semibold text-[#0090FF]">
                   <button
                     onClick={() => {
-                      setSelectedTP(item);
-                      setIsDetailsOpen(true);
+                      setSelectedTP(item)
+                      setIsDetailsOpen(true)
                     }}
-                    className="hover:underline text-left"
+                    className="text-left hover:underline"
                   >
                     {item.tpCode}
                   </button>
@@ -269,30 +298,30 @@ export default function PendingApprovalsPage() {
                 <TableCell className="py-3 text-xs text-slate-600">
                   {item.scheduledDate}
                 </TableCell>
-                <TableCell className="py-3 text-xs text-slate-600 max-w-[240px] truncate">
+                <TableCell className="max-w-[240px] truncate py-3 text-xs text-slate-600">
                   {item.routeSummary}
                 </TableCell>
-                <TableCell className="py-3 text-xs text-center font-medium text-slate-700">
+                <TableCell className="py-3 text-center text-xs font-medium text-slate-700">
                   {item.doctorsCount} / {item.pharmaciesCount}
                 </TableCell>
-                <TableCell className="py-3 text-xs text-right pr-0">
+                <TableCell className="py-3 pr-0 text-right text-xs">
                   {item.status === "Pending" ? (
                     <div className="flex items-center justify-end gap-1.5">
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          setSelectedTP(item);
-                          setIsDetailsOpen(true);
+                          setSelectedTP(item)
+                          setIsDetailsOpen(true)
                         }}
-                        className="h-7 px-2.5 text-[11px] font-medium border-slate-200 hover:bg-slate-50"
+                        className="h-7 border-slate-200 px-2.5 text-[11px] font-medium hover:bg-slate-50"
                       >
                         Details
                       </Button>
                       <Button
                         size="sm"
                         onClick={() => handleAction(item.id, "Approved")}
-                        className="h-7 px-2.5 text-[11px] font-medium bg-emerald-600 hover:bg-emerald-700 text-white shadow-none"
+                        className="h-7 bg-emerald-600 px-2.5 text-[11px] font-medium text-white shadow-none hover:bg-emerald-700"
                       >
                         Approve
                       </Button>
@@ -308,10 +337,10 @@ export default function PendingApprovalsPage() {
                   ) : (
                     <Badge
                       variant="outline"
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                         item.status === "Approved"
-                          ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                          : "text-rose-700 bg-rose-50 border-rose-200"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-rose-200 bg-rose-50 text-rose-700"
                       }`}
                     >
                       {item.status}
@@ -326,7 +355,7 @@ export default function PendingApprovalsPage() {
 
       {/* 4. Details & Inspection Modal */}
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="sm:max-w-[520px] bg-white rounded-xl">
+        <DialogContent className="rounded-xl bg-white sm:max-w-[520px]">
           {selectedTP && (
             <>
               <DialogHeader>
@@ -339,47 +368,63 @@ export default function PendingApprovalsPage() {
                   </span>
                 </div>
                 <DialogDescription className="text-xs text-slate-500">
-                  Submitted on {selectedTP.submissionDate} by {selectedTP.mioName}
+                  Submitted on {selectedTP.submissionDate} by{" "}
+                  {selectedTP.mioName}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 py-2 text-xs">
                 {/* Territory & Schedule */}
-                <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                <div className="grid grid-cols-2 gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">Territory</span>
-                    <span className="font-semibold text-slate-800">{selectedTP.territory}</span>
+                    <span className="block text-[10px] font-semibold text-slate-400 uppercase">
+                      Territory
+                    </span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedTP.territory}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">Scheduled Date</span>
-                    <span className="font-semibold text-slate-800">{selectedTP.scheduledDate}</span>
+                    <span className="block text-[10px] font-semibold text-slate-400 uppercase">
+                      Scheduled Date
+                    </span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedTP.scheduledDate}
+                    </span>
                   </div>
                 </div>
 
                 {/* Route */}
                 <div>
-                  <span className="text-slate-500 block text-[11px] font-semibold mb-1">Planned Route Waypoints</span>
-                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-700">
+                  <span className="mb-1 block text-[11px] font-semibold text-slate-500">
+                    Planned Route Waypoints
+                  </span>
+                  <div className="rounded-lg border border-slate-200 bg-white p-2.5 text-slate-700">
                     {selectedTP.routeSummary}
                   </div>
                 </div>
 
                 {/* Targeted Doctors */}
                 <div>
-                  <span className="text-slate-500 block text-[11px] font-semibold mb-1.5 flex items-center gap-1.5">
+                  <span className="mb-1.5 block flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
                     <Stethoscope className="h-3.5 w-3.5 text-slate-400" />
                     Targeted Medical Practitioners ({selectedTP.doctorsCount})
                   </span>
                   <ul className="space-y-1 pl-1">
                     {selectedTP.doctorList.map((doc, idx) => (
-                      <li key={idx} className="text-slate-700 flex items-center gap-2">
+                      <li
+                        key={idx}
+                        className="flex items-center gap-2 text-slate-700"
+                      >
                         <span className="h-1.5 w-1.5 rounded-full bg-[#0090FF]" />
                         <span>{doc}</span>
                       </li>
                     ))}
                     {selectedTP.doctorsCount > selectedTP.doctorList.length && (
-                      <li className="text-slate-400 italic text-[11px] pt-0.5">
-                        + {selectedTP.doctorsCount - selectedTP.doctorList.length} additional listed doctors
+                      <li className="pt-0.5 text-[11px] text-slate-400 italic">
+                        +{" "}
+                        {selectedTP.doctorsCount - selectedTP.doctorList.length}{" "}
+                        additional listed doctors
                       </li>
                     )}
                   </ul>
@@ -387,8 +432,10 @@ export default function PendingApprovalsPage() {
 
                 {/* Officer Notes */}
                 <div>
-                  <span className="text-slate-500 block text-[11px] font-semibold mb-1">Objective / Strategy</span>
-                  <p className="p-2.5 rounded-lg bg-slate-50 text-slate-600 border border-slate-100 italic">
+                  <span className="mb-1 block text-[11px] font-semibold text-slate-500">
+                    Objective / Strategy
+                  </span>
+                  <p className="rounded-lg border border-slate-100 bg-slate-50 p-2.5 text-slate-600 italic">
                     "{selectedTP.notes}"
                   </p>
                 </div>
@@ -416,7 +463,7 @@ export default function PendingApprovalsPage() {
                     <Button
                       size="sm"
                       onClick={() => handleAction(selectedTP.id, "Approved")}
-                      className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
                     >
                       Approve Tour
                     </Button>
@@ -428,5 +475,5 @@ export default function PendingApprovalsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
+  )
 }
