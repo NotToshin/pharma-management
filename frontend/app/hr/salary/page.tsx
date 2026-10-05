@@ -1,18 +1,18 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import * as React from "react"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog"
 import {
   Table,
   TableBody,
@@ -29,8 +29,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+} from "@/components/ui/table"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Printer,
   Pencil,
@@ -42,7 +42,7 @@ import {
   CreditCard,
   Building2,
   Loader2,
-} from "lucide-react";
+} from "lucide-react"
 
 const PRINT_STYLES = `
 @page { size: A4; margin: 12mm; }
@@ -55,70 +55,74 @@ const PRINT_STYLES = `
   }
   .print\\:hidden, button { display: none !important; }
 }
-`;
+`
 
 export interface EmployeeSalary {
-  id: string;
-  empId: string;
-  fullName: string;
-  designation: string;
-  department: string;
-  territory: string;
-  bankName: string;
-  bankAccount: string;
-  payPeriod: string;
-  basicSalary: number;
-  houseRent: number;
-  medicalAllowance: number;
-  conveyanceTaDa: number;
-  salesIncentive: number;
-  specialBonus: number;
-  providentFund: number;
-  taxDeduction: number;
-  otherDeductions: number;
-  leaveDays: number;
-  status: "Draft" | "Approved" | "Disbursed";
+  id: string
+  empId: string
+  fullName: string
+  designation: string
+  department: string
+  territory: string
+  bankName: string
+  bankAccount: string
+  payPeriod: string
+  basicSalary: number
+  houseRent: number
+  medicalAllowance: number
+  conveyanceTaDa: number
+  salesIncentive: number
+  specialBonus: number
+  providentFund: number
+  taxDeduction: number
+  otherDeductions: number
+  leaveDays: number
+  status: "Draft" | "Approved" | "Disbursed"
 }
 
 interface TreasuryAccount {
-  id: string;
-  accountTitle: string;
-  institution: string;
-  balance: number;
-  accountNumber: string;
+  id: string
+  accountTitle: string
+  institution: string
+  balance: number
+  accountNumber: string
 }
 
 const generateDynamicMonths = () => {
-  const months: string[] = [];
-  const currentDate = new Date();
+  const months: string[] = []
+  const currentDate = new Date()
 
   for (let i = -6; i <= 6; i++) {
-    const d = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
-    const monthName = d.toLocaleString("en-US", { month: "long" });
-    const year = d.getFullYear();
-    months.push(`${monthName} ${year}`);
+    const d = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1)
+    const monthName = d.toLocaleString("en-US", { month: "long" })
+    const year = d.getFullYear()
+    months.push(`${monthName} ${year}`)
   }
 
-  return months;
-};
+  return months
+}
 
-const MONTHS_LIST = generateDynamicMonths();
+const MONTHS_LIST = generateDynamicMonths()
 
 const getCurrentMonthString = () => {
-  const d = new Date();
-  return `${d.toLocaleString("en-US", { month: "long" })} ${d.getFullYear()}`;
-};
+  const d = new Date()
+  return `${d.toLocaleString("en-US", { month: "long" })} ${d.getFullYear()}`
+}
 
 export default function SalaryManagementPage() {
-  const [salaries, setSalaries] = React.useState<EmployeeSalary[]>([]);
-  const [staffDirectory, setStaffDirectory] = React.useState<any[]>([]);
-  const [treasuryAccounts, setTreasuryAccounts] = React.useState<TreasuryAccount[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [selectedMonth, setSelectedMonth] = React.useState(getCurrentMonthString());
-  const [searchQuery, setSearchQuery] = React.useState("");
+  const [salaries, setSalaries] = React.useState<EmployeeSalary[]>([])
+  const [staffDirectory, setStaffDirectory] = React.useState<any[]>([])
+  const [treasuryAccounts, setTreasuryAccounts] = React.useState<
+    TreasuryAccount[]
+  >([])
+  const [loading, setLoading] = React.useState(true)
+  const [selectedMonth, setSelectedMonth] = React.useState(
+    getCurrentMonthString()
+  )
+  const [searchQuery, setSearchQuery] = React.useState("")
 
-  const [isAssignOpen, setIsAssignOpen] = React.useState(false);
-  const [selectedStaffEmpId, setSelectedStaffEmpId] = React.useState("");
+  const [isAssignOpen, setIsAssignOpen] = React.useState(false)
+  const [selectedStaffEmpId, setSelectedStaffEmpId] = React.useState("")
 
   // Assign Form State
   const [salaryFormState, setSalaryFormState] = React.useState({
@@ -133,47 +137,58 @@ export default function SalaryManagementPage() {
     otherDeductions: "0",
     leaveDays: 0,
     bankAccount: "104-102-000000",
-  });
+  })
 
   const handleSalaryFormChange = (field: string, value: any) => {
-    setSalaryFormState((prev) => ({ ...prev, [field]: value }));
-  };
+    setSalaryFormState((prev) => ({ ...prev, [field]: value }))
+  }
 
-  const [editingRecord, setEditingRecord] = React.useState<EmployeeSalary | null>(null);
-  const [isEditOpen, setIsEditOpen] = React.useState(false);
+  const [editingRecord, setEditingRecord] =
+    React.useState<EmployeeSalary | null>(null)
+  const [isEditOpen, setIsEditOpen] = React.useState(false)
 
-  const [printRecord, setPrintRecord] = React.useState<EmployeeSalary | null>(null);
-  const [isPrintOpen, setIsPrintOpen] = React.useState(false);
-  const [successToast, setSuccessToast] = React.useState<string | null>(null);
+  const [printRecord, setPrintRecord] = React.useState<EmployeeSalary | null>(
+    null
+  )
+  const [isPrintOpen, setIsPrintOpen] = React.useState(false)
+  const [successToast, setSuccessToast] = React.useState<string | null>(null)
 
   // Pay / Disburse to Treasury Modal State
-  const [payingRecord, setPayingRecord] = React.useState<EmployeeSalary | null>(null);
-  const [isPayOpen, setIsPayOpen] = React.useState(false);
-  const [selectedTreasuryAccountId, setSelectedTreasuryAccountId] = React.useState("");
-  const [disbursementMethod, setDisbursementMethod] = React.useState("BEFTN Electronic Advice");
-  const [disbursing, setDisbursing] = React.useState(false);
+  const [payingRecord, setPayingRecord] = React.useState<EmployeeSalary | null>(
+    null
+  )
+  const [isPayOpen, setIsPayOpen] = React.useState(false)
+  const [selectedTreasuryAccountId, setSelectedTreasuryAccountId] =
+    React.useState("")
+  const [disbursementMethod, setDisbursementMethod] = React.useState(
+    "BEFTN Electronic Advice"
+  )
+  const [disbursing, setDisbursing] = React.useState(false)
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pharma-management-1y5a.vercel.app/api";
+  const API_URL =
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://pharma-management-1y5a.vercel.app/api"
 
   const fetchData = async () => {
     try {
-      setLoading(true);
+      setLoading(true)
 
       const [staffRes, salaryRes, accountsRes] = await Promise.all([
         fetch(`${API_URL}/staff`),
         fetch(`${API_URL}/salary?month=${encodeURIComponent(selectedMonth)}`),
         fetch(`${API_URL}/account-ledger/accounts`).catch(() => null),
-      ]);
+      ])
 
-      const staffRaw = staffRes.ok ? await staffRes.json() : [];
-      const salaryRaw = salaryRes.ok ? await salaryRes.json() : [];
-      const accountsRaw = accountsRes && accountsRes.ok ? await accountsRes.json() : [];
+      const staffRaw = staffRes.ok ? await staffRes.json() : []
+      const salaryRaw = salaryRes.ok ? await salaryRes.json() : []
+      const accountsRaw =
+        accountsRes && accountsRes.ok ? await accountsRes.json() : []
 
-      const staffData = Array.isArray(staffRaw) ? staffRaw : [];
-      const salaryData = Array.isArray(salaryRaw) ? salaryRaw : [];
-      const accountsData = Array.isArray(accountsRaw) ? accountsRaw : [];
+      const staffData = Array.isArray(staffRaw) ? staffRaw : []
+      const salaryData = Array.isArray(salaryRaw) ? salaryRaw : []
+      const accountsData = Array.isArray(accountsRaw) ? accountsRaw : []
 
-      setTreasuryAccounts(accountsData);
+      setTreasuryAccounts(accountsData)
 
       setStaffDirectory(
         staffData.map((s: any) => ({
@@ -183,16 +198,27 @@ export default function SalaryManagementPage() {
           department: s.department || "General",
           territory: s.territory || "Dhaka HQ",
         }))
-      );
+      )
 
       setSalaries(
         salaryData.map((sal: any) => ({
           id: String(sal.id),
           empId: String(sal.staff?.empId || sal.empId || ""),
-          fullName: String(sal.staff?.fullName || sal.fullName || "Staff Member"),
-          designation: String(sal.staff?.role?.name || sal.staff?.department || sal.designation || "Staff"),
-          department: String(sal.staff?.department || sal.department || "General"),
-          territory: String(sal.staff?.territory || sal.territory || "Dhaka HQ"),
+          fullName: String(
+            sal.staff?.fullName || sal.fullName || "Staff Member"
+          ),
+          designation: String(
+            sal.staff?.role?.name ||
+              sal.staff?.department ||
+              sal.designation ||
+              "Staff"
+          ),
+          department: String(
+            sal.staff?.department || sal.department || "General"
+          ),
+          territory: String(
+            sal.staff?.territory || sal.territory || "Dhaka HQ"
+          ),
           bankName: String(sal.bankName || "Eastern Bank PLC"),
           bankAccount: String(sal.bankAccount || "104-102-000000"),
           payPeriod: String(sal.payPeriod || selectedMonth),
@@ -208,49 +234,49 @@ export default function SalaryManagementPage() {
           leaveDays: Number(sal.leaveDays) || 0,
           status: (sal.status as any) || "Draft",
         }))
-      );
-      setLoading(false);
+      )
+      setLoading(false)
     } catch (err) {
-      console.error("Error fetching payroll data:", err);
-      setLoading(false);
+      console.error("Error fetching payroll data:", err)
+      setLoading(false)
     }
-  };
+  }
 
   React.useEffect(() => {
-    fetchData();
-  }, [selectedMonth]);
+    fetchData()
+  }, [selectedMonth])
 
   const getGross = (r: {
-    basicSalary: number;
-    houseRent: number;
-    medicalAllowance: number;
-    conveyanceTaDa: number;
-    salesIncentive: number;
-    specialBonus: number;
+    basicSalary: number
+    houseRent: number
+    medicalAllowance: number
+    conveyanceTaDa: number
+    salesIncentive: number
+    specialBonus: number
   }) =>
     r.basicSalary +
     r.houseRent +
     r.medicalAllowance +
     r.conveyanceTaDa +
     r.salesIncentive +
-    r.specialBonus;
+    r.specialBonus
 
   const getDeductions = (r: {
-    providentFund: number;
-    taxDeduction: number;
-    otherDeductions: number;
-  }) => r.providentFund + r.taxDeduction + r.otherDeductions;
+    providentFund: number
+    taxDeduction: number
+    otherDeductions: number
+  }) => r.providentFund + r.taxDeduction + r.otherDeductions
 
-  const getNet = (r: any) => getGross(r) - getDeductions(r);
+  const getNet = (r: any) => getGross(r) - getDeductions(r)
 
   const unassignedStaff = staffDirectory.filter(
     (staff) => !salaries.some((sal) => sal.empId === staff.empId)
-  );
+  )
 
   const handleAssignSalary = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const staff = staffDirectory.find((s) => s.empId === selectedStaffEmpId);
-    if (!staff) return;
+    e.preventDefault()
+    const staff = staffDirectory.find((s) => s.empId === selectedStaffEmpId)
+    if (!staff) return
 
     try {
       const res = await fetch(`${API_URL}/salary`, {
@@ -271,22 +297,24 @@ export default function SalaryManagementPage() {
           leaveDays: Number(salaryFormState.leaveDays) || 0,
           bankAccount: salaryFormState.bankAccount || "104-102-000000",
         }),
-      });
+      })
 
-      if (!res.ok) throw new Error("Failed to save salary");
-      setIsAssignOpen(false);
-      setSelectedStaffEmpId("");
-      fetchData();
-      setSuccessToast(`Assigned salary structure successfully for ${staff.fullName}`);
-      setTimeout(() => setSuccessToast(null), 3000);
+      if (!res.ok) throw new Error("Failed to save salary")
+      setIsAssignOpen(false)
+      setSelectedStaffEmpId("")
+      fetchData()
+      setSuccessToast(
+        `Assigned salary structure successfully for ${staff.fullName}`
+      )
+      setTimeout(() => setSuccessToast(null), 3000)
     } catch (err) {
-      alert("Failed to save salary record.");
+      alert("Failed to save salary record.")
     }
-  };
+  }
 
   const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingRecord) return;
+    e.preventDefault()
+    if (!editingRecord) return
 
     try {
       const res = await fetch(`${API_URL}/salary/${editingRecord.id}`, {
@@ -304,43 +332,48 @@ export default function SalaryManagementPage() {
           otherDeductions: editingRecord.otherDeductions,
           leaveDays: editingRecord.leaveDays,
         }),
-      });
+      })
 
-      if (!res.ok) throw new Error("Failed to update salary");
-      setIsEditOpen(false);
-      setEditingRecord(null);
-      fetchData();
-      setSuccessToast("Salary structure updated successfully.");
-      setTimeout(() => setSuccessToast(null), 3000);
+      if (!res.ok) throw new Error("Failed to update salary")
+      setIsEditOpen(false)
+      setEditingRecord(null)
+      fetchData()
+      setSuccessToast("Salary structure updated successfully.")
+      setTimeout(() => setSuccessToast(null), 3000)
     } catch (err) {
-      alert("Failed to update salary.");
+      alert("Failed to update salary.")
     }
-  };
+  }
 
   const handleDeleteSalary = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this salary record for this month?")) return;
+    if (
+      !confirm(
+        "Are you sure you want to delete this salary record for this month?"
+      )
+    )
+      return
     try {
-      const res = await fetch(`${API_URL}/salary/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete");
-      fetchData();
-      setSuccessToast("Salary record deleted successfully.");
-      setTimeout(() => setSuccessToast(null), 3000);
+      const res = await fetch(`${API_URL}/salary/${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete")
+      fetchData()
+      setSuccessToast("Salary record deleted successfully.")
+      setTimeout(() => setSuccessToast(null), 3000)
     } catch (err) {
-      alert("Failed to delete salary record.");
+      alert("Failed to delete salary record.")
     }
-  };
+  }
 
   // Upload/Disburse directly to Treasury
   const handleDisburseToTreasury = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
     if (!payingRecord || !selectedTreasuryAccountId) {
-      alert("Please select a Treasury Source Account.");
-      return;
+      alert("Please select a Treasury Source Account.")
+      return
     }
 
     try {
-      setDisbursing(true);
-      const netAmount = getNet(payingRecord);
+      setDisbursing(true)
+      const netAmount = getNet(payingRecord)
 
       // 1. Post OUTFLOW Transaction to Treasury Journal
       const journalRes = await fetch(`${API_URL}/account-ledger/transactions`, {
@@ -360,11 +393,13 @@ export default function SalaryManagementPage() {
           sourceAccountId: selectedTreasuryAccountId,
           reconciliationStatus: "Reconciled",
         }),
-      });
+      })
 
       if (!journalRes.ok) {
-        const errorData = await journalRes.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to post Treasury Outflow entry");
+        const errorData = await journalRes.json().catch(() => null)
+        throw new Error(
+          errorData?.error || "Failed to post Treasury Outflow entry"
+        )
       }
 
       // 2. Update Salary Status to Disbursed
@@ -374,39 +409,39 @@ export default function SalaryManagementPage() {
         body: JSON.stringify({
           status: "Disbursed",
         }),
-      }).catch(() => null);
+      }).catch(() => null)
 
-      setIsPayOpen(false);
-      setPayingRecord(null);
-      fetchData();
+      setIsPayOpen(false)
+      setPayingRecord(null)
+      fetchData()
 
       setSuccessToast(
         `Disbursed ৳${netAmount.toLocaleString("en-IN")} to ${payingRecord.fullName}. Updated in Treasury Overview.`
-      );
-      setTimeout(() => setSuccessToast(null), 4000);
+      )
+      setTimeout(() => setSuccessToast(null), 4000)
     } catch (err: any) {
-      console.error("Disbursement Error:", err);
-      alert(err.message || "Failed to post disbursement to Treasury.");
+      console.error("Disbursement Error:", err)
+      alert(err.message || "Failed to post disbursement to Treasury.")
     } finally {
-      setDisbursing(false);
+      setDisbursing(false)
     }
-  };
+  }
 
   const handleTriggerPrint = () => {
-    if (!printRecord) return;
+    if (!printRecord) return
 
-    const existingIframe = document.getElementById("payslip-print-iframe");
-    if (existingIframe) existingIframe.remove();
+    const existingIframe = document.getElementById("payslip-print-iframe")
+    if (existingIframe) existingIframe.remove()
 
-    const iframe = document.createElement("iframe");
-    iframe.id = "payslip-print-iframe";
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "none";
-    document.body.appendChild(iframe);
+    const iframe = document.createElement("iframe")
+    iframe.id = "payslip-print-iframe"
+    iframe.style.position = "fixed"
+    iframe.style.right = "0"
+    iframe.style.bottom = "0"
+    iframe.style.width = "0"
+    iframe.style.height = "0"
+    iframe.style.border = "none"
+    document.body.appendChild(iframe)
 
     const grossEarnings =
       printRecord.basicSalary +
@@ -414,10 +449,12 @@ export default function SalaryManagementPage() {
       printRecord.medicalAllowance +
       printRecord.conveyanceTaDa +
       printRecord.salesIncentive +
-      printRecord.specialBonus;
+      printRecord.specialBonus
     const totalDeductions =
-      printRecord.providentFund + printRecord.taxDeduction + printRecord.otherDeductions;
-    const netPayable = grossEarnings - totalDeductions;
+      printRecord.providentFund +
+      printRecord.taxDeduction +
+      printRecord.otherDeductions
+    const netPayable = grossEarnings - totalDeductions
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -502,54 +539,55 @@ export default function SalaryManagementPage() {
           </div>
         </body>
       </html>
-    `;
+    `
 
-    const iframeDoc = iframe.contentWindow?.document;
+    const iframeDoc = iframe.contentWindow?.document
     if (iframeDoc) {
-      iframeDoc.open();
-      iframeDoc.write(htmlContent);
-      iframeDoc.close();
+      iframeDoc.open()
+      iframeDoc.write(htmlContent)
+      iframeDoc.close()
 
       setTimeout(() => {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      }, 300);
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+      }, 300)
     }
-  };
+  }
 
   const filtered = salaries.filter(
     (s) =>
       s.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.empId.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  )
 
   return (
-    <div className="space-y-6 max-w-[1360px] mx-auto pb-10">
+    <div className="mx-auto max-w-[1360px] space-y-6 pb-10">
       <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
 
       {successToast && (
-        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center gap-2 text-xs font-bold print:hidden">
-          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 print:hidden">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
           <span>{successToast}</span>
         </div>
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 print:hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
             Salary & Monthly Payroll Management
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Manage month-isolated remuneration, disburse through Treasury, and print payslips.
+          <p className="mt-0.5 text-xs text-slate-500">
+            Manage month-isolated remuneration, disburse through Treasury, and
+            print payslips.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 shadow-sm">
             <Calendar className="h-4 w-4 text-[#0090FF]" />
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="h-7 w-[140px] text-xs font-bold border-none bg-transparent shadow-none focus:ring-0">
+              <SelectTrigger className="h-7 w-[140px] border-none bg-transparent text-xs font-bold shadow-none focus:ring-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="text-xs">
@@ -566,13 +604,13 @@ export default function SalaryManagementPage() {
             <DialogTrigger asChild>
               <Button
                 size="sm"
-                className="h-9 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs font-semibold px-3.5 rounded-lg"
+                className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white hover:bg-[#0080e5]"
               >
                 <UserPlus className="h-4 w-4" />
                 Assign Salary ({selectedMonth})
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[580px] bg-white rounded-xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[90vh] overflow-y-auto rounded-xl bg-white sm:max-w-[580px]">
               <DialogHeader>
                 <DialogTitle className="text-base font-bold text-slate-900">
                   Assign Salary Structure
@@ -583,13 +621,15 @@ export default function SalaryManagementPage() {
               </DialogHeader>
               <form onSubmit={handleAssignSalary} className="space-y-4 py-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">Staff Member</Label>
+                  <Label className="text-xs font-medium text-slate-700">
+                    Staff Member
+                  </Label>
                   <Select
                     value={selectedStaffEmpId}
                     onValueChange={setSelectedStaffEmpId}
                     required
                   >
-                    <SelectTrigger className="h-8 text-xs bg-white">
+                    <SelectTrigger className="h-8 bg-white text-xs">
                       <SelectValue placeholder="Select staff..." />
                     </SelectTrigger>
                     <SelectContent className="text-xs">
@@ -607,8 +647,10 @@ export default function SalaryManagementPage() {
                     <Input
                       type="number"
                       value={salaryFormState.basicSalary}
-                      onChange={(e) => handleSalaryFormChange("basicSalary", e.target.value)}
-                      className="h-8 text-xs font-mono"
+                      onChange={(e) =>
+                        handleSalaryFormChange("basicSalary", e.target.value)
+                      }
+                      className="h-8 font-mono text-xs"
                       required
                     />
                   </div>
@@ -617,8 +659,10 @@ export default function SalaryManagementPage() {
                     <Input
                       type="number"
                       value={salaryFormState.houseRent}
-                      onChange={(e) => handleSalaryFormChange("houseRent", e.target.value)}
-                      className="h-8 text-xs font-mono"
+                      onChange={(e) =>
+                        handleSalaryFormChange("houseRent", e.target.value)
+                      }
+                      className="h-8 font-mono text-xs"
                       required
                     />
                   </div>
@@ -627,8 +671,13 @@ export default function SalaryManagementPage() {
                     <Input
                       type="number"
                       value={salaryFormState.medicalAllowance}
-                      onChange={(e) => handleSalaryFormChange("medicalAllowance", e.target.value)}
-                      className="h-8 text-xs font-mono"
+                      onChange={(e) =>
+                        handleSalaryFormChange(
+                          "medicalAllowance",
+                          e.target.value
+                        )
+                      }
+                      className="h-8 font-mono text-xs"
                       required
                     />
                   </div>
@@ -639,8 +688,10 @@ export default function SalaryManagementPage() {
                     <Input
                       type="number"
                       value={salaryFormState.conveyanceTaDa}
-                      onChange={(e) => handleSalaryFormChange("conveyanceTaDa", e.target.value)}
-                      className="h-8 text-xs font-mono"
+                      onChange={(e) =>
+                        handleSalaryFormChange("conveyanceTaDa", e.target.value)
+                      }
+                      className="h-8 font-mono text-xs"
                       required
                     />
                   </div>
@@ -649,8 +700,10 @@ export default function SalaryManagementPage() {
                     <Input
                       type="number"
                       value={salaryFormState.salesIncentive}
-                      onChange={(e) => handleSalaryFormChange("salesIncentive", e.target.value)}
-                      className="h-8 text-xs font-mono text-emerald-600"
+                      onChange={(e) =>
+                        handleSalaryFormChange("salesIncentive", e.target.value)
+                      }
+                      className="h-8 font-mono text-xs text-emerald-600"
                     />
                   </div>
                   <div>
@@ -658,8 +711,10 @@ export default function SalaryManagementPage() {
                     <Input
                       type="number"
                       value={salaryFormState.specialBonus}
-                      onChange={(e) => handleSalaryFormChange("specialBonus", e.target.value)}
-                      className="h-8 text-xs font-mono"
+                      onChange={(e) =>
+                        handleSalaryFormChange("specialBonus", e.target.value)
+                      }
+                      className="h-8 font-mono text-xs"
                     />
                   </div>
                 </div>
@@ -669,8 +724,10 @@ export default function SalaryManagementPage() {
                     <Input
                       type="number"
                       value={salaryFormState.providentFund}
-                      onChange={(e) => handleSalaryFormChange("providentFund", e.target.value)}
-                      className="h-8 text-xs font-mono text-rose-500"
+                      onChange={(e) =>
+                        handleSalaryFormChange("providentFund", e.target.value)
+                      }
+                      className="h-8 font-mono text-xs text-rose-500"
                     />
                   </div>
                   <div>
@@ -678,8 +735,10 @@ export default function SalaryManagementPage() {
                     <Input
                       type="number"
                       value={salaryFormState.taxDeduction}
-                      onChange={(e) => handleSalaryFormChange("taxDeduction", e.target.value)}
-                      className="h-8 text-xs font-mono text-rose-500"
+                      onChange={(e) =>
+                        handleSalaryFormChange("taxDeduction", e.target.value)
+                      }
+                      className="h-8 font-mono text-xs text-rose-500"
                     />
                   </div>
                   <div>
@@ -687,18 +746,30 @@ export default function SalaryManagementPage() {
                     <Input
                       type="number"
                       value={salaryFormState.otherDeductions}
-                      onChange={(e) => handleSalaryFormChange("otherDeductions", e.target.value)}
-                      className="h-8 text-xs font-mono text-rose-500"
+                      onChange={(e) =>
+                        handleSalaryFormChange(
+                          "otherDeductions",
+                          e.target.value
+                        )
+                      }
+                      className="h-8 font-mono text-xs text-rose-500"
                     />
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium text-slate-700">Leave Days Taken</Label>
+                  <Label className="text-xs font-medium text-slate-700">
+                    Leave Days Taken
+                  </Label>
                   <Input
                     type="number"
                     min="0"
                     value={salaryFormState.leaveDays}
-                    onChange={(e) => handleSalaryFormChange("leaveDays", Number(e.target.value))}
+                    onChange={(e) =>
+                      handleSalaryFormChange(
+                        "leaveDays",
+                        Number(e.target.value)
+                      )
+                    }
                     className="h-8 text-xs"
                   />
                 </div>
@@ -711,7 +782,10 @@ export default function SalaryManagementPage() {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" className="h-8 text-xs bg-[#0090FF] text-white">
+                  <Button
+                    type="submit"
+                    className="h-8 bg-[#0090FF] text-xs text-white"
+                  >
                     Save Salary
                   </Button>
                 </DialogFooter>
@@ -722,8 +796,8 @@ export default function SalaryManagementPage() {
       </div>
 
       {/* Salary Table */}
-      <Card className="rounded-xl border border-slate-200/90 shadow-none bg-white p-6 print:hidden">
-        <div className="flex items-center justify-between mb-4">
+      <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none print:hidden">
+        <div className="mb-4 flex items-center justify-between">
           <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
             Payroll Register — {selectedMonth}
           </h3>
@@ -747,19 +821,25 @@ export default function SalaryManagementPage() {
               <TableHead className="text-right">Deductions</TableHead>
               <TableHead className="text-right">Net Payable</TableHead>
               <TableHead className="text-center">Status</TableHead>
-              <TableHead className="text-right pr-0">Actions</TableHead>
+              <TableHead className="pr-0 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-6 text-slate-400">
+                <TableCell
+                  colSpan={7}
+                  className="py-6 text-center text-slate-400"
+                >
                   Loading...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-6 text-slate-400">
+                <TableCell
+                  colSpan={7}
+                  className="py-6 text-center text-slate-400"
+                >
                   No records found for {selectedMonth}.
                 </TableCell>
               </TableRow>
@@ -770,22 +850,25 @@ export default function SalaryManagementPage() {
                   emp.medicalAllowance +
                   emp.conveyanceTaDa +
                   emp.salesIncentive +
-                  emp.specialBonus;
-                const ded = getDeductions(emp);
-                const net = getNet(emp);
-                const isPaid = emp.status === "Disbursed";
+                  emp.specialBonus
+                const ded = getDeductions(emp)
+                const net = getNet(emp)
+                const isPaid = emp.status === "Disbursed"
 
                 return (
-                  <TableRow key={emp.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                  <TableRow
+                    key={emp.id}
+                    className="border-b border-slate-50 hover:bg-slate-50/50"
+                  >
                     <TableCell className="py-3 pl-0">
                       <div className="flex items-center gap-2.5">
                         <Avatar className="h-8 w-8 rounded-full border border-slate-200">
-                          <AvatarFallback className="bg-slate-100 text-slate-700 text-xs font-semibold">
+                          <AvatarFallback className="bg-slate-100 text-xs font-semibold text-slate-700">
                             {emp.fullName.slice(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <span className="text-xs font-bold text-slate-900 block">
+                          <span className="block text-xs font-bold text-slate-900">
                             {emp.fullName}
                           </span>
                           <span className="text-[10px] text-slate-400">
@@ -811,30 +894,32 @@ export default function SalaryManagementPage() {
                         variant="outline"
                         className={`text-[10px] font-bold ${
                           isPaid
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-amber-50 text-amber-700 border-amber-200"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-amber-200 bg-amber-50 text-amber-700"
                         }`}
                       >
                         {isPaid ? "Disbursed" : "Draft"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right pr-0">
+                    <TableCell className="pr-0 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         {/* Treasury Pay Button */}
                         <Button
                           size="sm"
                           disabled={isPaid}
                           onClick={() => {
-                            setPayingRecord(emp);
+                            setPayingRecord(emp)
                             if (treasuryAccounts.length > 0) {
-                              setSelectedTreasuryAccountId(treasuryAccounts[0].id);
+                              setSelectedTreasuryAccountId(
+                                treasuryAccounts[0].id
+                              )
                             }
-                            setIsPayOpen(true);
+                            setIsPayOpen(true)
                           }}
-                          className={`h-7 px-2.5 text-xs font-bold rounded-md shadow-none gap-1 ${
+                          className={`h-7 gap-1 rounded-md px-2.5 text-xs font-bold shadow-none ${
                             isPaid
-                              ? "bg-emerald-100 text-emerald-800 opacity-60 cursor-not-allowed"
-                              : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                              ? "cursor-not-allowed bg-emerald-100 text-emerald-800 opacity-60"
+                              : "bg-emerald-600 text-white hover:bg-emerald-700"
                           }`}
                         >
                           <CreditCard className="h-3 w-3" />
@@ -845,24 +930,24 @@ export default function SalaryManagementPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => {
-                            setEditingRecord({ ...emp });
-                            setIsEditOpen(true);
+                            setEditingRecord({ ...emp })
+                            setIsEditOpen(true)
                           }}
                           className="h-7 px-2 text-xs"
                         >
-                          <Pencil className="h-3 w-3 mr-1" /> Edit
+                          <Pencil className="mr-1 h-3 w-3" /> Edit
                         </Button>
 
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => {
-                            setPrintRecord(emp);
-                            setIsPrintOpen(true);
+                            setPrintRecord(emp)
+                            setIsPrintOpen(true)
                           }}
                           className="h-7 px-2 text-xs text-[#0090FF]"
                         >
-                          <Printer className="h-3 w-3 mr-1" /> Payslip
+                          <Printer className="mr-1 h-3 w-3" /> Payslip
                         </Button>
 
                         <Button
@@ -876,7 +961,7 @@ export default function SalaryManagementPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                );
+                )
               })
             )}
           </TableBody>
@@ -885,10 +970,10 @@ export default function SalaryManagementPage() {
 
       {/* Disburse to Treasury Modal */}
       <Dialog open={isPayOpen} onOpenChange={setIsPayOpen}>
-        <DialogContent className="sm:max-w-[480px] bg-white rounded-xl">
+        <DialogContent className="rounded-xl bg-white sm:max-w-[480px]">
           <DialogHeader>
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+              <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
                 <Building2 className="h-5 w-5" />
               </div>
               <div>
@@ -896,17 +981,21 @@ export default function SalaryManagementPage() {
                   Treasury Salary Disbursement
                 </DialogTitle>
                 <DialogDescription className="text-xs text-slate-500">
-                  Deducts from company vaults/banks & creates Treasury ledger entry.
+                  Deducts from company vaults/banks & creates Treasury ledger
+                  entry.
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
           {payingRecord && (
-            <form onSubmit={handleDisburseToTreasury} className="space-y-4 py-2">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+            <form
+              onSubmit={handleDisburseToTreasury}
+              className="space-y-4 py-2"
+            >
+              <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3">
                 <div>
-                  <span className="text-xs font-bold text-slate-900 block">
+                  <span className="block text-xs font-bold text-slate-900">
                     {payingRecord.fullName}
                   </span>
                   <span className="text-[11px] text-slate-400">
@@ -914,21 +1003,25 @@ export default function SalaryManagementPage() {
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs text-slate-400 block">Net Payable Amount</span>
-                  <span className="text-sm font-extrabold font-mono text-emerald-600">
+                  <span className="block text-xs text-slate-400">
+                    Net Payable Amount
+                  </span>
+                  <span className="font-mono text-sm font-extrabold text-emerald-600">
                     ৳{getNet(payingRecord).toLocaleString("en-IN")}
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">Source Treasury Account</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Source Treasury Account
+                </Label>
                 <Select
                   value={selectedTreasuryAccountId}
                   onValueChange={setSelectedTreasuryAccountId}
                   required
                 >
-                  <SelectTrigger className="h-9 text-xs bg-white">
+                  <SelectTrigger className="h-9 bg-white text-xs">
                     <SelectValue placeholder="Choose bank account or cash safe..." />
                   </SelectTrigger>
                   <SelectContent className="text-xs">
@@ -939,7 +1032,8 @@ export default function SalaryManagementPage() {
                     ) : (
                       treasuryAccounts.map((acc) => (
                         <SelectItem key={acc.id} value={acc.id}>
-                          {acc.accountTitle} — Balance: ৳{Number(acc.balance || 0).toLocaleString("en-IN")}
+                          {acc.accountTitle} — Balance: ৳
+                          {Number(acc.balance || 0).toLocaleString("en-IN")}
                         </SelectItem>
                       ))
                     )}
@@ -948,25 +1042,37 @@ export default function SalaryManagementPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">Disbursement Method</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Disbursement Method
+                </Label>
                 <Select
                   value={disbursementMethod}
                   onValueChange={setDisbursementMethod}
                 >
-                  <SelectTrigger className="h-9 text-xs bg-white">
+                  <SelectTrigger className="h-9 bg-white text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="text-xs">
-                    <SelectItem value="BEFTN Electronic Advice">BEFTN Electronic Advice</SelectItem>
-                    <SelectItem value="NPSB Instant Transfer">NPSB Instant Transfer</SelectItem>
-                    <SelectItem value="Account Payee Cheque">Account Payee Cheque</SelectItem>
-                    <SelectItem value="Corporate Safe Physical Cash">Corporate Safe Physical Cash</SelectItem>
+                    <SelectItem value="BEFTN Electronic Advice">
+                      BEFTN Electronic Advice
+                    </SelectItem>
+                    <SelectItem value="NPSB Instant Transfer">
+                      NPSB Instant Transfer
+                    </SelectItem>
+                    <SelectItem value="Account Payee Cheque">
+                      Account Payee Cheque
+                    </SelectItem>
+                    <SelectItem value="Corporate Safe Physical Cash">
+                      Corporate Safe Physical Cash
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-100 text-[11px] text-blue-900 leading-relaxed">
-                Employee Bank Account on file: <strong>{payingRecord.bankName}</strong> (<code>{payingRecord.bankAccount}</code>).
+              <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-3 text-[11px] leading-relaxed text-blue-900">
+                Employee Bank Account on file:{" "}
+                <strong>{payingRecord.bankName}</strong> (
+                <code>{payingRecord.bankAccount}</code>).
               </div>
 
               <DialogFooter className="pt-2">
@@ -981,10 +1087,14 @@ export default function SalaryManagementPage() {
                 <Button
                   type="submit"
                   disabled={disbursing || !selectedTreasuryAccountId}
-                  className="h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+                  className="h-9 gap-2 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
                 >
-                  {disbursing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  {disbursing ? "Disbursing & Updating..." : "Confirm & Post to Treasury"}
+                  {disbursing && (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  )}
+                  {disbursing
+                    ? "Disbursing & Updating..."
+                    : "Confirm & Post to Treasury"}
                 </Button>
               </DialogFooter>
             </form>
@@ -994,7 +1104,7 @@ export default function SalaryManagementPage() {
 
       {/* Edit Modal */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-[650px] bg-white rounded-xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto rounded-xl bg-white sm:max-w-[650px]">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900">
               Edit Remuneration — {editingRecord?.fullName}
@@ -1009,9 +1119,12 @@ export default function SalaryManagementPage() {
                     type="number"
                     value={editingRecord.basicSalary}
                     onChange={(e) =>
-                      setEditingRecord({ ...editingRecord, basicSalary: Number(e.target.value) })
+                      setEditingRecord({
+                        ...editingRecord,
+                        basicSalary: Number(e.target.value),
+                      })
                     }
-                    className="h-8 text-xs font-mono"
+                    className="h-8 font-mono text-xs"
                   />
                 </div>
                 <div>
@@ -1020,9 +1133,12 @@ export default function SalaryManagementPage() {
                     type="number"
                     value={editingRecord.houseRent}
                     onChange={(e) =>
-                      setEditingRecord({ ...editingRecord, houseRent: Number(e.target.value) })
+                      setEditingRecord({
+                        ...editingRecord,
+                        houseRent: Number(e.target.value),
+                      })
                     }
-                    className="h-8 text-xs font-mono"
+                    className="h-8 font-mono text-xs"
                   />
                 </div>
                 <div>
@@ -1036,7 +1152,7 @@ export default function SalaryManagementPage() {
                         medicalAllowance: Number(e.target.value),
                       })
                     }
-                    className="h-8 text-xs font-mono"
+                    className="h-8 font-mono text-xs"
                   />
                 </div>
               </div>
@@ -1052,7 +1168,7 @@ export default function SalaryManagementPage() {
                         conveyanceTaDa: Number(e.target.value),
                       })
                     }
-                    className="h-8 text-xs font-mono"
+                    className="h-8 font-mono text-xs"
                   />
                 </div>
                 <div>
@@ -1066,7 +1182,7 @@ export default function SalaryManagementPage() {
                         salesIncentive: Number(e.target.value),
                       })
                     }
-                    className="h-8 text-xs font-mono text-emerald-600"
+                    className="h-8 font-mono text-xs text-emerald-600"
                   />
                 </div>
                 <div>
@@ -1080,7 +1196,7 @@ export default function SalaryManagementPage() {
                         specialBonus: Number(e.target.value),
                       })
                     }
-                    className="h-8 text-xs font-mono"
+                    className="h-8 font-mono text-xs"
                   />
                 </div>
               </div>
@@ -1096,7 +1212,7 @@ export default function SalaryManagementPage() {
                         providentFund: Number(e.target.value),
                       })
                     }
-                    className="h-8 text-xs font-mono text-rose-500"
+                    className="h-8 font-mono text-xs text-rose-500"
                   />
                 </div>
                 <div>
@@ -1110,7 +1226,7 @@ export default function SalaryManagementPage() {
                         taxDeduction: Number(e.target.value),
                       })
                     }
-                    className="h-8 text-xs font-mono text-rose-500"
+                    className="h-8 font-mono text-xs text-rose-500"
                   />
                 </div>
                 <div>
@@ -1124,25 +1240,30 @@ export default function SalaryManagementPage() {
                         otherDeductions: Number(e.target.value),
                       })
                     }
-                    className="h-8 text-xs font-mono text-rose-500"
+                    className="h-8 font-mono text-xs text-rose-500"
                   />
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Leave Days Taken</Label>
+                <Label className="text-xs font-medium text-slate-700">
+                  Leave Days Taken
+                </Label>
                 <Input
                   type="number"
                   min="0"
                   value={editingRecord.leaveDays}
                   onChange={(e) =>
-                    setEditingRecord({ ...editingRecord, leaveDays: Number(e.target.value) })
+                    setEditingRecord({
+                      ...editingRecord,
+                      leaveDays: Number(e.target.value),
+                    })
                   }
                   className="h-8 text-xs"
                 />
               </div>
-              <div className="p-3 bg-slate-50 rounded-lg flex items-center justify-between text-xs font-bold text-slate-900">
+              <div className="flex items-center justify-between rounded-lg bg-slate-50 p-3 text-xs font-bold text-slate-900">
                 <span>Calculated Net Payable:</span>
-                <span className="text-sm font-mono text-[#0090FF]">
+                <span className="font-mono text-sm text-[#0090FF]">
                   ৳{getNet(editingRecord).toLocaleString("en-IN")}
                 </span>
               </div>
@@ -1155,7 +1276,10 @@ export default function SalaryManagementPage() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="h-8 text-xs bg-[#0090FF] text-white">
+                <Button
+                  type="submit"
+                  className="h-8 bg-[#0090FF] text-xs text-white"
+                >
                   Save Changes
                 </Button>
               </DialogFooter>
@@ -1166,32 +1290,36 @@ export default function SalaryManagementPage() {
 
       {/* Print & Payslip Preview Modal */}
       <Dialog open={isPrintOpen} onOpenChange={setIsPrintOpen}>
-        <DialogContent className="sm:max-w-[700px] bg-white rounded-xl max-h-[95vh] overflow-y-auto">
+        <DialogContent className="max-h-[95vh] overflow-y-auto rounded-xl bg-white sm:max-w-[700px]">
           {printRecord && (
             <div className="space-y-6">
-              <div className="print-payslip-node p-8 bg-white border border-slate-200 rounded-xl space-y-6">
+              <div className="print-payslip-node space-y-6 rounded-xl border border-slate-200 bg-white p-8">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                   <div>
-                    <h2 className="text-lg font-extrabold text-slate-900">AK PHARMA LTD.</h2>
+                    <h2 className="text-lg font-extrabold text-slate-900">
+                      AK PHARMA LTD.
+                    </h2>
                     <p className="text-[11px] text-slate-500">
                       Official Monthly Pay Advice / Salary Payslip
                     </p>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs font-bold text-[#0090FF] block">
+                    <span className="block text-xs font-bold text-[#0090FF]">
                       {printRecord.payPeriod}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
+                    <span className="font-mono text-[10px] text-slate-400">
                       Ref: AKP/{printRecord.empId}/SAL
                     </span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-lg">
+                <div className="grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-4 text-xs">
                   <div>
                     <p className="text-slate-500">Employee Name:</p>
-                    <p className="font-bold text-slate-900">{printRecord.fullName}</p>
-                    <p className="text-slate-500 mt-2">Emp ID & Designation:</p>
+                    <p className="font-bold text-slate-900">
+                      {printRecord.fullName}
+                    </p>
+                    <p className="mt-2 text-slate-500">Emp ID & Designation:</p>
                     <p className="font-semibold text-slate-800">
                       {printRecord.empId} — {printRecord.designation}
                     </p>
@@ -1201,7 +1329,7 @@ export default function SalaryManagementPage() {
                     <p className="font-semibold text-slate-800">
                       {printRecord.department} ({printRecord.territory})
                     </p>
-                    <p className="text-slate-500 mt-2">Disbursement Account:</p>
+                    <p className="mt-2 text-slate-500">Disbursement Account:</p>
                     <p className="font-mono text-slate-800">
                       {printRecord.bankName} ({printRecord.bankAccount})
                     </p>
@@ -1209,8 +1337,10 @@ export default function SalaryManagementPage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-6 text-xs">
-                  <div className="space-y-2 border rounded-lg p-3">
-                    <p className="font-bold text-slate-900 border-b pb-1">Earnings</p>
+                  <div className="space-y-2 rounded-lg border p-3">
+                    <p className="border-b pb-1 font-bold text-slate-900">
+                      Earnings
+                    </p>
                     <div className="flex justify-between">
                       <span>Basic Salary</span>
                       <span className="font-mono">
@@ -1249,8 +1379,10 @@ export default function SalaryManagementPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2 border rounded-lg p-3">
-                    <p className="font-bold text-slate-900 border-b pb-1">Deductions</p>
+                  <div className="space-y-2 rounded-lg border p-3">
+                    <p className="border-b pb-1 font-bold text-slate-900">
+                      Deductions
+                    </p>
                     <div className="flex justify-between">
                       <span>Provident Fund</span>
                       <span className="font-mono text-rose-500">
@@ -1272,19 +1404,21 @@ export default function SalaryManagementPage() {
                   </div>
                 </div>
 
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-700 flex justify-between items-center">
+                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
                   <span>Attendance & Leave Recorded:</span>
-                  <strong className="font-mono">{printRecord.leaveDays || 0} Days Taken</strong>
+                  <strong className="font-mono">
+                    {printRecord.leaveDays || 0} Days Taken
+                  </strong>
                 </div>
 
-                <div className="bg-[#0090FF]/10 p-4 rounded-lg flex items-center justify-between text-sm font-bold text-slate-900">
+                <div className="flex items-center justify-between rounded-lg bg-[#0090FF]/10 p-4 text-sm font-bold text-slate-900">
                   <span>Net Payable Salary:</span>
                   <span className="font-mono text-base text-[#0090FF]">
                     ৳{getNet(printRecord).toLocaleString("en-IN")}
                   </span>
                 </div>
 
-                <div className="flex justify-between pt-8 text-[11px] text-slate-400 border-t">
+                <div className="flex justify-between border-t pt-8 text-[11px] text-slate-400">
                   <span>Authorized Signature (HR & Finance)</span>
                   <span>Employee Signature</span>
                 </div>
@@ -1300,7 +1434,7 @@ export default function SalaryManagementPage() {
                 </Button>
                 <Button
                   onClick={handleTriggerPrint}
-                  className="bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs gap-1.5"
+                  className="gap-1.5 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
                 >
                   <Printer className="h-4 w-4" /> Print Payslip
                 </Button>
@@ -1310,5 +1444,5 @@ export default function SalaryManagementPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
+  )
 }

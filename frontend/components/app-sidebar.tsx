@@ -1,8 +1,8 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import * as React from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
   LineChart,
@@ -26,7 +26,8 @@ import {
   LogOut,
   Sparkles,
   ShieldCheck,
-} from "lucide-react";
+} from "lucide-react"
+import { logout, getStoredUser } from "@/lib/auth"
 
 import {
   Sidebar,
@@ -43,12 +44,12 @@ import {
   SidebarMenuSubItem,
   SidebarRail,
   useSidebar,
-} from "@/components/ui/sidebar";
+} from "@/components/ui/sidebar"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+} from "@/components/ui/collapsible"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,8 +58,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 const navSections = [
   {
@@ -75,7 +76,10 @@ const navSections = [
         defaultOpen: true,
         subItems: [
           { title: "Target vs. Achievement", href: "/analytics/targets" },
-          { title: "Territory Sales Breakdown", href: "/analytics/territories" },
+          {
+            title: "Territory Sales Breakdown",
+            href: "/analytics/territories",
+          },
         ],
       },
     ],
@@ -233,31 +237,59 @@ const navSections = [
         defaultOpen: true,
         subItems: [
           { title: "Role Permissions (RBAC)", href: "/settings/rbac" },
-          { title: "Audit Logs (21 CFR Compliant)", href: "/settings/audit-logs" },
+          {
+            title: "Audit Logs (21 CFR Compliant)",
+            href: "/settings/audit-logs",
+          },
         ],
       },
     ],
   },
-];
+]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const pathname = usePathname();
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
+  const pathname = usePathname()
+  const { state } = useSidebar()
+  const isCollapsed = state === "collapsed"
+  const [currentUser, setCurrentUser] = React.useState<{
+    name: string
+    email: string
+  } | null>(null)
+
+  React.useEffect(() => {
+    const user = getStoredUser()
+    if (user) {
+      setCurrentUser({
+        name: user.name || "Administrator",
+        email: user.email || "admin@akpharma.com",
+      })
+    }
+  }, [])
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-slate-200 bg-white" {...props}>
+    <Sidebar
+      collapsible="icon"
+      className="border-r border-slate-200 bg-white"
+      {...props}
+    >
       {/* 1. Brand Header */}
-      <SidebarHeader className="p-2 border-b border-slate-100 shrink-0">
+      <SidebarHeader className="shrink-0 border-b border-slate-100 p-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="hover:bg-slate-50 transition-colors">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black text-white font-bold text-xs tracking-tight">
+            <SidebarMenuButton
+              size="lg"
+              className="transition-colors hover:bg-slate-50"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black text-xs font-bold tracking-tight text-white">
                 AK
               </div>
-              <div className="grid flex-1 text-left text-xs leading-tight ml-2 group-data-[collapsible=icon]:hidden">
-                <span className="truncate font-bold text-slate-900 tracking-tight">AK PHARMA</span>
-                <span className="truncate text-[10px] text-slate-500">Pharmaceutical</span>
+              <div className="ml-2 grid flex-1 text-left text-xs leading-tight group-data-[collapsible=icon]:hidden">
+                <span className="truncate font-bold tracking-tight text-slate-900">
+                  AK PHARMA
+                </span>
+                <span className="truncate text-[10px] text-slate-500">
+                  Pharmaceutical
+                </span>
               </div>
               <ChevronsUpDown className="ml-auto h-3.5 w-3.5 text-slate-400 group-data-[collapsible=icon]:hidden" />
             </SidebarMenuButton>
@@ -266,20 +298,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       {/* 2. Scrollable Navigation Content with Draggable Scrollbar */}
-      <SidebarContent 
-        className="flex-1 min-h-0 draggable-scrollbar overscroll-contain px-2 py-2 gap-2 focus:outline-none"
-      >
+      <SidebarContent className="draggable-scrollbar min-h-0 flex-1 gap-2 overscroll-contain px-2 py-2 focus:outline-none">
         {navSections.map((section) => (
           <SidebarGroup key={section.group} className="py-1">
-            <SidebarGroupLabel className="px-2 text-[10px] font-semibold tracking-wider text-slate-400 uppercase mb-1 group-data-[collapsible=icon]:hidden">
+            <SidebarGroupLabel className="mb-1 px-2 text-[10px] font-semibold tracking-wider text-slate-400 uppercase group-data-[collapsible=icon]:hidden">
               {section.group}
             </SidebarGroupLabel>
             <SidebarMenu className="gap-1">
               {section.items.map((item) => {
-                const hasSub = item.subItems && item.subItems.length > 0;
+                const hasSub = item.subItems && item.subItems.length > 0
                 const isSubActive =
-                  hasSub && item.subItems.some((sub) => pathname === sub.href);
-                const isDirectActive = item.href ? pathname === item.href : false;
+                  hasSub && item.subItems.some((sub) => pathname === sub.href)
+                const isDirectActive = item.href
+                  ? pathname === item.href
+                  : false
 
                 if (hasSub) {
                   return (
@@ -292,7 +324,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton
                             tooltip={item.title}
-                            className="w-full justify-between h-9 px-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                            className="h-9 w-full justify-between px-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
                           >
                             <div className="flex items-center gap-2.5 truncate">
                               <item.icon className="h-4 w-4 shrink-0 text-slate-600" />
@@ -300,36 +332,43 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                 {item.title}
                               </span>
                             </div>
-                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[collapsible=icon]:hidden" />
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-data-[collapsible=icon]:hidden group-data-[state=open]/collapsible:rotate-90" />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
-                          <SidebarMenuSub className="mx-2 pl-3.5 border-l border-slate-200 space-y-1 py-1">
+                          <SidebarMenuSub className="mx-2 space-y-1 border-l border-slate-200 py-1 pl-3.5">
                             {item.subItems.map((subItem, idx) => {
-                              const isActive = pathname === subItem.href;
+                              const isActive = pathname === subItem.href
                               return (
-                                <SidebarMenuSubItem key={`${subItem.title}-${idx}`}>
+                                <SidebarMenuSubItem
+                                  key={`${subItem.title}-${idx}`}
+                                >
                                   <SidebarMenuSubButton
                                     asChild
                                     isActive={isActive}
                                     className={`h-7 text-xs transition-colors ${
                                       isActive
-                                        ? "font-semibold text-slate-900 bg-slate-100"
-                                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                                        ? "bg-slate-100 font-semibold text-slate-900"
+                                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                                     }`}
                                   >
-                                    <Link href={subItem.href} className="w-full">
-                                      <span className="leading-snug whitespace-nowrap">{subItem.title}</span>
+                                    <Link
+                                      href={subItem.href}
+                                      className="w-full"
+                                    >
+                                      <span className="leading-snug whitespace-nowrap">
+                                        {subItem.title}
+                                      </span>
                                     </Link>
                                   </SidebarMenuSubButton>
                                 </SidebarMenuSubItem>
-                              );
+                              )
                             })}
                           </SidebarMenuSub>
                         </CollapsibleContent>
                       </SidebarMenuItem>
                     </Collapsible>
-                  );
+                  )
                 }
 
                 return (
@@ -338,26 +377,31 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       asChild
                       isActive={isDirectActive}
                       tooltip={item.title}
-                      className={`w-full justify-between h-9 px-2 text-xs font-medium rounded-md transition-colors ${
+                      className={`h-9 w-full justify-between rounded-md px-2 text-xs font-medium transition-colors ${
                         isDirectActive
-                          ? "bg-slate-100 text-slate-900 font-semibold"
+                          ? "bg-slate-100 font-semibold text-slate-900"
                           : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                       }`}
                     >
-                      <Link href={item.href || "#"} className="flex items-center justify-between w-full">
+                      <Link
+                        href={item.href || "#"}
+                        className="flex w-full items-center justify-between"
+                      >
                         <div className="flex items-center gap-2.5">
                           <item.icon className="h-4 w-4 shrink-0 text-slate-600" />
-                          <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
+                          <span className="group-data-[collapsible=icon]:hidden">
+                            {item.title}
+                          </span>
                         </div>
-                        {item.badge && (
-                          <span className="text-xs text-slate-400 font-medium pr-1 group-data-[collapsible=icon]:hidden">
-                            {item.badge}
+                        {(item as any).badge && (
+                          <span className="pr-1 text-xs font-medium text-slate-400 group-data-[collapsible=icon]:hidden">
+                            {(item as any).badge}
                           </span>
                         )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                );
+                )
               })}
             </SidebarMenu>
           </SidebarGroup>
@@ -365,21 +409,33 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
 
       {/* 3. User Dropdown Footer */}
-      <SidebarFooter className="p-2 border-t border-slate-100 shrink-0">
+      <SidebarFooter className="shrink-0 border-t border-slate-100 p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" className="hover:bg-slate-50 transition-colors">
-                  <Avatar className="h-8 w-8 rounded-lg shrink-0">
-                    <AvatarImage src="/avatar.png" alt="shadcn" />
-                    <AvatarFallback className="rounded-lg bg-purple-600 text-white font-semibold text-xs">
-                      SC
+                <SidebarMenuButton
+                  size="lg"
+                  className="transition-colors hover:bg-slate-50"
+                >
+                  <Avatar className="h-8 w-8 shrink-0 rounded-lg">
+                    <AvatarImage
+                      src="/avatar.png"
+                      alt={currentUser?.name || "Operator"}
+                    />
+                    <AvatarFallback className="rounded-lg bg-black text-xs font-semibold text-white">
+                      {currentUser?.name
+                        ? currentUser.name.slice(0, 2).toUpperCase()
+                        : "AP"}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="grid flex-1 text-left text-xs leading-tight ml-2 group-data-[collapsible=icon]:hidden">
-                    <span className="truncate font-semibold text-slate-900">shadcn</span>
-                    <span className="truncate text-[10px] text-slate-500">m@example.com</span>
+                  <div className="ml-2 grid flex-1 text-left text-xs leading-tight group-data-[collapsible=icon]:hidden">
+                    <span className="truncate font-semibold text-slate-900">
+                      {currentUser?.name || "Super Administrator"}
+                    </span>
+                    <span className="truncate font-mono text-[10px] text-slate-500">
+                      {currentUser?.email || "superadmin@pharma.com"}
+                    </span>
                   </div>
                   <ChevronsUpDown className="ml-auto h-3.5 w-3.5 text-slate-400 group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
@@ -393,30 +449,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <DropdownMenuLabel className="p-0 font-normal">
                   <div className="flex items-center gap-2 px-2 py-1.5 text-left text-sm">
                     <Avatar className="h-8 w-8 rounded-lg">
-                      <AvatarFallback className="rounded-lg bg-purple-600 text-white font-semibold text-xs">
-                        SC
+                      <AvatarFallback className="rounded-lg bg-black text-xs font-semibold text-white">
+                        {currentUser?.name
+                          ? currentUser.name.slice(0, 2).toUpperCase()
+                          : "AP"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="grid flex-1 text-left text-xs leading-tight">
-                      <span className="truncate font-semibold text-slate-900">shadcn</span>
-                      <span className="truncate text-[10px] text-slate-500">m@example.com</span>
+                      <span className="truncate font-semibold text-slate-900">
+                        {currentUser?.name || "Super Administrator"}
+                      </span>
+                      <span className="truncate font-mono text-[10px] text-slate-500">
+                        {currentUser?.email || "superadmin@pharma.com"}
+                      </span>
                     </div>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
-                  <DropdownMenuItem className="text-xs">
-                    <Sparkles className="mr-2 h-3.5 w-3.5" />
-                    Account Overview
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-xs">
-                    <ShieldCheck className="mr-2 h-3.5 w-3.5" />
-                    Role Privileges
+                  <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                    <Link href="/settings/rbac">
+                      <ShieldCheck className="mr-2 h-3.5 w-3.5" />
+                      Role Privileges
+                    </Link>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-xs text-destructive focus:text-destructive">
-                  <LogOut className="mr-2 h-3.5 w-3.5" />
+                <DropdownMenuItem
+                  onClick={() => logout()}
+                  className="cursor-pointer text-xs font-medium text-rose-600 focus:text-rose-700"
+                >
+                  <LogOut className="mr-2 h-3.5 w-3.5 text-rose-600" />
                   Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -427,5 +490,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <SidebarRail />
     </Sidebar>
-  );
+  )
 }

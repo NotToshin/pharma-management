@@ -1,12 +1,12 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import * as XLSX from "xlsx";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import * as React from "react"
+import * as XLSX from "xlsx"
+import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -15,7 +15,7 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog"
 import {
   Table,
   TableBody,
@@ -31,7 +31,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui/table"
 import {
   Landmark,
   Plus,
@@ -48,7 +48,7 @@ import {
   Coins,
   BadgePercent,
   RefreshCw,
-} from "lucide-react";
+} from "lucide-react"
 
 export const BANGLADESH_BANKS = {
   conventional: [
@@ -82,212 +82,248 @@ export const BANGLADESH_BANKS = {
     "Mirpur Depot Petty Safe",
     "Factory Plant Cash Vault",
   ],
-};
+}
 
 interface AccountRecord {
-  id: string;
-  accountTitle: string;
-  category: "BANK" | "CASH";
-  institution: string;
-  accountNumber: string;
-  branch: string;
-  accountClass: string;
-  balance: number;
+  id: string
+  accountTitle: string
+  category: "BANK" | "CASH"
+  institution: string
+  accountNumber: string
+  branch: string
+  accountClass: string
+  balance: number
 }
 
 interface TransactionRecord {
-  id: string;
-  entryDate: string;
-  refCode: string;
-  flowType: "INFLOW" | "OUTFLOW" | "TRANSFER" | "LOAN";
-  particulars: string;
-  fundingEntity?: string;
-  method: string;
-  amount: number;
-  sourceAccountId?: string;
-  destinationAccountId?: string;
-  sourceAccount?: AccountRecord;
-  destinationAccount?: AccountRecord;
-  reconciliationStatus: "Reconciled" | "In Transit" | "Unreconciled";
+  id: string
+  entryDate: string
+  refCode: string
+  flowType: "INFLOW" | "OUTFLOW" | "TRANSFER" | "LOAN"
+  particulars: string
+  fundingEntity?: string
+  method: string
+  amount: number
+  sourceAccountId?: string
+  destinationAccountId?: string
+  sourceAccount?: AccountRecord
+  destinationAccount?: AccountRecord
+  reconciliationStatus: "Reconciled" | "In Transit" | "Unreconciled"
 }
 
 export default function AccountLedgerPage() {
-  const [accounts, setAccounts] = React.useState<AccountRecord[]>([]);
-  const [ledger, setLedger] = React.useState<TransactionRecord[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [accountFilter, setAccountFilter] = React.useState("all");
-  const [flowFilter, setFlowFilter] = React.useState("all");
+  const [accounts, setAccounts] = React.useState<AccountRecord[]>([])
+  const [ledger, setLedger] = React.useState<TransactionRecord[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [accountFilter, setAccountFilter] = React.useState("all")
+  const [flowFilter, setFlowFilter] = React.useState("all")
 
   // Modals
-  const [isAddAccountOpen, setIsAddAccountOpen] = React.useState(false);
-  const [isTxOpen, setIsTxOpen] = React.useState(false);
+  const [isAddAccountOpen, setIsAddAccountOpen] = React.useState(false)
+  const [isTxOpen, setIsTxOpen] = React.useState(false)
 
   // Add Account Form
-  const [accCategory, setAccCategory] = React.useState<"BANK" | "CASH">("BANK");
-  const [accInstitution, setAccInstitution] = React.useState(BANGLADESH_BANKS.conventional[0]);
-  const [accTitle, setAccTitle] = React.useState("");
-  const [accNumber, setAccNumber] = React.useState("");
-  const [accBranch, setAccBranch] = React.useState("");
-  const [accClass, setAccClass] = React.useState("Current");
-  const [accInitialBalance, setAccInitialBalance] = React.useState("");
+  const [accCategory, setAccCategory] = React.useState<"BANK" | "CASH">("BANK")
+  const [accInstitution, setAccInstitution] = React.useState(
+    BANGLADESH_BANKS.conventional[0]
+  )
+  const [accTitle, setAccTitle] = React.useState("")
+  const [accNumber, setAccNumber] = React.useState("")
+  const [accBranch, setAccBranch] = React.useState("")
+  const [accClass, setAccClass] = React.useState("Current")
+  const [accInitialBalance, setAccInitialBalance] = React.useState("")
 
   // Transaction / Loan / Transfer Form
-  const [txFlow, setTxFlow] = React.useState<"INFLOW" | "OUTFLOW" | "TRANSFER" | "LOAN">("TRANSFER");
-  const [sourceAccountId, setSourceAccountId] = React.useState("");
-  const [destinationAccountId, setDestinationAccountId] = React.useState("");
-  const [txParticulars, setTxParticulars] = React.useState("");
-  const [txFundingEntity, setTxFundingEntity] = React.useState("");
-  const [txMethod, setTxMethod] = React.useState("Cash Handover");
-  const [txAmount, setTxAmount] = React.useState("");
-  const [txStatus, setTxStatus] = React.useState<"Reconciled" | "In Transit" | "Unreconciled">("Reconciled");
+  const [txFlow, setTxFlow] = React.useState<
+    "INFLOW" | "OUTFLOW" | "TRANSFER" | "LOAN"
+  >("TRANSFER")
+  const [sourceAccountId, setSourceAccountId] = React.useState("")
+  const [destinationAccountId, setDestinationAccountId] = React.useState("")
+  const [txParticulars, setTxParticulars] = React.useState("")
+  const [txFundingEntity, setTxFundingEntity] = React.useState("")
+  const [txMethod, setTxMethod] = React.useState("Cash Handover")
+  const [txAmount, setTxAmount] = React.useState("")
+  const [txStatus, setTxStatus] = React.useState<
+    "Reconciled" | "In Transit" | "Unreconciled"
+  >("Reconciled")
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
 
   const fetchBackendData = React.useCallback(async () => {
     try {
-      setLoading(true);
+      setLoading(true)
       const [accRes, txRes] = await Promise.all([
         fetch(`${API_URL}/account-ledger/accounts`).catch(() => null),
         fetch(`${API_URL}/account-ledger/transactions`).catch(() => null),
-      ]);
+      ])
 
       if (accRes && accRes.ok) {
-        const accs = await accRes.json();
-        setAccounts(accs.map((a: any) => ({ ...a, balance: Number(a.balance) || 0 })));
+        const accs = await accRes.json()
+        setAccounts(
+          accs.map((a: any) => ({ ...a, balance: Number(a.balance) || 0 }))
+        )
         if (accs.length > 0) {
-          setSourceAccountId(accs[0].id);
-          setDestinationAccountId(accs[1]?.id || accs[0].id);
+          setSourceAccountId(accs[0].id)
+          setDestinationAccountId(accs[1]?.id || accs[0].id)
         }
       }
 
       if (txRes && txRes.ok) {
-        const txs = await txRes.json();
-        setLedger(txs.map((t: any) => ({ ...t, amount: Number(t.amount) || 0 })));
+        const txs = await txRes.json()
+        setLedger(
+          txs.map((t: any) => ({ ...t, amount: Number(t.amount) || 0 }))
+        )
       }
     } catch (err) {
-      console.error("Failed to load treasury data:", err);
+      console.error("Failed to load treasury data:", err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, [API_URL]);
+  }, [API_URL])
 
   React.useEffect(() => {
-    fetchBackendData();
-  }, [fetchBackendData]);
+    fetchBackendData()
+  }, [fetchBackendData])
 
   // Aggregate Balances
   const totalBankLiquidity = accounts
     .filter((a) => a.category === "BANK")
-    .reduce((sum, a) => sum + a.balance, 0);
+    .reduce((sum, a) => sum + a.balance, 0)
 
   const totalCashSafeLiquidity = accounts
     .filter((a) => a.category === "CASH")
-    .reduce((sum, a) => sum + a.balance, 0);
+    .reduce((sum, a) => sum + a.balance, 0)
 
-  const totalCombinedFunds = totalBankLiquidity + totalCashSafeLiquidity;
+  const totalCombinedFunds = totalBankLiquidity + totalCashSafeLiquidity
 
   // Add Account / Cash Drawer
   const handleCreateAccount = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
     try {
       const payload = {
         accountTitle: accTitle.trim(),
         category: accCategory,
         institution: accInstitution,
-        accountNumber: accNumber.trim() || (accCategory === "CASH" ? "CASH-VAULT" : "N/A"),
+        accountNumber:
+          accNumber.trim() || (accCategory === "CASH" ? "CASH-VAULT" : "N/A"),
         branch: accBranch.trim() || "Main Office",
         accountClass: accClass,
         initialBalance: parseFloat(accInitialBalance) || 0,
-      };
+      }
 
       const res = await fetch(`${API_URL}/account-ledger/accounts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
+      })
 
-      if (!res.ok) throw new Error("Failed to create account");
+      if (!res.ok) throw new Error("Failed to create account")
 
-      setAccTitle("");
-      setAccNumber("");
-      setAccBranch("");
-      setAccInitialBalance("");
-      setIsAddAccountOpen(false);
-      fetchBackendData();
+      setAccTitle("")
+      setAccNumber("")
+      setAccBranch("")
+      setAccInitialBalance("")
+      setIsAddAccountOpen(false)
+      fetchBackendData()
     } catch (err) {
-      alert("Error adding account or cash drawer.");
+      alert("Error adding account or cash drawer.")
     }
-  };
+  }
 
   // Delete Account
   const handleDeleteAccount = async (id: string, title: string) => {
-    if (!confirm(`Are you sure you want to remove "${title}"? This will unlink it from active accounts.`)) return;
+    if (
+      !confirm(
+        `Are you sure you want to remove "${title}"? This will unlink it from active accounts.`
+      )
+    )
+      return
     try {
-      const res = await fetch(`${API_URL}/account-ledger/accounts/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete account");
-      fetchBackendData();
+      const res = await fetch(`${API_URL}/account-ledger/accounts/${id}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) throw new Error("Failed to delete account")
+      fetchBackendData()
     } catch {
-      alert("Error removing account.");
+      alert("Error removing account.")
     }
-  };
+  }
 
   // Record Transaction / Transfer / Loan
   const handlePostTransaction = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const numAmount = parseFloat(txAmount);
+    e.preventDefault()
+    const numAmount = parseFloat(txAmount)
     if (!numAmount || numAmount <= 0) {
-      alert("Please enter a valid amount.");
-      return;
+      alert("Please enter a valid amount.")
+      return
     }
 
     if (txFlow === "TRANSFER" && sourceAccountId === destinationAccountId) {
-      alert("Source and Destination accounts cannot be the same.");
-      return;
+      alert("Source and Destination accounts cannot be the same.")
+      return
     }
 
     try {
       const payload = {
-        entryDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        entryDate: new Date().toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
         flowType: txFlow,
-        particulars: txParticulars.trim() || (txFlow === "LOAN" ? "Loan Disbursement" : "Journal Entry"),
+        particulars:
+          txParticulars.trim() ||
+          (txFlow === "LOAN" ? "Loan Disbursement" : "Journal Entry"),
         fundingEntity: txFundingEntity.trim(),
         method: txMethod,
         amount: numAmount,
-        sourceAccountId: txFlow === "INFLOW" || txFlow === "LOAN" ? undefined : sourceAccountId,
-        destinationAccountId: txFlow === "OUTFLOW" ? undefined : destinationAccountId,
+        sourceAccountId:
+          txFlow === "INFLOW" || txFlow === "LOAN"
+            ? undefined
+            : sourceAccountId,
+        destinationAccountId:
+          txFlow === "OUTFLOW" ? undefined : destinationAccountId,
         reconciliationStatus: txStatus,
-      };
+      }
 
       const res = await fetch(`${API_URL}/account-ledger/transactions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
+      })
 
-      if (!res.ok) throw new Error("Failed to post transaction");
+      if (!res.ok) throw new Error("Failed to post transaction")
 
-      setTxParticulars("");
-      setTxFundingEntity("");
-      setTxAmount("");
-      setIsTxOpen(false);
-      fetchBackendData();
+      setTxParticulars("")
+      setTxFundingEntity("")
+      setTxAmount("")
+      setIsTxOpen(false)
+      fetchBackendData()
     } catch (err) {
-      alert("Failed to submit transaction.");
+      alert("Failed to submit transaction.")
     }
-  };
+  }
 
   // Delete Transaction (Reverses Balance)
   const handleDeleteTransaction = async (tx: TransactionRecord) => {
-    if (!confirm(`Reverse and delete transaction ${tx.refCode}? This will automatically restore account balances.`)) return;
+    if (
+      !confirm(
+        `Reverse and delete transaction ${tx.refCode}? This will automatically restore account balances.`
+      )
+    )
+      return
     try {
-      const res = await fetch(`${API_URL}/account-ledger/transactions/${tx.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete transaction");
-      fetchBackendData();
+      const res = await fetch(
+        `${API_URL}/account-ledger/transactions/${tx.id}`,
+        { method: "DELETE" }
+      )
+      if (!res.ok) throw new Error("Failed to delete transaction")
+      fetchBackendData()
     } catch {
-      alert("Error deleting transaction.");
+      alert("Error deleting transaction.")
     }
-  };
+  }
 
   const handleExportExcel = () => {
     const exportRows = ledger.map((item) => ({
@@ -295,54 +331,68 @@ export default function AccountLedgerPage() {
       "Ref Code": item.refCode,
       "Flow Type": item.flowType,
       "Source Account": item.sourceAccount?.accountTitle || "External Payer",
-      "Destination Account": item.destinationAccount?.accountTitle || "External Payee",
+      "Destination Account":
+        item.destinationAccount?.accountTitle || "External Payee",
       "Particulars / Reason": item.particulars,
       "Entity / Lender": item.fundingEntity || "N/A",
       Method: item.method,
       "Amount (BDT)": item.amount,
       Status: item.reconciliationStatus,
-    }));
+    }))
 
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Treasury Journal");
-    XLSX.writeFile(workbook, `AK_Pharma_Treasury_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  };
+    const worksheet = XLSX.utils.json_to_sheet(exportRows)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Treasury Journal")
+    XLSX.writeFile(
+      workbook,
+      `AK_Pharma_Treasury_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`
+    )
+  }
 
   const filteredLedger = ledger.filter((item) => {
     const matchesSearch =
       item.particulars.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.refCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.fundingEntity && item.fundingEntity.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (item.sourceAccount?.accountTitle && item.sourceAccount.accountTitle.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (item.destinationAccount?.accountTitle && item.destinationAccount.accountTitle.toLowerCase().includes(searchQuery.toLowerCase()));
+      (item.fundingEntity &&
+        item.fundingEntity.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (item.sourceAccount?.accountTitle &&
+        item.sourceAccount.accountTitle
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase())) ||
+      (item.destinationAccount?.accountTitle &&
+        item.destinationAccount.accountTitle
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()))
 
     const matchesAccount =
       accountFilter === "all" ||
       item.sourceAccountId === accountFilter ||
-      item.destinationAccountId === accountFilter;
+      item.destinationAccountId === accountFilter
 
-    const matchesFlow = flowFilter === "all" || item.flowType.toLowerCase() === flowFilter.toLowerCase();
+    const matchesFlow =
+      flowFilter === "all" ||
+      item.flowType.toLowerCase() === flowFilter.toLowerCase()
 
-    return matchesSearch && matchesAccount && matchesFlow;
-  });
+    return matchesSearch && matchesAccount && matchesFlow
+  })
 
   return (
-    <div className="space-y-6 max-w-[1360px] mx-auto pb-12 text-slate-900 font-sans">
+    <div className="mx-auto max-w-[1360px] space-y-6 pb-12 font-sans text-slate-900">
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200">
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-[#0090FF] animate-pulse" />
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-[#0090FF]" />
+            <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
               CENTRAL TREASURY & LIQUIDITY MASTER
             </span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 mt-1">
+          <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
             Account & Cash Journal Ledger
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Manage your corporate banks, cash drawers, loan intakes, and transfers.
+          <p className="mt-0.5 text-xs text-slate-500">
+            Manage your corporate banks, cash drawers, loan intakes, and
+            transfers.
           </p>
         </div>
 
@@ -351,7 +401,7 @@ export default function AccountLedgerPage() {
             size="sm"
             variant="outline"
             onClick={fetchBackendData}
-            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold px-3 rounded-lg shadow-none"
+            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
           >
             <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
             Refresh
@@ -361,7 +411,7 @@ export default function AccountLedgerPage() {
             size="sm"
             variant="outline"
             onClick={handleExportExcel}
-            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold px-3 rounded-lg shadow-none"
+            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
           >
             <Download className="h-3.5 w-3.5 text-emerald-600" />
             Export Ledger
@@ -371,7 +421,7 @@ export default function AccountLedgerPage() {
             size="sm"
             variant="outline"
             onClick={() => setIsAddAccountOpen(true)}
-            className="h-9 gap-1.5 border-slate-200 bg-white text-slate-800 text-xs font-semibold px-3 rounded-lg shadow-none"
+            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-none"
           >
             <Building2 className="h-3.5 w-3.5 text-slate-600" />
             Add Account / Drawer
@@ -380,7 +430,7 @@ export default function AccountLedgerPage() {
           <Button
             size="sm"
             onClick={() => setIsTxOpen(true)}
-            className="h-9 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-white text-xs font-semibold px-4 rounded-lg shadow-none"
+            className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
           >
             <Plus className="h-4 w-4" />
             Post Money / Transfer / Loan
@@ -389,77 +439,99 @@ export default function AccountLedgerPage() {
       </div>
 
       {/* 2. Top Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="rounded-xl border border-slate-200 bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Treasury Liquidity</span>
-            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700">
+            <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
+              Total Treasury Liquidity
+            </span>
+            <div className="rounded-lg bg-emerald-50 p-1.5 text-emerald-700">
               <CheckCircle2 className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[30px] font-extrabold tracking-tight text-slate-900 leading-none font-mono">
+          <div className="mt-3 font-mono text-[30px] leading-none font-extrabold tracking-tight text-slate-900">
             ৳{totalCombinedFunds.toLocaleString("en-IN")}
           </div>
-          <p className="text-[11px] text-slate-400 mt-2">Combined across all banks and physical cash drawers</p>
+          <p className="mt-2 text-[11px] text-slate-400">
+            Combined across all banks and physical cash drawers
+          </p>
         </Card>
 
         <Card className="rounded-xl border border-slate-200 bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Corporate Bank Accounts</span>
-            <div className="p-1.5 rounded-lg bg-blue-50 text-[#0090FF]">
+            <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
+              Corporate Bank Accounts
+            </span>
+            <div className="rounded-lg bg-blue-50 p-1.5 text-[#0090FF]">
               <Landmark className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[30px] font-extrabold tracking-tight text-blue-700 leading-none font-mono">
+          <div className="mt-3 font-mono text-[30px] leading-none font-extrabold tracking-tight text-blue-700">
             ৳{totalBankLiquidity.toLocaleString("en-IN")}
           </div>
-          <p className="text-[11px] text-slate-400 mt-2">Settlement, Clearing, and Foreign Escrow balance</p>
+          <p className="mt-2 text-[11px] text-slate-400">
+            Settlement, Clearing, and Foreign Escrow balance
+          </p>
         </Card>
 
         <Card className="rounded-xl border border-slate-200 bg-white p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Physical Cash Drawers</span>
-            <div className="p-1.5 rounded-lg bg-purple-50 text-purple-700">
+            <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
+              Physical Cash Drawers
+            </span>
+            <div className="rounded-lg bg-purple-50 p-1.5 text-purple-700">
               <Wallet className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 text-[30px] font-extrabold tracking-tight text-purple-700 leading-none font-mono">
+          <div className="mt-3 font-mono text-[30px] leading-none font-extrabold tracking-tight text-purple-700">
             ৳{totalCashSafeLiquidity.toLocaleString("en-IN")}
           </div>
-          <p className="text-[11px] text-slate-400 mt-2">In Central Safe, retail desks, and plant registers</p>
+          <p className="mt-2 text-[11px] text-slate-400">
+            In Central Safe, retail desks, and plant registers
+          </p>
         </Card>
       </div>
 
       {/* 3. Dynamic Cash Counters & Banks Strip */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+          <h2 className="text-xs font-bold tracking-wider text-slate-800 uppercase">
             Active Vaults, Drawers & Banks ({accounts.length})
           </h2>
-          <span className="text-[11px] text-slate-400">All balances update dynamically on transaction entry</span>
+          <span className="text-[11px] text-slate-400">
+            All balances update dynamically on transaction entry
+          </span>
         </div>
 
         {accounts.length === 0 && !loading ? (
-          <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-white text-slate-400 text-xs">
-            No bank accounts or cash drawers configured. Click <strong>"Add Account / Drawer"</strong> to create your first treasury account.
+          <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white p-6 text-center text-xs text-slate-400">
+            No bank accounts or cash drawers configured. Click{" "}
+            <strong>"Add Account / Drawer"</strong> to create your first
+            treasury account.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
             {accounts.map((acc) => (
-              <Card key={acc.id} className="rounded-xl border border-slate-200 bg-white p-4 relative group hover:border-slate-300 transition-all shadow-none">
+              <Card
+                key={acc.id}
+                className="group relative rounded-xl border border-slate-200 bg-white p-4 shadow-none transition-all hover:border-slate-300"
+              >
                 <div className="flex items-start justify-between">
                   <div>
                     <Badge
                       variant="outline"
                       className={`text-[9px] font-bold ${
                         acc.category === "CASH"
-                          ? "bg-purple-50 text-purple-700 border-purple-200"
-                          : "bg-blue-50 text-blue-700 border-blue-200"
+                          ? "border-purple-200 bg-purple-50 text-purple-700"
+                          : "border-blue-200 bg-blue-50 text-blue-700"
                       }`}
                     >
                       {acc.category === "CASH" ? "Cash Drawer" : "Bank Account"}
                     </Badge>
-                    <strong className="text-xs font-bold text-slate-900 block mt-1.5 truncate max-w-[170px]" title={acc.accountTitle}>
+                    <strong
+                      className="mt-1.5 block max-w-[170px] truncate text-xs font-bold text-slate-900"
+                      title={acc.accountTitle}
+                    >
                       {acc.accountTitle}
                     </strong>
                   </div>
@@ -467,20 +539,24 @@ export default function AccountLedgerPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => handleDeleteAccount(acc.id, acc.accountTitle)}
-                    className="h-6 w-6 p-0 text-slate-300 hover:text-rose-600 opacity-60 group-hover:opacity-100 transition-opacity"
+                    onClick={() =>
+                      handleDeleteAccount(acc.id, acc.accountTitle)
+                    }
+                    className="h-6 w-6 p-0 text-slate-300 opacity-60 transition-opacity group-hover:opacity-100 hover:text-rose-600"
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
 
-                <div className="mt-3 text-xl font-black font-mono tracking-tight text-slate-900">
+                <div className="mt-3 font-mono text-xl font-black tracking-tight text-slate-900">
                   ৳{acc.balance.toLocaleString("en-IN")}
                 </div>
 
-                <div className="mt-2 text-[10px] text-slate-400 truncate flex items-center justify-between">
+                <div className="mt-2 flex items-center justify-between truncate text-[10px] text-slate-400">
                   <span>{acc.institution}</span>
-                  <span className="font-mono text-slate-500 font-semibold">{acc.accountNumber}</span>
+                  <span className="font-mono font-semibold text-slate-500">
+                    {acc.accountNumber}
+                  </span>
                 </div>
               </Card>
             ))}
@@ -489,21 +565,21 @@ export default function AccountLedgerPage() {
       </div>
 
       {/* 4. Filter Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
           <Input
             placeholder="Search ref, particulars, lender, or accounts..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-8 text-xs border-slate-200 bg-slate-50/50"
+            className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
           />
         </div>
 
         <div className="flex items-center gap-2">
           <Select value={accountFilter} onValueChange={setAccountFilter}>
-            <SelectTrigger className="h-8 w-[210px] text-xs bg-white border-slate-200">
-              <Filter className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
+            <SelectTrigger className="h-8 w-[210px] border-slate-200 bg-white text-xs">
+              <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
               <SelectValue placeholder="All Accounts & Drawers" />
             </SelectTrigger>
             <SelectContent className="text-xs">
@@ -517,7 +593,7 @@ export default function AccountLedgerPage() {
           </Select>
 
           <Select value={flowFilter} onValueChange={setFlowFilter}>
-            <SelectTrigger className="h-8 w-[150px] text-xs bg-white border-slate-200">
+            <SelectTrigger className="h-8 w-[150px] border-slate-200 bg-white text-xs">
               <SelectValue placeholder="All Operations" />
             </SelectTrigger>
             <SelectContent className="text-xs">
@@ -532,17 +608,18 @@ export default function AccountLedgerPage() {
       </div>
 
       {/* 5. Main Journal Table */}
-      <Card className="rounded-xl border border-slate-200 shadow-none bg-white p-6">
-        <div className="flex items-center justify-between mb-4">
+      <Card className="rounded-xl border border-slate-200 bg-white p-6 shadow-none">
+        <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
               BANK & CASH JOURNAL LEDGER
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Live chronological record of all inflows, loans, payouts, and transfers
+            <p className="mt-0.5 text-xs text-slate-400">
+              Live chronological record of all inflows, loans, payouts, and
+              transfers
             </p>
           </div>
-          <span className="text-xs text-slate-400 font-medium">
+          <span className="text-xs font-medium text-slate-400">
             Showing {filteredLedger.length} Records
           </span>
         </div>
@@ -557,48 +634,75 @@ export default function AccountLedgerPage() {
               <TableHead>Particulars / Entity</TableHead>
               <TableHead className="text-right">Amount (৳)</TableHead>
               <TableHead className="text-center">Status</TableHead>
-              <TableHead className="text-right pr-0">Actions</TableHead>
+              <TableHead className="pr-0 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-slate-400 text-xs">
+                <TableCell
+                  colSpan={8}
+                  className="py-8 text-center text-xs text-slate-400"
+                >
                   Loading ledger data from database...
                 </TableCell>
               </TableRow>
             ) : filteredLedger.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-slate-400 text-xs">
-                  No journal records found. Click <strong>"Post Money / Transfer / Loan"</strong> to create an entry.
+                <TableCell
+                  colSpan={8}
+                  className="py-8 text-center text-xs text-slate-400"
+                >
+                  No journal records found. Click{" "}
+                  <strong>"Post Money / Transfer / Loan"</strong> to create an
+                  entry.
                 </TableCell>
               </TableRow>
             ) : (
               filteredLedger.map((row) => (
-                <TableRow key={row.id} className="border-b border-slate-50 hover:bg-slate-50/50 text-xs">
+                <TableRow
+                  key={row.id}
+                  className="border-b border-slate-50 text-xs hover:bg-slate-50/50"
+                >
                   <TableCell className="py-3 pl-0">
-                    <span className="font-semibold text-slate-900 block">{row.entryDate}</span>
-                    <span className="font-mono text-[10px] text-[#0090FF]">{row.refCode}</span>
+                    <span className="block font-semibold text-slate-900">
+                      {row.entryDate}
+                    </span>
+                    <span className="font-mono text-[10px] text-[#0090FF]">
+                      {row.refCode}
+                    </span>
                   </TableCell>
 
                   <TableCell className="py-3">
                     {row.flowType === "TRANSFER" && (
-                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] gap-1">
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-purple-200 bg-purple-50 text-[10px] text-purple-700"
+                      >
                         <ArrowRightLeft className="h-3 w-3" /> Transfer
                       </Badge>
                     )}
                     {row.flowType === "LOAN" && (
-                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] gap-1">
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-amber-200 bg-amber-50 text-[10px] text-amber-700"
+                      >
                         <Coins className="h-3 w-3" /> Loan Intake
                       </Badge>
                     )}
                     {row.flowType === "INFLOW" && (
-                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] gap-1">
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700"
+                      >
                         <ArrowDownRight className="h-3 w-3" /> Inflow
                       </Badge>
                     )}
                     {row.flowType === "OUTFLOW" && (
-                      <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] gap-1">
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-rose-200 bg-rose-50 text-[10px] text-rose-700"
+                      >
                         <ArrowUpRight className="h-3 w-3" /> Outflow
                       </Badge>
                     )}
@@ -607,14 +711,20 @@ export default function AccountLedgerPage() {
                   <TableCell className="py-3 text-slate-800">
                     {row.sourceAccount ? (
                       <div>
-                        <strong className="block text-slate-900 font-semibold">{row.sourceAccount.accountTitle}</strong>
+                        <strong className="block font-semibold text-slate-900">
+                          {row.sourceAccount.accountTitle}
+                        </strong>
                         <span className="text-[10px] text-slate-400">
-                          {row.sourceAccount.category === "CASH" ? "Cash Drawer" : "Bank"}
+                          {row.sourceAccount.category === "CASH"
+                            ? "Cash Drawer"
+                            : "Bank"}
                         </span>
                       </div>
                     ) : (
                       <span className="text-slate-400 italic">
-                        {row.flowType === "LOAN" ? "Lender / Credit Line" : "External Source"}
+                        {row.flowType === "LOAN"
+                          ? "Lender / Credit Line"
+                          : "External Source"}
                       </span>
                     )}
                   </TableCell>
@@ -622,35 +732,48 @@ export default function AccountLedgerPage() {
                   <TableCell className="py-3 text-slate-800">
                     {row.destinationAccount ? (
                       <div>
-                        <strong className="block text-slate-900 font-semibold">{row.destinationAccount.accountTitle}</strong>
+                        <strong className="block font-semibold text-slate-900">
+                          {row.destinationAccount.accountTitle}
+                        </strong>
                         <span className="text-[10px] text-slate-400">
-                          {row.destinationAccount.category === "CASH" ? "Cash Drawer" : "Bank"}
+                          {row.destinationAccount.category === "CASH"
+                            ? "Cash Drawer"
+                            : "Bank"}
                         </span>
                       </div>
                     ) : (
-                      <span className="text-slate-400 italic">External Payee / Expense</span>
+                      <span className="text-slate-400 italic">
+                        External Payee / Expense
+                      </span>
                     )}
                   </TableCell>
 
-                  <TableCell className="py-3 text-slate-700 max-w-[240px]">
-                    <span className="block truncate font-medium">{row.particulars}</span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">
-                      {row.fundingEntity ? `Entity: ${row.fundingEntity} • ` : ""}
+                  <TableCell className="max-w-[240px] py-3 text-slate-700">
+                    <span className="block truncate font-medium">
+                      {row.particulars}
+                    </span>
+                    <span className="mt-0.5 block text-[10px] text-slate-400">
+                      {row.fundingEntity
+                        ? `Entity: ${row.fundingEntity} • `
+                        : ""}
                       {row.method}
                     </span>
                   </TableCell>
 
-                  <TableCell className="py-3 text-right font-mono font-bold text-slate-900 text-sm">
+                  <TableCell className="py-3 text-right font-mono text-sm font-bold text-slate-900">
                     ৳{row.amount.toLocaleString("en-IN")}
                   </TableCell>
 
                   <TableCell className="py-3 text-center">
-                    <Badge variant="outline" className="text-[10px] text-slate-600 bg-slate-50 border-slate-200">
+                    <Badge
+                      variant="outline"
+                      className="border-slate-200 bg-slate-50 text-[10px] text-slate-600"
+                    >
                       {row.reconciliationStatus}
                     </Badge>
                   </TableCell>
 
-                  <TableCell className="py-3 text-right pr-0">
+                  <TableCell className="py-3 pr-0 text-right">
                     <Button
                       size="sm"
                       variant="ghost"
@@ -669,62 +792,98 @@ export default function AccountLedgerPage() {
 
       {/* 6. Modal: Add Bank Account or Cash Drawer */}
       <Dialog open={isAddAccountOpen} onOpenChange={setIsAddAccountOpen}>
-        <DialogContent className="sm:max-w-[480px] bg-white rounded-xl">
+        <DialogContent className="rounded-xl bg-white sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900">Add Account or Cash Drawer</DialogTitle>
+            <DialogTitle className="text-base font-bold text-slate-900">
+              Add Account or Cash Drawer
+            </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Create a new physical cash desk or connect an authorized bank account.
+              Create a new physical cash desk or connect an authorized bank
+              account.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateAccount} className="space-y-3.5 py-2 text-xs">
+          <form
+            onSubmit={handleCreateAccount}
+            className="space-y-3.5 py-2 text-xs"
+          >
             <div className="space-y-1">
-              <Label className="text-xs font-medium text-slate-700">Type of Account</Label>
+              <Label className="text-xs font-medium text-slate-700">
+                Type of Account
+              </Label>
               <Select
                 value={accCategory}
                 onValueChange={(val: any) => {
-                  setAccCategory(val);
-                  setAccInstitution(val === "CASH" ? BANGLADESH_BANKS.cashCounters[0] : BANGLADESH_BANKS.conventional[0]);
+                  setAccCategory(val)
+                  setAccInstitution(
+                    val === "CASH"
+                      ? BANGLADESH_BANKS.cashCounters[0]
+                      : BANGLADESH_BANKS.conventional[0]
+                  )
                 }}
               >
-                <SelectTrigger className="h-8 bg-white"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 bg-white">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent className="text-xs">
                   <SelectItem value="BANK">Corporate Bank Account</SelectItem>
-                  <SelectItem value="CASH">Physical Cash Drawer / Safe</SelectItem>
+                  <SelectItem value="CASH">
+                    Physical Cash Drawer / Safe
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-medium text-slate-700">Financial Institution / Drawer</Label>
+              <Label className="text-xs font-medium text-slate-700">
+                Financial Institution / Drawer
+              </Label>
               <Select value={accInstitution} onValueChange={setAccInstitution}>
-                <SelectTrigger className="h-8 bg-white"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 bg-white">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent className="max-h-[260px] text-xs">
                   {accCategory === "CASH" ? (
                     <SelectGroup>
-                      <SelectLabel className="text-[10px] text-slate-400">Cash Registers & Safes</SelectLabel>
+                      <SelectLabel className="text-[10px] text-slate-400">
+                        Cash Registers & Safes
+                      </SelectLabel>
                       {BANGLADESH_BANKS.cashCounters.map((safe) => (
-                        <SelectItem key={safe} value={safe}>{safe}</SelectItem>
+                        <SelectItem key={safe} value={safe}>
+                          {safe}
+                        </SelectItem>
                       ))}
                     </SelectGroup>
                   ) : (
                     <>
                       <SelectGroup>
-                        <SelectLabel className="text-[10px] text-slate-400">Conventional Banks</SelectLabel>
+                        <SelectLabel className="text-[10px] text-slate-400">
+                          Conventional Banks
+                        </SelectLabel>
                         {BANGLADESH_BANKS.conventional.map((b) => (
-                          <SelectItem key={b} value={b}>{b}</SelectItem>
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
                         ))}
                       </SelectGroup>
                       <SelectGroup>
-                        <SelectLabel className="text-[10px] text-slate-400">Islamic Shariah Banks</SelectLabel>
+                        <SelectLabel className="text-[10px] text-slate-400">
+                          Islamic Shariah Banks
+                        </SelectLabel>
                         {BANGLADESH_BANKS.islamic.map((b) => (
-                          <SelectItem key={b} value={b}>{b}</SelectItem>
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
                         ))}
                       </SelectGroup>
                       <SelectGroup>
-                        <SelectLabel className="text-[10px] text-slate-400">Foreign / Multinational Banks</SelectLabel>
+                        <SelectLabel className="text-[10px] text-slate-400">
+                          Foreign / Multinational Banks
+                        </SelectLabel>
                         {BANGLADESH_BANKS.foreign.map((b) => (
-                          <SelectItem key={b} value={b}>{b}</SelectItem>
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
                         ))}
                       </SelectGroup>
                     </>
@@ -734,7 +893,9 @@ export default function AccountLedgerPage() {
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-medium text-slate-700">Display Title *</Label>
+              <Label className="text-xs font-medium text-slate-700">
+                Display Title *
+              </Label>
               <Input
                 placeholder="e.g. EBL Operations Clearing / HQ Main Cash Drawer"
                 value={accTitle}
@@ -746,7 +907,9 @@ export default function AccountLedgerPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Account # / Vault Identifier</Label>
+                <Label className="text-xs font-medium text-slate-700">
+                  Account # / Vault Identifier
+                </Label>
                 <Input
                   placeholder="e.g. 104-102-998 or SAFE-01"
                   value={accNumber}
@@ -755,7 +918,9 @@ export default function AccountLedgerPage() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Branch / Physical Location</Label>
+                <Label className="text-xs font-medium text-slate-700">
+                  Branch / Physical Location
+                </Label>
                 <Input
                   placeholder="e.g. Gulshan Corporate / Mirpur 10 HQ"
                   value={accBranch}
@@ -767,7 +932,9 @@ export default function AccountLedgerPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Account Class</Label>
+                <Label className="text-xs font-medium text-slate-700">
+                  Account Class
+                </Label>
                 <Input
                   placeholder="Current / Petty Cash / Cash Desk"
                   value={accClass}
@@ -776,7 +943,9 @@ export default function AccountLedgerPage() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Initial Balance (৳) *</Label>
+                <Label className="text-xs font-medium text-slate-700">
+                  Initial Balance (৳) *
+                </Label>
                 <Input
                   type="number"
                   placeholder="0"
@@ -788,10 +957,18 @@ export default function AccountLedgerPage() {
             </div>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsAddAccountOpen(false)} className="h-8 text-xs">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddAccountOpen(false)}
+                className="h-8 text-xs"
+              >
                 Cancel
               </Button>
-              <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white">
+              <Button
+                type="submit"
+                className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
+              >
                 Save & Link Account
               </Button>
             </DialogFooter>
@@ -801,24 +978,45 @@ export default function AccountLedgerPage() {
 
       {/* 7. Modal: Post Money / Transfer / Loan */}
       <Dialog open={isTxOpen} onOpenChange={setIsTxOpen}>
-        <DialogContent className="sm:max-w-[520px] bg-white rounded-xl">
+        <DialogContent className="rounded-xl bg-white sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900">Post Transaction / Transfer / Loan</DialogTitle>
+            <DialogTitle className="text-base font-bold text-slate-900">
+              Post Transaction / Transfer / Loan
+            </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Inject capital, record bank loans, disburse funds, or transfer between Cash & Bank.
+              Inject capital, record bank loans, disburse funds, or transfer
+              between Cash & Bank.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handlePostTransaction} className="space-y-3.5 py-2 text-xs">
+          <form
+            onSubmit={handlePostTransaction}
+            className="space-y-3.5 py-2 text-xs"
+          >
             <div className="space-y-1">
-              <Label className="text-xs font-medium text-slate-700">Operation Type *</Label>
-              <Select value={txFlow} onValueChange={(val: any) => setTxFlow(val)}>
-                <SelectTrigger className="h-8 bg-white font-semibold"><SelectValue /></SelectTrigger>
+              <Label className="text-xs font-medium text-slate-700">
+                Operation Type *
+              </Label>
+              <Select
+                value={txFlow}
+                onValueChange={(val: any) => setTxFlow(val)}
+              >
+                <SelectTrigger className="h-8 bg-white font-semibold">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent className="text-xs">
-                  <SelectItem value="TRANSFER">Internal Transfer (Cash ⇄ Bank / Safe ⇄ Safe)</SelectItem>
-                  <SelectItem value="LOAN">Loan Intake (Bank Loan / Director Borrowing)</SelectItem>
-                  <SelectItem value="INFLOW">Deposit / Capital Inflow (Chemist Collection, Equity)</SelectItem>
-                  <SelectItem value="OUTFLOW">Direct Outflow / External Disbursement</SelectItem>
+                  <SelectItem value="TRANSFER">
+                    Internal Transfer (Cash ⇄ Bank / Safe ⇄ Safe)
+                  </SelectItem>
+                  <SelectItem value="LOAN">
+                    Loan Intake (Bank Loan / Director Borrowing)
+                  </SelectItem>
+                  <SelectItem value="INFLOW">
+                    Deposit / Capital Inflow (Chemist Collection, Equity)
+                  </SelectItem>
+                  <SelectItem value="OUTFLOW">
+                    Direct Outflow / External Disbursement
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -827,26 +1025,42 @@ export default function AccountLedgerPage() {
             {txFlow === "TRANSFER" && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium text-slate-700">From Account / Drawer *</Label>
-                  <Select value={sourceAccountId} onValueChange={setSourceAccountId}>
-                    <SelectTrigger className="h-8 bg-white"><SelectValue placeholder="Source" /></SelectTrigger>
+                  <Label className="text-xs font-medium text-slate-700">
+                    From Account / Drawer *
+                  </Label>
+                  <Select
+                    value={sourceAccountId}
+                    onValueChange={setSourceAccountId}
+                  >
+                    <SelectTrigger className="h-8 bg-white">
+                      <SelectValue placeholder="Source" />
+                    </SelectTrigger>
                     <SelectContent className="text-xs">
                       {accounts.map((a) => (
                         <SelectItem key={a.id} value={a.id}>
-                          {a.accountTitle} (৳{a.balance.toLocaleString("en-IN")})
+                          {a.accountTitle} (৳{a.balance.toLocaleString("en-IN")}
+                          )
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium text-slate-700">To Account / Drawer *</Label>
-                  <Select value={destinationAccountId} onValueChange={setDestinationAccountId}>
-                    <SelectTrigger className="h-8 bg-white"><SelectValue placeholder="Destination" /></SelectTrigger>
+                  <Label className="text-xs font-medium text-slate-700">
+                    To Account / Drawer *
+                  </Label>
+                  <Select
+                    value={destinationAccountId}
+                    onValueChange={setDestinationAccountId}
+                  >
+                    <SelectTrigger className="h-8 bg-white">
+                      <SelectValue placeholder="Destination" />
+                    </SelectTrigger>
                     <SelectContent className="text-xs">
                       {accounts.map((a) => (
                         <SelectItem key={a.id} value={a.id}>
-                          {a.accountTitle} (৳{a.balance.toLocaleString("en-IN")})
+                          {a.accountTitle} (৳{a.balance.toLocaleString("en-IN")}
+                          )
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -859,7 +1073,9 @@ export default function AccountLedgerPage() {
             {txFlow === "LOAN" && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium text-slate-700">Lender / Financial Source *</Label>
+                  <Label className="text-xs font-medium text-slate-700">
+                    Lender / Financial Source *
+                  </Label>
                   <Input
                     placeholder="e.g. BRAC Bank Term Loan / Director Loan"
                     value={txFundingEntity}
@@ -869,12 +1085,21 @@ export default function AccountLedgerPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium text-slate-700">Crediting Into *</Label>
-                  <Select value={destinationAccountId} onValueChange={setDestinationAccountId}>
-                    <SelectTrigger className="h-8 bg-white"><SelectValue placeholder="Select Account" /></SelectTrigger>
+                  <Label className="text-xs font-medium text-slate-700">
+                    Crediting Into *
+                  </Label>
+                  <Select
+                    value={destinationAccountId}
+                    onValueChange={setDestinationAccountId}
+                  >
+                    <SelectTrigger className="h-8 bg-white">
+                      <SelectValue placeholder="Select Account" />
+                    </SelectTrigger>
                     <SelectContent className="text-xs">
                       {accounts.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>{a.accountTitle}</SelectItem>
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.accountTitle}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -886,7 +1111,9 @@ export default function AccountLedgerPage() {
             {txFlow === "INFLOW" && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium text-slate-700">Depositor / Payer Entity</Label>
+                  <Label className="text-xs font-medium text-slate-700">
+                    Depositor / Payer Entity
+                  </Label>
                   <Input
                     placeholder="e.g. Popular Chemist / Investor Equity"
                     value={txFundingEntity}
@@ -895,12 +1122,21 @@ export default function AccountLedgerPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium text-slate-700">Depositing Into *</Label>
-                  <Select value={destinationAccountId} onValueChange={setDestinationAccountId}>
-                    <SelectTrigger className="h-8 bg-white"><SelectValue placeholder="Select Account" /></SelectTrigger>
+                  <Label className="text-xs font-medium text-slate-700">
+                    Depositing Into *
+                  </Label>
+                  <Select
+                    value={destinationAccountId}
+                    onValueChange={setDestinationAccountId}
+                  >
+                    <SelectTrigger className="h-8 bg-white">
+                      <SelectValue placeholder="Select Account" />
+                    </SelectTrigger>
                     <SelectContent className="text-xs">
                       {accounts.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>{a.accountTitle}</SelectItem>
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.accountTitle}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -911,12 +1147,21 @@ export default function AccountLedgerPage() {
             {/* Outflow Mode */}
             {txFlow === "OUTFLOW" && (
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Paying Out From Account / Drawer *</Label>
-                <Select value={sourceAccountId} onValueChange={setSourceAccountId}>
-                  <SelectTrigger className="h-8 bg-white"><SelectValue placeholder="Select Account" /></SelectTrigger>
+                <Label className="text-xs font-medium text-slate-700">
+                  Paying Out From Account / Drawer *
+                </Label>
+                <Select
+                  value={sourceAccountId}
+                  onValueChange={setSourceAccountId}
+                >
+                  <SelectTrigger className="h-8 bg-white">
+                    <SelectValue placeholder="Select Account" />
+                  </SelectTrigger>
                   <SelectContent className="text-xs">
                     {accounts.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{a.accountTitle}</SelectItem>
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.accountTitle}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -925,34 +1170,50 @@ export default function AccountLedgerPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Amount (৳) *</Label>
+                <Label className="text-xs font-medium text-slate-700">
+                  Amount (৳) *
+                </Label>
                 <Input
                   type="number"
                   placeholder="50000"
                   value={txAmount}
                   onChange={(e) => setTxAmount(e.target.value)}
                   required
-                  className="h-8 font-mono font-bold text-emerald-700 text-sm"
+                  className="h-8 font-mono text-sm font-bold text-emerald-700"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Payment Channel</Label>
+                <Label className="text-xs font-medium text-slate-700">
+                  Payment Channel
+                </Label>
                 <Select value={txMethod} onValueChange={setTxMethod}>
-                  <SelectTrigger className="h-8 bg-white"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent className="text-xs">
-                    <SelectItem value="Cash Handover">Cash Handover / Counter Deposit</SelectItem>
+                    <SelectItem value="Cash Handover">
+                      Cash Handover / Counter Deposit
+                    </SelectItem>
                     <SelectItem value="BEFTN / RTGS">BEFTN / RTGS</SelectItem>
-                    <SelectItem value="Cheque Deposit">Cheque Deposit</SelectItem>
-                    <SelectItem value="ATM Withdrawal">ATM Withdrawal</SelectItem>
-                    <SelectItem value="Online Transfer">Online / App Transfer</SelectItem>
+                    <SelectItem value="Cheque Deposit">
+                      Cheque Deposit
+                    </SelectItem>
+                    <SelectItem value="ATM Withdrawal">
+                      ATM Withdrawal
+                    </SelectItem>
+                    <SelectItem value="Online Transfer">
+                      Online / App Transfer
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-medium text-slate-700">Particulars / Purpose Description</Label>
+              <Label className="text-xs font-medium text-slate-700">
+                Particulars / Purpose Description
+              </Label>
               <Input
                 placeholder="Reason for transfer, loan intake, or expense..."
                 value={txParticulars}
@@ -962,10 +1223,18 @@ export default function AccountLedgerPage() {
             </div>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsTxOpen(false)} className="h-8 text-xs">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsTxOpen(false)}
+                className="h-8 text-xs"
+              >
                 Cancel
               </Button>
-              <Button type="submit" className="h-8 text-xs bg-[#0090FF] hover:bg-[#0080e5] text-white">
+              <Button
+                type="submit"
+                className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
+              >
                 Post to Ledger
               </Button>
             </DialogFooter>
@@ -973,5 +1242,5 @@ export default function AccountLedgerPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
+  )
 }

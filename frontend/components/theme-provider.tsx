@@ -1,17 +1,20 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
+import * as React from "react"
+import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
 // Suppress React development warning regarding inline script injection by next-themes
 if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
-  const origError = console.error;
+  const origError = console.error
   console.error = (...args: unknown[]) => {
-    if (typeof args[0] === "string" && args[0].includes("Encountered a script tag")) {
-      return;
+    if (
+      typeof args[0] === "string" &&
+      args[0].includes("Encountered a script tag")
+    ) {
+      return
     }
-    origError.apply(console, args);
-  };
+    origError.apply(console, args)
+  }
 }
 
 function ThemeProvider({
@@ -29,12 +32,12 @@ function ThemeProvider({
       <ThemeHotkey />
       {children}
     </NextThemesProvider>
-  );
+  )
 }
 
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
-    return false;
+    return false
   }
 
   return (
@@ -42,37 +45,37 @@ function isTypingTarget(target: EventTarget | null) {
     target.tagName === "INPUT" ||
     target.tagName === "TEXTAREA" ||
     target.tagName === "SELECT"
-  );
+  )
 }
 
 function ThemeHotkey() {
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme()
 
   React.useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || event.repeat) {
-        return;
+        return
       }
 
       if (event.metaKey || event.ctrlKey || event.altKey) {
-        return;
+        return
       }
 
       if (isTypingTarget(event.target)) {
-        return;
+        return
       }
 
-      setTheme(resolvedTheme === "dark" ? "light" : "dark");
+      setTheme(resolvedTheme === "dark" ? "light" : "dark")
     }
 
-    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown)
 
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [resolvedTheme, setTheme]);
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [resolvedTheme, setTheme])
 
-  return null;
+  return null
 }
 
-export { ThemeProvider };
+export { ThemeProvider }
