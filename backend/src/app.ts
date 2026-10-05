@@ -91,7 +91,7 @@ app.get(["/api/health", "/health"], (req: Request, res: Response) => {
 });
 
 app.get("/", (req: Request, res: Response) => {
-  res.send("AK Pharma TypeScript Backend Server with Supabase is running!");
+  res.send("AK Pharma Backend Server is running!");
 });
 
 // Handle 404 (Not Found) routes
