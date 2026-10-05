@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { AppError } from "./AppError";
 import { handleZodError, AppErrorWithValidation } from "./handleZodError";
 import { handlePrismaError } from "./handlePrismaError";
+import config from "../config";
 
 export interface StandardizedErrorResponse {
   success: boolean;
@@ -54,7 +55,7 @@ export const globalErrorHandler: ErrorRequestHandler = (
   const statusCode = error.statusCode || 500;
   const status = error.status || (statusCode >= 400 && statusCode < 500 ? "fail" : "error");
 
-  const isDev = process.env.NODE_ENV === "development";
+  const isDev = config.env === "development";
 
   // Build standardized JSON response
   const responseBody: StandardizedErrorResponse = {

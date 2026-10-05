@@ -1,14 +1,13 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { CookieOptions } from "express";
+import config from "../config";
 
-const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || "ak_pharma_jwt_access_secret_2026";
-const JWT_REFRESH_SECRET =
-  process.env.JWT_REFRESH_SECRET ||
-  (process.env.JWT_SECRET ? `${process.env.JWT_SECRET}_refresh` : "ak_pharma_jwt_refresh_secret_2026");
+const JWT_ACCESS_SECRET = config.jwt.access_secret;
+const JWT_REFRESH_SECRET = config.jwt.refresh_secret;
 
-const ACCESS_TOKEN_EXPIRY = "15m";
-const REFRESH_TOKEN_EXPIRY = "7d";
+const ACCESS_TOKEN_EXPIRY = config.jwt.access_expires_in;
+const REFRESH_TOKEN_EXPIRY = config.jwt.refresh_expires_in;
 
 export interface AccessTokenPayload {
   userId: string;
@@ -53,7 +52,7 @@ export const compareTokenHash = (token: string, storedHash: string): boolean => 
   return crypto.timingSafeEqual(storedBuf, hashBuf);
 };
 
-const isProduction = process.env.NODE_ENV === "production";
+const isProduction = config.env === "production";
 
 export const getAccessTokenCookieOptions = (): CookieOptions => ({
   httpOnly: true,

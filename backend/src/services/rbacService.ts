@@ -2,9 +2,10 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { AppError } from "../errors";
+import config from "../config";
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || "ak_pharma_secure_jwt_secret_2026";
+const JWT_SECRET = config.jwt.secret;
 
 const SEED_ROLES = [
   {

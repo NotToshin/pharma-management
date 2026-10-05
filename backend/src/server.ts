@@ -1,18 +1,15 @@
 import http from "http";
-import dotenv from "dotenv";
 import app from "./app";
+import config from "./config";
 
-// Load environment variables
-dotenv.config();
-
-const PORT = Number(process.env.PORT) || 5000;
+const PORT = config.port;
 
 let server: http.Server;
 
 function startServer(): http.Server {
   server = app.listen(PORT, () => {
     console.log(`🚀 AK Pharma Backend running on port ${PORT}`);
-    console.log(`📡 Environment: ${process.env.NODE_ENV || "development"}`);
+    console.log(`📡 Environment: ${config.env}`);
     console.log(`🩺 Health check: http://localhost:${PORT}/health`);
   });
 
