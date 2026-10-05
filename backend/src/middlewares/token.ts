@@ -77,4 +77,4 @@ export const getClearCookieOptions = (): CookieOptions => ({
   sameSite: isProduction ? "none" : "lax",
   path: "/",
 });
-});
+
