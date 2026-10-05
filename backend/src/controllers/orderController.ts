@@ -1,135 +1,59 @@
 import { Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
+import { orderService } from "../services/orderService";
+import { sendResponse } from "../utils/response";
+import { catchAsync } from "../utils/catchAsync";
 
-const prisma = new PrismaClient();
+export const getAllOrders = catchAsync(async (req: Request, res: Response) => {
+  const orders = await orderService.getAllOrders();
+  sendResponse(res, 200, "Orders retrieved successfully", orders);
+});
 
-export const getAllOrders = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const orders = await prisma.order.findMany({
-      orderBy: { createdAt: "desc" },
-    });
-    res.status(200).json(orders);
-  } catch (error) {
-    console.error("Error fetching orders:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-};
+export const createOrder = catchAsync(async (req: Request, res: Response) => {
+  const {
+    orderNumber,
+    orderDate,
+    pharmacyName,
+    territory,
+    assignedMio,
+    itemsSummary,
+    itemsDetail,
+    totalBoxes,
+    orderValue,
+    deliveryMethod,
+    status,
+    challanNumber,
+    invoiceNumber,
+  } = req.body;
 
-export const createOrder = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const {
-      orderNumber,
-      orderDate,
-      pharmacyName,
-      territory,
-      assignedMio,
-      itemsSummary,
-      itemsDetail,
-      totalBoxes,
-      orderValue,
-      deliveryMethod,
-      status,
-      challanNumber,
-      invoiceNumber,
-    } = req.body;
+  const result = await orderService.createOrder({
+    orderNumber,
+    orderDate,
+    pharmacyName,
+    territory,
+    assignedMio,
+    itemsSummary,
+    itemsDetail: Array.isArray(itemsDetail) ? itemsDetail : [],
+    totalBoxes: totalBoxes ? Number(totalBoxes) : undefined,
+    orderValue: orderValue ? Number(orderValue) : undefined,
+    deliveryMethod,
+    status,
+    challanNumber,
+    invoiceNumber,
+  });
 
-    // Execute order creation and FEFO stock deduction in an atomic transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Create the sales order
-      const newOrder = await tx.order.create({
-        data: {
-          orderNumber: orderNumber || `SO-2026-${Math.floor(4500 + Math.random() * 500)}`,
-          orderDate: orderDate || new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-          pharmacyName,
-          territory: territory || "Dhaka North",
-          assignedMio: assignedMio || "General MIO",
-          itemsSummary,
-          totalBoxes: Number(totalBoxes) || 1,
-          orderValue: Number(orderValue) || 0,
-          deliveryMethod: deliveryMethod || "Sales Representative",
-          status: status || "FEFO Allocated",
-          challanNumber: challanNumber || `DC-2026-${Math.floor(1100 + Math.random() * 100)}`,
-          invoiceNumber: invoiceNumber || undefined,
-        },
-      });
+  sendResponse(res, 201, "Order created successfully", result);
+});
 
-      // 2. Deduct quantities from InventoryBatch using FEFO (First-Expiry, First-Out)
-      if (Array.isArray(itemsDetail) && itemsDetail.length > 0) {
-        for (const lineItem of itemsDetail) {
-          const medicineName = (lineItem.description || "").trim();
-          let qtyNeeded = Number(lineItem.quantity) || 0;
+export const updateOrderStatus = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status } = req.body;
 
-          if (!medicineName || qtyNeeded <= 0) continue;
+  const updatedOrder = await orderService.updateOrderStatus(id, status);
+  sendResponse(res, 200, "Order status updated successfully", updatedOrder);
+});
 
-          // Find matching batches sorted by expiryDate ascending (FEFO)
-          const availableBatches = await tx.inventoryBatch.findMany({
-            where: {
-              OR: [
-                { brandName: { equals: medicineName, mode: "insensitive" } },
-                { brandName: { contains: medicineName, mode: "insensitive" } },
-              ],
-              availableUnits: { gt: 0 },
-            },
-            orderBy: { expiryDate: "asc" },
-          });
-
-          // Deduct from the earliest expiring batches first
-          for (const batch of availableBatches) {
-            if (qtyNeeded <= 0) break;
-
-            const deductUnits = Math.min(batch.availableUnits, qtyNeeded);
-            const remainingUnits = batch.availableUnits - deductUnits;
-
-            await tx.inventoryBatch.update({
-              where: { id: batch.id },
-              data: { availableUnits: remainingUnits },
-            });
-
-            qtyNeeded -= deductUnits;
-          }
-        }
-      }
-
-      return newOrder;
-    });
-
-    res.status(201).json(result);
-  } catch (error: any) {
-    console.error("Error creating order with inventory deduction:", error);
-    res.status(400).json({ error: error.message || "Failed to create order and allocate inventory." });
-  }
-};
-
-export const updateOrderStatus = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    const isDelivered = status === "Delivered & Invoiced";
-    const invoiceNum = isDelivered ? `INV-2026-${Math.floor(9020 + Math.random() * 80)}` : undefined;
-
-    const updatedOrder = await prisma.order.update({
-      where: { id },
-      data: {
-        status,
-        ...(invoiceNum ? { invoiceNumber: invoiceNum } : {}),
-      },
-    });
-
-    res.status(200).json(updatedOrder);
-  } catch (error: any) {
-    console.error("Error updating order status:", error);
-    res.status(400).json({ error: error.message || "Failed to update order status" });
-  }
-};
-
-export const deleteOrder = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    await prisma.order.delete({ where: { id } });
-    res.status(200).json({ message: "Order deleted successfully" });
-  } catch (error) {
-    console.error("Error deleting order:", error);
-    res.status(500).json({ error: "Failed to delete order record" });
-  }
-};
+export const deleteOrder = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  await orderService.deleteOrder(id);
+  sendResponse(res, 200, "Order deleted successfully");
+});

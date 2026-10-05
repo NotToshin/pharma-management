@@ -4,10 +4,39 @@ A full-stack pharmaceutical management application with Next.js frontend and Exp
 
 ## Tech Stack
 
-- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS
-- **Backend**: Express.js, TypeScript, Prisma ORM, PostgreSQL
-- **Auth**: JWT with bcrypt password hashing
-- **Database**: PostgreSQL (via Prisma)
+### Frontend
+- **Framework**: Next.js 16 (App Router)
+- **UI Library**: React 19, TypeScript
+- **Styling**: Tailwind CSS
+- **State Management**: React Context / Server Components
+- **Forms**: React Hook Form with Zod validation
+- **Charts**: Recharts / Chart.js
+
+### Backend
+- **Runtime**: Node.js 20+ with TypeScript
+- **Framework**: Express.js
+- **Database ORM**: Prisma ORM
+- **Database**: PostgreSQL
+- **Authentication**: JWT (jsonwebtoken) with bcryptjs password hashing
+- **Validation**: Zod (schema validation)
+- **Architecture**: Layered architecture (Controller → Service → Prisma)
+
+### Development & Deployment
+- **Package Manager**: npm
+- **Type Checking**: TypeScript 5.3+
+- **Dev Server**: tsx (TypeScript execution)
+- **Process Manager**: PM2 (production)
+- **Deployment**: Vercel (Frontend), Vercel/Render/Railway (Backend)
+
+### Key Libraries
+| Category | Libraries |
+|----------|-----------|
+| HTTP & Routing | express, cors |
+| Database | @prisma/client, prisma |
+| Auth | jsonwebtoken, bcryptjs |
+| Validation | zod |
+| Environment | dotenv |
+| Dev Tools | tsx, typescript, @types/* |
 
 ---
 
@@ -97,20 +126,130 @@ After seeding, a default super admin is created:
 ```
 pharma-management/
 ├── backend/
-│   ├── src/
-│   │   ├── controllers/    # Route handlers
-│   │   ├── routes/         # API route definitions
-│   │   ├── server.ts       # Express app entry
-│   │   └── ...
+│   ├── api/                    # Vercel serverless deployment entry point (index.ts)
 │   ├── prisma/
-│   │   └── schema.prisma   # Database schema
-│   └── package.json
+│   │   ├── migrations/         # PostgreSQL database migration scripts
+│   │   └── schema.prisma       # Prisma ORM data models & relations
+│   ├── src/
+│   │   ├── controllers/        # HTTP route controllers (request parsing & response handling)
+│   │   │   ├── accountLedgerController.ts
+│   │   │   ├── clientController.ts
+│   │   │   ├── dashboardController.ts
+│   │   │   ├── doctorController.ts
+│   │   │   ├── financeOverviewController.ts
+│   │   │   ├── inventoryController.ts
+│   │   │   ├── orderController.ts
+│   │   │   ├── paymentController.ts
+│   │   │   ├── rbacController.ts
+│   │   │   ├── salaryController.ts
+│   │   │   ├── staffController.ts
+│   │   │   └── treasuryController.ts
+│   │   ├── errors/             # Operational error handling & middleware
+│   │   │   ├── AppError.ts              # Custom operational error class (statusCode, isOperational)
+│   │   │   ├── globalErrorHandler.ts    # Centralized Express error handling middleware
+│   │   │   ├── handlePrismaError.ts     # Prisma client error mapper
+│   │   │   ├── handleZodError.ts        # Zod validation error mapper
+│   │   │   └── index.ts
+│   │   ├── routes/             # Express route definitions & endpoint mappings
+│   │   │   ├── accountLedgerRoutes.ts
+│   │   │   ├── clientRoutes.ts
+│   │   │   ├── dashboardRoutes.ts
+│   │   │   ├── doctorRoutes.ts
+│   │   │   ├── financeOverviewRoutes.ts
+│   │   │   ├── inventoryRoutes.ts
+│   │   │   ├── orderRoutes.ts
+│   │   │   ├── paymentRoutes.ts
+│   │   │   ├── rbacRoutes.ts
+│   │   │   ├── salaryRoutes.ts
+│   │   │   ├── staffRoutes.ts
+│   │   │   └── treasuryRoutes.ts
+│   │   ├── services/           # Core business logic layer & Prisma database access
+│   │   │   ├── accountLedgerService.ts
+│   │   │   ├── clientService.ts
+│   │   │   ├── dashboardService.ts
+│   │   │   ├── doctorService.ts
+│   │   │   ├── financeOverviewService.ts
+│   │   │   ├── inventoryService.ts
+│   │   │   ├── orderService.ts
+│   │   │   ├── paymentService.ts
+│   │   │   ├── rbacService.ts
+│   │   │   ├── salaryService.ts
+│   │   │   ├── staffService.ts
+│   │   │   └── treasuryService.ts
+│   │   ├── utils/              # Shared helper functions
+│   │   │   ├── catchAsync.ts   # Async error wrapper for controllers
+│   │   │   ├── response.ts     # Standardized JSON API response helper (`sendResponse`)
+│   │   │   └── validate.ts     # Zod request validation middleware
+│   │   ├── validations/        # Zod validation schemas for request payloads
+│   │   │   ├── accountLedgerValidation.ts
+│   │   │   ├── clientValidation.ts
+│   │   │   ├── doctorValidation.ts
+│   │   │   ├── inventoryValidation.ts
+│   │   │   ├── orderValidation.ts
+│   │   │   ├── paymentValidation.ts
+│   │   │   ├── rbacValidation.ts
+│   │   │   ├── salaryValidation.ts
+│   │   │   ├── staffValidation.ts
+│   │   │   └── treasuryValidation.ts
+│   │   └── server.ts           # Express server setup, CORS, middleware & route registration
+│   ├── .env                    # Environment variables configuration
+│   ├── package.json            # Dependencies and npm scripts
+│   ├── tsconfig.json           # TypeScript configuration
+│   └── vercel.json             # Vercel deployment configuration
 ├── frontend/
-│   ├── app/                # Next.js App Router pages
-│   ├── components/         # React components
-│   ├── lib/                # Utilities
+│   ├── app/                    # Next.js App Router pages
+│   ├── components/             # React components
+│   ├── lib/                    # Utilities & API helpers
 │   └── package.json
 └── README.md
+```
+
+## Backend Architecture
+
+The backend follows a **layered architecture** pattern:
+
+```
+Request → Route → Validation → Controller → Service → Prisma → Database
+                      ↓
+                  Response (via sendResponse utility)
+```
+
+### Layers
+
+| Layer | Responsibility | Location |
+|-------|---------------|----------|
+| **Routes** | Define API endpoints, mount controllers & validation middleware | `src/routes/*.ts` |
+| **Validations** | Request body, query, and param validation schemas (Zod) | `src/validations/*.ts` |
+| **Controllers** | Handle HTTP request parsing, call services, return responses | `src/controllers/*.ts` |
+| **Services** | Core business logic, data calculations, Prisma database queries | `src/services/*.ts` |
+| **Errors** | Custom `AppError` class, Zod/Prisma error mappers & global error handler | `src/errors/*.ts` |
+| **Utils** | Shared helpers (`catchAsync`, `sendResponse`, `validate`) | `src/utils/*.ts` |
+
+### Key Utilities
+
+- **`catchAsync`** - Wrapper to catch async errors and pass to Express error handler
+- **`sendResponse`** - Standardized API response format
+
+```typescript
+// Example usage in controller
+export const getAllDoctors = catchAsync(async (req: Request, res: Response) => {
+  const doctors = await doctorService.getAllDoctors();
+  sendResponse(res, 200, "Doctors retrieved successfully", doctors);
+});
+```
+
+### Response Format
+
+All API responses follow a consistent structure:
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Operation successful",
+  "data": { ... },
+  "meta": { ... }
+}
 ```
 
 ---
