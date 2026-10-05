@@ -1,10 +1,9 @@
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { AppError } from "../errors";
 import config from "../config";
+import prisma from "../utils/prisma";
 
-const prisma = new PrismaClient();
 const JWT_SECRET = config.jwt.secret;
 
 const SEED_ROLES = [

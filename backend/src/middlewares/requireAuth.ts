@@ -1,9 +1,7 @@
 import { Request, Response, NextFunction } from "express";
-import { PrismaClient } from "@prisma/client";
 import { AppError } from "../errors";
 import { verifyAccessToken } from "./token";
-
-const prisma = new PrismaClient();
+import prisma from "../utils/prisma";
 
 /**
  * Authentication & Authorization Middleware
@@ -11,13 +9,7 @@ const prisma = new PrismaClient();
  * Usage:
  * - requireAuth()                          -> Any authenticated user
  * - requireAuth("SUPERADMIN")              -> Only SUPERADMIN
- * - requireAuth("SUPERADMIN", "OTHER_ROLE") -> Any listed role
- *
- * Rules:
- * - Uses ONLY the Access Token.
- * - If expired or invalid, throws 401 (so frontend can invoke /refresh-token).
- * - Never automatically refreshes tokens inside this middleware.
- * - Authorization fetches the user's actual role live from the database.
+ * - requireAuth("SUPER_ADMIN", "RSM_EXEC") -> Any listed role
  */
 export const requireAuth = (...allowedRoles: string[]) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -87,6 +79,45 @@ export const requireAuth = (...allowedRoles: string[]) => {
 
       // Attach authenticated user to request object
       req.user = user;
+
+      return next();
+    } catch (error) {
+      return next(error);
+    }
+  };
+};
+
+/**
+ * Granular Permission Middleware
+ * Enforces module-level action permission (e.g. read, create, edit, delete)
+ */
+export const requirePermission = (
+  moduleName: string,
+  action: "read" | "create" | "edit" | "delete"
+) => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) {
+        throw new AppError("Authentication required.", 401);
+      }
+
+      // SUPER_ADMIN bypasses granular module checks
+      const userRoleCode = (req.user.role?.code || "").toUpperCase();
+      if (userRoleCode === "SUPER_ADMIN" || userRoleCode === "SUPERADMIN") {
+        return next();
+      }
+
+      const permissions = req.user.role?.permissions || [];
+      const modulePerm = permissions.find(
+        (p) => p.module.toLowerCase() === moduleName.toLowerCase()
+      );
+
+      if (!modulePerm || !modulePerm[action]) {
+        throw new AppError(
+          `Forbidden: You do not have permission to ${action} ${moduleName}.`,
+          403
+        );
+      }
 
       return next();
     } catch (error) {

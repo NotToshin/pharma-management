@@ -14,22 +14,28 @@ import {
   provisionUserSchema,
   updateRolePermissionsSchema,
   userIdParamSchema,
-  roleIdParamSchema,
 } from "../validations/rbacValidation";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const router = Router();
 
 // Authentication
 router.post("/login", validateBody(loginOperatorSchema), loginOperator);
 
-// Roles & Permissions Matrix
-router.get("/roles", getRoles);
-router.put("/roles/:id/permissions", validateParams(updateRolePermissionsSchema), validateBody(updateRolePermissionsSchema), updateRolePermissions);
+// Roles & Permissions Matrix (Protected)
+router.get("/roles", requireAuth(), getRoles);
+router.put(
+  "/roles/:id/permissions",
+  requireAuth("SUPER_ADMIN"),
+  validateParams(updateRolePermissionsSchema),
+  validateBody(updateRolePermissionsSchema),
+  updateRolePermissions
+);
 
-// User Provisioning
-router.get("/users", getUsers);
-router.post("/users", validateBody(provisionUserSchema), provisionUser);
-router.delete("/users/:id", validateParams(userIdParamSchema), deleteUser);
-router.put("/users/:id/status", validateParams(userIdParamSchema), toggleUserStatus);
+// User Provisioning (Protected)
+router.get("/users", requireAuth(), getUsers);
+router.post("/users", requireAuth("SUPER_ADMIN"), validateBody(provisionUserSchema), provisionUser);
+router.delete("/users/:id", requireAuth("SUPER_ADMIN"), validateParams(userIdParamSchema), deleteUser);
+router.put("/users/:id/status", requireAuth("SUPER_ADMIN"), validateParams(userIdParamSchema), toggleUserStatus);
 
 export default router;

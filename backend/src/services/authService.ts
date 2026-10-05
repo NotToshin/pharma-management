@@ -1,4 +1,3 @@
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { AppError } from "../errors";
@@ -9,16 +8,15 @@ import {
   hashToken,
   compareTokenHash,
 } from "../middlewares/token";
-
-const prisma = new PrismaClient();
+import prisma from "../utils/prisma";
 
 export const authService = {
   async login(email: string, password: string) {
     const cleanEmail = email.trim().toLowerCase();
 
-    const user = await prisma.systemUser.findFirst({
+    const user = await prisma.systemUser.findUnique({
       where: {
-        OR: [{ email: cleanEmail }, { email: `${cleanEmail}.com` }],
+        email: cleanEmail,
       },
       include: {
         role: {
