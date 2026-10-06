@@ -3,6 +3,7 @@
  * Provides cookie-based and local storage token management
  * compatible with Next.js Client Components, Server Components, and Edge Middleware.
  */
+import { getApiUrl } from "./api"
 
 export interface AuthUser {
   id: string
@@ -224,11 +225,7 @@ export function clearAuthSession() {
  */
 export async function logout(apiUrl?: string) {
   try {
-    const baseApi =
-      apiUrl ||
-      (process.env.NEXT_PUBLIC_API_URL
-        ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")
-        : "http://localhost:5000/api")
+    const baseApi = apiUrl ? apiUrl.replace(/\/$/, "") : getApiUrl()
 
     // Optional fire-and-forget call to backend to invalidate refresh token
     fetch(`${baseApi}/auth/logout`, {

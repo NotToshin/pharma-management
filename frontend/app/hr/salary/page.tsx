@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { API_URL } from "@/lib/api"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -164,10 +165,6 @@ export default function SalaryManagementPage() {
     "BEFTN Electronic Advice"
   )
   const [disbursing, setDisbursing] = React.useState(false)
-
-  const API_URL =
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pharma-management-1y5a.vercel.app/api"
 
   const fetchData = async () => {
     try {

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { useSearchParams } from "next/navigation"
 import { Card } from "@/components/ui/card"
@@ -221,10 +222,6 @@ function LogisticsOrdersContent() {
 
   const fetchBackendData = React.useCallback(async () => {
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL ||
-        "https://pharma-management-b7fk.onrender.com/api"
-
       const [ordRes, clientRes, staffRes, invRes] = await Promise.all([
         fetch(`${API_URL}/orders`).catch(() => ({
           ok: false,
@@ -568,9 +565,6 @@ function LogisticsOrdersContent() {
     }
 
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL ||
-        "https://pharma-management-b7fk.onrender.com/api"
       const isHold = clientCreditNotice?.status === "Credit Hold"
 
       const payload = {
@@ -623,9 +617,6 @@ function LogisticsOrdersContent() {
     newStatus: SalesOrder["status"]
   ) => {
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL ||
-        "https://pharma-management-b7fk.onrender.com/api"
       const res = await fetch(`${API_URL}/orders/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -642,9 +633,6 @@ function LogisticsOrdersContent() {
   const handleDeleteOrder = async (id: string) => {
     if (!confirm("Are you sure you want to delete this sales order?")) return
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL ||
-        "https://pharma-management-b7fk.onrender.com/api"
       const res = await fetch(`${API_URL}/orders/${id}`, {
         method: "DELETE",
       })

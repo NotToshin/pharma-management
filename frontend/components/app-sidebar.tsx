@@ -280,18 +280,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               size="lg"
               className="transition-colors hover:bg-slate-50"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black text-xs font-bold tracking-tight text-white">
-                AK
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#23496D] shadow-xs">
+                <svg
+                  viewBox="0 0 105 72"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-auto"
+                >
+                  <path d="M38 4L4 68H26L42 36H56L38 4Z" fill="#FFFFFF" />
+                  <path d="M56 4L39 39L57 68H74L60 34L71 4H56Z" fill="#FFFFFF" />
+                  <path d="M60 34L98 4H78L52 44L80 68H102L67 37L60 34Z" fill="#7DD3FC" />
+                </svg>
               </div>
               <div className="ml-2 grid flex-1 text-left text-xs leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="truncate font-bold tracking-tight text-slate-900">
+                <span className="truncate font-extrabold tracking-tight text-[#23496D]">
                   AK PHARMA
                 </span>
-                <span className="truncate text-[10px] text-slate-500">
-                  Pharmaceutical
+                <span className="truncate text-[10px] font-medium text-slate-500">
+                  Smart Solutions for Healthier Living
                 </span>
               </div>
-              <ChevronsUpDown className="ml-auto h-3.5 w-3.5 text-slate-400 group-data-[collapsible=icon]:hidden" />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -127,10 +128,6 @@ export default function FinanceOverviewPage() {
   const [transactions, setTransactions] = React.useState<
     FinancialTransaction[]
   >([])
-
-  const API_URL =
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pharma-management-b7fk.onrender.com/api"
 
   const fetchOverviewData = React.useCallback(async () => {
     try {

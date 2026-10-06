@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertCircle, CheckCircle2, Loader2, Lock } from "lucide-react"
 import { setAuthSession } from "@/lib/auth"
+import { API_URL, getApiUrl } from "@/lib/api"
 
 function LoginForm() {
   const router = useRouter()
@@ -24,23 +25,6 @@ function LoginForm() {
     null
   )
 
-  // If NEXT_PUBLIC_API_URL is set, use it; otherwise use relative "/api" on Vercel
-  const getApiUrl = () => {
-    if (process.env.NEXT_PUBLIC_API_URL) {
-      return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")
-    }
-    if (typeof window !== "undefined") {
-      if (
-        window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1"
-      ) {
-        return "http://localhost:5000/api"
-      }
-      return "/api"
-    }
-    return "/api"
-  }
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMessage(null)
@@ -54,7 +38,6 @@ function LoginForm() {
     try {
       setLoading(true)
 
-      const API_URL = getApiUrl()
       const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -235,6 +218,7 @@ function LoginForm() {
     </div>
   )
 }
+
 
 export default function LoginPage() {
   return (

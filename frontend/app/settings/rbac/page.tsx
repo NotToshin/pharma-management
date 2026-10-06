@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -100,9 +101,6 @@ export default function RBACManagementPage() {
   const [saveToast, setSaveToast] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
 
-  const API_URL =
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pharma-management-b7fk.onrender.com/api"
 
   const getAuthHeaders = (): HeadersInit => {
     const headers: Record<string, string> = {
@@ -155,7 +153,7 @@ export default function RBACManagementPage() {
         setLoading(false)
       }
     },
-    [API_URL]
+    []
   )
 
   React.useEffect(() => {

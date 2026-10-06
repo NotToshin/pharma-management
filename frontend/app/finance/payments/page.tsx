@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -397,8 +398,6 @@ export default function GeneralPaymentsPage() {
     let nextSerial = "AKP-EXP-2026-0001"
 
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
       const res = await fetch(`${API_URL}/payments/next-number`)
       if (res.ok) {
         const data = await res.json()

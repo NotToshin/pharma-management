@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -147,8 +148,6 @@ export default function AccountLedgerPage() {
   const [txStatus, setTxStatus] = React.useState<
     "Reconciled" | "In Transit" | "Unreconciled"
   >("Reconciled")
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
 
   const fetchBackendData = React.useCallback(async () => {
     try {
