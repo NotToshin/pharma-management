@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { getEndpoint } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -136,8 +137,8 @@ export default function DoctorMasterDatabasePage() {
   const fetchData = async () => {
     try {
       const [docRes, staffRes] = await Promise.all([
-        fetch("http://localhost:5000/api/doctors"),
-        fetch("http://localhost:5000/api/staff").catch(() => null), // Fallback if staff endpoint is still being wired
+        fetch(getEndpoint("/doctors")),
+        fetch(getEndpoint("/staff")).catch(() => null), // Fallback if staff endpoint is still being wired
       ])
 
       const docResult = await docRes.json()
@@ -276,7 +277,7 @@ export default function DoctorMasterDatabasePage() {
     }
 
     try {
-      const res = await fetch("http://localhost:5000/api/doctors", {
+      const res = await fetch(getEndpoint("/doctors"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newDocPayload),
@@ -329,7 +330,7 @@ export default function DoctorMasterDatabasePage() {
       }
 
       const res = await fetch(
-        `http://localhost:5000/api/doctors/${editingDoctor.id}`,
+        getEndpoint(`/doctors/${editingDoctor.id}`),
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -351,7 +352,7 @@ export default function DoctorMasterDatabasePage() {
 
   const handleDeleteDoctor = async (id: string) => {
     try {
-      await fetch(`http://localhost:5000/api/doctors/${id}`, {
+      await fetch(getEndpoint(`/doctors/${id}`), {
         method: "DELETE",
       })
       setDoctors((prev) => prev.filter((doc) => doc.id !== id))

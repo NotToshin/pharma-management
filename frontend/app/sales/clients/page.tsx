@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -120,8 +121,6 @@ export default function ClientsDirectoryPage() {
   // Fetch Live Client Data from Backend API
   const fetchClients = async () => {
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
       const res = await fetch(`${API_URL}/clients`)
       if (!res.ok) throw new Error("Failed to fetch client directory")
       const data = await res.json()
@@ -222,8 +221,6 @@ export default function ClientsDirectoryPage() {
   const handleSaveForm = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
       const endpoint = editingId
         ? `${API_URL}/clients/${editingId}`
         : `${API_URL}/clients`
@@ -252,8 +249,6 @@ export default function ClientsDirectoryPage() {
     )
       return
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
       const res = await fetch(`${API_URL}/clients/${id}`, {
         method: "DELETE",
       })
@@ -280,9 +275,6 @@ export default function ClientsDirectoryPage() {
         const wsname = workbook.SheetNames[0]
         const ws = workbook.Sheets[wsname]
         const data = XLSX.utils.sheet_to_json(ws) as any[]
-
-        const API_URL =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
 
         for (const row of data) {
           const clientPayload = {

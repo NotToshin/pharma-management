@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -74,15 +75,12 @@ export default function CollectionsPage() {
     "Head Office Cash Safe"
   )
 
-  const API_BASE =
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pharma-management-b7fk.onrender.com/api"
 
   // Fetch live orders connected from clients & logistics
   const fetchCollections = React.useCallback(async () => {
     try {
       setLoading(true)
-      const res = await fetch(`${API_BASE}/orders`)
+      const res = await fetch(`${API_URL}/orders`)
       if (!res.ok) throw new Error("Failed to fetch orders")
       const data = await res.json()
 
@@ -115,7 +113,7 @@ export default function CollectionsPage() {
       console.error("Error loading collections:", err)
       setLoading(false)
     }
-  }, [API_BASE])
+  }, [])
 
   React.useEffect(() => {
     fetchCollections()
@@ -147,7 +145,7 @@ export default function CollectionsPage() {
   const handleVanishInvoice = async (item: CollectionItem) => {
     try {
       // Update status in backend order table
-      await fetch(`${API_BASE}/orders/${item.id}`, {
+      await fetch(`${API_URL}/orders/${item.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "Settled" }),
@@ -200,7 +198,7 @@ export default function CollectionsPage() {
         destinationType === "Cash Drawer" ? cashSafeName : targetBank
 
       // 1. Post to treasury deposit ledger
-      await fetch(`${API_BASE}/treasury/deposit`, {
+      await fetch(`${API_URL}/treasury/deposit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -216,7 +214,7 @@ export default function CollectionsPage() {
       )
       await Promise.all(
         realizedItems.map((item) =>
-          fetch(`${API_BASE}/orders/${item.id}`, {
+          fetch(`${API_URL}/orders/${item.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status: "Settled" }),

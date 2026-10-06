@@ -1,0 +1,9 @@
+<svg viewBox="0 0 420 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g id="AK-Mark">
+    <path d="M38 4L4 68H26L42 36H56L38 4Z" fill="#23496D"/>
+    <path d="M56 4L39 39L57 68H74L60 34L71 4H56Z" fill="#23496D"/>
+    <path d="M60 34L98 4H78L52 44L80 68H102L67 37L60 34Z" fill="#3B799B"/>
+  </g>
+  <text x="116" y="54" fill="#23496D" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="48" letter-spacing="1">AK PHARMA</text>
+  <text x="4" y="98" fill="#23496D" font-family="system-ui, -apple-system, sans-serif" font-weight="500" font-size="22" letter-spacing="0.5">Smart Solutions for Healthier Living</text>
+</svg>

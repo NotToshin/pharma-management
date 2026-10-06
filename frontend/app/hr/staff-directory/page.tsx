@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -197,8 +198,6 @@ export default function StaffDirectoryPage() {
 
   const fetchStaffData = async () => {
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
       const res = await fetch(`${API_URL}/staff`)
       if (!res.ok) throw new Error("Failed to fetch staff")
       const data = await res.json()
@@ -340,8 +339,6 @@ export default function StaffDirectoryPage() {
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
       const payload = {
         empId:
           formState.empId || `AKP-${Math.floor(25000 + employees.length + 1)}`,
@@ -384,8 +381,6 @@ export default function StaffDirectoryPage() {
     if (!editingEmp) return
 
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
       const payload = {
         fullName: editingEmp.fullName,
         phone: editingEmp.phone,
@@ -424,8 +419,6 @@ export default function StaffDirectoryPage() {
 
   const handleDeleteEmployee = async (id: string) => {
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
       const res = await fetch(`${API_URL}/staff/${id}`, {
         method: "DELETE",
       })

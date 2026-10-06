@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -165,8 +166,6 @@ export default function ActiveInventoryLedgerPage() {
     storageCondition:
       "Controlled Ambient (<25°C)" as InventoryBatch["storageCondition"],
   })
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
 
   const fetchInventory = React.useCallback(async () => {
     try {

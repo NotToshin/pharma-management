@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { getEndpoint } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -76,7 +77,7 @@ export default function AddDoctorDirectoryPage() {
   // Fetch live doctors from backend database
   const fetchDoctors = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/doctors")
+      const res = await fetch(getEndpoint("/doctors"))
       const result = await res.json()
       const rawData = Array.isArray(result) ? result : result.data || []
 
@@ -124,7 +125,7 @@ export default function AddDoctorDirectoryPage() {
     }
 
     try {
-      const res = await fetch("http://localhost:5000/api/doctors", {
+      const res = await fetch(getEndpoint("/doctors"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newDoc),
@@ -156,7 +157,7 @@ export default function AddDoctorDirectoryPage() {
 
   const handleDeleteDoctor = async (id: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/doctors/${id}`, {
+      const res = await fetch(getEndpoint(`/doctors/${id}`), {
         method: "DELETE",
       })
       if (res.ok) {
@@ -202,7 +203,7 @@ export default function AddDoctorDirectoryPage() {
         }))
 
         for (const doc of importedDocs) {
-          await fetch("http://localhost:5000/api/doctors", {
+          await fetch(getEndpoint("/doctors"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(doc),
