@@ -38,14 +38,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // 2. Read access token from cookies
+  // 2. Read session flag or access token from cookies
+  const sessionFlag = request.cookies.get("ak_session")?.value
   const accessTokenCookie =
     request.cookies.get("accessToken")?.value ||
     request.cookies.get("token")?.value ||
     request.cookies.get("ak_token")?.value
 
   const hasValidSession = Boolean(
-    accessTokenCookie && !isTokenExpired(accessTokenCookie)
+    sessionFlag === "true" ||
+    (accessTokenCookie && !isTokenExpired(accessTokenCookie))
   )
   const isLoginPage = pathname === "/login"
   const isRootPage = pathname === "/"

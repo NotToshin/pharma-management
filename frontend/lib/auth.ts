@@ -120,32 +120,16 @@ export function decodeTokenPayload(token: string): any | null {
 }
 
 /**
- * Sets auth session across cookies and localStorage
+ * Sets auth session profile in localStorage and a non-sensitive session flag in cookies.
+ * Does NOT set token cookies in document.cookie, preserving native HttpOnly cross-origin cookies.
  */
 export function setAuthSession({
-  accessToken,
-  refreshToken,
   user,
 }: AuthSessionData) {
-  if (!accessToken) return
-
-  // 1. Store Access Token in cookies (7 days or matching JWT expiry)
-  const maxAge = 7 * 24 * 60 * 60 // 7 days
-  setCookie(COOKIE_ACCESS_TOKEN, accessToken, maxAge)
-  setCookie(COOKIE_TOKEN_ALIAS, accessToken, maxAge)
-
-  if (refreshToken) {
-    setCookie(COOKIE_REFRESH_TOKEN, refreshToken, 30 * 24 * 60 * 60)
-  }
-
-  // 2. Also keep localStorage in sync for fast synchronous hydration and legacy helpers
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_TOKEN, accessToken)
-    localStorage.setItem(STORAGE_AK_TOKEN, accessToken)
-
-    if (refreshToken) {
-      localStorage.setItem("refreshToken", refreshToken)
-    }
+    // Non-sensitive session flag for Next.js edge middleware awareness
+    const maxAge = 7 * 24 * 60 * 60 // 7 days
+    setCookie("ak_session", "true", maxAge)
 
     if (user) {
       const userJson = JSON.stringify(user)
@@ -156,15 +140,13 @@ export function setAuthSession({
 }
 
 /**
- * Retrieves the current access token from cookies or localStorage
+ * Retrieves the current access token from cookies or localStorage (legacy fallback)
  */
 export function getAccessToken(): string | null {
-  // Check cookie first
   const cookieToken =
     getCookie(COOKIE_ACCESS_TOKEN) || getCookie(COOKIE_TOKEN_ALIAS)
   if (cookieToken) return cookieToken
 
-  // Fallback to localStorage if in browser
   if (typeof window !== "undefined") {
     return (
       localStorage.getItem(STORAGE_TOKEN) ||
@@ -193,19 +175,22 @@ export function getStoredUser(): AuthUser | null {
 }
 
 /**
- * Checks whether user currently has a valid, non-expired session
+ * Checks whether user currently has an active session
  */
 export function isAuthenticated(): boolean {
-  const token = getAccessToken()
-  if (!token) return false
-  return !isTokenExpired(token)
+  if (typeof document !== "undefined") {
+    const hasSessionCookie = Boolean(getCookie("ak_session") || getCookie("accessToken") || getCookie("token"))
+    if (hasSessionCookie) return true
+  }
+  return Boolean(getStoredUser())
 }
 
 /**
- * Clears all auth session data from cookies and localStorage
+ * Clears session data from localStorage and non-sensitive frontend cookies
  */
 export function clearAuthSession() {
-  // Clear cookies
+  // Clear frontend session flag
+  deleteCookie("ak_session")
   deleteCookie(COOKIE_ACCESS_TOKEN)
   deleteCookie(COOKIE_TOKEN_ALIAS)
   deleteCookie(COOKIE_REFRESH_TOKEN)

@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Shield, User, LogOut, Camera } from "lucide-react"
-import { getAccessToken, getStoredUser, logout } from "@/lib/auth"
+import { isAuthenticated, getStoredUser, logout } from "@/lib/auth"
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -48,6 +48,49 @@ const geistMono = Geist_Mono({
   variable: "--font-mono",
   display: "swap",
 })
+
+const routeTitleMap: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/analytics/targets": "Target vs. Achievement",
+  "/analytics/territories": "Territory Sales Breakdown",
+  "/field-force/tour-plans": "All Tour Plans",
+  "/field-force/approvals": "Pending Approvals",
+  "/field-force/visit-logs": "Doctor Visit Logs",
+  "/field-force/samples": "Sample & Gift Distribution",
+  "/field-force/zones": "MIO Zone Allocations",
+  "/field-force/routes": "Route Optimization",
+  "/doctors/database": "Master Doctor Database",
+  "/doctors/new": "Add New Doctor",
+  "/doctors/ranking": "Prescription Category Ranking",
+  "/doctors/timeline": "Visit History Timeline",
+  "/inventory/ledger": "Active Inventory Ledger (FEFO)",
+  "/inventory/expiry": "Expiry Watchlist",
+  "/inventory/adjustments": "Stock Adjustments",
+  "/procurement/orders": "Wholesaler Purchase Orders",
+  "/procurement/batch-logs": "Receive Stock Batch Log",
+  "/logistics/orders": "Delivery Logistics & Orders",
+  "/logistics/batch-log": "Receive Stock Batch Log",
+  "/sales/clients": "Pharmacy Clients",
+  "/finance/overview": "Treasury & Finance Overview",
+  "/finance/bank-ledger": "Bank Accounts Ledger",
+  "/finance/collections": "Delivery Cash Collections",
+  "/finance/payments": "Expense & Vendor Payments",
+  "/hr/staff-directory": "Staff Directory & Roles",
+  "/hr/salary": "Payroll & Salary",
+  "/settings/rbac": "Role Permissions (RBAC)",
+  "/settings/audit-logs": "Audit Logs (21 CFR Part 11)",
+}
+
+function getPageTitle(pathname: string): string {
+  if (routeTitleMap[pathname]) return routeTitleMap[pathname]
+  for (const [route, title] of Object.entries(routeTitleMap)) {
+    if (pathname.startsWith(route)) return title
+  }
+  const segments = pathname.split("/").filter(Boolean)
+  if (segments.length === 0) return "Dashboard"
+  const last = segments[segments.length - 1]
+  return last.charAt(0).toUpperCase() + last.slice(1).replace(/-/g, " ")
+}
 
 export default function RootLayout({
   children,
@@ -79,10 +122,10 @@ export default function RootLayout({
 
   React.useEffect(() => {
     setMounted(true)
-    const token = getAccessToken()
+    const active = isAuthenticated()
     const storedUser = getStoredUser()
 
-    if (!token && !isLoginPage) {
+    if (!active && !isLoginPage) {
       router.replace("/login")
     } else {
       if (storedUser) {
@@ -208,7 +251,7 @@ export default function RootLayout({
                   <div className="flex items-center gap-3">
                     <SidebarTrigger className="-ml-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900" />
                     <span className="text-sm font-semibold text-slate-900">
-                      Dashboard
+                      {getPageTitle(pathname)}
                     </span>
                   </div>
 
