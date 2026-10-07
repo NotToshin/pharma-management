@@ -66,6 +66,8 @@ app.use("/auth", authRoutes);
 // RBAC Permissions & Roles Matrix
 app.use("/api/rbac", rbacRoutes);
 
+import doctorVisitLogRoutes from "./routes/doctorVisitLogRoutes";
+
 // Core Modules
 app.use("/api/clients", clientRoutes);
 app.use("/api/orders", orderRoutes);
@@ -75,6 +77,8 @@ app.use("/api/inventory", inventoryRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/finance-overview", financeOverviewRoutes);
 app.use("/api/doctors", doctorRoutes);
+app.use("/api/visit-logs", doctorVisitLogRoutes);
+app.use("/api/doctor-visit-logs", doctorVisitLogRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/salary", salaryRoutes);
 app.use("/api/payments", paymentRoutes);

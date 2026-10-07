@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Shield, User, LogOut, Camera } from "lucide-react"
+import { Toaster } from "@/components/ui/toaster"
 import { isAuthenticated, getStoredUser, logout } from "@/lib/auth"
 
 const geistSans = Geist({
@@ -235,6 +236,7 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
+          <Toaster position="top-right" richColors closeButton />
           <TooltipProvider delayDuration={0}>
             <SidebarProvider
               defaultOpen={true}

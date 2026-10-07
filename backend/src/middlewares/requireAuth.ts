@@ -1,3 +1,4 @@
+/// <reference path="../types/express.d.ts" />
 import { Request, Response, NextFunction } from "express";
 import { AppError } from "../errors";
 import { verifyAccessToken } from "./token";
@@ -109,7 +110,7 @@ export const requirePermission = (
 
       const permissions = req.user.role?.permissions || [];
       const modulePerm = permissions.find(
-        (p) => p.module.toLowerCase() === moduleName.toLowerCase()
+        (p: any) => p.module.toLowerCase() === moduleName.toLowerCase()
       );
 
       if (!modulePerm || !modulePerm[action]) {

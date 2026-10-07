@@ -72,6 +72,8 @@ import {
 } from "lucide-react"
 
 import { doctorFormSchema } from "@/lib/validations/doctorValidation"
+import { toast } from "sonner"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 
 interface DoctorRecord {
   id: string
@@ -136,6 +138,19 @@ export default function DoctorMasterDatabasePage() {
   const [editingDoctor, setEditingDoctor] = React.useState<DoctorRecord | null>(
     null
   )
+
+  // Global Delete Confirmation Modal State
+  const [deleteModal, setDeleteModal] = React.useState<{
+    isOpen: boolean
+    doctorId: string | null
+    doctorName: string | null
+    isDeleting: boolean
+  }>({
+    isOpen: false,
+    doctorId: null,
+    doctorName: null,
+    isDeleting: false,
+  })
 
   // Fetch doctors and staff directory from backend
   const fetchData = async () => {
@@ -293,9 +308,11 @@ export default function DoctorMasterDatabasePage() {
         errorsMap[pathKey] = issue.message
       })
       setFormErrors(errorsMap)
-      alert(Object.values(errorsMap).join("\n"))
+      toast.error("Form validation failed. Please check the highlighted fields.")
       return
     }
+
+    const toastId = toast.loading("Saving new doctor profile to database...")
 
     try {
       const res = await fetch(getEndpoint("/doctors"), {
@@ -305,6 +322,7 @@ export default function DoctorMasterDatabasePage() {
       })
 
       if (res.ok) {
+        await new Promise((resolve) => setTimeout(resolve, 2000))
         setName("")
         setBmdcReg("")
         setDesignation("")
@@ -316,13 +334,15 @@ export default function DoctorMasterDatabasePage() {
         setAssignedMio("")
         setFormErrors({})
         setIsAddOpen(false)
+        toast.success(`Successfully registered Dr. ${newDocPayload.doctorName}.`, { id: toastId })
         fetchData()
       } else {
         const errorData = await res.json().catch(() => null)
-        alert(errorData?.message || "Server failed to save doctor record.")
+        toast.error(errorData?.message || "Server failed to save doctor record.", { id: toastId })
       }
     } catch (error) {
       console.error("Network error adding doctor:", error)
+      toast.error("Network error: Could not connect to server.", { id: toastId })
     }
   }
 
@@ -335,33 +355,35 @@ export default function DoctorMasterDatabasePage() {
     e.preventDefault()
     if (!editingDoctor) return
 
+    const cleanSpecialty = editingDoctor.specialty.split("(")[0].trim()
+    const cleanInstitute = editingDoctor.institute.split("(")[0].trim()
+    const specialtyAndInstitute = cleanInstitute
+      ? `${cleanSpecialty} (${cleanInstitute})`
+      : cleanSpecialty
+
+    const updatedPayload = {
+      doctorName: editingDoctor.name,
+      phone: editingDoctor.contactNumber,
+      bmdcRegNumber: editingDoctor.bmdcReg,
+      specialtyAndInstitute,
+      chamber: editingDoctor.chamberAddress,
+      territoryAndMio: `${editingDoctor.territory} / MIO: ${editingDoctor.assignedMio}`,
+      tier:
+        editingDoctor.potentialCategory === "A+"
+          ? "Tier 1 (High Prescriber)"
+          : "Tier 2 (Moderate)",
+      patientVolumeDaily: Number(editingDoctor.patientVolumeDaily),
+    }
+
+    const validationResult = doctorFormSchema.partial().safeParse(updatedPayload)
+    if (!validationResult.success) {
+      toast.error(validationResult.error.issues.map((i) => i.message).join("\n"))
+      return
+    }
+
+    const toastId = toast.loading("Updating doctor profile in database...")
+
     try {
-      const cleanSpecialty = editingDoctor.specialty.split("(")[0].trim()
-      const cleanInstitute = editingDoctor.institute.split("(")[0].trim()
-      const specialtyAndInstitute = cleanInstitute
-        ? `${cleanSpecialty} (${cleanInstitute})`
-        : cleanSpecialty
-
-      const updatedPayload = {
-        doctorName: editingDoctor.name,
-        phone: editingDoctor.contactNumber,
-        bmdcRegNumber: editingDoctor.bmdcReg,
-        specialtyAndInstitute,
-        chamber: editingDoctor.chamberAddress,
-        territoryAndMio: `${editingDoctor.territory} / MIO: ${editingDoctor.assignedMio}`,
-        tier:
-          editingDoctor.potentialCategory === "A+"
-            ? "Tier 1 (High Prescriber)"
-            : "Tier 2 (Moderate)",
-        patientVolumeDaily: Number(editingDoctor.patientVolumeDaily),
-      }
-
-      const validationResult = doctorFormSchema.partial().safeParse(updatedPayload)
-      if (!validationResult.success) {
-        alert(validationResult.error.issues.map((i) => i.message).join("\n"))
-        return
-      }
-
       const res = await fetch(
         getEndpoint(`/doctors/${editingDoctor.id}`),
         {
@@ -372,29 +394,60 @@ export default function DoctorMasterDatabasePage() {
       )
 
       if (res.ok) {
+        await new Promise((resolve) => setTimeout(resolve, 2000))
         setIsEditOpen(false)
         setEditingDoctor(null)
+        toast.success(`Doctor profile for ${editingDoctor.name} updated successfully!`, { id: toastId })
         fetchData()
       } else {
         const errorData = await res.json().catch(() => null)
-        alert(errorData?.message || "Failed to update doctor record on the server.")
+        toast.error(errorData?.message || "Failed to update doctor record on the server.", { id: toastId })
       }
     } catch (error) {
       console.error("Failed to update doctor record:", error)
+      toast.error("Network error: Failed to update doctor record.", { id: toastId })
     }
   }
 
-  const handleDeleteDoctor = async (id: string) => {
+  const promptDeleteDoctor = (doc: DoctorRecord) => {
+    setDeleteModal({
+      isOpen: true,
+      doctorId: doc.id,
+      doctorName: doc.name,
+      isDeleting: false,
+    })
+  }
+
+  const handleConfirmDeleteDoctor = async () => {
+    if (!deleteModal.doctorId) return
+    const id = deleteModal.doctorId
+    const targetName = deleteModal.doctorName || "Doctor"
+
+    setDeleteModal((prev) => ({ ...prev, isDeleting: true }))
+    const toastId = toast.loading(`Deleting doctor profile for ${targetName}...`)
+
     try {
-      await fetch(getEndpoint(`/doctors/${id}`), {
+      const res = await fetch(getEndpoint(`/doctors/${id}`), {
         method: "DELETE",
       })
-      setDoctors((prev) => prev.filter((doc) => doc.id !== id))
-      if (selectedDoctor && selectedDoctor.id === id) {
-        setIsPortfolioOpen(false)
+      if (res.ok) {
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        setDoctors((prev) => prev.filter((doc) => doc.id !== id))
+        if (selectedDoctor && selectedDoctor.id === id) {
+          setIsPortfolioOpen(false)
+        }
+        toast.success(`Doctor profile for ${targetName} deleted successfully.`, { id: toastId })
+        setDeleteModal({ isOpen: false, doctorId: null, doctorName: null, isDeleting: false })
+        fetchData()
+      } else {
+        const errorData = await res.json().catch(() => null)
+        toast.error(errorData?.message || "Failed to delete doctor record.", { id: toastId })
+        setDeleteModal((prev) => ({ ...prev, isDeleting: false }))
       }
     } catch (error) {
       console.error("Failed to delete doctor from backend:", error)
+      toast.error("Network error: Could not delete doctor record.", { id: toastId })
+      setDeleteModal((prev) => ({ ...prev, isDeleting: false }))
     }
   }
 
@@ -955,7 +1008,7 @@ export default function DoctorMasterDatabasePage() {
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        onClick={() => handleDeleteDoctor(doc.id)}
+                        onClick={() => promptDeleteDoctor(doc)}
                         className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
                       >
                         <Trash2 className="mr-2 h-3.5 w-3.5" />
@@ -1167,18 +1220,29 @@ export default function DoctorMasterDatabasePage() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => setIsPortfolioOpen(false)}
-                  className="h-8 text-xs text-slate-600"
+                  onClick={() => promptDeleteDoctor(selectedDoctor)}
+                  className="h-8 text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                 >
-                  Close Drawer
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Delete Doctor
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={() => handleOpenEdit(selectedDoctor)}
-                  className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
-                >
-                  Modify Portfolio
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsPortfolioOpen(false)}
+                    className="h-8 text-xs text-slate-600"
+                  >
+                    Close Drawer
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleOpenEdit(selectedDoctor)}
+                    className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
+                  >
+                    Modify Portfolio
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -1456,6 +1520,18 @@ export default function DoctorMasterDatabasePage() {
           )}
         </DialogContent>
       </Dialog>
+      {/* Global Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={deleteModal.isOpen}
+        onOpenChange={(open) =>
+          setDeleteModal((prev) => ({ ...prev, isOpen: open }))
+        }
+        onConfirm={handleConfirmDeleteDoctor}
+        title="Delete Doctor Record"
+        description="Are you sure you want to remove this physician from the master database? This action cannot be undone."
+        itemName={deleteModal.doctorName ? `Dr. ${deleteModal.doctorName}` : undefined}
+        isDeleting={deleteModal.isDeleting}
+      />
     </div>
   )
 }
