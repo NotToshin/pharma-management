@@ -67,24 +67,10 @@ function LoginForm() {
       }
 
       const payload = data.data || data
-      const accessToken =
-        payload.accessToken || payload.token || data.accessToken || data.token
-      const refreshToken = payload.refreshToken || data.refreshToken
       const user = payload.user || data.user
 
-      if (!accessToken) {
-        setErrorMessage(
-          "Session token was not received. Please verify server response."
-        )
-        return
-      }
-
-      // Store access token in cookies and sync localStorage
-      setAuthSession({
-        accessToken,
-        refreshToken,
-        user,
-      })
+      // Rely entirely on backend's native Set-Cookie header (HttpOnly, Secure, SameSite=None)
+      setAuthSession({ user })
 
       setSuccessMessage("Session verified. Redirecting...")
 

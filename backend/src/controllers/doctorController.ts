@@ -15,39 +15,13 @@ export const getDoctorById = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const createDoctor = catchAsync(async (req: Request, res: Response) => {
-  const { doctorName, phone, bmdcRegNumber, specialtyAndInstitute, chamber, territoryAndMio, email, tier, patientVolumeDaily } = req.body;
-
-  const newDoctor = await doctorService.createDoctor({
-    doctorName,
-    phone,
-    bmdcRegNumber,
-    specialtyAndInstitute,
-    chamber,
-    territoryAndMio,
-    email,
-    tier,
-    patientVolumeDaily: Number(patientVolumeDaily) || 30,
-  });
-
+  const newDoctor = await doctorService.createDoctor(req.body);
   sendResponse(res, 201, "Doctor created successfully", newDoctor);
 });
 
 export const updateDoctor = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { doctorName, phone, bmdcRegNumber, specialtyAndInstitute, chamber, territoryAndMio, email, tier, patientVolumeDaily } = req.body;
-
-  const updatedDoctor = await doctorService.updateDoctor(id, {
-    doctorName,
-    phone,
-    bmdcRegNumber,
-    specialtyAndInstitute,
-    chamber,
-    territoryAndMio,
-    email,
-    tier,
-    patientVolumeDaily: patientVolumeDaily !== undefined ? Number(patientVolumeDaily) || 30 : undefined,
-  });
-
+  const updatedDoctor = await doctorService.updateDoctor(id, req.body);
   sendResponse(res, 200, "Doctor updated successfully", updatedDoctor);
 });
 

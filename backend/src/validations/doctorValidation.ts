@@ -1,31 +1,26 @@
 import { z } from "zod";
 
+export const doctorFormSchema = z.object({
+  doctorName: z.string().min(1, "Doctor name is required"),
+  phone: z.string().min(1, "Phone number is required"),
+  bmdcRegNumber: z.string().min(1, "BMDC registration number is required"),
+  specialtyAndInstitute: z.string().min(1, "Specialty & Institute is required"),
+  chamber: z.string().min(1, "Chamber address is required"),
+  territoryAndMio: z.string().min(1, "Territory & MIO details are required"),
+  email: z.string().min(1, "Email address is required").email("Invalid email format"),
+  tier: z.string().min(1, "Prescriber tier is required"),
+  patientVolumeDaily: z.coerce
+    .number({ message: "Patient volume must be a number" })
+    .int("Patient volume must be an integer")
+    .min(0, "Patient volume cannot be negative"),
+});
+
 export const createDoctorSchema = z.object({
-  body: z.object({
-    doctorName: z.string().min(1, "Doctor name is required"),
-    phone: z.string().min(1, "Phone is required"),
-    bmdcRegNumber: z.string().min(1, "BMDC registration number is required"),
-    specialtyAndInstitute: z.string().min(1, "Specialty and institute is required"),
-    chamber: z.string().min(1, "Chamber is required"),
-    territoryAndMio: z.string().min(1, "Territory and MIO is required"),
-    email: z.string().email("Invalid email format").optional().or(z.literal("")),
-    tier: z.string().min(1, "Tier is required"),
-    patientVolumeDaily: z.coerce.number().int().min(0).optional().default(30),
-  }),
+  body: doctorFormSchema,
 });
 
 export const updateDoctorSchema = z.object({
-  body: z.object({
-    doctorName: z.string().min(1).optional(),
-    phone: z.string().min(1).optional(),
-    bmdcRegNumber: z.string().min(1).optional(),
-    specialtyAndInstitute: z.string().min(1).optional(),
-    chamber: z.string().min(1).optional(),
-    territoryAndMio: z.string().min(1).optional(),
-    email: z.string().email("Invalid email format").optional().or(z.literal("")),
-    tier: z.string().min(1).optional(),
-    patientVolumeDaily: z.coerce.number().int().min(0).optional(),
-  }),
+  body: doctorFormSchema.partial(),
   params: z.object({
     id: z.string().min(1, "Doctor ID is required"),
   }),
@@ -37,5 +32,6 @@ export const doctorIdParamSchema = z.object({
   }),
 });
 
+export type DoctorInput = z.infer<typeof doctorFormSchema>;
 export type CreateDoctorInput = z.infer<typeof createDoctorSchema>["body"];
 export type UpdateDoctorInput = z.infer<typeof updateDoctorSchema>["body"];

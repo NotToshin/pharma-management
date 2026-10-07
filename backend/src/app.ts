@@ -21,13 +21,13 @@ const app: Application = express();
 // --- Core Middlewares ---
 app.use(
   cors({
-    origin: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    origin: (origin, callback) => callback(null, origin || true),
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
     credentials: true,
   })
 );
-app.options("*", cors());
+app.options("*", cors({ origin: (origin, callback) => callback(null, origin || true), credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
