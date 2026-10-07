@@ -87,24 +87,15 @@ const navSections = [
   {
     group: "FIELD FORCE (MIO)",
     items: [
-      {
-        title: "Tour Programme (TP)",
-        icon: UserCheck,
-        defaultOpen: true,
-        subItems: [
-          { title: "All Tour Plans", href: "/field-force/tour-plans" },
-          { title: "Pending Approvals", href: "/field-force/approvals" },
-        ],
-      },
-      {
-        title: "Daily Call Reports (DCR)",
-        icon: Clock,
-        defaultOpen: true,
-        subItems: [
-          { title: "Doctor Visit Logs", href: "/field-force/visit-logs" },
-          { title: "Sample & Gift Distribution", href: "/field-force/samples" },
-        ],
-      },
+      // {
+      //   title: "Tour Programme (TP)",
+      //   icon: UserCheck,
+      //   defaultOpen: true,
+      //   subItems: [
+      //     { title: "All Tour Plans", href: "/field-force/tour-plans" },
+      //     { title: "Pending Approvals", href: "/field-force/approvals" },
+      //   ],
+      // },
       {
         title: "Territory Management",
         icon: Map,
@@ -135,6 +126,15 @@ const navSections = [
         subItems: [
           { title: "Category Ranking", href: "/doctors/ranking" },
           { title: "Visit History Timeline", href: "/doctors/timeline" },
+        ],
+      },
+      {
+        title: "Daily Call Reports (DCR)",
+        icon: Clock,
+        defaultOpen: true,
+        subItems: [
+          { title: "Doctor Visit Logs", href: "/field-force/visit-logs" },
+          { title: "Sample & Gift Distribution", href: "/field-force/samples" },
         ],
       },
     ],
@@ -354,11 +354,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                   <SidebarMenuSubButton
                                     asChild
                                     isActive={isActive}
-                                    className={`h-7 text-xs transition-colors ${
-                                      isActive
+                                    className={`h-7 text-xs transition-colors ${isActive
                                         ? "bg-slate-100 font-semibold text-slate-900"
                                         : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                                    }`}
+                                      }`}
                                   >
                                     <Link
                                       href={subItem.href}
@@ -385,11 +384,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       asChild
                       isActive={isDirectActive}
                       tooltip={item.title}
-                      className={`h-9 w-full justify-between rounded-md px-2 text-xs font-medium transition-colors ${
-                        isDirectActive
+                      className={`h-9 w-full justify-between rounded-md px-2 text-xs font-medium transition-colors ${isDirectActive
                           ? "bg-slate-100 font-semibold text-slate-900"
                           : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-                      }`}
+                        }`}
                     >
                       <Link
                         href={item.href || "#"}

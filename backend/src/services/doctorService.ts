@@ -1,7 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../utils/prisma";
 import { AppError } from "../errors";
-
-const prisma = new PrismaClient();
 
 export const doctorService = {
   async getAllDoctors() {
@@ -27,10 +25,16 @@ export const doctorService = {
     territoryAndMio: string;
     email: string;
     tier: string;
-    patientVolumeDaily?: number;
+    patientVolumeDaily: number;
   }) {
-    if (!data.doctorName) {
-      throw new AppError("Doctor name is required", 400);
+    const existingDoctor = await prisma.doctor.findUnique({
+      where: { bmdcRegNumber: data.bmdcRegNumber },
+    });
+    if (existingDoctor) {
+      throw new AppError(
+        `Doctor with BMDC Reg # '${data.bmdcRegNumber}' already exists (${existingDoctor.doctorName})`,
+        400
+      );
     }
 
     return prisma.doctor.create({
@@ -43,39 +47,42 @@ export const doctorService = {
         territoryAndMio: data.territoryAndMio,
         email: data.email,
         tier: data.tier,
-        patientVolumeDaily: Number(data.patientVolumeDaily) || 30,
+        patientVolumeDaily: data.patientVolumeDaily,
       },
     });
   },
 
-  async updateDoctor(id: string, data: {
-    doctorName?: string;
-    phone?: string;
-    bmdcRegNumber?: string;
-    specialtyAndInstitute?: string;
-    chamber?: string;
-    territoryAndMio?: string;
-    email?: string;
-    tier?: string;
-    patientVolumeDaily?: number;
-  }) {
-    // Ensures 404 AppError is thrown if record does not exist
+  async updateDoctor(
+    id: string,
+    data: {
+      doctorName?: string;
+      phone?: string;
+      bmdcRegNumber?: string;
+      specialtyAndInstitute?: string;
+      chamber?: string;
+      territoryAndMio?: string;
+      email?: string;
+      tier?: string;
+      patientVolumeDaily?: number;
+    }
+  ) {
     await this.getDoctorById(id);
 
-    const updateData: Record<string, any> = {};
-    if (data.doctorName !== undefined) updateData.doctorName = data.doctorName;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.bmdcRegNumber !== undefined) updateData.bmdcRegNumber = data.bmdcRegNumber;
-    if (data.specialtyAndInstitute !== undefined) updateData.specialtyAndInstitute = data.specialtyAndInstitute;
-    if (data.chamber !== undefined) updateData.chamber = data.chamber;
-    if (data.territoryAndMio !== undefined) updateData.territoryAndMio = data.territoryAndMio;
-    if (data.email !== undefined) updateData.email = data.email;
-    if (data.tier !== undefined) updateData.tier = data.tier;
-    if (data.patientVolumeDaily !== undefined) updateData.patientVolumeDaily = Number(data.patientVolumeDaily) || 30;
+    if (data.bmdcRegNumber) {
+      const existing = await prisma.doctor.findUnique({
+        where: { bmdcRegNumber: data.bmdcRegNumber },
+      });
+      if (existing && existing.id !== id) {
+        throw new AppError(
+          `Doctor with BMDC Reg # '${data.bmdcRegNumber}' already exists (${existing.doctorName})`,
+          400
+        );
+      }
+    }
 
     return prisma.doctor.update({
       where: { id },
-      data: updateData,
+      data,
     });
   },
 

@@ -38,6 +38,8 @@ import {
   MapPin,
 } from "lucide-react"
 
+import { doctorFormSchema } from "@/lib/validations/doctorValidation"
+
 export interface DoctorProfile {
   id: string
   doctorName: string
@@ -65,9 +67,11 @@ export default function AddDoctorDirectoryPage() {
   const [chamber, setChamber] = React.useState("")
   const [territoryAndMio, setTerritoryAndMio] = React.useState("")
   const [email, setEmail] = React.useState("")
+  const [patientVolumeDaily, setPatientVolumeDaily] = React.useState("30")
   const [tier, setTier] = React.useState<DoctorProfile["tier"]>(
     "Tier 1 (High Prescriber)"
   )
+  const [formErrors, setFormErrors] = React.useState<Record<string, string>>({})
 
   const showNotification = (msg: string) => {
     setSuccessToast(msg)
@@ -110,25 +114,42 @@ export default function AddDoctorDirectoryPage() {
 
   const handleSingleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setFormErrors({})
+
     const cleanSpecialty = specialty.split("(")[0].trim()
     const cleanInstitute = institute.split("(")[0].trim()
+    const specialtyAndInstitute = cleanInstitute
+      ? `${cleanSpecialty} (${cleanInstitute})`
+      : cleanSpecialty
 
-    const newDoc = {
+    const newDocPayload = {
       doctorName,
-      phone: phone || "+880 1700-000000",
-      bmdcRegNumber: bmdcRegNumber || "BMDC-A-00000",
-      specialtyAndInstitute: `${cleanSpecialty} (${cleanInstitute})`,
+      phone,
+      bmdcRegNumber,
+      specialtyAndInstitute,
       chamber,
-      territoryAndMio: territoryAndMio || "Central Hub / Unassigned",
-      email: email || "doctor@akpharma.com",
+      territoryAndMio,
+      email,
       tier,
+      patientVolumeDaily: Number(patientVolumeDaily),
+    }
+
+    const validationResult = doctorFormSchema.safeParse(newDocPayload)
+    if (!validationResult.success) {
+      const errorsMap: Record<string, string> = {}
+      validationResult.error.issues.forEach((issue) => {
+        const pathKey = issue.path[0]?.toString() || "form"
+        errorsMap[pathKey] = issue.message
+      })
+      setFormErrors(errorsMap)
+      return
     }
 
     try {
       const res = await fetch(getEndpoint("/doctors"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newDoc),
+        body: JSON.stringify(validationResult.data),
       })
 
       if (res.ok) {
@@ -140,12 +161,15 @@ export default function AddDoctorDirectoryPage() {
         setChamber("")
         setTerritoryAndMio("")
         setEmail("")
+        setPatientVolumeDaily("30")
+        setFormErrors({})
         showNotification(
-          `Successfully registered ${newDoc.doctorName} into the database.`
+          `Successfully registered ${newDocPayload.doctorName} into the database.`
         )
-        fetchDoctors() // Refresh table list dynamically
+        fetchDoctors()
       } else {
-        alert("Server responded with an error.")
+        const errorData = await res.json().catch(() => null)
+        alert(errorData?.message || "Server responded with an error.")
       }
     } catch (err) {
       console.error("Error communicating with backend:", err)
@@ -458,7 +482,7 @@ export default function AddDoctorDirectoryPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-slate-700">
                   Territory / MIO Details *
@@ -470,10 +494,29 @@ export default function AddDoctorDirectoryPage() {
                   required
                   className="h-8 text-xs"
                 />
+                {formErrors.territoryAndMio && (
+                  <p className="text-[11px] font-medium text-rose-500">{formErrors.territoryAndMio}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-slate-700">
-                  Prescriber Tier
+                  Email Address *
+                </Label>
+                <Input
+                  type="email"
+                  placeholder="e.g. doctor@akpharma.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="h-8 text-xs"
+                />
+                {formErrors.email && (
+                  <p className="text-[11px] font-medium text-rose-500">{formErrors.email}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-700">
+                  Prescriber Tier *
                 </Label>
                 <Select
                   value={tier}
@@ -494,6 +537,9 @@ export default function AddDoctorDirectoryPage() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
+                {formErrors.tier && (
+                  <p className="text-[11px] font-medium text-rose-500">{formErrors.tier}</p>
+                )}
               </div>
             </div>
 

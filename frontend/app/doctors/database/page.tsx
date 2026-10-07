@@ -71,6 +71,8 @@ import {
   ExternalLink,
 } from "lucide-react"
 
+import { doctorFormSchema } from "@/lib/validations/doctorValidation"
+
 interface DoctorRecord {
   id: string
   docCode: string
@@ -126,6 +128,8 @@ export default function DoctorMasterDatabasePage() {
     React.useState<DoctorRecord["potentialCategory"]>("A")
   const [patientVolumeDaily, setPatientVolumeDaily] = React.useState("")
   const [assignedMio, setAssignedMio] = React.useState("")
+  const [email, setEmail] = React.useState("")
+  const [formErrors, setFormErrors] = React.useState<Record<string, string>>({})
 
   // Edit Dialog State
   const [isEditOpen, setIsEditOpen] = React.useState(false)
@@ -137,70 +141,72 @@ export default function DoctorMasterDatabasePage() {
   const fetchData = async () => {
     try {
       const [docRes, staffRes] = await Promise.all([
-        fetch(getEndpoint("/doctors")),
+        fetch(getEndpoint("/doctors")).catch(() => null),
         fetch(getEndpoint("/staff")).catch(() => null), // Fallback if staff endpoint is still being wired
       ])
 
-      const docResult = await docRes.json()
-      const rawData = Array.isArray(docResult)
-        ? docResult
-        : docResult.data || []
+      if (docRes && docRes.ok) {
+        const docResult = await docRes.json()
+        const rawData = Array.isArray(docResult)
+          ? docResult
+          : docResult.data || []
 
-      const formattedDoctors: DoctorRecord[] = rawData.map(
-        (doc: any, index: number) => {
-          // Safely extract specialty (before parenthesis) and institute (inside parentheses)
-          const rawSpecInst = doc.specialtyAndInstitute || ""
-          const extractedSpecialty = rawSpecInst.includes("(")
-            ? rawSpecInst.split("(")[0].trim()
-            : doc.specialty || rawSpecInst || "General Physician"
+        const formattedDoctors: DoctorRecord[] = rawData.map(
+          (doc: any, index: number) => {
+            // Safely extract specialty (before parenthesis) and institute (inside parentheses)
+            const rawSpecInst = doc.specialtyAndInstitute || ""
+            const extractedSpecialty = rawSpecInst.includes("(")
+              ? rawSpecInst.split("(")[0].trim()
+              : doc.specialty || rawSpecInst || "General Physician"
 
-          const extractedInstitute =
-            rawSpecInst.includes("(") && rawSpecInst.includes(")")
-              ? rawSpecInst
-                  .substring(
-                    rawSpecInst.indexOf("(") + 1,
-                    rawSpecInst.lastIndexOf(")")
-                  )
-                  .trim()
-              : doc.institute || "General Hospital"
+            const extractedInstitute =
+              rawSpecInst.includes("(") && rawSpecInst.includes(")")
+                ? rawSpecInst
+                    .substring(
+                      rawSpecInst.indexOf("(") + 1,
+                      rawSpecInst.lastIndexOf(")")
+                    )
+                    .trim()
+                : doc.institute || "General Hospital"
 
-          return {
-            id: doc.id || String(index),
-            docCode: doc.docCode || `DOC-204${index + 10}`,
-            name: doc.doctorName || doc.name,
-            bmdcReg: doc.bmdcRegNumber || doc.bmdcReg || "A-00000",
-            specialty: extractedSpecialty,
-            designation: doc.designation || "Consultant",
-            institute: extractedInstitute,
-            chamberAddress:
-              doc.chamber || doc.chamberAddress || "General Chamber",
-            territory: doc.territoryAndMio
-              ? doc.territoryAndMio.split("/")[0].trim()
-              : doc.territory || "Central Hub",
-            contactNumber: doc.phone || doc.contactNumber || "+880 1700-000000",
-            potentialCategory: doc.tier?.includes("Tier 1")
-              ? "A+"
-              : doc.tier?.includes("Tier 2")
-                ? "A"
-                : "B",
-            patientVolumeDaily:
-              doc.patientVolumeDaily !== undefined
-                ? doc.patientVolumeDaily
-                : 30,
-            assignedMio: doc.territoryAndMio?.includes("MIO:")
-              ? doc.territoryAndMio.split("MIO:")[1].trim()
-              : doc.assignedMio || "Unassigned",
-            status: "Active",
-            email: doc.email || "doctor@akpharma.com",
-            keyProducts: ["Standard Line Products"],
-            lastVisited: "16 Sep 2026",
-            monthlyRevenueEst: "৳1,50,000",
-            visitFrequency: "Monthly (P2)",
+            return {
+              id: doc.id || String(index),
+              docCode: doc.docCode || `DOC-204${index + 10}`,
+              name: doc.doctorName || doc.name,
+              bmdcReg: doc.bmdcRegNumber || doc.bmdcReg || "A-00000",
+              specialty: extractedSpecialty,
+              designation: doc.designation || "Consultant",
+              institute: extractedInstitute,
+              chamberAddress:
+                doc.chamber || doc.chamberAddress || "General Chamber",
+              territory: doc.territoryAndMio
+                ? doc.territoryAndMio.split("/")[0].trim()
+                : doc.territory || "Central Hub",
+              contactNumber: doc.phone || doc.contactNumber || "+880 1700-000000",
+              potentialCategory: doc.tier?.includes("Tier 1")
+                ? "A+"
+                : doc.tier?.includes("Tier 2")
+                  ? "A"
+                  : "B",
+              patientVolumeDaily:
+                doc.patientVolumeDaily !== undefined
+                  ? doc.patientVolumeDaily
+                  : 30,
+              assignedMio: doc.territoryAndMio?.includes("MIO:")
+                ? doc.territoryAndMio.split("MIO:")[1].trim()
+                : doc.assignedMio || "Unassigned",
+              status: "Active",
+              email: doc.email || "doctor@akpharma.com",
+              keyProducts: ["Standard Line Products"],
+              lastVisited: "16 Sep 2026",
+              monthlyRevenueEst: "৳1,50,000",
+              visitFrequency: "Monthly (P2)",
+            }
           }
-        }
-      )
+        )
 
-      setDoctors(formattedDoctors)
+        setDoctors(formattedDoctors)
+      }
 
       if (staffRes && staffRes.ok) {
         const staffData = await staffRes.json()
@@ -261,26 +267,41 @@ export default function DoctorMasterDatabasePage() {
 
   const handleAddDoctor = async (e: React.FormEvent) => {
     e.preventDefault()
+    setFormErrors({})
+
+    const specialtyAndInstitute = institute ? `${specialty} (${institute})` : specialty
+    const territoryAndMio = assignedMio ? `${territory} / MIO: ${assignedMio}` : territory
+    const tier = potentialCategory === "A+" ? "Tier 1 (High Prescriber)" : "Tier 2 (Moderate)"
+
     const newDocPayload = {
       doctorName: name,
-      phone: contactNumber || "+880 1700-000000",
-      bmdcRegNumber: bmdcReg || "BMDC-A-00000",
-      specialtyAndInstitute: `${specialty} (${institute || "General Hospital"})`,
-      chamber: chamberAddress || "General Chamber",
-      territoryAndMio: `${territory} / MIO: ${assignedMio || "General"}`,
-      email: "doctor@akpharma.com",
-      tier:
-        potentialCategory === "A+"
-          ? "Tier 1 (High Prescriber)"
-          : "Tier 2 (Moderate)",
-      patientVolumeDaily: Number(patientVolumeDaily) || 25,
+      phone: contactNumber,
+      bmdcRegNumber: bmdcReg,
+      specialtyAndInstitute,
+      chamber: chamberAddress,
+      territoryAndMio,
+      email,
+      tier,
+      patientVolumeDaily: Number(patientVolumeDaily),
+    }
+
+    const validationResult = doctorFormSchema.safeParse(newDocPayload)
+    if (!validationResult.success) {
+      const errorsMap: Record<string, string> = {}
+      validationResult.error.issues.forEach((issue) => {
+        const pathKey = issue.path[0]?.toString() || "form"
+        errorsMap[pathKey] = issue.message
+      })
+      setFormErrors(errorsMap)
+      alert(Object.values(errorsMap).join("\n"))
+      return
     }
 
     try {
       const res = await fetch(getEndpoint("/doctors"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newDocPayload),
+        body: JSON.stringify(validationResult.data),
       })
 
       if (res.ok) {
@@ -290,12 +311,15 @@ export default function DoctorMasterDatabasePage() {
         setInstitute("")
         setChamberAddress("")
         setContactNumber("")
+        setEmail("")
         setPatientVolumeDaily("")
         setAssignedMio("")
+        setFormErrors({})
         setIsAddOpen(false)
         fetchData()
       } else {
-        alert("Server failed to save doctor record.")
+        const errorData = await res.json().catch(() => null)
+        alert(errorData?.message || "Server failed to save doctor record.")
       }
     } catch (error) {
       console.error("Network error adding doctor:", error)
@@ -314,19 +338,28 @@ export default function DoctorMasterDatabasePage() {
     try {
       const cleanSpecialty = editingDoctor.specialty.split("(")[0].trim()
       const cleanInstitute = editingDoctor.institute.split("(")[0].trim()
+      const specialtyAndInstitute = cleanInstitute
+        ? `${cleanSpecialty} (${cleanInstitute})`
+        : cleanSpecialty
 
       const updatedPayload = {
         doctorName: editingDoctor.name,
         phone: editingDoctor.contactNumber,
         bmdcRegNumber: editingDoctor.bmdcReg,
-        specialtyAndInstitute: `${cleanSpecialty} (${cleanInstitute})`,
+        specialtyAndInstitute,
         chamber: editingDoctor.chamberAddress,
         territoryAndMio: `${editingDoctor.territory} / MIO: ${editingDoctor.assignedMio}`,
         tier:
           editingDoctor.potentialCategory === "A+"
             ? "Tier 1 (High Prescriber)"
             : "Tier 2 (Moderate)",
-        patientVolumeDaily: editingDoctor.patientVolumeDaily,
+        patientVolumeDaily: Number(editingDoctor.patientVolumeDaily),
+      }
+
+      const validationResult = doctorFormSchema.partial().safeParse(updatedPayload)
+      if (!validationResult.success) {
+        alert(validationResult.error.issues.map((i) => i.message).join("\n"))
+        return
       }
 
       const res = await fetch(
@@ -334,7 +367,7 @@ export default function DoctorMasterDatabasePage() {
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updatedPayload),
+          body: JSON.stringify(validationResult.data),
         }
       )
 
@@ -343,7 +376,8 @@ export default function DoctorMasterDatabasePage() {
         setEditingDoctor(null)
         fetchData()
       } else {
-        alert("Failed to update doctor record on the server.")
+        const errorData = await res.json().catch(() => null)
+        alert(errorData?.message || "Failed to update doctor record on the server.")
       }
     } catch (error) {
       console.error("Failed to update doctor record:", error)
@@ -519,10 +553,10 @@ export default function DoctorMasterDatabasePage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-slate-700">
-                      Phone Number
+                      Phone Number *
                     </Label>
                     <Input
                       placeholder="+880 1700-000000"
@@ -534,7 +568,20 @@ export default function DoctorMasterDatabasePage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-slate-700">
-                      Territory Hub
+                      Email Address *
+                    </Label>
+                    <Input
+                      type="email"
+                      placeholder="e.g. doctor@akpharma.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Territory Hub *
                     </Label>
                     <Input
                       placeholder="e.g. Dhaka North"

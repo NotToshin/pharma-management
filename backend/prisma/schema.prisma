@@ -62,9 +62,9 @@ model Doctor {
   specialtyAndInstitute String
   chamber               String
   territoryAndMio       String
-  email                 String?
+  email                 String
   tier                  String
-  patientVolumeDaily    Int      @default(30)
+  patientVolumeDaily    Int
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
