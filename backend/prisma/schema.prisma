@@ -69,6 +69,23 @@ model Doctor {
   updatedAt             DateTime @updatedAt
 }
 
+model DoctorVisitLog {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  dcrCode       String   @unique
+  doctorName    String
+  specialty     String
+  chamber       String
+  mioName       String
+  territory     String
+  visitDate     String
+  visitTime     String
+  promotedDrugs String
+  samplesGiven  String
+  feedback      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 // ─────────────────────────────────────────────
 // HR / Staff
 // ─────────────────────────────────────────────

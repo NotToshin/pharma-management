@@ -57,6 +57,8 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react"
+import { toast } from "sonner"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 
 /* ------------------------------------------------------------------ */
 /* Optimized Print stylesheet for DCR Ledger (Clean, Professional)     */
@@ -150,110 +152,56 @@ interface VisitLog {
   feedback: "High Potential" | "Positive" | "Neutral" | "Needs Follow-up"
 }
 
-const initialLogs: VisitLog[] = [
-  {
-    id: "1",
-    dcrCode: "DCR-2026-101",
-    doctorName: "Dr. Anwarul Azim",
-    specialty: "Cardiologist",
-    chamber: "Popular Diagnostic Center, Dhanmondi",
-    mioName: "Rafiqul Islam",
-    territory: "Dhaka North",
-    visitDate: "2026-09-17",
-    visitTime: "10:30 AM",
-    promotedDrugs: "Rosuvastatin 10mg, Cardiloc 5mg",
-    samplesGiven: "4 Strips",
-    feedback: "High Potential",
-  },
-  {
-    id: "2",
-    dcrCode: "DCR-2026-102",
-    doctorName: "Dr. Farhana Yasmin",
-    specialty: "Gynecologist",
-    chamber: "Labaid Specialized Hospital",
-    mioName: "Rafiqul Islam",
-    territory: "Dhaka North",
-    visitDate: "2026-09-17",
-    visitTime: "11:45 AM",
-    promotedDrugs: "Fefol-Z, Calcium D3",
-    samplesGiven: "6 Strips",
-    feedback: "Positive",
-  },
-  {
-    id: "3",
-    dcrCode: "DCR-2026-103",
-    doctorName: "Dr. S. K. Roy",
-    specialty: "Internal Medicine",
-    chamber: "Medinova Medical Services, Mirpur",
-    mioName: "Tanvir Ahmed",
-    territory: "Dhaka South",
-    visitDate: "2026-09-17",
-    visitTime: "01:15 PM",
-    promotedDrugs: "Azithromycin 500mg, Omeprazole",
-    samplesGiven: "2 Strips",
-    feedback: "High Potential",
-  },
-  {
-    id: "4",
-    dcrCode: "DCR-2026-104",
-    doctorName: "Dr. Mehedi Hasan",
-    specialty: "Pediatrician",
-    chamber: "Chevron Clinical Lab, Chittagong",
-    mioName: "Kamrul Hasan",
-    territory: "Chittagong Central",
-    visitDate: "2026-09-16",
-    visitTime: "03:40 PM",
-    promotedDrugs: "Cef-3 Drops, Paracetamol Susp.",
-    samplesGiven: "5 Vials",
-    feedback: "Neutral",
-  },
-  {
-    id: "5",
-    dcrCode: "DCR-2026-105",
-    doctorName: "Dr. Mustafizur Rahman",
-    specialty: "Orthopedics",
-    chamber: "Ibn Sina Hospital, Sylhet",
-    mioName: "Enamul Haque",
-    territory: "Sylhet Sadar",
-    visitDate: "2026-09-16",
-    visitTime: "05:10 PM",
-    promotedDrugs: "Aceclofenac 100mg, Diacerein",
-    samplesGiven: "3 Strips",
-    feedback: "Needs Follow-up",
-  },
-  {
-    id: "6",
-    dcrCode: "DCR-2026-106",
-    doctorName: "Dr. Nadia Islam",
-    specialty: "General Physician",
-    chamber: "Apollo Clinic, Rajshahi",
-    mioName: "Sabbir Hossain",
-    territory: "Rajshahi Metro",
-    visitDate: "2026-09-15",
-    visitTime: "06:30 PM",
-    promotedDrugs: "Pantoprazole 20mg, Antacid Susp.",
-    samplesGiven: "4 Strips",
-    feedback: "Positive",
-  },
-]
+interface RegisteredDoctor {
+  id: string
+  doctorName: string
+  specialtyAndInstitute?: string
+  specialty?: string
+  chamber?: string
+  territoryAndMio?: string
+  territory?: string
+  assignedMio?: string
+  bmdcRegNumber?: string
+}
+
+import { getEndpoint } from "@/lib/api"
+import { visitLogFormSchema } from "@/lib/validations/doctorVisitLogValidation"
 
 export default function DoctorVisitLogsPage() {
-  const [logs, setLogs] = React.useState<VisitLog[]>(initialLogs)
+  const [logs, setLogs] = React.useState<VisitLog[]>([])
+  const [loading, setLoading] = React.useState(true)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [feedbackFilter, setFeedbackFilter] = React.useState("all")
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
+
+  // Doctor collection registry search states
+  const [registeredDoctors, setRegisteredDoctors] = React.useState<RegisteredDoctor[]>([])
+  const [isAddDoctorDropdownOpen, setIsAddDoctorDropdownOpen] = React.useState(false)
+  const [isEditDoctorDropdownOpen, setIsEditDoctorDropdownOpen] = React.useState(false)
+  const [selectedDoctorBadge, setSelectedDoctorBadge] = React.useState<string | null>(null)
+  const addDoctorContainerRef = React.useRef<HTMLDivElement | null>(null)
+  const editDoctorContainerRef = React.useRef<HTMLDivElement | null>(null)
 
   // Edit Log Dialog State
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [editingLog, setEditingLog] = React.useState<VisitLog | null>(null)
 
-  const [successToast, setSuccessToast] = React.useState<string | null>(null)
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null)
+  // Global Delete Confirmation Modal State
+  const [deleteModal, setDeleteModal] = React.useState<{
+    isOpen: boolean
+    logId: string | null
+    doctorName: string | null
+    isDeleting: boolean
+  }>({
+    isOpen: false,
+    logId: null,
+    doctorName: null,
+    isDeleting: false,
+  })
 
-  const showNotification = (msg: string) => {
-    setSuccessToast(msg)
-    setTimeout(() => setSuccessToast(null), 3500)
-  }
+  const [successToast, setSuccessToast] = React.useState<string | null>(null)
+  const [formErrors, setFormErrors] = React.useState<Record<string, string>>({})
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null)
 
   // Form states (Add)
   const [doctorName, setDoctorName] = React.useState("")
@@ -270,33 +218,222 @@ export default function DoctorVisitLogsPage() {
   const [feedback, setFeedback] =
     React.useState<VisitLog["feedback"]>("Positive")
 
-  const handleAddLog = (e: React.FormEvent) => {
+  const showNotification = (msg: string) => {
+    setSuccessToast(msg)
+    setTimeout(() => setSuccessToast(null), 3500)
+  }
+
+  // Fetch live logs from backend
+  const fetchLogs = async () => {
+    try {
+      setLoading(true)
+      const res = await fetch(getEndpoint("/visit-logs")).catch(() => null)
+      if (res && res.ok) {
+        const result = await res.json()
+        const rawData = Array.isArray(result) ? result : result.data || []
+        const formatted: VisitLog[] = rawData.map((item: any) => ({
+          id: item.id || item._id,
+          dcrCode: item.dcrCode || `DCR-${(item.id || item._id)?.slice(-4)}`,
+          doctorName: item.doctorName || "",
+          specialty: item.specialty || "",
+          chamber: item.chamber || "",
+          mioName: item.mioName || "",
+          territory: item.territory || "",
+          visitDate: item.visitDate || "",
+          visitTime: item.visitTime || "",
+          promotedDrugs: item.promotedDrugs || "",
+          samplesGiven: item.samplesGiven || "None",
+          feedback: (item.feedback || "Positive") as VisitLog["feedback"],
+        }))
+        setLogs(formatted)
+      } else {
+        setLogs([])
+      }
+    } catch (err) {
+      console.error("Failed to fetch visit logs from backend:", err)
+      setLogs([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Fetch doctor collection from backend
+  const fetchDoctors = async () => {
+    try {
+      const res = await fetch(getEndpoint("/doctors")).catch(() => null)
+      if (res && res.ok) {
+        const result = await res.json()
+        const rawData = Array.isArray(result) ? result : result.data || []
+        setRegisteredDoctors(rawData)
+      }
+    } catch (err) {
+      console.error("Failed to fetch registered doctors collection:", err)
+    }
+  }
+
+  React.useEffect(() => {
+    fetchLogs()
+    fetchDoctors()
+  }, [])
+
+  // Auto-close doctor search dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        addDoctorContainerRef.current &&
+        !addDoctorContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsAddDoctorDropdownOpen(false)
+      }
+      if (
+        editDoctorContainerRef.current &&
+        !editDoctorContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsEditDoctorDropdownOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  // Doctor Selection Handlers & Auto-fill Logic
+  const selectDoctorForAdd = (doc: RegisteredDoctor) => {
+    setDoctorName(doc.doctorName || "")
+    const docSpecialty = doc.specialtyAndInstitute || doc.specialty || ""
+    setSpecialty(docSpecialty)
+    setChamber(doc.chamber || "")
+
+    let pTerritory = doc.territory || ""
+    let pMio = doc.assignedMio || ""
+
+    if (doc.territoryAndMio) {
+      const parts = doc.territoryAndMio.split(/[/|-]/).map((s) => s.trim())
+      if (parts.length >= 2) {
+        pTerritory = parts[0]
+        pMio = parts[1].replace(/^MIO\s+/i, "")
+      } else if (parts.length === 1 && parts[0]) {
+        pTerritory = parts[0]
+      }
+    }
+
+    if (pTerritory) setTerritory(pTerritory)
+    if (pMio) setMioName(pMio)
+
+    setSelectedDoctorBadge(doc.doctorName)
+    setIsAddDoctorDropdownOpen(false)
+  }
+
+  const selectDoctorForEdit = (doc: RegisteredDoctor) => {
+    if (!editingLog) return
+    let pTerritory = doc.territory || ""
+    let pMio = doc.assignedMio || ""
+
+    if (doc.territoryAndMio) {
+      const parts = doc.territoryAndMio.split(/[/|-]/).map((s) => s.trim())
+      if (parts.length >= 2) {
+        pTerritory = parts[0]
+        pMio = parts[1].replace(/^MIO\s+/i, "")
+      } else if (parts.length === 1 && parts[0]) {
+        pTerritory = parts[0]
+      }
+    }
+
+    setEditingLog({
+      ...editingLog,
+      doctorName: doc.doctorName || editingLog.doctorName,
+      specialty: doc.specialtyAndInstitute || doc.specialty || editingLog.specialty,
+      chamber: doc.chamber || editingLog.chamber,
+      territory: pTerritory || editingLog.territory,
+      mioName: pMio || editingLog.mioName,
+    })
+
+    setIsEditDoctorDropdownOpen(false)
+  }
+
+  const filteredDoctorsForAdd = React.useMemo(() => {
+    if (!doctorName.trim()) return registeredDoctors.slice(0, 6)
+    const q = doctorName.toLowerCase()
+    return registeredDoctors.filter(
+      (doc) =>
+        doc.doctorName?.toLowerCase().includes(q) ||
+        doc.specialtyAndInstitute?.toLowerCase().includes(q) ||
+        doc.specialty?.toLowerCase().includes(q) ||
+        doc.chamber?.toLowerCase().includes(q)
+    )
+  }, [registeredDoctors, doctorName])
+
+  const filteredDoctorsForEdit = React.useMemo(() => {
+    if (!editingLog?.doctorName?.trim()) return registeredDoctors.slice(0, 6)
+    const q = editingLog.doctorName.toLowerCase()
+    return registeredDoctors.filter(
+      (doc) =>
+        doc.doctorName?.toLowerCase().includes(q) ||
+        doc.specialtyAndInstitute?.toLowerCase().includes(q) ||
+        doc.specialty?.toLowerCase().includes(q) ||
+        doc.chamber?.toLowerCase().includes(q)
+    )
+  }, [registeredDoctors, editingLog?.doctorName])
+
+
+  const handleAddLog = async (e: React.FormEvent) => {
     e.preventDefault()
-    const newLog: VisitLog = {
-      id: Date.now().toString(),
-      dcrCode: `DCR-2026-10${logs.length + 7}`,
+    setFormErrors({})
+
+    const payload = {
       doctorName,
       specialty,
       chamber,
       mioName,
       territory,
       visitDate: visitDate || new Date().toISOString().slice(0, 10),
-      visitTime: visitTime || "12:00 PM",
+      visitTime: visitTime || "10:00 AM",
       promotedDrugs,
       samplesGiven: samplesGiven || "None",
       feedback,
     }
 
-    setLogs((prev) => [newLog, ...prev])
-    setDoctorName("")
-    setSpecialty("")
-    setChamber("")
-    setMioName("")
-    setTerritory("")
-    setPromotedDrugs("")
-    setSamplesGiven("")
-    setIsDialogOpen(false)
-    showNotification(`Successfully recorded call log for ${newLog.doctorName}.`)
+    const validationResult = visitLogFormSchema.safeParse(payload)
+    if (!validationResult.success) {
+      const errorsMap: Record<string, string> = {}
+      validationResult.error.issues.forEach((issue) => {
+        const pathKey = issue.path[0]?.toString() || "form"
+        errorsMap[pathKey] = issue.message
+      })
+      setFormErrors(errorsMap)
+      toast.error("Form validation failed. Please check the highlighted fields.")
+      return
+    }
+
+    const toastId = toast.loading("Saving doctor visit log to database...")
+
+    try {
+      const res = await fetch(getEndpoint("/visit-logs"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validationResult.data),
+      })
+
+      if (res.ok) {
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        setDoctorName("")
+        setSpecialty("")
+        setChamber("")
+        setMioName("")
+        setTerritory("")
+        setPromotedDrugs("")
+        setSamplesGiven("")
+        setFormErrors({})
+        setIsDialogOpen(false)
+        toast.success(`Visit log for ${payload.doctorName} recorded successfully!`, { id: toastId })
+        fetchLogs()
+      } else {
+        const errorData = await res.json().catch(() => null)
+        toast.error(errorData?.message || "Failed to save visit log.", { id: toastId })
+      }
+    } catch (err) {
+      console.error("Error communicating with backend:", err)
+      toast.error("Network error: Could not reach backend server.", { id: toastId })
+    }
   }
 
   const handleOpenEdit = (item: VisitLog) => {
@@ -304,21 +441,78 @@ export default function DoctorVisitLogsPage() {
     setIsEditOpen(true)
   }
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingLog) return
 
-    setLogs((prev) =>
-      prev.map((l) => (l.id === editingLog.id ? editingLog : l))
-    )
-    setIsEditOpen(false)
-    setEditingLog(null)
-    showNotification("Call log updated successfully.")
+    const validationResult = visitLogFormSchema.partial().safeParse(editingLog)
+    if (!validationResult.success) {
+      toast.error(validationResult.error.issues.map((i) => i.message).join("\n"))
+      return
+    }
+
+    const toastId = toast.loading("Updating visit log in database...")
+
+    try {
+      const res = await fetch(getEndpoint(`/visit-logs/${editingLog.id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validationResult.data),
+      })
+
+      if (res.ok) {
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        setIsEditOpen(false)
+        setEditingLog(null)
+        toast.success(`Visit log for ${editingLog.doctorName} updated successfully!`, { id: toastId })
+        fetchLogs()
+      } else {
+        const errorData = await res.json().catch(() => null)
+        toast.error(errorData?.message || "Failed to update visit log.", { id: toastId })
+      }
+    } catch (err) {
+      console.error("Failed to update call log:", err)
+      toast.error("Network error: Failed to update visit log.", { id: toastId })
+    }
   }
 
-  const handleDeleteLog = (id: string) => {
-    setLogs((prev) => prev.filter((l) => l.id !== id))
-    showNotification("Call log deleted.")
+  const promptDeleteLog = (log: VisitLog) => {
+    setDeleteModal({
+      isOpen: true,
+      logId: log.id,
+      doctorName: log.doctorName,
+      isDeleting: false,
+    })
+  }
+
+  const handleConfirmDeleteLog = async () => {
+    if (!deleteModal.logId) return
+    const id = deleteModal.logId
+    const targetDoctor = deleteModal.doctorName || "Doctor"
+
+    setDeleteModal((prev) => ({ ...prev, isDeleting: true }))
+    const toastId = toast.loading(`Deleting visit log for ${targetDoctor}...`)
+
+    try {
+      const res = await fetch(getEndpoint(`/visit-logs/${id}`), {
+        method: "DELETE",
+      })
+      if (res.ok) {
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        setLogs((prev) => prev.filter((l) => l.id !== id))
+        toast.success(`Visit log for ${targetDoctor} deleted successfully.`, { id: toastId })
+        setDeleteModal({ isOpen: false, logId: null, doctorName: null, isDeleting: false })
+        fetchLogs()
+      } else {
+        const errorData = await res.json().catch(() => null)
+        toast.error(errorData?.message || "Failed to delete visit log.", { id: toastId })
+        setDeleteModal((prev) => ({ ...prev, isDeleting: false }))
+      }
+    } catch (err) {
+      console.error("Failed to delete call log:", err)
+      toast.error("Network error: Could not delete visit log.", { id: toastId })
+      setDeleteModal((prev) => ({ ...prev, isDeleting: false }))
+    }
   }
 
   const handleTriggerPrint = () => {
@@ -350,7 +544,7 @@ export default function DoctorVisitLogsPage() {
       workbook,
       `AK_Pharma_Doctor_Visit_Logs_${new Date().toISOString().slice(0, 10)}.xlsx`
     )
-    showNotification("Doctor Visit Logs exported to Excel successfully.")
+    toast.success("Doctor Visit Logs exported to Excel successfully.")
   }
 
   // Import Visit Logs from Excel
@@ -358,8 +552,10 @@ export default function DoctorVisitLogsPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    const toastId = toast.loading("Processing Excel import...")
+
     const reader = new FileReader()
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result
         const workbook = XLSX.read(bstr, { type: "binary" })
@@ -367,35 +563,40 @@ export default function DoctorVisitLogsPage() {
         const ws = workbook.Sheets[wsname]
         const data = XLSX.utils.sheet_to_json<any>(ws)
 
-        const importedLogs: VisitLog[] = data.map((row, index) => ({
-          id: `imported-${Date.now()}-${index}`,
-          dcrCode:
-            row["Call Ref"] || row["DCR Code"] || `DCR-2026-${200 + index}`,
-          doctorName: row["Doctor Name"] || "Dr. Unknown",
-          specialty: row["Specialty"] || "General Physician",
-          chamber:
-            row["Chamber Location"] || row["Chamber"] || "General Clinic",
-          mioName:
-            row["Field MIO"] || row["MIO Name"] || "Field Representative",
-          territory: row["Territory"] || "Central Hub",
-          visitDate: row["Visit Date"] || new Date().toISOString().slice(0, 10),
-          visitTime: row["Visit Time"] || row["Time"] || "10:00 AM",
-          promotedDrugs: row["Promoted Drugs"] || "Standard Formulations",
-          samplesGiven: row["Samples Given"] || "None",
-          feedback: (row["Commitment Sentiment"] ||
-            row["Feedback"] ||
-            "Positive") as VisitLog["feedback"],
-        }))
+        let importedCount = 0
+        for (const row of data) {
+          const payload = {
+            dcrCode:
+              row["Call Ref"] || row["DCR Code"] || `DCR-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+            doctorName: row["Doctor Name"] || "Dr. Unknown",
+            specialty: row["Specialty"] || "General Physician",
+            chamber:
+              row["Chamber Location"] || row["Chamber"] || "General Clinic",
+            mioName:
+              row["Field MIO"] || row["MIO Name"] || "Field Representative",
+            territory: row["Territory"] || "Central Hub",
+            visitDate: row["Visit Date"] || new Date().toISOString().slice(0, 10),
+            visitTime: row["Visit Time"] || row["Time"] || "10:00 AM",
+            promotedDrugs: row["Promoted Drugs"] || "Standard Formulations",
+            samplesGiven: row["Samples Given"] || "None",
+            feedback: (row["Commitment Sentiment"] ||
+              row["Feedback"] ||
+              "Positive") as VisitLog["feedback"],
+          }
 
-        setLogs((prev) => [...importedLogs, ...prev])
-        showNotification(
-          `Successfully imported ${importedLogs.length} visit logs from Excel.`
-        )
+          const res = await fetch(getEndpoint("/visit-logs"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+          if (res.ok) importedCount++
+        }
+
+        toast.success(`Successfully imported ${importedCount} visit log(s) to database.`, { id: toastId })
+        fetchLogs()
       } catch (err) {
         console.error(err)
-        alert(
-          "Failed to parse Excel file. Please ensure columns match standard headings."
-        )
+        toast.error("Failed to process Excel file.", { id: toastId })
       }
     }
     reader.readAsBinaryString(file)
@@ -419,6 +620,17 @@ export default function DoctorVisitLogsPage() {
   const highPotentialCount = logs.filter(
     (l) => l.feedback === "High Potential"
   ).length
+
+  const samplesHandedOut = React.useMemo(() => {
+    return logs.reduce((sum, item) => {
+      if (!item.samplesGiven || item.samplesGiven.toLowerCase() === "none") return sum
+      const numbers = item.samplesGiven.match(/\d+/g)
+      if (numbers) {
+        return sum + numbers.reduce((a, b) => a + parseInt(b, 10), 0)
+      }
+      return sum + 1
+    }, 0)
+  }, [logs])
 
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-10">
@@ -507,21 +719,71 @@ export default function DoctorVisitLogsPage() {
 
               <form onSubmit={handleAddLog} className="space-y-3.5 py-2">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="doc"
-                      className="text-xs font-medium text-slate-700"
-                    >
-                      Doctor Name
-                    </Label>
-                    <Input
-                      id="doc"
-                      placeholder="e.g. Dr. Tareq Mahmud"
-                      value={doctorName}
-                      onChange={(e) => setDoctorName(e.target.value)}
-                      required
-                      className="h-8 text-xs"
-                    />
+                  <div ref={addDoctorContainerRef} className="relative space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label
+                        htmlFor="doc"
+                        className="text-xs font-medium text-slate-700"
+                      >
+                        Doctor Name
+                      </Label>
+                      {selectedDoctorBadge && (
+                        <span className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600">
+                          Auto-filled from Registry
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="doc"
+                        placeholder="Search & select doctor..."
+                        value={doctorName}
+                        onChange={(e) => {
+                          setDoctorName(e.target.value)
+                          setSelectedDoctorBadge(null)
+                          setIsAddDoctorDropdownOpen(true)
+                        }}
+                        onFocus={() => setIsAddDoctorDropdownOpen(true)}
+                        required
+                        className="h-8 pr-7 text-xs"
+                      />
+                      <Stethoscope className="pointer-events-none absolute top-2 right-2 h-4 w-4 text-slate-400" />
+                    </div>
+
+                    {isAddDoctorDropdownOpen && registeredDoctors.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+                        <div className="px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                          Doctor Collection ({filteredDoctorsForAdd.length} found)
+                        </div>
+                        {filteredDoctorsForAdd.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-slate-400">
+                            No matching doctor found. Type to enter custom doctor.
+                          </div>
+                        ) : (
+                          filteredDoctorsForAdd.map((doc) => (
+                            <div
+                              key={doc.id}
+                              onClick={() => selectDoctorForAdd(doc)}
+                              className="group flex cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 transition-colors hover:bg-slate-100"
+                            >
+                              <div>
+                                <p className="text-xs font-semibold text-slate-900 group-hover:text-[#0090FF]">
+                                  {doc.doctorName}
+                                </p>
+                                <p className="text-[11px] text-slate-500">
+                                  {doc.specialtyAndInstitute || doc.specialty || "Specialist"} • {doc.chamber || "Chamber"}
+                                </p>
+                              </div>
+                              {doc.territoryAndMio && (
+                                <span className="rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                                  {doc.territoryAndMio}
+                                </span>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label
@@ -783,7 +1045,7 @@ export default function DoctorVisitLogsPage() {
             </div>
           </div>
           <div className="mt-3 text-[28px] leading-none font-bold tracking-tight text-slate-900">
-            24 Units
+            {samplesHandedOut} Units
           </div>
           <p className="mt-3 text-[11px] text-slate-400">
             Sample reconciliation verified
@@ -872,102 +1134,128 @@ export default function DoctorVisitLogsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredLogs.map((item) => (
-              <TableRow
-                key={item.id}
-                className="border-b border-slate-50 hover:bg-slate-50/50"
-              >
-                <TableCell className="py-3 pl-0 font-mono text-xs font-semibold text-[#0090FF]">
-                  {item.dcrCode}
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={8} className="py-10 text-center text-xs text-slate-500">
+                  Loading doctor visit logs...
                 </TableCell>
-                <TableCell className="py-3 text-xs font-semibold text-slate-900">
-                  <div>
-                    <span>{item.doctorName}</span>
-                    <span className="block text-[11px] font-normal text-slate-500">
-                      {item.specialty}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell className="max-w-[180px] truncate py-3 text-xs text-slate-600">
-                  {item.chamber}
-                </TableCell>
-                <TableCell className="py-3 text-xs text-slate-700">
-                  <div className="flex items-center gap-1.5">
-                    <span>{item.mioName}</span>
-                    <span className="text-[10px] text-slate-400">
-                      ({item.territory})
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell className="py-3 text-xs whitespace-nowrap text-slate-600">
-                  <div>
-                    <span className="block font-mono text-[11px] text-slate-800">
-                      {item.visitDate}
-                    </span>
-                    <span className="block text-[10px] text-slate-400">
-                      {item.visitTime}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell className="max-w-[160px] truncate py-3 text-xs text-slate-700">
-                  {item.promotedDrugs}
-                </TableCell>
-                <TableCell className="py-3 text-xs font-medium text-slate-600">
-                  {item.samplesGiven}
-                </TableCell>
-                <TableCell className="py-3 pr-0 text-right text-xs">
-                  <div className="flex items-center justify-end gap-2">
-                    <Badge
-                      variant="outline"
-                      className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
-                        item.feedback === "High Potential"
-                          ? "border-blue-200 bg-blue-50 text-blue-700"
-                          : item.feedback === "Positive"
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : item.feedback === "Neutral"
-                              ? "border-slate-200 bg-slate-50 text-slate-700"
-                              : "border-amber-200 bg-amber-50 text-amber-700"
-                      }`}
-                    >
-                      {item.feedback}
-                    </Badge>
-
-                    <div className="print:hidden">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            className="h-7 w-7 p-0 text-slate-500 hover:text-slate-900"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          className="w-36 bg-white"
-                        >
-                          <DropdownMenuItem
-                            onClick={() => handleOpenEdit(item)}
-                            className="cursor-pointer text-xs text-slate-700"
-                          >
-                            <Pencil className="mr-2 h-3.5 w-3.5 text-slate-500" />
-                            Edit Call
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => handleDeleteLog(item.id)}
-                            className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
-                          >
-                            <Trash2 className="mr-2 h-3.5 w-3.5" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+              </TableRow>
+            ) : filteredLogs.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="py-12 text-center text-slate-500">
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <Stethoscope className="h-8 w-8 text-slate-300" />
+                    <p className="text-xs font-semibold text-slate-700">
+                      {logs.length === 0
+                        ? "No Doctor Visit Logs Recorded"
+                        : "No matching logs found"}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      {logs.length === 0
+                        ? "Click 'Log Doctor Call' or import an Excel file to populate real-time entries."
+                        : "Try clearing your search query or feedback sentiment filter."}
+                    </p>
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              filteredLogs.map((item) => (
+                <TableRow
+                  key={item.id}
+                  className="border-b border-slate-50 hover:bg-slate-50/50"
+                >
+                  <TableCell className="py-3 pl-0 font-mono text-xs font-semibold text-[#0090FF]">
+                    {item.dcrCode}
+                  </TableCell>
+                  <TableCell className="py-3 text-xs font-semibold text-slate-900">
+                    <div>
+                      <span>{item.doctorName}</span>
+                      <span className="block text-[11px] font-normal text-slate-500">
+                        {item.specialty}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="max-w-[180px] truncate py-3 text-xs text-slate-600">
+                    {item.chamber}
+                  </TableCell>
+                  <TableCell className="py-3 text-xs text-slate-700">
+                    <div className="flex items-center gap-1.5">
+                      <span>{item.mioName}</span>
+                      <span className="text-[10px] text-slate-400">
+                        ({item.territory})
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="py-3 text-xs whitespace-nowrap text-slate-600">
+                    <div>
+                      <span className="block font-mono text-[11px] text-slate-800">
+                        {item.visitDate}
+                      </span>
+                      <span className="block text-[10px] text-slate-400">
+                        {item.visitTime}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="max-w-[160px] truncate py-3 text-xs text-slate-700">
+                    {item.promotedDrugs}
+                  </TableCell>
+                  <TableCell className="py-3 text-xs font-medium text-slate-600">
+                    {item.samplesGiven}
+                  </TableCell>
+                  <TableCell className="py-3 pr-0 text-right text-xs">
+                    <div className="flex items-center justify-end gap-2">
+                      <Badge
+                        variant="outline"
+                        className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+                          item.feedback === "High Potential"
+                            ? "border-blue-200 bg-blue-50 text-blue-700"
+                            : item.feedback === "Positive"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : item.feedback === "Neutral"
+                                ? "border-slate-200 bg-slate-50 text-slate-700"
+                                : "border-amber-200 bg-amber-50 text-amber-700"
+                        }`}
+                      >
+                        {item.feedback}
+                      </Badge>
+
+                      <div className="print:hidden">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-slate-500 hover:text-slate-900"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="w-36 bg-white"
+                          >
+                            <DropdownMenuItem
+                              onClick={() => handleOpenEdit(item)}
+                              className="cursor-pointer text-xs text-slate-700"
+                            >
+                              <Pencil className="mr-2 h-3.5 w-3.5 text-slate-500" />
+                              Edit Call
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => promptDeleteLog(item)}
+                              className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
+                            >
+                              <Trash2 className="mr-2 h-3.5 w-3.5" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </Card>
@@ -988,21 +1276,55 @@ export default function DoctorVisitLogsPage() {
           {editingLog && (
             <form onSubmit={handleSaveEdit} className="space-y-3.5 py-2">
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+                <div ref={editDoctorContainerRef} className="relative space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
                     Doctor Name
                   </Label>
-                  <Input
-                    value={editingLog.doctorName}
-                    onChange={(e) =>
-                      setEditingLog({
-                        ...editingLog,
-                        doctorName: e.target.value,
-                      })
-                    }
-                    required
-                    className="h-8 text-xs"
-                  />
+                  <div className="relative">
+                    <Input
+                      value={editingLog.doctorName}
+                      onChange={(e) => {
+                        setEditingLog({
+                          ...editingLog,
+                          doctorName: e.target.value,
+                        })
+                        setIsEditDoctorDropdownOpen(true)
+                      }}
+                      onFocus={() => setIsEditDoctorDropdownOpen(true)}
+                      required
+                      className="h-8 pr-7 text-xs"
+                    />
+                    <Stethoscope className="pointer-events-none absolute top-2 right-2 h-4 w-4 text-slate-400" />
+                  </div>
+
+                  {isEditDoctorDropdownOpen && registeredDoctors.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+                      <div className="px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                        Select Doctor to Update Details
+                      </div>
+                      {filteredDoctorsForEdit.map((doc) => (
+                        <div
+                          key={doc.id}
+                          onClick={() => selectDoctorForEdit(doc)}
+                          className="group flex cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 transition-colors hover:bg-slate-100"
+                        >
+                          <div>
+                            <p className="text-xs font-semibold text-slate-900 group-hover:text-[#0090FF]">
+                              {doc.doctorName}
+                            </p>
+                            <p className="text-[11px] text-slate-500">
+                              {doc.specialtyAndInstitute || doc.specialty || "Specialist"} • {doc.chamber || "Chamber"}
+                            </p>
+                          </div>
+                          {doc.territoryAndMio && (
+                            <span className="rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                              {doc.territoryAndMio}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
@@ -1191,6 +1513,18 @@ export default function DoctorVisitLogsPage() {
           )}
         </DialogContent>
       </Dialog>
+      {/* 6. Global Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={deleteModal.isOpen}
+        onOpenChange={(open) =>
+          setDeleteModal((prev) => ({ ...prev, isOpen: open }))
+        }
+        onConfirm={handleConfirmDeleteLog}
+        title="Delete Doctor Visit Log"
+        description="Are you sure you want to permanently delete this doctor visit log? This database record cannot be restored."
+        itemName={deleteModal.doctorName ? `Call log for ${deleteModal.doctorName}` : undefined}
+        isDeleting={deleteModal.isDeleting}
+      />
     </div>
   )
 }

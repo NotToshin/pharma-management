@@ -39,6 +39,8 @@ import {
 } from "lucide-react"
 
 import { doctorFormSchema } from "@/lib/validations/doctorValidation"
+import { toast } from "sonner"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 
 export interface DoctorProfile {
   id: string
@@ -72,6 +74,19 @@ export default function AddDoctorDirectoryPage() {
     "Tier 1 (High Prescriber)"
   )
   const [formErrors, setFormErrors] = React.useState<Record<string, string>>({})
+
+  // Global Delete Confirmation Modal State
+  const [deleteModal, setDeleteModal] = React.useState<{
+    isOpen: boolean
+    doctorId: string | null
+    doctorName: string | null
+    isDeleting: boolean
+  }>({
+    isOpen: false,
+    doctorId: null,
+    doctorName: null,
+    isDeleting: false,
+  })
 
   const showNotification = (msg: string) => {
     setSuccessToast(msg)
@@ -142,8 +157,11 @@ export default function AddDoctorDirectoryPage() {
         errorsMap[pathKey] = issue.message
       })
       setFormErrors(errorsMap)
+      toast.error("Form validation failed. Please check the highlighted fields.")
       return
     }
+
+    const toastId = toast.loading("Registering new doctor profile in database...")
 
     try {
       const res = await fetch(getEndpoint("/doctors"), {
@@ -153,6 +171,7 @@ export default function AddDoctorDirectoryPage() {
       })
 
       if (res.ok) {
+        await new Promise((resolve) => setTimeout(resolve, 2000))
         setDoctorName("")
         setPhone("")
         setBmdcRegNumber("")
@@ -163,34 +182,54 @@ export default function AddDoctorDirectoryPage() {
         setEmail("")
         setPatientVolumeDaily("30")
         setFormErrors({})
-        showNotification(
-          `Successfully registered ${newDocPayload.doctorName} into the database.`
-        )
+        toast.success(`Successfully registered Dr. ${newDocPayload.doctorName} into database!`, { id: toastId })
         fetchDoctors()
       } else {
         const errorData = await res.json().catch(() => null)
-        alert(errorData?.message || "Server responded with an error.")
+        toast.error(errorData?.message || "Server responded with an error.", { id: toastId })
       }
     } catch (err) {
       console.error("Error communicating with backend:", err)
-      alert(
-        "Failed to connect to backend server. Make sure it's running on port 5000."
-      )
+      toast.error("Failed to connect to backend server.", { id: toastId })
     }
   }
 
-  const handleDeleteDoctor = async (id: string) => {
+  const promptDeleteDoctor = (doc: DoctorProfile) => {
+    setDeleteModal({
+      isOpen: true,
+      doctorId: doc.id,
+      doctorName: doc.doctorName,
+      isDeleting: false,
+    })
+  }
+
+  const handleConfirmDeleteDoctor = async () => {
+    if (!deleteModal.doctorId) return
+    const id = deleteModal.doctorId
+    const targetName = deleteModal.doctorName || "Doctor"
+
+    setDeleteModal((prev) => ({ ...prev, isDeleting: true }))
+    const toastId = toast.loading(`Deleting doctor profile for ${targetName}...`)
+
     try {
       const res = await fetch(getEndpoint(`/doctors/${id}`), {
         method: "DELETE",
       })
       if (res.ok) {
+        await new Promise((resolve) => setTimeout(resolve, 2000))
         setDoctors((prev) => prev.filter((d) => d.id !== id))
-        showNotification("Doctor profile removed from directory.")
+        toast.success(`Doctor profile for ${targetName} removed from directory.`, { id: toastId })
+        setDeleteModal({ isOpen: false, doctorId: null, doctorName: null, isDeleting: false })
+        fetchDoctors()
+      } else {
+        const errorData = await res.json().catch(() => null)
+        toast.error(errorData?.message || "Failed to delete doctor from database.", { id: toastId })
+        setDeleteModal((prev) => ({ ...prev, isDeleting: false }))
       }
     } catch (err) {
       console.error("Failed to delete doctor:", err)
-      alert("Failed to delete doctor from database.")
+      toast.error("Network error: Failed to delete doctor.", { id: toastId })
+      setDeleteModal((prev) => ({ ...prev, isDeleting: false }))
     }
   }
 
@@ -664,7 +703,7 @@ export default function AddDoctorDirectoryPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => handleDeleteDoctor(doc.id)}
+                      onClick={() => promptDeleteDoctor(doc)}
                       className="h-7 w-7 p-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -676,6 +715,19 @@ export default function AddDoctorDirectoryPage() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Global Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={deleteModal.isOpen}
+        onOpenChange={(open) =>
+          setDeleteModal((prev) => ({ ...prev, isOpen: open }))
+        }
+        onConfirm={handleConfirmDeleteDoctor}
+        title="Delete Doctor Record"
+        description="Are you sure you want to remove this doctor from the directory database? This action cannot be undone."
+        itemName={deleteModal.doctorName ? `Dr. ${deleteModal.doctorName}` : undefined}
+        isDeleting={deleteModal.isDeleting}
+      />
     </div>
   )
 }
