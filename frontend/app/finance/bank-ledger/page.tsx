@@ -3,6 +3,8 @@
 import * as React from "react"
 import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
+import { toast } from "sonner"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -124,6 +126,15 @@ export default function AccountLedgerPage() {
   const [isAddAccountOpen, setIsAddAccountOpen] = React.useState(false)
   const [isTxOpen, setIsTxOpen] = React.useState(false)
 
+  // Global Delete Modal State
+  const [deleteItem, setDeleteItem] = React.useState<{
+    type: "ACCOUNT" | "TRANSACTION"
+    id: string
+    title: string
+  } | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
+  const [isDeleting, setIsDeleting] = React.useState(false)
+
   // Add Account Form
   const [accCategory, setAccCategory] = React.useState<"BANK" | "CASH">("BANK")
   const [accInstitution, setAccInstitution] = React.useState(
@@ -231,22 +242,9 @@ export default function AccountLedgerPage() {
   }
 
   // Delete Account
-  const handleDeleteAccount = async (id: string, title: string) => {
-    if (
-      !confirm(
-        `Are you sure you want to remove "${title}"? This will unlink it from active accounts.`
-      )
-    )
-      return
-    try {
-      const res = await fetch(`${API_URL}/account-ledger/accounts/${id}`, {
-        method: "DELETE",
-      })
-      if (!res.ok) throw new Error("Failed to delete account")
-      fetchBackendData()
-    } catch {
-      alert("Error removing account.")
-    }
+  const handleOpenDeleteAccount = (id: string, title: string) => {
+    setDeleteItem({ type: "ACCOUNT", id, title })
+    setIsDeleteModalOpen(true)
   }
 
   // Record Transaction / Transfer / Loan
@@ -305,22 +303,40 @@ export default function AccountLedgerPage() {
   }
 
   // Delete Transaction (Reverses Balance)
-  const handleDeleteTransaction = async (tx: TransactionRecord) => {
-    if (
-      !confirm(
-        `Reverse and delete transaction ${tx.refCode}? This will automatically restore account balances.`
-      )
-    )
-      return
+  const handleOpenDeleteTransaction = (tx: TransactionRecord) => {
+    setDeleteItem({
+      type: "TRANSACTION",
+      id: tx.id,
+      title: `Transaction ${tx.refCode} (৳${tx.amount.toLocaleString("en-IN")})`,
+    })
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteItem) return
+    const isAcc = deleteItem.type === "ACCOUNT"
+    const toastId = toast.loading(isAcc ? `Removing account "${deleteItem.title}"...` : `Reversing ${deleteItem.title}...`)
     try {
-      const res = await fetch(
-        `${API_URL}/account-ledger/transactions/${tx.id}`,
-        { method: "DELETE" }
-      )
-      if (!res.ok) throw new Error("Failed to delete transaction")
+      setIsDeleting(true)
+      const url = isAcc
+        ? `${API_URL}/account-ledger/accounts/${deleteItem.id}`
+        : `${API_URL}/account-ledger/transactions/${deleteItem.id}`
+
+      const res = await fetch(url, { method: "DELETE" })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || (isAcc ? "Failed to delete account" : "Failed to delete transaction"))
+      }
+
+      toast.success(isAcc ? `Account "${deleteItem.title}" removed.` : `${deleteItem.title} reversed and deleted.`, { id: toastId })
+      setIsDeleteModalOpen(false)
+      setDeleteItem(null)
       fetchBackendData()
-    } catch {
-      alert("Error deleting transaction.")
+    } catch (error: any) {
+      console.error("Error deleting:", error)
+      toast.error(error.message || "Failed to complete delete operation.", { id: toastId })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -539,7 +555,7 @@ export default function AccountLedgerPage() {
                     size="sm"
                     variant="ghost"
                     onClick={() =>
-                      handleDeleteAccount(acc.id, acc.accountTitle)
+                      handleOpenDeleteAccount(acc.id, acc.accountTitle)
                     }
                     className="h-6 w-6 p-0 text-slate-300 opacity-60 transition-opacity group-hover:opacity-100 hover:text-rose-600"
                   >
@@ -776,7 +792,7 @@ export default function AccountLedgerPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => handleDeleteTransaction(row)}
+                      onClick={() => handleOpenDeleteTransaction(row)}
                       className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -1240,6 +1256,19 @@ export default function AccountLedgerPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Global Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        onConfirm={handleConfirmDelete}
+        title={deleteItem?.type === "ACCOUNT" ? "Remove Bank Account / Cash Drawer" : "Reverse & Delete Transaction"}
+        description={deleteItem?.type === "ACCOUNT" ? "Are you sure you want to remove this account? This will unlink it from active accounts." : "Are you sure you want to reverse and delete this transaction? This will automatically adjust account balances."}
+        itemName={deleteItem?.title}
+        confirmText="Confirm Delete"
+        cancelText="Cancel"
+        isDeleting={isDeleting}
+      />
     </div>
   )
 }

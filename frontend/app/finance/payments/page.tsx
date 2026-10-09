@@ -3,6 +3,8 @@
 import * as React from "react"
 import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
+import { toast } from "sonner"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -157,6 +159,11 @@ export default function GeneralPaymentsPage() {
     null
   )
   const [isPrintOpen, setIsPrintOpen] = React.useState(false)
+
+  // Global Delete Modal State
+  const [voucherToDelete, setVoucherToDelete] = React.useState<ExpenseVoucher | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
+  const [isDeletingVoucher, setIsDeletingVoucher] = React.useState(false)
 
   // Hidden print iframe trigger
   const handlePrint = (record: ExpenseVoucher) => {
@@ -461,9 +468,25 @@ export default function GeneralPaymentsPage() {
     setIsFormOpen(false)
   }
 
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this expense voucher?")) {
-      setVouchers((prev) => prev.filter((v) => v.id !== id))
+  const handleOpenDeleteModal = (voucher: ExpenseVoucher) => {
+    setVoucherToDelete(voucher)
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDeleteVoucher = async () => {
+    if (!voucherToDelete) return
+    const toastId = toast.loading(`Deleting expense voucher ${voucherToDelete.voucherNo}...`)
+    try {
+      setIsDeletingVoucher(true)
+      setVouchers((prev) => prev.filter((v) => v.id !== voucherToDelete.id))
+      toast.success(`Expense voucher ${voucherToDelete.voucherNo} deleted successfully.`, { id: toastId })
+      setIsDeleteModalOpen(false)
+      setVoucherToDelete(null)
+    } catch (error: any) {
+      console.error("Error deleting voucher:", error)
+      toast.error("Failed to delete expense voucher.", { id: toastId })
+    } finally {
+      setIsDeletingVoucher(false)
     }
   }
 
@@ -725,7 +748,7 @@ export default function GeneralPaymentsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleDelete(v.id)}
+                        onClick={() => handleOpenDeleteModal(v)}
                         className="h-7 w-7 border-rose-200 p-0 text-rose-600"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -1078,6 +1101,19 @@ export default function GeneralPaymentsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Global Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        onConfirm={handleConfirmDeleteVoucher}
+        title="Delete Expense Voucher"
+        description="Are you sure you want to delete this expense voucher? This operation will remove the expense record."
+        itemName={voucherToDelete ? `Voucher ${voucherToDelete.voucherNo} - Payee: ${voucherToDelete.payeeName} (৳${voucherToDelete.amount.toLocaleString("en-IN")})` : undefined}
+        confirmText="Delete Voucher"
+        cancelText="Cancel"
+        isDeleting={isDeletingVoucher}
+      />
     </div>
   )
 }

@@ -182,7 +182,8 @@ export default function AddDoctorDirectoryPage() {
         setEmail("")
         setPatientVolumeDaily("30")
         setFormErrors({})
-        toast.success(`Successfully registered Dr. ${newDocPayload.doctorName} into database!`, { id: toastId })
+        const formattedDocName = newDocPayload.doctorName.startsWith("Dr.") ? newDocPayload.doctorName : `Dr. ${newDocPayload.doctorName}`
+        toast.success(`Successfully registered ${formattedDocName} into database!`, { id: toastId })
         fetchDoctors()
       } else {
         const errorData = await res.json().catch(() => null)
@@ -725,7 +726,7 @@ export default function AddDoctorDirectoryPage() {
         onConfirm={handleConfirmDeleteDoctor}
         title="Delete Doctor Record"
         description="Are you sure you want to remove this doctor from the directory database? This action cannot be undone."
-        itemName={deleteModal.doctorName ? `Dr. ${deleteModal.doctorName}` : undefined}
+        itemName={deleteModal.doctorName || undefined}
         isDeleting={deleteModal.isDeleting}
       />
     </div>

@@ -3,6 +3,8 @@
 import * as React from "react"
 import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
+import { toast } from "sonner"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -90,6 +92,11 @@ export default function RBACManagementPage() {
 
   // Provisioning Modal State
   const [isProvisionOpen, setIsProvisionOpen] = React.useState(false)
+
+  // Global Delete Modal State
+  const [userToDelete, setUserToDelete] = React.useState<{ id: string; name: string } | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
+  const [isDeletingUser, setIsDeletingUser] = React.useState(false)
   const [provName, setProvName] = React.useState("")
   const [provEmail, setProvEmail] = React.useState("")
   const [provPassword, setProvPassword] = React.useState("")
@@ -267,22 +274,35 @@ export default function RBACManagementPage() {
     }
   }
 
-  const handleDeleteUser = async (userId: string, name: string) => {
-    if (
-      !confirm(
-        `Are you sure you want to permanently revoke credentials for "${name}"?`
-      )
-    )
-      return
+  const handleOpenDeleteModal = (userId: string, name: string) => {
+    setUserToDelete({ id: userId, name })
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDeleteUser = async () => {
+    if (!userToDelete) return
+    const toastId = toast.loading(`Revoking credentials for "${userToDelete.name}"...`)
     try {
-      const res = await fetch(`${API_URL}/rbac/users/${userId}`, {
+      setIsDeletingUser(true)
+      const res = await fetch(`${API_URL}/rbac/users/${userToDelete.id}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       })
-      if (!res.ok) throw new Error("Failed to delete user")
-      setAssignments((prev) => prev.filter((u) => u.id !== userId))
-    } catch {
-      alert("Could not delete user.")
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to delete user")
+      }
+
+      toast.success(`Operator credentials for "${userToDelete.name}" revoked.`, { id: toastId })
+      setAssignments((prev) => prev.filter((u) => u.id !== userToDelete.id))
+      setIsDeleteModalOpen(false)
+      setUserToDelete(null)
+    } catch (error: any) {
+      console.error("Error deleting user:", error)
+      toast.error(error.message || "Could not delete user account.", { id: toastId })
+    } finally {
+      setIsDeletingUser(false)
     }
   }
 
@@ -772,7 +792,7 @@ export default function RBACManagementPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDeleteUser(user.id, user.name)}
+                        onClick={() => handleOpenDeleteModal(user.id, user.name)}
                         className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
                         title="Delete Operator Account"
                       >
@@ -901,6 +921,19 @@ export default function RBACManagementPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Global Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        onConfirm={handleConfirmDeleteUser}
+        title="Revoke Operator Credentials"
+        description="Are you sure you want to permanently revoke database credentials for this operator account?"
+        itemName={userToDelete ? userToDelete.name : undefined}
+        confirmText="Revoke & Delete Account"
+        cancelText="Cancel"
+        isDeleting={isDeletingUser}
+      />
     </div>
   )
 }

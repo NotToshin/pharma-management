@@ -68,6 +68,8 @@ app.use("/api/rbac", rbacRoutes);
 
 import doctorVisitLogRoutes from "./routes/doctorVisitLogRoutes";
 
+import roleRoutes from "./routes/roleRoutes";
+
 // Core Modules
 app.use("/api/clients", clientRoutes);
 app.use("/api/orders", orderRoutes);
@@ -80,6 +82,7 @@ app.use("/api/doctors", doctorRoutes);
 app.use("/api/visit-logs", doctorVisitLogRoutes);
 app.use("/api/doctor-visit-logs", doctorVisitLogRoutes);
 app.use("/api/staff", staffRoutes);
+app.use("/api/roles", roleRoutes);
 app.use("/api/salary", salaryRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/expense-vouchers", paymentRoutes);
