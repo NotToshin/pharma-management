@@ -2,6 +2,8 @@
 
 import * as React from "react"
 import { API_URL } from "@/lib/api"
+import { toast } from "sonner"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -146,6 +148,11 @@ export default function SalaryManagementPage() {
 
   const [editingRecord, setEditingRecord] =
     React.useState<EmployeeSalary | null>(null)
+
+  // Global Delete Modal State
+  const [salaryToDelete, setSalaryToDelete] = React.useState<EmployeeSalary | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
+  const [isDeletingSalary, setIsDeletingSalary] = React.useState(false)
   const [isEditOpen, setIsEditOpen] = React.useState(false)
 
   const [printRecord, setPrintRecord] = React.useState<EmployeeSalary | null>(
@@ -342,21 +349,31 @@ export default function SalaryManagementPage() {
     }
   }
 
-  const handleDeleteSalary = async (id: string) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this salary record for this month?"
-      )
-    )
-      return
+  const handleOpenDeleteModal = (record: EmployeeSalary) => {
+    setSalaryToDelete(record)
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDeleteSalary = async () => {
+    if (!salaryToDelete) return
+    const toastId = toast.loading(`Deleting salary record for ${salaryToDelete.fullName}...`)
     try {
-      const res = await fetch(`${API_URL}/salary/${id}`, { method: "DELETE" })
-      if (!res.ok) throw new Error("Failed to delete")
+      setIsDeletingSalary(true)
+      const res = await fetch(`${API_URL}/salary/${salaryToDelete.id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to delete salary record")
+      }
+
+      toast.success(`Salary record for ${salaryToDelete.fullName} deleted successfully.`, { id: toastId })
+      setIsDeleteModalOpen(false)
+      setSalaryToDelete(null)
       fetchData()
-      setSuccessToast("Salary record deleted successfully.")
-      setTimeout(() => setSuccessToast(null), 3000)
-    } catch (err) {
-      alert("Failed to delete salary record.")
+    } catch (err: any) {
+      console.error("Error deleting salary:", err)
+      toast.error(err.message || "Failed to delete salary record.", { id: toastId })
+    } finally {
+      setIsDeletingSalary(false)
     }
   }
 
@@ -950,7 +967,7 @@ export default function SalaryManagementPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDeleteSalary(emp.id)}
+                          onClick={() => handleOpenDeleteModal(emp)}
                           className="h-7 px-2 text-xs text-rose-600 hover:text-rose-700"
                         >
                           <Trash2 className="h-3 w-3" />
@@ -1440,6 +1457,19 @@ export default function SalaryManagementPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Global Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        onConfirm={handleConfirmDeleteSalary}
+        title="Delete Salary Record"
+        description="Are you sure you want to delete this payroll salary record for this month? This operation will remove the salary record."
+        itemName={salaryToDelete ? `${salaryToDelete.fullName} (${salaryToDelete.empId} - ${salaryToDelete.designation})` : undefined}
+        confirmText="Delete Salary Record"
+        cancelText="Cancel"
+        isDeleting={isDeletingSalary}
+      />
     </div>
   )
 }

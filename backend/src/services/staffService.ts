@@ -22,6 +22,31 @@ const getOrCreateRole = async (name: string) => {
   return role;
 };
 
+const generateNextEmpId = async (): Promise<string> => {
+  const currentYear = new Date().getFullYear().toString().slice(-2);
+  const prefix = currentYear;
+
+  const allStaff = await prisma.staff.findMany({
+    select: { empId: true },
+  });
+
+  let maxSeq = 0;
+
+  for (const s of allStaff) {
+    if (s.empId && s.empId.startsWith(prefix)) {
+      const numPart = s.empId.slice(prefix.length);
+      const parsed = parseInt(numPart, 10);
+      if (!isNaN(parsed) && parsed > maxSeq) {
+        maxSeq = parsed;
+      }
+    }
+  }
+
+  const nextSeq = maxSeq + 1;
+  const paddedSeq = nextSeq.toString().padStart(3, "0");
+  return `${prefix}${paddedSeq}`;
+};
+
 export const staffService = {
   async getAllStaff() {
     return prisma.staff.findMany({
@@ -34,7 +59,7 @@ export const staffService = {
   },
 
   async createStaff(data: {
-    empId: string;
+    empId?: string;
     fullName: string;
     phone: string;
     email?: string;
@@ -44,26 +69,39 @@ export const staffService = {
     address?: string;
     department?: string;
     designation?: string;
+    roleId?: string;
+    roleName?: string;
     employmentStatus?: string;
     supervisor?: string;
+    territory?: string;
+    joiningDate?: string | Date;
     salary?: number;
   }) {
-    if (!data.empId?.trim()) {
-      throw new AppError("Employee ID is required", 400);
+    let finalEmpId = data.empId?.trim();
+    if (!finalEmpId) {
+      finalEmpId = await generateNextEmpId();
+    } else {
+      const existing = await prisma.staff.findUnique({ where: { empId: finalEmpId } });
+      if (existing) {
+        finalEmpId = await generateNextEmpId();
+      }
     }
 
-    const existing = await prisma.staff.findUnique({ where: { empId: data.empId.trim() } });
-    if (existing) {
-      throw new AppError(`Staff member with Employee ID '${data.empId}' already exists`, 400);
+    let targetRole = null;
+    if (data.roleId && data.roleId.trim()) {
+      targetRole = await prisma.role.findUnique({ where: { id: data.roleId.trim() } });
+    }
+    if (!targetRole) {
+      const nameToUse = data.roleName || data.designation || data.department || "General Staff";
+      targetRole = await getOrCreateRole(nameToUse);
     }
 
-    const defaultRole = await getOrCreateRole(data.designation || data.department || "General Staff");
     const numericSalary = Number(data.salary) || 20000;
     const dbStatus = mapStatusToDb(data.employmentStatus);
 
     return prisma.staff.create({
       data: {
-        empId: data.empId.trim(),
+        empId: finalEmpId,
         fullName: data.fullName,
         phone: data.phone,
         email: data.email || null,
@@ -74,8 +112,9 @@ export const staffService = {
         department: data.department || "General",
         supervisor: data.supervisor || "Toshin Bin Azad (Head of HR)",
         status: dbStatus,
-        territory: "Dhaka",
-        role: { connect: { id: defaultRole.id } },
+        territory: data.territory || "Dhaka",
+        joiningDate: data.joiningDate ? new Date(data.joiningDate) : new Date(),
+        role: { connect: { id: targetRole.id } },
         salaries: {
           create: {
             payPeriod: "September 2026",
@@ -105,9 +144,12 @@ export const staffService = {
     address?: string;
     department?: string;
     designation?: string;
+    roleId?: string;
+    roleName?: string;
     employmentStatus?: string;
     supervisor?: string;
     status?: string;
+    territory?: string;
   }) {
     const existing = await prisma.staff.findUnique({ where: { id } });
     if (!existing) {
@@ -117,8 +159,10 @@ export const staffService = {
     const resolvedStatus = mapStatusToDb(data.status || data.employmentStatus);
 
     let roleConnect = undefined;
-    if (data.designation) {
-      const foundRole = await getOrCreateRole(data.designation);
+    if (data.roleId && data.roleId.trim()) {
+      roleConnect = { connect: { id: data.roleId.trim() } };
+    } else if (data.roleName || data.designation) {
+      const foundRole = await getOrCreateRole(data.roleName || data.designation!);
       roleConnect = { connect: { id: foundRole.id } };
     }
 
@@ -133,6 +177,7 @@ export const staffService = {
         mothersName: data.mothersName,
         address: data.address,
         department: data.department,
+        territory: data.territory,
         supervisor: data.supervisor || null,
         status: resolvedStatus,
         ...(roleConnect ? { role: roleConnect } : {}),
@@ -149,6 +194,7 @@ export const staffService = {
     if (!existing) {
       throw new AppError("Staff member not found", 404);
     }
+    await prisma.salary.deleteMany({ where: { staffId: id } });
     return prisma.staff.delete({ where: { id } });
   },
 };

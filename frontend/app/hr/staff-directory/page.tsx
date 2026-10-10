@@ -3,7 +3,9 @@
 import * as React from "react"
 import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { toast } from "sonner"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,11 +54,6 @@ import {
   Plus,
   Download,
   Search,
-  Filter,
-  Phone,
-  Mail,
-  MapPin,
-  Building2,
   Briefcase,
   CheckCircle2,
   MoreHorizontal,
@@ -64,9 +61,7 @@ import {
   Trash2,
   FileText,
   Printer,
-  Calendar,
-  Clock,
-  IdCard,
+  Shield,
 } from "lucide-react"
 
 const PRINT_STYLES = `
@@ -112,6 +107,12 @@ const PRINT_STYLES = `
 }
 `
 
+export interface RoleItem {
+  id: string
+  name: string
+  permissions?: string[]
+}
+
 export interface Employee {
   id: string
   empId: string
@@ -122,6 +123,8 @@ export interface Employee {
   address: string
   nidNumber: string
   email: string
+  roleId?: string
+  roleName: string
   designation: string
   department: string
   startDate: string
@@ -136,18 +139,11 @@ export interface Employee {
 
 export default function StaffDirectoryPage() {
   const [employees, setEmployees] = React.useState<Employee[]>([])
+  const [rolesList, setRolesList] = React.useState<RoleItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [searchQuery, setSearchQuery] = React.useState("")
 
-  // Dynamic dropdown lists for custom Add More options
-  const [designations, setDesignations] = React.useState([
-    "Medical Information Officer",
-    "Sales Representative",
-    "Accountant",
-    "Human Resource",
-    "Area Manager",
-    "Product Executive",
-  ])
+  // Departments dropdown list
   const [departments, setDepartments] = React.useState([
     "Field Force",
     "Administrative",
@@ -169,6 +165,11 @@ export default function StaffDirectoryPage() {
   const [printProfile, setPrintProfile] = React.useState<Employee | null>(null)
   const [isPrintOpen, setIsPrintOpen] = React.useState(false)
 
+  // Create Role Modal State (Super Admin)
+  const [isCreateRoleOpen, setIsCreateRoleOpen] = React.useState(false)
+  const [newRoleTitle, setNewRoleTitle] = React.useState("")
+  const [isCreatingRole, setIsCreatingRole] = React.useState(false)
+
   // Onboard New Staff Modal State
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [formState, setFormState] = React.useState({
@@ -180,7 +181,8 @@ export default function StaffDirectoryPage() {
     address: "",
     nidNumber: "",
     email: "",
-    designation: "Medical Information Officer",
+    roleId: "",
+    roleName: "Medical Information Officer",
     department: "Field Force",
     startDate: "January 01, 2025",
     employmentStatus: "Active" as Employee["employmentStatus"],
@@ -196,52 +198,82 @@ export default function StaffDirectoryPage() {
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [editingEmp, setEditingEmp] = React.useState<Employee | null>(null)
 
-  const fetchStaffData = async () => {
+  // Global Delete Modal State
+  const [staffToDelete, setStaffToDelete] = React.useState<Employee | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
+  const [isDeletingStaff, setIsDeletingStaff] = React.useState(false)
+
+  const fetchRolesData = React.useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/roles`)
+      if (!res.ok) throw new Error("Failed to fetch roles")
+      const json = await res.json()
+      const dataArr = Array.isArray(json) ? json : json.data || []
+      setRolesList(dataArr)
+      if (dataArr.length > 0 && !formState.roleId) {
+        setFormState((prev) => ({
+          ...prev,
+          roleId: dataArr[0].id,
+          roleName: dataArr[0].name,
+        }))
+      }
+    } catch (err) {
+      console.error("Error loading roles data:", err)
+    }
+  }, [formState.roleId])
+
+  const fetchStaffData = React.useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/staff`)
       if (!res.ok) throw new Error("Failed to fetch staff")
-      const data = await res.json()
+      const json = await res.json()
+      const rawData = Array.isArray(json) ? json : json.data || []
 
-      const formattedData = data.map((item: any) => ({
-        id: item.id,
-        empId: item.empId,
-        fullName: item.fullName,
-        phone: item.phone,
-        fathersName: item.fathersName || "N/A",
-        mothersName: item.mothersName || "N/A",
-        address: item.address || "N/A",
-        nidNumber: item.nidNumber || "N/A",
-        email: item.email || "",
-        designation: item.designation || item.role?.name || "Staff Member",
-        department: item.department || "General",
-        startDate: item.joiningDate
-          ? new Date(item.joiningDate).toLocaleDateString("en-US", {
-              month: "long",
-              day: "2-digit",
-              year: "numeric",
-            })
-          : "January 01, 2025",
-        employmentStatus:
-          item.status === "ACTIVE"
-            ? "Active"
-            : item.status === "PROBATION"
-              ? "Probationary"
-              : item.status === "ON_LEAVE"
-                ? "On Leave"
-                : item.status === "SUSPENDED"
-                  ? "Suspended"
-                  : "Active",
-        salary: item.salaryDetails?.baseSalary
-          ? Number(item.salaryDetails.baseSalary)
-          : item.salaries?.[0]?.baseSalary
-            ? Number(item.salaries[0].baseSalary)
-            : 20000,
-        supervisor: item.supervisor || "Toshin Bin Azad (Human Resource)",
-        workSchedule: item.workSchedule || "Sat - Thu (8:30 AM - 5:30 PM)",
-        emergencyName: item.emergencyName || item.fathersName || "N/A",
-        emergencyRelationship: item.emergencyRelationship || "Father / Spouse",
-        emergencyPhone: item.emergencyPhone || "+880 1711223344",
-      }))
+      const formattedData = rawData.map((item: any) => {
+        const resolvedRoleName = item.role?.name || item.designation || "Staff Member"
+        return {
+          id: item.id,
+          empId: item.empId,
+          fullName: item.fullName,
+          phone: item.phone,
+          fathersName: item.fathersName || "N/A",
+          mothersName: item.mothersName || "N/A",
+          address: item.address || "N/A",
+          nidNumber: item.nidNumber || "N/A",
+          email: item.email || "",
+          roleId: item.roleId || item.role?.id || "",
+          roleName: resolvedRoleName,
+          designation: resolvedRoleName,
+          department: item.department || "General",
+          startDate: item.joiningDate
+            ? new Date(item.joiningDate).toLocaleDateString("en-US", {
+                month: "long",
+                day: "2-digit",
+                year: "numeric",
+              })
+            : "January 01, 2025",
+          employmentStatus:
+            item.status === "ACTIVE"
+              ? "Active"
+              : item.status === "PROBATION"
+                ? "Probationary"
+                : item.status === "ON_LEAVE"
+                  ? "On Leave"
+                  : item.status === "SUSPENDED"
+                    ? "Suspended"
+                    : "Active",
+          salary: item.salaryDetails?.baseSalary
+            ? Number(item.salaryDetails.baseSalary)
+            : item.salaries?.[0]?.baseSalary
+              ? Number(item.salaries[0].baseSalary)
+              : 20000,
+          supervisor: item.supervisor || "Toshin Bin Azad (Human Resource)",
+          workSchedule: item.workSchedule || "Sat - Thu (8:30 AM - 5:30 PM)",
+          emergencyName: item.emergencyName || item.fathersName || "N/A",
+          emergencyRelationship: item.emergencyRelationship || "Father / Spouse",
+          emergencyPhone: item.emergencyPhone || "+880 1711223344",
+        }
+      })
 
       setEmployees(formattedData)
       setLoading(false)
@@ -249,27 +281,68 @@ export default function StaffDirectoryPage() {
       console.error("Error loading staff data:", err)
       setLoading(false)
     }
-  }
-
-  React.useEffect(() => {
-    fetchStaffData()
   }, [])
 
-  const handleFormChange = (field: string, val: any) => {
-    if (val === "__ADD_NEW_DESIGNATION__") {
-      const customDesig = prompt(
-        "Enter new designation title (Super Admin access):"
-      )
-      if (customDesig && customDesig.trim() !== "") {
-        const formatted = customDesig.trim()
-        if (!designations.includes(formatted)) {
-          setDesignations((prev) => [...prev, formatted])
-        }
-        setFormState((prev) => ({ ...prev, designation: formatted }))
-      }
-      return
-    }
+  React.useEffect(() => {
+    fetchRolesData()
+    fetchStaffData()
+  }, [fetchRolesData, fetchStaffData])
 
+  const handleCreateRoleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    if (!newRoleTitle.trim()) return
+
+    const toastId = toast.loading(`Creating role "${newRoleTitle.trim()}"...`)
+    try {
+      setIsCreatingRole(true)
+      const res = await fetch(`${API_URL}/roles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newRoleTitle.trim() }),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to create role")
+      }
+
+      const json = await res.json()
+      const createdRole = json.data || json
+
+      await fetchRolesData()
+
+      if (createdRole && (createdRole.id || createdRole.name)) {
+        const roleIdVal = createdRole.id || ""
+        const roleNameVal = createdRole.name || newRoleTitle.trim()
+
+        setFormState((prev) => ({
+          ...prev,
+          roleId: roleIdVal,
+          roleName: roleNameVal,
+        }))
+
+        if (editingEmp) {
+          setEditingEmp({
+            ...editingEmp,
+            roleId: roleIdVal,
+            roleName: roleNameVal,
+            designation: roleNameVal,
+          })
+        }
+      }
+
+      toast.success(`Role "${newRoleTitle.trim()}" created successfully!`, { id: toastId })
+      setNewRoleTitle("")
+      setIsCreateRoleOpen(false)
+    } catch (err: any) {
+      console.error("Error creating role:", err)
+      toast.error(err.message || "Failed to create new role in database.", { id: toastId })
+    } finally {
+      setIsCreatingRole(false)
+    }
+  }
+
+  const handleFormChange = (field: string, val: any) => {
     if (val === "__ADD_NEW_DEPARTMENT__") {
       const customDept = prompt(
         "Enter new department title (Super Admin access):"
@@ -289,20 +362,6 @@ export default function StaffDirectoryPage() {
 
   const handleEditFormChange = (field: string, val: any) => {
     if (!editingEmp) return
-
-    if (val === "__ADD_NEW_DESIGNATION__") {
-      const customDesig = prompt(
-        "Enter new designation title (Super Admin access):"
-      )
-      if (customDesig && customDesig.trim() !== "") {
-        const formatted = customDesig.trim()
-        if (!designations.includes(formatted)) {
-          setDesignations((prev) => [...prev, formatted])
-        }
-        setEditingEmp({ ...editingEmp, designation: formatted })
-      }
-      return
-    }
 
     if (val === "__ADD_NEW_DEPARTMENT__") {
       const customDept = prompt(
@@ -338,10 +397,9 @@ export default function StaffDirectoryPage() {
 
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault()
+    const toastId = toast.loading(`Onboarding staff member ${formState.fullName}...`)
     try {
       const payload = {
-        empId:
-          formState.empId || `AKP-${Math.floor(25000 + employees.length + 1)}`,
         fullName: formState.fullName,
         phone: formState.phone,
         email: formState.email,
@@ -349,10 +407,13 @@ export default function StaffDirectoryPage() {
         fathersName: formState.fathersName,
         mothersName: formState.mothersName,
         address: formState.address,
-        designation: formState.designation,
+        roleId: formState.roleId,
+        roleName: formState.roleName,
+        designation: formState.roleName,
         department: formState.department,
         territory: "Dhaka",
         salary: Number(formState.salary) || 20000,
+        employmentStatus: formState.employmentStatus,
         supervisor: formState.supervisor,
         workSchedule: formState.workSchedule,
         emergencyName: formState.emergencyName,
@@ -366,19 +427,46 @@ export default function StaffDirectoryPage() {
         body: JSON.stringify(payload),
       })
 
-      if (!res.ok) throw new Error("Failed to save staff to database")
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to save staff to database")
+      }
 
+      toast.success(`Staff member ${formState.fullName} onboarded successfully!`, { id: toastId })
+      setFormState({
+        empId: "",
+        fullName: "",
+        phone: "+880 ",
+        fathersName: "",
+        mothersName: "",
+        address: "",
+        nidNumber: "",
+        email: "",
+        roleId: rolesList.length > 0 ? rolesList[0].id : "",
+        roleName: rolesList.length > 0 ? rolesList[0].name : "Medical Information Officer",
+        department: "Field Force",
+        startDate: "January 01, 2025",
+        employmentStatus: "Active",
+        salary: "",
+        supervisor: "Toshin Bin Azad (Human Resource)",
+        workSchedule: "Sat - Thu (8:30 AM - 5:30 PM)",
+        emergencyName: "",
+        emergencyRelationship: "",
+        emergencyPhone: "+880 ",
+      })
       setIsAddOpen(false)
       fetchStaffData()
-    } catch (error) {
+      fetchRolesData()
+    } catch (error: any) {
       console.error("Error adding employee:", error)
-      alert("Failed to onboard staff member.")
+      toast.error(error.message || "Failed to onboard staff member.", { id: toastId })
     }
   }
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingEmp) return
+    const toastId = toast.loading(`Updating staff record for ${editingEmp.fullName}...`)
 
     try {
       const payload = {
@@ -390,7 +478,9 @@ export default function StaffDirectoryPage() {
         mothersName: editingEmp.mothersName,
         address: editingEmp.address,
         department: editingEmp.department,
-        designation: editingEmp.designation,
+        roleId: editingEmp.roleId,
+        roleName: editingEmp.roleName,
+        designation: editingEmp.roleName || editingEmp.designation,
         employmentStatus: editingEmp.employmentStatus,
         supervisor: editingEmp.supervisor,
         workSchedule: editingEmp.workSchedule,
@@ -406,31 +496,53 @@ export default function StaffDirectoryPage() {
         body: JSON.stringify(payload),
       })
 
-      if (!res.ok) throw new Error("Failed to update staff record")
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to update staff record")
+      }
 
+      toast.success(`Staff record for ${editingEmp.fullName} updated successfully!`, { id: toastId })
       setIsEditOpen(false)
       setEditingEmp(null)
       fetchStaffData()
-    } catch (error) {
+      fetchRolesData()
+    } catch (error: any) {
       console.error("Error updating employee:", error)
-      alert("Failed to update staff record.")
+      toast.error(error.message || "Failed to update staff record.", { id: toastId })
     }
   }
 
-  const handleDeleteEmployee = async (id: string) => {
+  const handleOpenDeleteModal = (emp: Employee) => {
+    setStaffToDelete(emp)
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDeleteStaff = async () => {
+    if (!staffToDelete) return
+    const toastId = toast.loading(`Deactivating/deleting staff record for ${staffToDelete.fullName}...`)
     try {
-      const res = await fetch(`${API_URL}/staff/${id}`, {
+      setIsDeletingStaff(true)
+      const res = await fetch(`${API_URL}/staff/${staffToDelete.id}`, {
         method: "DELETE",
       })
 
-      if (!res.ok) throw new Error("Failed to delete staff")
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to delete staff record")
+      }
 
-      if (selectedEmp && selectedEmp.id === id) {
+      toast.success(`Staff record for ${staffToDelete.fullName} deleted successfully.`, { id: toastId })
+      if (selectedEmp && selectedEmp.id === staffToDelete.id) {
         setIsPortfolioOpen(false)
       }
+      setIsDeleteModalOpen(false)
+      setStaffToDelete(null)
       fetchStaffData()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting staff:", error)
+      toast.error(error.message || "Failed to delete staff record.", { id: toastId })
+    } finally {
+      setIsDeletingStaff(false)
     }
   }
 
@@ -444,7 +556,7 @@ export default function StaffDirectoryPage() {
       Address: emp.address,
       "NID Number": emp.nidNumber,
       Email: emp.email,
-      "Desig.": emp.designation,
+      "Role / Designation": emp.roleName || emp.designation,
       "Dept.": emp.department,
       "Start Date": emp.startDate,
       "Employment Status": emp.employmentStatus,
@@ -471,6 +583,7 @@ export default function StaffDirectoryPage() {
       emp.empId.toLowerCase().includes(searchQuery.toLowerCase()) ||
       emp.phone.toLowerCase().includes(searchQuery.toLowerCase()) ||
       emp.nidNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (emp.roleName && emp.roleName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       emp.designation.toLowerCase().includes(searchQuery.toLowerCase())
 
     const matchesDept =
@@ -500,15 +613,25 @@ export default function StaffDirectoryPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            Staff Directory & Workforce Management
+            Staff Directory & Roles
           </h1>
           <p className="mt-0.5 text-xs text-slate-500">
-            Personnel records, organizational hierarchy, territorial postings,
-            and employee credentials.
+            Personnel records, database-backed roles, corporate hierarchy, and staff credentials.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* Create Role Button (Super Admin) */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsCreateRoleOpen(true)}
+            className="h-9 gap-1.5 rounded-lg border-blue-200 bg-blue-50 px-3.5 text-xs font-semibold text-[#0090FF] shadow-none hover:bg-blue-100"
+          >
+            <Shield className="h-4 w-4" />
+            + Create Role (Super Admin)
+          </Button>
+
           <Button
             size="sm"
             variant="outline"
@@ -547,7 +670,7 @@ export default function StaffDirectoryPage() {
                     1. Identity & Contact Details
                   </h4>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    <div className="space-y-1 sm:col-span-2">
+                    <div className="space-y-1 sm:col-span-3">
                       <Label className="text-xs font-medium text-slate-700">
                         Full Name
                       </Label>
@@ -559,20 +682,6 @@ export default function StaffDirectoryPage() {
                         }
                         required
                         className="h-8 text-xs"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium text-slate-700">
-                        ID.
-                      </Label>
-                      <Input
-                        placeholder="AKP-25001"
-                        value={formState.empId}
-                        onChange={(e) =>
-                          handleFormChange("empId", e.target.value)
-                        }
-                        required
-                        className="h-8 font-mono text-xs"
                       />
                     </div>
 
@@ -679,30 +788,50 @@ export default function StaffDirectoryPage() {
                     2. Corporate Role & Posting
                   </h4>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {/* Role Dropdown (Created roles show here!) */}
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-slate-700">
-                        Designation
+                        Role <span className="text-rose-500">*</span>
                       </Label>
                       <Select
-                        value={formState.designation}
-                        onValueChange={(v) =>
-                          handleFormChange("designation", v)
-                        }
+                        value={formState.roleId || formState.roleName}
+                        onValueChange={(val) => {
+                          if (val === "__CREATE_NEW_ROLE__") {
+                            setIsCreateRoleOpen(true)
+                            return
+                          }
+                          const found = rolesList.find(
+                            (r) => r.id === val || r.name === val
+                          )
+                          if (found) {
+                            setFormState((prev) => ({
+                              ...prev,
+                              roleId: found.id,
+                              roleName: found.name,
+                            }))
+                          } else {
+                            setFormState((prev) => ({
+                              ...prev,
+                              roleId: "",
+                              roleName: val,
+                            }))
+                          }
+                        }}
                       >
                         <SelectTrigger className="h-8 bg-white text-xs">
-                          <SelectValue placeholder="Select Designation" />
+                          <SelectValue placeholder="Select Role" />
                         </SelectTrigger>
                         <SelectContent className="max-h-[240px] text-xs">
-                          {designations.map((desig) => (
-                            <SelectItem key={desig} value={desig}>
-                              {desig}
+                          {rolesList.map((r) => (
+                            <SelectItem key={r.id} value={r.id}>
+                              {r.name}
                             </SelectItem>
                           ))}
                           <SelectItem
-                            value="__ADD_NEW_DESIGNATION__"
-                            className="mt-1 border-t border-slate-100 pt-1 font-semibold text-blue-600"
+                            value="__CREATE_NEW_ROLE__"
+                            className="mt-1 border-t border-slate-100 pt-1 font-semibold text-blue-600 cursor-pointer"
                           >
-                            + Add more (Super Admin access)
+                            + Create New Role (Super Admin)
                           </SelectItem>
                         </SelectContent>
                       </Select>
@@ -950,17 +1079,17 @@ export default function StaffDirectoryPage() {
         <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
-              Workforce Compliance
+              Configured DB Roles
             </span>
             <Badge
               variant="outline"
               className="rounded-md border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
             >
-              100%
+              {rolesList.length} Roles
             </Badge>
           </div>
           <div className="mt-3 font-mono text-[28px] leading-none font-bold tracking-tight text-slate-900">
-            Verified
+            Active
           </div>
         </Card>
       </div>
@@ -970,7 +1099,7 @@ export default function StaffDirectoryPage() {
         <div className="relative max-w-sm flex-1">
           <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
           <Input
-            placeholder="Search employee name, ID, NID, or phone..."
+            placeholder="Search employee name, ID, role, NID, or phone..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
@@ -1027,7 +1156,7 @@ export default function StaffDirectoryPage() {
           <TableHeader>
             <TableRow className="border-b border-slate-100 text-xs text-slate-600 hover:bg-transparent">
               <TableHead className="pl-0 text-xs font-medium text-slate-600">
-                ID. & Full Name
+                ID & Full Name
               </TableHead>
               <TableHead className="text-xs font-medium text-slate-600">
                 Phone & NID
@@ -1036,7 +1165,7 @@ export default function StaffDirectoryPage() {
                 Parents' Names
               </TableHead>
               <TableHead className="text-xs font-medium text-slate-600">
-                Desig. & Dept.
+                Role & Dept.
               </TableHead>
               <TableHead className="text-xs font-medium text-slate-600">
                 Start Date
@@ -1130,7 +1259,7 @@ export default function StaffDirectoryPage() {
                   <TableCell className="py-3 text-xs text-slate-700">
                     <div>
                       <span className="block font-semibold text-slate-900">
-                        {emp.designation}
+                        {emp.roleName || emp.designation}
                       </span>
                       <span className="block text-[10px] text-slate-400">
                         {emp.department}
@@ -1213,7 +1342,7 @@ export default function StaffDirectoryPage() {
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            onClick={() => handleDeleteEmployee(emp.id)}
+                            onClick={() => handleOpenDeleteModal(emp)}
                             className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
                           >
                             <Trash2 className="mr-2 h-3.5 w-3.5" />
@@ -1242,7 +1371,7 @@ export default function StaffDirectoryPage() {
               </SheetHeader>
               <div>
                 <p className="text-xs font-semibold text-[#0090FF]">
-                  {selectedEmp.designation}
+                  {selectedEmp.roleName || selectedEmp.designation}
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {selectedEmp.department}
@@ -1422,8 +1551,8 @@ export default function StaffDirectoryPage() {
                   </div>
                   <div className="space-y-1.5 text-right sm:text-left">
                     <div>
-                      <span className="text-slate-400">Designation: </span>
-                      <strong>{printProfile.designation}</strong>
+                      <span className="text-slate-400">Role / Designation: </span>
+                      <strong>{printProfile.roleName || printProfile.designation}</strong>
                     </div>
                     <div>
                       <span className="text-slate-400">Department: </span>
@@ -1540,7 +1669,7 @@ export default function StaffDirectoryPage() {
               Edit Personnel Profile
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Update institutional credentials, parents' names, schedule, or
+              Update institutional credentials, role, parents' names, schedule, or
               salary.
             </DialogDescription>
           </DialogHeader>
@@ -1658,37 +1787,58 @@ export default function StaffDirectoryPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                {/* Edit Designation Dropdown with Super Admin Add More */}
+                {/* Role Dropdown in Edit Modal */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
-                    Designation
+                    Role <span className="text-rose-500">*</span>
                   </Label>
                   <Select
-                    value={editingEmp.designation}
-                    onValueChange={(val) =>
-                      handleEditFormChange("designation", val)
-                    }
+                    value={editingEmp.roleId || editingEmp.roleName}
+                    onValueChange={(val) => {
+                      if (val === "__CREATE_NEW_ROLE__") {
+                        setIsCreateRoleOpen(true)
+                        return
+                      }
+                      const found = rolesList.find(
+                        (r) => r.id === val || r.name === val
+                      )
+                      if (found) {
+                        setEditingEmp({
+                          ...editingEmp,
+                          roleId: found.id,
+                          roleName: found.name,
+                          designation: found.name,
+                        })
+                      } else {
+                        setEditingEmp({
+                          ...editingEmp,
+                          roleId: "",
+                          roleName: val,
+                          designation: val,
+                        })
+                      }
+                    }}
                   >
                     <SelectTrigger className="h-8 bg-white text-xs">
-                      <SelectValue />
+                      <SelectValue placeholder="Select Role" />
                     </SelectTrigger>
                     <SelectContent className="max-h-[240px] text-xs">
-                      {designations.map((desig) => (
-                        <SelectItem key={desig} value={desig}>
-                          {desig}
+                      {rolesList.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.name}
                         </SelectItem>
                       ))}
                       <SelectItem
-                        value="__ADD_NEW_DESIGNATION__"
-                        className="mt-1 border-t border-slate-100 pt-1 font-semibold text-blue-600"
+                        value="__CREATE_NEW_ROLE__"
+                        className="mt-1 border-t border-slate-100 pt-1 font-semibold text-blue-600 cursor-pointer"
                       >
-                        + Add more (Super Admin access)
+                        + Create New Role (Super Admin)
                       </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Edit Department Dropdown with Super Admin Add More */}
+                {/* Edit Department Dropdown */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
                     Department
@@ -1818,6 +1968,66 @@ export default function StaffDirectoryPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 8. Super Admin Create Role Modal */}
+      <Dialog open={isCreateRoleOpen} onOpenChange={setIsCreateRoleOpen}>
+        <DialogContent className="rounded-xl bg-white sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900">
+              Create New Corporate Role
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Super Admin access: Save new role to database to appear in dropdown options.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateRoleSubmit} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-700">
+                Role Title / Name <span className="text-rose-500">*</span>
+              </Label>
+              <Input
+                placeholder="e.g. Senior Medical Representative"
+                value={newRoleTitle}
+                onChange={(e) => setNewRoleTitle(e.target.value)}
+                required
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateRoleOpen(false)}
+                className="h-8 text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isCreatingRole || !newRoleTitle.trim()}
+                className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
+              >
+                {isCreatingRole ? "Saving..." : "Create & Save Role"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 9. Global Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        onConfirm={handleConfirmDeleteStaff}
+        title="Deactivate / Delete Staff Member"
+        description="Are you sure you want to deactivate and remove this staff member from the system? This database operation will deactivate their staff record."
+        itemName={staffToDelete ? `${staffToDelete.fullName} (${staffToDelete.empId} - ${staffToDelete.roleName})` : undefined}
+        confirmText="Confirm Delete"
+        cancelText="Cancel"
+        isDeleting={isDeletingStaff}
+      />
     </div>
   )
 }

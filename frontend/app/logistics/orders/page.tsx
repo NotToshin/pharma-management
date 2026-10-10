@@ -3,6 +3,8 @@
 import * as React from "react"
 import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
+import { toast } from "sonner"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useSearchParams } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -530,6 +532,11 @@ function LogisticsOrdersContent() {
     [validLineItems]
   )
 
+  // Global Delete Modal State
+  const [orderToDelete, setOrderToDelete] = React.useState<SalesOrder | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
+  const [isDeletingOrder, setIsDeletingOrder] = React.useState(false)
+
   const calculatedDiscountAmount = Math.round(
     (calculatedSubtotal * (discountPercent || 0)) / 100
   )
@@ -630,18 +637,34 @@ function LogisticsOrdersContent() {
     }
   }
 
-  const handleDeleteOrder = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this sales order?")) return
+  const handleOpenDeleteModal = (order: SalesOrder) => {
+    setOrderToDelete(order)
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDeleteOrder = async () => {
+    if (!orderToDelete) return
+    const toastId = toast.loading(`Deleting sales order ${orderToDelete.orderNumber}...`)
     try {
-      const res = await fetch(`${API_URL}/orders/${id}`, {
+      setIsDeletingOrder(true)
+      const res = await fetch(`${API_URL}/orders/${orderToDelete.id}`, {
         method: "DELETE",
       })
 
-      if (!res.ok) throw new Error("Failed to delete order")
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to delete order")
+      }
+
+      toast.success(`Sales order ${orderToDelete.orderNumber} deleted successfully.`, { id: toastId })
+      setIsDeleteModalOpen(false)
+      setOrderToDelete(null)
       fetchBackendData()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting order:", error)
-      alert("Failed to delete order record.")
+      toast.error(error.message || "Failed to delete order record.", { id: toastId })
+    } finally {
+      setIsDeletingOrder(false)
     }
   }
 
@@ -1608,7 +1631,7 @@ function LogisticsOrdersContent() {
 
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onClick={() => handleDeleteOrder(ord.id)}
+                          onClick={() => handleOpenDeleteModal(ord)}
                           className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
                         >
                           <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-600" />
@@ -1965,6 +1988,19 @@ function LogisticsOrdersContent() {
           </div>
         </div>
       )}
+
+      {/* Global Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        onConfirm={handleConfirmDeleteOrder}
+        title="Delete Sales Order"
+        description="Are you sure you want to delete this commercial sales order? This database operation will remove the order record."
+        itemName={orderToDelete ? `Order ${orderToDelete.orderNumber} - ${orderToDelete.pharmacyName} (৳${orderToDelete.orderValue.toLocaleString("en-IN")})` : undefined}
+        confirmText="Delete Sales Order"
+        cancelText="Cancel"
+        isDeleting={isDeletingOrder}
+      />
     </div>
   )
 }

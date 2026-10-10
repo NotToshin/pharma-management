@@ -334,7 +334,8 @@ export default function DoctorMasterDatabasePage() {
         setAssignedMio("")
         setFormErrors({})
         setIsAddOpen(false)
-        toast.success(`Successfully registered Dr. ${newDocPayload.doctorName}.`, { id: toastId })
+        const formattedDocName = newDocPayload.doctorName.startsWith("Dr.") ? newDocPayload.doctorName : `Dr. ${newDocPayload.doctorName}`
+        toast.success(`Successfully registered ${formattedDocName}.`, { id: toastId })
         fetchData()
       } else {
         const errorData = await res.json().catch(() => null)
@@ -1529,7 +1530,7 @@ export default function DoctorMasterDatabasePage() {
         onConfirm={handleConfirmDeleteDoctor}
         title="Delete Doctor Record"
         description="Are you sure you want to remove this physician from the master database? This action cannot be undone."
-        itemName={deleteModal.doctorName ? `Dr. ${deleteModal.doctorName}` : undefined}
+        itemName={deleteModal.doctorName || undefined}
         isDeleting={deleteModal.isDeleting}
       />
     </div>

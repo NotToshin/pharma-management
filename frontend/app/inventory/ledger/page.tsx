@@ -3,6 +3,8 @@
 import * as React from "react"
 import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
+import { toast } from "sonner"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -148,6 +150,11 @@ export default function ActiveInventoryLedgerPage() {
   const [editingBatch, setEditingBatch] = React.useState<InventoryBatch | null>(
     null
   )
+
+  // Global Delete Modal State
+  const [batchToDelete, setBatchToDelete] = React.useState<InventoryBatch | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
+  const [isDeletingBatch, setIsDeletingBatch] = React.useState(false)
   const [stockAdjustTarget, setStockAdjustTarget] =
     React.useState<InventoryBatch | null>(null)
   const [adjustQty, setAdjustQty] = React.useState("")
@@ -306,18 +313,34 @@ export default function ActiveInventoryLedgerPage() {
     }
   }
 
-  const handleDeleteBatch = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete batch record for "${name}"?`))
-      return
+  const handleOpenDeleteModal = (batch: InventoryBatch) => {
+    setBatchToDelete(batch)
+    setIsDeleteModalOpen(true)
+  }
 
+  const handleConfirmDeleteBatch = async () => {
+    if (!batchToDelete) return
+    const toastId = toast.loading(`Deleting batch record for ${batchToDelete.brandName}...`)
     try {
-      const res = await fetch(`${API_URL}/inventory/${id}`, {
+      setIsDeletingBatch(true)
+      const res = await fetch(`${API_URL}/inventory/${batchToDelete.id}`, {
         method: "DELETE",
       })
-      if (!res.ok) throw new Error("Failed to remove batch")
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to remove batch")
+      }
+
+      toast.success(`Batch record for ${batchToDelete.brandName} deleted successfully.`, { id: toastId })
+      setIsDeleteModalOpen(false)
+      setBatchToDelete(null)
       fetchInventory()
-    } catch {
-      alert("Failed to delete inventory batch from server.")
+    } catch (error: any) {
+      console.error("Error deleting batch:", error)
+      toast.error(error.message || "Failed to delete inventory batch from server.", { id: toastId })
+    } finally {
+      setIsDeletingBatch(false)
     }
   }
 
@@ -849,9 +872,7 @@ export default function ActiveInventoryLedgerPage() {
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onClick={() =>
-                            handleDeleteBatch(batch.id, batch.brandName)
-                          }
+                          onClick={() => handleOpenDeleteModal(batch)}
                           className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
                         >
                           <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-600" />
@@ -1180,6 +1201,19 @@ export default function ActiveInventoryLedgerPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Global Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        onConfirm={handleConfirmDeleteBatch}
+        title="Delete Inventory Batch Record"
+        description="Are you sure you want to delete this inventory batch record? This operation will remove the stock record from FEFO ledger."
+        itemName={batchToDelete ? `${batchToDelete.brandName} (Batch: ${batchToDelete.batchNumber} - Qty: ${batchToDelete.availableUnits} units)` : undefined}
+        confirmText="Delete Batch"
+        cancelText="Cancel"
+        isDeleting={isDeletingBatch}
+      />
     </div>
   )
 }

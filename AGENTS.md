@@ -110,13 +110,19 @@ NODE_ENV=development
 NEXT_PUBLIC_API_URL="http://localhost:5000/api"
 ```
 
-## Code Style Rules
+## Code Style & Frontend Rules
 
 1. **No direct Prisma imports in controllers** - Use services
 2. **No try/catch in controllers** - Use `catchAsync`
 3. **Always use `sendResponse`** - Consistent API format
 4. **Services return Prisma results directly** - Controllers handle HTTP
 5. **TypeScript strict mode** - No `any` without justification
+6. **Database Operations & Toaster Feedback**:
+   - ALL database mutation operations (Create, Update, Delete, Bulk Import) in the frontend MUST give user feedback via `sonner` toaster (`toast.loading`, `toast.success`, `toast.error`).
+   - Native browser `alert()` must NOT be used for database feedback.
+7. **Global Delete Confirmation Modal**:
+   - EVERY delete operation in the application MUST take permissions/confirmation via the global `DeleteConfirmationModal` component (`@/components/ui/delete-confirmation-modal`).
+   - Native browser `window.confirm()` is strictly prohibited for delete operations across the app.
 
 ## Adding New Module
 

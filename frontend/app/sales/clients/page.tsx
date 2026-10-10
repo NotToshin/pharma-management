@@ -3,6 +3,8 @@
 import * as React from "react"
 import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
+import { toast } from "sonner"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
@@ -116,6 +118,11 @@ export default function ClientsDirectoryPage() {
   )
   const [isStatementOpen, setIsStatementOpen] = React.useState(false)
 
+  // Global Delete Modal State
+  const [clientToDelete, setClientToDelete] = React.useState<ClientProfile | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
+  const [isDeletingClient, setIsDeletingClient] = React.useState(false)
+
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
 
   // Fetch Live Client Data from Backend API
@@ -220,6 +227,7 @@ export default function ClientsDirectoryPage() {
 
   const handleSaveForm = async (e: React.FormEvent) => {
     e.preventDefault()
+    const toastId = toast.loading(editingId ? "Updating pharmacy client record..." : "Enrolling new chemist client...")
     try {
       const endpoint = editingId
         ? `${API_URL}/clients/${editingId}`
@@ -232,33 +240,49 @@ export default function ClientsDirectoryPage() {
         body: JSON.stringify(formData),
       })
 
-      if (!res.ok) throw new Error("Failed to save client record")
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to save client record")
+      }
 
+      toast.success(editingId ? `Pharmacy ${formData.pharmacyName} updated successfully!` : `Pharmacy ${formData.pharmacyName} enrolled successfully!`, { id: toastId })
       setIsFormOpen(false)
       fetchClients()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving client:", error)
-      alert("Failed to save client record to database.")
+      toast.error(error.message || "Failed to save client record to database.", { id: toastId })
     }
   }
 
-  // Delete Client Handler
-  const handleDeleteClient = async (id: string) => {
-    if (
-      !confirm("Are you sure you want to delete this pharmacy client record?")
-    )
-      return
+  // Delete Client Handlers
+  const handleOpenDeleteModal = (client: ClientProfile) => {
+    setClientToDelete(client)
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDeleteClient = async () => {
+    if (!clientToDelete) return
+    const toastId = toast.loading(`Deleting pharmacy client record for ${clientToDelete.pharmacyName}...`)
     try {
-      const res = await fetch(`${API_URL}/clients/${id}`, {
+      setIsDeletingClient(true)
+      const res = await fetch(`${API_URL}/clients/${clientToDelete.id}`, {
         method: "DELETE",
       })
 
-      if (!res.ok) throw new Error("Failed to delete client record")
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to delete client record")
+      }
 
+      toast.success(`Pharmacy client ${clientToDelete.pharmacyName} deleted successfully.`, { id: toastId })
+      setIsDeleteModalOpen(false)
+      setClientToDelete(null)
       fetchClients()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting client:", error)
-      alert("Failed to delete client record.")
+      toast.error(error.message || "Failed to delete client record.", { id: toastId })
+    } finally {
+      setIsDeletingClient(false)
     }
   }
 
@@ -810,7 +834,7 @@ export default function ClientsDirectoryPage() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => handleDeleteClient(client.id)}
+                              onClick={() => handleOpenDeleteModal(client)}
                               className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
                             >
                               <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-600" />
@@ -1320,6 +1344,19 @@ export default function ClientsDirectoryPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Global Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        onConfirm={handleConfirmDeleteClient}
+        title="Delete Pharmacy Client Record"
+        description="Are you sure you want to remove this pharmacy client record from the master directory? This action cannot be undone."
+        itemName={clientToDelete ? `${clientToDelete.pharmacyName} (${clientToDelete.clientCode} - Prop: ${clientToDelete.proprietor})` : undefined}
+        confirmText="Delete Client"
+        cancelText="Cancel"
+        isDeleting={isDeletingClient}
+      />
     </div>
   )
 }
