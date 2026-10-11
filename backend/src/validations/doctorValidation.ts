@@ -32,7 +32,29 @@ export const doctorIdParamSchema = z.object({
   }),
 });
 
+export const getDoctorsQuerySchema = z.object({
+  query: z
+    .object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().min(0).optional(),
+      sortBy: z.string().optional(),
+      sortOrder: z.enum(["asc", "desc"]).optional(),
+      searchTerm: z.string().optional(),
+      doctorName: z.string().optional(),
+      phone: z.string().optional(),
+      bmdcRegNumber: z.string().optional(),
+      specialtyAndInstitute: z.string().optional(),
+      chamber: z.string().optional(),
+      territoryAndMio: z.string().optional(),
+      email: z.string().optional(),
+      tier: z.string().optional(),
+    })
+    .passthrough()
+    .optional(),
+});
+
 export type DoctorInput = z.infer<typeof doctorFormSchema>;
+export type GetDoctorsQueryInput = z.infer<typeof getDoctorsQuerySchema>["query"];
 export type CreateDoctorInput = z.infer<typeof createDoctorSchema>["body"];
 export type UpdateDoctorInput = z.infer<typeof updateDoctorSchema>["body"];
 

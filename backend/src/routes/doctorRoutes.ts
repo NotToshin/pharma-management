@@ -7,17 +7,18 @@ import {
   deleteDoctor,
   bulkImportDoctors,
 } from "../controllers/doctorController";
-import { validateBody, validateParams } from "../utils/validate";
+import { validateBody, validateParams, validateQuery } from "../utils/validate";
 import {
   createDoctorSchema,
   updateDoctorSchema,
   doctorIdParamSchema,
   bulkImportDoctorSchema,
+  getDoctorsQuerySchema,
 } from "../validations/doctorValidation";
 
 const router = Router();
 
-router.get("/", getAllDoctors);
+router.get("/", validateQuery(getDoctorsQuerySchema), getAllDoctors);
 router.post("/bulk-import", validateBody(bulkImportDoctorSchema), bulkImportDoctors);
 router.get("/:id", validateParams(doctorIdParamSchema), getDoctorById);
 router.post("/", validateBody(createDoctorSchema), createDoctor);

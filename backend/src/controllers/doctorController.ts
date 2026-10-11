@@ -1,11 +1,28 @@
 import { Request, Response } from "express";
-import { doctorService } from "../services/doctorService";
+import {
+  doctorService,
+  doctorFilterableFields,
+} from "../services/doctorService";
 import { sendResponse } from "../utils/response";
 import { catchAsync } from "../utils/catchAsync";
+import { pick } from "../utils/pick";
+import { paginationFields } from "../utils/paginationHelper";
 
 export const getAllDoctors = catchAsync(async (req: Request, res: Response) => {
-  const doctors = await doctorService.getAllDoctors();
-  sendResponse(res, 200, "Doctors retrieved successfully", doctors);
+  const filters = pick(req.query, doctorFilterableFields);
+  const paginationOptions = pick(req.query, paginationFields);
+
+  const result = await doctorService.getAllDoctors(
+    filters as any,
+    paginationOptions as any
+  );
+  sendResponse(
+    res,
+    200,
+    "Doctors retrieved successfully",
+    result.data,
+    result.meta
+  );
 });
 
 export const getDoctorById = catchAsync(async (req: Request, res: Response) => {
