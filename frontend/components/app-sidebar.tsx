@@ -116,7 +116,7 @@ const navSections = [
         defaultOpen: true,
         subItems: [
           { title: "Master Database", href: "/doctors/database" },
-          { title: "Add New Doctor", href: "/doctors/new" },
+          // { title: "Add New Doctor", href: "/doctors/new" },
         ],
       },
       {
@@ -355,8 +355,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                     asChild
                                     isActive={isActive}
                                     className={`h-7 text-xs transition-colors ${isActive
-                                        ? "bg-slate-100 font-semibold text-slate-900"
-                                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                                      ? "bg-slate-100 font-semibold text-slate-900"
+                                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                                       }`}
                                   >
                                     <Link
@@ -385,8 +385,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       isActive={isDirectActive}
                       tooltip={item.title}
                       className={`h-9 w-full justify-between rounded-md px-2 text-xs font-medium transition-colors ${isDirectActive
-                          ? "bg-slate-100 font-semibold text-slate-900"
-                          : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                        ? "bg-slate-100 font-semibold text-slate-900"
+                        : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                         }`}
                     >
                       <Link
