@@ -48,6 +48,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Switch } from "@/components/ui/switch"
+import { cn } from "cn"
+import { getStoredUser } from "@/lib/auth"
 import {
   Stethoscope,
   Search,
@@ -69,11 +72,118 @@ import {
   CheckCircle2,
   FileText,
   ExternalLink,
+  FileSpreadsheet,
+  Upload,
+  Shield,
+  FileCheck2,
+  AlertCircle,
 } from "lucide-react"
 
 import { doctorFormSchema } from "@/lib/validations/doctorValidation"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+
+interface ParsedDoctorItem {
+  doctorName: string
+  bmdcRegNumber: string
+  phone: string
+  email: string
+  specialty: string
+  institute: string
+  designation: string
+  specialtyAndInstitute: string
+  chamber: string
+  territory: string
+  assignedMio: string
+  territoryAndMio: string
+  tier: string
+  patientVolumeDaily: number
+  isValid: boolean
+  errorReason?: string
+}
+
+function parseDoctorRow(row: any): ParsedDoctorItem {
+  const getCol = (...names: string[]) => {
+    for (const name of names) {
+      const lower = name.toLowerCase().replace(/[^a-z0-9]/g, "")
+      for (const [key, val] of Object.entries(row)) {
+        const keyLower = key.toLowerCase().replace(/[^a-z0-9]/g, "")
+        if (keyLower === lower && val !== undefined && val !== null && String(val).trim() !== "") {
+          return String(val).trim()
+        }
+      }
+    }
+    return ""
+  }
+
+  const doctorName =
+    getCol("Doctor Name", "Name", "DoctorName", "Doctor", "Practitioner Name", "Physician") ||
+    "Dr. Medical Practitioner"
+  const bmdcRegNumber = getCol(
+    "BMDC Reg #",
+    "BMDC Reg Number",
+    "BMDC Reg",
+    "BMDC",
+    "bmdcRegNumber",
+    "Registration Number",
+    "BMDC No"
+  )
+  const phone =
+    getCol("Contact", "Phone", "Phone Number", "Mobile", "Contact Number", "Cell") ||
+    "+880 1700-000000"
+  const email = getCol("Email", "Email Address", "Mail") || "doctor@akpharma.com"
+  const specialty = getCol("Specialty", "Specialization", "Discipline") || "General Medicine"
+  const institute = getCol("Institute", "Hospital", "Medical College", "Institution") || "General Hospital"
+  const designation = getCol("Designation", "Title", "Rank") || "Consultant"
+  const chamber =
+    getCol("Chamber Address", "Chamber", "Clinic", "Practice Location", "Address") ||
+    "Central Chamber"
+  const territory = getCol("Territory", "Zone", "Area", "Region") || "Dhaka North"
+  const assignedMio = getCol("Assigned MIO", "MIO", "Representative", "Field Officer") || "Unassigned"
+  const potentialCategory = getCol("Rx Potential", "Potential", "Category", "Tier", "Grade") || "A"
+  const rawPatients = getCol(
+    "Daily Patients",
+    "Patient Volume",
+    "Patient Volume Daily",
+    "Avg Patients",
+    "Patients"
+  )
+  const patientVolumeDaily = parseInt(rawPatients, 10) || 20
+
+  const specialtyAndInstitute = institute ? `${specialty} (${institute})` : specialty
+  const territoryAndMio = assignedMio ? `${territory} / MIO: ${assignedMio}` : territory
+  const tier =
+    potentialCategory.includes("1") || potentialCategory.toUpperCase() === "A+"
+      ? "Tier 1 (High Prescriber)"
+      : "Tier 2 (Moderate)"
+
+  let isValid = true
+  let errorReason = ""
+
+  if (!bmdcRegNumber) {
+    isValid = false
+    errorReason = "Missing BMDC Reg #"
+  }
+
+  return {
+    doctorName,
+    bmdcRegNumber,
+    phone,
+    email,
+    specialty,
+    institute,
+    designation,
+    specialtyAndInstitute,
+    chamber,
+    territory,
+    assignedMio,
+    territoryAndMio,
+    tier,
+    patientVolumeDaily,
+    isValid,
+    errorReason,
+  }
+}
 
 interface DoctorRecord {
   id: string
@@ -151,6 +261,14 @@ export default function DoctorMasterDatabasePage() {
     doctorName: null,
     isDeleting: false,
   })
+
+  // Excel Import Modal State (Super Admin)
+  const [isImportOpen, setIsImportOpen] = React.useState(false)
+  const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
+  const [parsedDoctors, setParsedDoctors] = React.useState<ParsedDoctorItem[]>([])
+  const [updateExisting, setUpdateExisting] = React.useState(false)
+  const [isImporting, setIsImporting] = React.useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   // Fetch doctors and staff directory from backend
   const fetchData = async () => {
@@ -278,6 +396,170 @@ export default function DoctorMasterDatabasePage() {
       workbook,
       `AK_Pharma_Doctor_Database_${new Date().toISOString().slice(0, 10)}.xlsx`
     )
+  }
+
+  const handleOpenImportModal = () => {
+    const user = getStoredUser()
+    const isSuperAdmin = Boolean(
+      !user ||
+      user.role?.toLowerCase().includes("super") ||
+      user.role?.toLowerCase().includes("admin") ||
+      user.roleName?.toLowerCase().includes("super") ||
+      user.roleName?.toLowerCase().includes("admin") ||
+      user.roleName?.toLowerCase().includes("managing director")
+    )
+
+    if (!isSuperAdmin) {
+      toast.error(
+        "Super Admin Clearance Required: Only Super Administrators have permission to bulk import practitioners into the Master Database."
+      )
+      return
+    }
+
+    setIsImportOpen(true)
+  }
+
+  const handleDownloadTemplate = () => {
+    const sampleData = [
+      {
+        "Doctor Name": "Prof. Dr. Sayeba Akhter",
+        "BMDC Reg #": "A-12450",
+        Specialty: "Gynecology & Obstetrics",
+        Designation: "Professor & Head",
+        Institute: "Dhaka Medical College & Hospital",
+        "Chamber Address": "Popular Diagnostic Centre, Dhanmondi",
+        Territory: "Dhanmondi North",
+        "Assigned MIO": "Rafiqul Islam",
+        Contact: "+880 1711-223344",
+        Email: "sayebaakhter@gmail.com",
+        "Rx Potential": "A+",
+        "Daily Patients": 35,
+      },
+      {
+        "Doctor Name": "Dr. Mahmudul Hasan",
+        "BMDC Reg #": "A-54321",
+        Specialty: "Cardiology",
+        Designation: "Assistant Professor",
+        Institute: "National Institute of Cardiovascular Diseases",
+        "Chamber Address": "Ibn Sina Diagnostic Centre, Dhanmondi",
+        Territory: "Dhanmondi South",
+        "Assigned MIO": "Tanvir Ahmed",
+        Contact: "+880 1812-345678",
+        Email: "dr.hasan@cardio.org",
+        "Rx Potential": "A",
+        "Daily Patients": 25,
+      },
+    ]
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Doctor Import Template")
+    XLSX.writeFile(workbook, "AK_Pharma_Doctor_Import_Template.xlsx")
+    toast.success("Excel template downloaded successfully!")
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setSelectedFile(file)
+    const reader = new FileReader()
+
+    reader.onload = (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer)
+        const workbook = XLSX.read(data, { type: "array" })
+        const firstSheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[firstSheetName]
+        const rows: any[] = XLSX.utils.sheet_to_json(worksheet)
+
+        if (rows.length === 0) {
+          toast.error("The uploaded Excel sheet is empty.")
+          setParsedDoctors([])
+          return
+        }
+
+        const parsed = rows.map(parseDoctorRow)
+        setParsedDoctors(parsed)
+        const validCount = parsed.filter((d) => d.isValid).length
+        toast.info(`Parsed ${parsed.length} rows (${validCount} valid) from ${file.name}`)
+      } catch (err) {
+        console.error("Error parsing Excel file:", err)
+        toast.error("Failed to parse Excel file. Please ensure it is a valid .xlsx or .xls file.")
+      }
+    }
+
+    reader.readAsArrayBuffer(file)
+  }
+
+  const handleExecuteImport = async () => {
+    const validDoctors = parsedDoctors.filter((d) => d.isValid)
+    if (validDoctors.length === 0) {
+      toast.error("No valid doctor records found to import. Please ensure BMDC registration numbers are provided.")
+      return
+    }
+
+    const toastId = toast.loading(`Importing ${validDoctors.length} doctors into master database...`)
+    setIsImporting(true)
+
+    try {
+      const payload = {
+        doctors: validDoctors.map((d) => ({
+          doctorName: d.doctorName,
+          phone: d.phone,
+          bmdcRegNumber: d.bmdcRegNumber,
+          specialtyAndInstitute: d.specialtyAndInstitute,
+          chamber: d.chamber,
+          territoryAndMio: d.territoryAndMio,
+          email: d.email,
+          tier: d.tier,
+          patientVolumeDaily: d.patientVolumeDaily,
+        })),
+        updateExisting,
+      }
+
+      const res = await fetch(getEndpoint("/doctors/bulk-import"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to bulk import doctors")
+      }
+
+      const resJson = await res.json()
+      const resultData = resJson.data || resJson
+
+      const created = resultData.createdCount ?? 0
+      const updated = resultData.updatedCount ?? 0
+      const skipped = resultData.skippedCount ?? 0
+
+      let successMsg = `Successfully processed ${validDoctors.length} doctors!`
+      if (created > 0 && updated > 0) {
+        successMsg = `Imported ${created} new doctors, updated ${updated} existing records!`
+      } else if (created > 0) {
+        successMsg = `Imported ${created} new doctors successfully!`
+      } else if (updated > 0) {
+        successMsg = `Updated ${updated} existing doctor records!`
+      }
+
+      if (skipped > 0 && !updateExisting) {
+        successMsg += ` (${skipped} already existing records skipped)`
+      }
+
+      toast.success(successMsg, { id: toastId })
+      setIsImportOpen(false)
+      setSelectedFile(null)
+      setParsedDoctors([])
+      await fetchData()
+    } catch (err: any) {
+      console.error("Bulk import error:", err)
+      toast.error(err.message || "Failed to import doctors", { id: toastId })
+    } finally {
+      setIsImporting(false)
+    }
   }
 
   const handleAddDoctor = async (e: React.FormEvent) => {
@@ -505,6 +787,16 @@ export default function DoctorMasterDatabasePage() {
             Export to Excel
           </Button>
 
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleOpenImportModal}
+            className="h-9 gap-1.5 rounded-lg border-purple-200 bg-purple-50/70 px-3.5 text-xs font-semibold text-purple-700 shadow-none hover:bg-purple-100 hover:text-purple-800"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5 text-purple-600" />
+            Import Doctor
+          </Button>
+
           {/* Add Doctor Dialog */}
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
@@ -720,6 +1012,254 @@ export default function DoctorMasterDatabasePage() {
                   </Button>
                 </DialogFooter>
               </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Bulk Import Doctor Dialog (Super Admin) */}
+          <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+            <DialogContent className="max-h-[92vh] overflow-y-auto rounded-xl bg-white sm:max-w-[720px]">
+              <DialogHeader>
+                <div className="flex items-center justify-between pr-4">
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-lg bg-purple-100 p-2 text-purple-700">
+                      <FileSpreadsheet className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <DialogTitle className="text-base font-bold text-slate-900">
+                        Import Doctor Registry via Excel
+                      </DialogTitle>
+                      <DialogDescription className="text-xs text-slate-500">
+                        Bulk upload licensed practitioners, BMDC registrations, and contact directories.
+                      </DialogDescription>
+                    </div>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="border-purple-200 bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700"
+                  >
+                    <Shield className="mr-1 h-3 w-3 text-purple-600" />
+                    Super Admin Only
+                  </Badge>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-4 py-2">
+                {/* Template Download Card */}
+                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-semibold text-slate-800">
+                      Need the official import template?
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Download our pre-structured Excel template with example records and supported headers.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDownloadTemplate}
+                    className="h-8 gap-1.5 border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    <Download className="h-3.5 w-3.5 text-blue-600" />
+                    Download Template (.xlsx)
+                  </Button>
+                </div>
+
+                {/* Upload Drag & Drop Zone */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx, .xls"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className={cn(
+                    "group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-all",
+                    selectedFile
+                      ? "border-emerald-300 bg-emerald-50/40 hover:bg-emerald-50/60"
+                      : "border-slate-300 bg-slate-50/40 hover:border-purple-400 hover:bg-purple-50/30"
+                  )}
+                >
+                  {selectedFile ? (
+                    <div className="space-y-2">
+                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                        <FileCheck2 className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-emerald-950">
+                          {selectedFile.name}
+                        </p>
+                        <p className="text-[11px] text-emerald-700">
+                          {(selectedFile.size / 1024).toFixed(1)} KB • Click to choose a different spreadsheet
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 text-purple-700 transition group-hover:scale-105">
+                        <Upload className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">
+                          Click to browse or drop doctor Excel sheet here
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          Supports Microsoft Excel files (.xlsx, .xls). Must contain BMDC Reg. numbers.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Parsed Summary and Options */}
+                {parsedDoctors.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="text-xs">
+                          <span className="font-semibold text-slate-700">Parsed: </span>
+                          <span className="font-bold text-slate-900">{parsedDoctors.length} rows</span>
+                        </div>
+                        <div className="text-xs">
+                          <span className="font-semibold text-emerald-700">Valid: </span>
+                          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[11px] font-bold text-emerald-700">
+                            {parsedDoctors.filter((d) => d.isValid).length}
+                          </Badge>
+                        </div>
+                        {parsedDoctors.some((d) => !d.isValid) && (
+                          <div className="text-xs">
+                            <span className="font-semibold text-amber-700">Invalid: </span>
+                            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[11px] font-bold text-amber-700">
+                              {parsedDoctors.filter((d) => !d.isValid).length}
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Update Existing Toggle */}
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="update-existing-toggle"
+                          checked={updateExisting}
+                          onCheckedChange={setUpdateExisting}
+                        />
+                        <Label
+                          htmlFor="update-existing-toggle"
+                          className="cursor-pointer text-xs font-medium text-slate-700"
+                        >
+                          Update existing if BMDC matches
+                        </Label>
+                      </div>
+                    </div>
+
+                    {/* Preview Table */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-slate-700">
+                          Data Preview (First {Math.min(parsedDoctors.length, 5)} of {parsedDoctors.length} records)
+                        </p>
+                        {parsedDoctors.length > 5 && (
+                          <span className="text-[11px] text-slate-500">
+                            + {parsedDoctors.length - 5} additional records
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="max-h-56 overflow-auto rounded-lg border border-slate-200">
+                        <Table className="text-xs">
+                          <TableHeader className="bg-slate-50">
+                            <TableRow>
+                              <TableHead className="h-8 font-semibold text-slate-700">BMDC Reg #</TableHead>
+                              <TableHead className="h-8 font-semibold text-slate-700">Doctor Name</TableHead>
+                              <TableHead className="h-8 font-semibold text-slate-700">Specialty</TableHead>
+                              <TableHead className="h-8 font-semibold text-slate-700">Contact</TableHead>
+                              <TableHead className="h-8 font-semibold text-slate-700">Daily Pts</TableHead>
+                              <TableHead className="h-8 font-semibold text-slate-700">Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {parsedDoctors.slice(0, 5).map((doc, idx) => (
+                              <TableRow key={idx} className="hover:bg-slate-50/70">
+                                <TableCell className="py-1.5 font-medium text-slate-900">
+                                  {doc.bmdcRegNumber || (
+                                    <span className="text-amber-600 italic">None</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="py-1.5 font-medium text-slate-800">
+                                  {doc.doctorName}
+                                </TableCell>
+                                <TableCell className="py-1.5 text-slate-600">
+                                  {doc.specialty}
+                                </TableCell>
+                                <TableCell className="py-1.5 text-slate-600">
+                                  {doc.phone}
+                                </TableCell>
+                                <TableCell className="py-1.5 text-slate-600">
+                                  {doc.patientVolumeDaily}
+                                </TableCell>
+                                <TableCell className="py-1.5">
+                                  {doc.isValid ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700"
+                                    >
+                                      Ready
+                                    </Badge>
+                                  ) : (
+                                    <Badge
+                                      variant="outline"
+                                      className="border-amber-200 bg-amber-50 text-[10px] text-amber-700"
+                                    >
+                                      {doc.errorReason || "Invalid"}
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="gap-2 pt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsImportOpen(false)}
+                  disabled={isImporting}
+                  className="h-8 text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleExecuteImport}
+                  disabled={
+                    isImporting ||
+                    parsedDoctors.filter((d) => d.isValid).length === 0
+                  }
+                  className="h-8 gap-1.5 bg-purple-600 text-xs text-white hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {isImporting ? (
+                    <>
+                      <Clock className="h-3.5 w-3.5 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-3.5 w-3.5" />
+                      Confirm & Import ({parsedDoctors.filter((d) => d.isValid).length} Doctors)
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>

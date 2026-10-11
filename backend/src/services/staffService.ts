@@ -150,6 +150,7 @@ export const staffService = {
     supervisor?: string;
     status?: string;
     territory?: string;
+    joiningDate?: string | Date;
   }) {
     const existing = await prisma.staff.findUnique({ where: { id } });
     if (!existing) {
@@ -180,6 +181,7 @@ export const staffService = {
         territory: data.territory,
         supervisor: data.supervisor || null,
         status: resolvedStatus,
+        ...(data.joiningDate ? { joiningDate: new Date(data.joiningDate) } : {}),
         ...(roleConnect ? { role: roleConnect } : {}),
       },
       include: {

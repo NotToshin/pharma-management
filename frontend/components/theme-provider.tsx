@@ -3,13 +3,14 @@
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
-// Suppress React development warning regarding inline script injection by next-themes
+// Suppress benign React development warnings for next-themes script injection and Radix UI hidden select in React 19
 if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
   const origError = console.error
   console.error = (...args: unknown[]) => {
     if (
       typeof args[0] === "string" &&
-      args[0].includes("Encountered a script tag")
+      (args[0].includes("Encountered a script tag") ||
+        (args[0].includes("SelectItemText") && args[0].includes("warning-keys")))
     ) {
       return
     }
