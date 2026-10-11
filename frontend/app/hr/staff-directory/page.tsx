@@ -5,6 +5,7 @@ import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { GlobalCalendar } from "@/components/ui/global-calendar"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -136,6 +137,12 @@ export interface Employee {
   emergencyRelationship: string
   emergencyPhone: string
 }
+
+const WORK_SCHEDULE_PRESETS = [
+  "Sat - Thu (8:30 AM - 5:30 PM)",
+  "Sun - Thu (9:00 AM - 6:00 PM)",
+  "Flexible (Field Visits)",
+]
 
 export default function StaffDirectoryPage() {
   const [employees, setEmployees] = React.useState<Employee[]>([])
@@ -414,6 +421,7 @@ export default function StaffDirectoryPage() {
         territory: "Dhaka",
         salary: Number(formState.salary) || 20000,
         employmentStatus: formState.employmentStatus,
+        joiningDate: formState.startDate ? new Date(formState.startDate) : new Date(),
         supervisor: formState.supervisor,
         workSchedule: formState.workSchedule,
         emergencyName: formState.emergencyName,
@@ -483,6 +491,7 @@ export default function StaffDirectoryPage() {
         designation: editingEmp.roleName || editingEmp.designation,
         employmentStatus: editingEmp.employmentStatus,
         supervisor: editingEmp.supervisor,
+        joiningDate: editingEmp.startDate ? new Date(editingEmp.startDate) : undefined,
         workSchedule: editingEmp.workSchedule,
         salary: Number(editingEmp.salary) || 20000,
         emergencyName: editingEmp.emergencyName,
@@ -783,12 +792,12 @@ export default function StaffDirectoryPage() {
                   </div>
                 </div>
 
-                <div className="border-t border-slate-100 pt-2">
-                  <h4 className="mb-2 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+                <div className="border-t border-slate-100 pt-3">
+                  <h4 className="mb-2.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                     2. Corporate Role & Posting
                   </h4>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {/* Role Dropdown (Created roles show here!) */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {/* Role Dropdown */}
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-slate-700">
                         Role <span className="text-rose-500">*</span>
@@ -828,6 +837,7 @@ export default function StaffDirectoryPage() {
                             </SelectItem>
                           ))}
                           <SelectItem
+                            key="__create_new_role__"
                             value="__CREATE_NEW_ROLE__"
                             className="mt-1 border-t border-slate-100 pt-1 font-semibold text-blue-600 cursor-pointer"
                           >
@@ -837,6 +847,7 @@ export default function StaffDirectoryPage() {
                       </Select>
                     </div>
 
+                    {/* Department */}
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-slate-700">
                         Department
@@ -855,6 +866,7 @@ export default function StaffDirectoryPage() {
                             </SelectItem>
                           ))}
                           <SelectItem
+                            key="__add_new_department__"
                             value="__ADD_NEW_DEPARTMENT__"
                             className="mt-1 border-t border-slate-100 pt-1 font-semibold text-blue-600"
                           >
@@ -864,21 +876,7 @@ export default function StaffDirectoryPage() {
                       </Select>
                     </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium text-slate-700">
-                        Start Date
-                      </Label>
-                      <Input
-                        placeholder="January 01, 2025"
-                        value={formState.startDate}
-                        onChange={(e) =>
-                          handleFormChange("startDate", e.target.value)
-                        }
-                        required
-                        className="h-8 text-xs"
-                      />
-                    </div>
-
+                    {/* Employment Status */}
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-slate-700">
                         Employment Status
@@ -902,9 +900,11 @@ export default function StaffDirectoryPage() {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Salary */}
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-slate-700">
-                        Salary (৳)
+                        Salary (৳) <span className="text-rose-500">*</span>
                       </Label>
                       <Input
                         type="number"
@@ -917,9 +917,11 @@ export default function StaffDirectoryPage() {
                         className="h-8 font-mono text-xs"
                       />
                     </div>
-                    <div className="space-y-1">
+
+                    {/* Supervisor */}
+                    <div className="space-y-1 sm:col-span-2">
                       <Label className="text-xs font-medium text-slate-700">
-                        Supervisor
+                        Supervisor <span className="text-rose-500">*</span>
                       </Label>
                       <Input
                         placeholder="Toshin Bin Azad (Human Resource)"
@@ -932,9 +934,25 @@ export default function StaffDirectoryPage() {
                       />
                     </div>
 
-                    <div className="space-y-1 sm:col-span-3">
+                    {/* PASHA PASHI: Start Date & Work Schedule TOGETHER */}
+                    <div className="space-y-1">
                       <Label className="text-xs font-medium text-slate-700">
-                        Work Schedule
+                        Start Date <span className="text-rose-500">*</span>
+                      </Label>
+                      <GlobalCalendar
+                        value={formState.startDate}
+                        onValueChange={(val) =>
+                          handleFormChange("startDate", val)
+                        }
+                        size="sm"
+                        placeholder="Select start date"
+                        showPresets
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-slate-700">
+                        Work Schedule <span className="text-rose-500">*</span>
                       </Label>
                       <Input
                         placeholder="Sat - Thu (8:30 AM - 5:30 PM)"
@@ -945,6 +963,20 @@ export default function StaffDirectoryPage() {
                         required
                         className="h-8 text-xs"
                       />
+                      <div className="flex flex-wrap gap-1 pt-0.5">
+                        {WORK_SCHEDULE_PRESETS.map((sched) => (
+                          <button
+                            key={sched}
+                            type="button"
+                            onClick={() =>
+                              handleFormChange("workSchedule", sched)
+                            }
+                            className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                          >
+                            {sched.split(" (")[0]}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1663,288 +1695,396 @@ export default function StaffDirectoryPage() {
 
       {/* 7. Edit Employee Modal */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto rounded-xl bg-white sm:max-w-[580px]">
+        <DialogContent className="max-h-[90vh] overflow-y-auto rounded-xl bg-white sm:max-w-[620px]">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900">
               Edit Personnel Profile
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Update institutional credentials, role, parents' names, schedule, or
-              salary.
+              Update institutional credentials, role, schedule, and salary.
             </DialogDescription>
           </DialogHeader>
 
           {editingEmp && (
-            <form onSubmit={handleSaveEdit} className="space-y-3.5 py-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Full Name
-                  </Label>
-                  <Input
-                    value={editingEmp.fullName}
-                    onChange={(e) =>
-                      setEditingEmp({ ...editingEmp, fullName: e.target.value })
-                    }
-                    required
-                    className="h-8 text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Phone Number
-                  </Label>
-                  <Input
-                    value={editingEmp.phone}
-                    onChange={(e) =>
-                      setEditingEmp({ ...editingEmp, phone: e.target.value })
-                    }
-                    required
-                    className="h-8 font-mono text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Father's Name
-                  </Label>
-                  <Input
-                    value={editingEmp.fathersName}
-                    onChange={(e) =>
-                      setEditingEmp({
-                        ...editingEmp,
-                        fathersName: e.target.value,
-                      })
-                    }
-                    required
-                    className="h-8 text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Mother's Name
-                  </Label>
-                  <Input
-                    value={editingEmp.mothersName}
-                    onChange={(e) =>
-                      setEditingEmp({
-                        ...editingEmp,
-                        mothersName: e.target.value,
-                      })
-                    }
-                    required
-                    className="h-8 text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-slate-700">
-                  Address
-                </Label>
-                <Input
-                  value={editingEmp.address}
-                  onChange={(e) =>
-                    setEditingEmp({ ...editingEmp, address: e.target.value })
-                  }
-                  required
-                  className="h-8 text-xs"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    NID Number
-                  </Label>
-                  <Input
-                    value={editingEmp.nidNumber}
-                    onChange={(e) =>
-                      setEditingEmp({
-                        ...editingEmp,
-                        nidNumber: e.target.value,
-                      })
-                    }
-                    required
-                    className="h-8 font-mono text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Email
-                  </Label>
-                  <Input
-                    value={editingEmp.email}
-                    onChange={(e) =>
-                      setEditingEmp({ ...editingEmp, email: e.target.value })
-                    }
-                    required
-                    className="h-8 text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {/* Role Dropdown in Edit Modal */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Role <span className="text-rose-500">*</span>
-                  </Label>
-                  <Select
-                    value={editingEmp.roleId || editingEmp.roleName}
-                    onValueChange={(val) => {
-                      if (val === "__CREATE_NEW_ROLE__") {
-                        setIsCreateRoleOpen(true)
-                        return
-                      }
-                      const found = rolesList.find(
-                        (r) => r.id === val || r.name === val
-                      )
-                      if (found) {
+            <form onSubmit={handleSaveEdit} className="space-y-4 py-2">
+              {/* 1. Identity & Contact Details */}
+              <div>
+                <h4 className="mb-2 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+                  1. Identity & Contact Details
+                </h4>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Full Name <span className="text-rose-500">*</span>
+                    </Label>
+                    <Input
+                      value={editingEmp.fullName}
+                      onChange={(e) =>
                         setEditingEmp({
                           ...editingEmp,
-                          roleId: found.id,
-                          roleName: found.name,
-                          designation: found.name,
-                        })
-                      } else {
-                        setEditingEmp({
-                          ...editingEmp,
-                          roleId: "",
-                          roleName: val,
-                          designation: val,
+                          fullName: e.target.value,
                         })
                       }
-                    }}
-                  >
-                    <SelectTrigger className="h-8 bg-white text-xs">
-                      <SelectValue placeholder="Select Role" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[240px] text-xs">
-                      {rolesList.map((r) => (
-                        <SelectItem key={r.id} value={r.id}>
-                          {r.name}
-                        </SelectItem>
-                      ))}
-                      <SelectItem
-                        value="__CREATE_NEW_ROLE__"
-                        className="mt-1 border-t border-slate-100 pt-1 font-semibold text-blue-600 cursor-pointer"
-                      >
-                        + Create New Role (Super Admin)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                      required
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Phone Number <span className="text-rose-500">*</span>
+                    </Label>
+                    <Input
+                      value={editingEmp.phone}
+                      onChange={(e) =>
+                        setEditingEmp({ ...editingEmp, phone: e.target.value })
+                      }
+                      required
+                      className="h-8 font-mono text-xs"
+                    />
+                  </div>
 
-                {/* Edit Department Dropdown */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Department
-                  </Label>
-                  <Select
-                    value={editingEmp.department}
-                    onValueChange={(val) =>
-                      handleEditFormChange("department", val)
-                    }
-                  >
-                    <SelectTrigger className="h-8 bg-white text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="text-xs">
-                      {departments.map((dept) => (
-                        <SelectItem key={dept} value={dept}>
-                          {dept}
-                        </SelectItem>
-                      ))}
-                      <SelectItem
-                        value="__ADD_NEW_DEPARTMENT__"
-                        className="mt-1 border-t border-slate-100 pt-1 font-semibold text-blue-600"
-                      >
-                        + Add more (Super Admin access)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Email
+                    </Label>
+                    <Input
+                      type="email"
+                      value={editingEmp.email}
+                      onChange={(e) =>
+                        setEditingEmp({ ...editingEmp, email: e.target.value })
+                      }
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      NID Number
+                    </Label>
+                    <Input
+                      value={editingEmp.nidNumber}
+                      onChange={(e) =>
+                        setEditingEmp({
+                          ...editingEmp,
+                          nidNumber: e.target.value,
+                        })
+                      }
+                      className="h-8 font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Father's Name
+                    </Label>
+                    <Input
+                      value={editingEmp.fathersName}
+                      onChange={(e) =>
+                        setEditingEmp({
+                          ...editingEmp,
+                          fathersName: e.target.value,
+                        })
+                      }
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Mother's Name
+                    </Label>
+                    <Input
+                      value={editingEmp.mothersName}
+                      onChange={(e) =>
+                        setEditingEmp({
+                          ...editingEmp,
+                          mothersName: e.target.value,
+                        })
+                      }
+                      className="h-8 text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Residential Address
+                    </Label>
+                    <Input
+                      value={editingEmp.address}
+                      onChange={(e) =>
+                        setEditingEmp({
+                          ...editingEmp,
+                          address: e.target.value,
+                        })
+                      }
+                      className="h-8 text-xs"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Salary (৳)
-                  </Label>
-                  <Input
-                    type="number"
-                    value={editingEmp.salary}
-                    onChange={(e) =>
-                      setEditingEmp({
-                        ...editingEmp,
-                        salary: Number(e.target.value),
-                      })
-                    }
-                    required
-                    className="h-8 font-mono text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Employment Status
-                  </Label>
-                  <Select
-                    value={editingEmp.employmentStatus}
-                    onValueChange={(val) =>
-                      setEditingEmp({
-                        ...editingEmp,
-                        employmentStatus: val as Employee["employmentStatus"],
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-8 bg-white text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="text-xs">
-                      <SelectItem value="Active">Active</SelectItem>
-                      <SelectItem value="Probationary">Probationary</SelectItem>
-                      <SelectItem value="On Leave">On Leave</SelectItem>
-                      <SelectItem value="Suspended">Suspended</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {/* 2. Corporate Role & Posting */}
+              <div className="border-t border-slate-100 pt-3">
+                <h4 className="mb-2.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+                  2. Corporate Role & Posting
+                </h4>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {/* Role */}
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Role <span className="text-rose-500">*</span>
+                    </Label>
+                    <Select
+                      value={editingEmp.roleId || editingEmp.roleName}
+                      onValueChange={(val) => {
+                        if (val === "__CREATE_NEW_ROLE__") {
+                          setIsCreateRoleOpen(true)
+                          return
+                        }
+                        const found = rolesList.find(
+                          (r) => r.id === val || r.name === val
+                        )
+                        if (found) {
+                          setEditingEmp({
+                            ...editingEmp,
+                            roleId: found.id,
+                            roleName: found.name,
+                            designation: found.name,
+                          })
+                        } else {
+                          setEditingEmp({
+                            ...editingEmp,
+                            roleId: "",
+                            roleName: val,
+                            designation: val,
+                          })
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 bg-white text-xs">
+                        <SelectValue placeholder="Select Role" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[240px] text-xs">
+                        {rolesList.map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem
+                          key="__create_new_role_edit__"
+                          value="__CREATE_NEW_ROLE__"
+                          className="mt-1 border-t border-slate-100 pt-1 font-semibold text-blue-600 cursor-pointer"
+                        >
+                          + Create New Role (Super Admin)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Department */}
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Department
+                    </Label>
+                    <Select
+                      value={editingEmp.department}
+                      onValueChange={(val) =>
+                        handleEditFormChange("department", val)
+                      }
+                    >
+                      <SelectTrigger className="h-8 bg-white text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="text-xs">
+                        {departments.map((dept) => (
+                          <SelectItem key={dept} value={dept}>
+                            {dept}
+                          </SelectItem>
+                        ))}
+                        <SelectItem
+                          key="__add_new_department_edit__"
+                          value="__ADD_NEW_DEPARTMENT__"
+                          className="mt-1 border-t border-slate-100 pt-1 font-semibold text-blue-600"
+                        >
+                          + Add more (Super Admin access)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Employment Status */}
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Employment Status
+                    </Label>
+                    <Select
+                      value={editingEmp.employmentStatus}
+                      onValueChange={(val) =>
+                        setEditingEmp({
+                          ...editingEmp,
+                          employmentStatus: val as Employee["employmentStatus"],
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-8 bg-white text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="text-xs">
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Probationary">
+                          Probationary
+                        </SelectItem>
+                        <SelectItem value="On Leave">On Leave</SelectItem>
+                        <SelectItem value="Suspended">Suspended</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Salary */}
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Salary (৳) <span className="text-rose-500">*</span>
+                    </Label>
+                    <Input
+                      type="number"
+                      value={editingEmp.salary}
+                      onChange={(e) =>
+                        setEditingEmp({
+                          ...editingEmp,
+                          salary: Number(e.target.value),
+                        })
+                      }
+                      required
+                      className="h-8 font-mono text-xs"
+                    />
+                  </div>
+
+                  {/* Supervisor */}
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Supervisor <span className="text-rose-500">*</span>
+                    </Label>
+                    <Input
+                      value={editingEmp.supervisor}
+                      onChange={(e) =>
+                        setEditingEmp({
+                          ...editingEmp,
+                          supervisor: e.target.value,
+                        })
+                      }
+                      required
+                      className="h-8 text-xs"
+                    />
+                  </div>
+
+                  {/* PASHA PASHI: Start Date & Work Schedule TOGETHER */}
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Start Date <span className="text-rose-500">*</span>
+                    </Label>
+                    <GlobalCalendar
+                      value={editingEmp.startDate}
+                      onValueChange={(val) =>
+                        setEditingEmp({
+                          ...editingEmp,
+                          startDate: val,
+                        })
+                      }
+                      size="sm"
+                      placeholder="Select start date"
+                      showPresets
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Work Schedule <span className="text-rose-500">*</span>
+                    </Label>
+                    <Input
+                      placeholder="Sat - Thu (8:30 AM - 5:30 PM)"
+                      value={editingEmp.workSchedule}
+                      onChange={(e) =>
+                        setEditingEmp({
+                          ...editingEmp,
+                          workSchedule: e.target.value,
+                        })
+                      }
+                      required
+                      className="h-8 text-xs"
+                    />
+                    <div className="flex flex-wrap gap-1 pt-0.5">
+                      {WORK_SCHEDULE_PRESETS.map((sched) => (
+                        <button
+                          key={sched}
+                          type="button"
+                          onClick={() =>
+                            setEditingEmp({
+                              ...editingEmp,
+                              workSchedule: sched,
+                            })
+                          }
+                          className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                        >
+                          {sched.split(" (")[0]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Supervisor
-                  </Label>
-                  <Input
-                    value={editingEmp.supervisor}
-                    onChange={(e) =>
-                      setEditingEmp({
-                        ...editingEmp,
-                        supervisor: e.target.value,
-                      })
-                    }
-                    required
-                    className="h-8 text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Work Schedule
-                  </Label>
-                  <Input
-                    value={editingEmp.workSchedule}
-                    onChange={(e) =>
-                      setEditingEmp({
-                        ...editingEmp,
-                        workSchedule: e.target.value,
-                      })
-                    }
-                    required
-                    className="h-8 text-xs"
-                  />
+              {/* 3. Emergency Contact Details */}
+              <div className="border-t border-slate-100 pt-3">
+                <h4 className="mb-2 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+                  3. Emergency Contact Details
+                </h4>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Name
+                    </Label>
+                    <Input
+                      placeholder="Md. Mokbul Hossain"
+                      value={editingEmp.emergencyName}
+                      onChange={(e) =>
+                        setEditingEmp({
+                          ...editingEmp,
+                          emergencyName: e.target.value,
+                        })
+                      }
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Relationship
+                    </Label>
+                    <Input
+                      placeholder="Father / Spouse"
+                      value={editingEmp.emergencyRelationship}
+                      onChange={(e) =>
+                        setEditingEmp({
+                          ...editingEmp,
+                          emergencyRelationship: e.target.value,
+                        })
+                      }
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Phone Number
+                    </Label>
+                    <Input
+                      placeholder="+880 1711223344"
+                      value={editingEmp.emergencyPhone}
+                      onChange={(e) =>
+                        setEditingEmp({
+                          ...editingEmp,
+                          emergencyPhone: e.target.value,
+                        })
+                      }
+                      className="h-8 font-mono text-xs"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1959,7 +2099,7 @@ export default function StaffDirectoryPage() {
                 </Button>
                 <Button
                   type="submit"
-                  className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
+                  className="h-8 bg-[#0090FF] text-xs font-semibold text-white hover:bg-[#0080e5]"
                 >
                   Update Personnel Record
                 </Button>

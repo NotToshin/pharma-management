@@ -30,3 +30,8 @@ export const deleteDoctor = catchAsync(async (req: Request, res: Response) => {
   await doctorService.deleteDoctor(id);
   sendResponse(res, 200, "Doctor deleted successfully");
 });
+
+export const bulkImportDoctors = catchAsync(async (req: Request, res: Response) => {
+  const result = await doctorService.bulkImportDoctors(req.body);
+  sendResponse(res, 201, "Doctors imported successfully", result);
+});

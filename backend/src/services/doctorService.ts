@@ -90,4 +90,97 @@ export const doctorService = {
     await this.getDoctorById(id);
     return prisma.doctor.delete({ where: { id } });
   },
+
+  async bulkImportDoctors(data: {
+    doctors: Array<{
+      doctorName: string;
+      phone?: string;
+      bmdcRegNumber: string;
+      specialtyAndInstitute?: string;
+      chamber?: string;
+      territoryAndMio?: string;
+      email?: string;
+      tier?: string;
+      patientVolumeDaily?: number;
+    }>;
+    updateExisting?: boolean;
+  }) {
+    if (!Array.isArray(data.doctors) || data.doctors.length === 0) {
+      throw new AppError("No doctors provided for import", 400);
+    }
+
+    let createdCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    const skippedBmdc: string[] = [];
+    const errors: string[] = [];
+
+    for (const item of data.doctors) {
+      const bmdc = item.bmdcRegNumber?.trim();
+      if (!bmdc) {
+        skippedCount++;
+        errors.push(`Doctor '${item.doctorName || "Unknown"}' is missing BMDC registration number.`);
+        continue;
+      }
+
+      const doctorName = item.doctorName?.trim() || "Dr. Medical Practitioner";
+      const phone = item.phone?.trim() || "+880 1700-000000";
+      const specialtyAndInstitute = item.specialtyAndInstitute?.trim() || "General Medicine";
+      const chamber = item.chamber?.trim() || "Central Chamber";
+      const territoryAndMio = item.territoryAndMio?.trim() || "Dhaka / Unassigned";
+      const email = item.email?.trim() || "doctor@akpharma.com";
+      const tier = item.tier?.trim() || "Tier 1 (High Prescriber)";
+      const patientVolumeDaily = Number(item.patientVolumeDaily) || 20;
+
+      const existing = await prisma.doctor.findUnique({
+        where: { bmdcRegNumber: bmdc },
+      });
+
+      if (existing) {
+        if (data.updateExisting) {
+          await prisma.doctor.update({
+            where: { id: existing.id },
+            data: {
+              doctorName,
+              phone,
+              specialtyAndInstitute,
+              chamber,
+              territoryAndMio,
+              email,
+              tier,
+              patientVolumeDaily,
+            },
+          });
+          updatedCount++;
+        } else {
+          skippedCount++;
+          skippedBmdc.push(bmdc);
+        }
+      } else {
+        await prisma.doctor.create({
+          data: {
+            doctorName,
+            phone,
+            bmdcRegNumber: bmdc,
+            specialtyAndInstitute,
+            chamber,
+            territoryAndMio,
+            email,
+            tier,
+            patientVolumeDaily,
+          },
+        });
+        createdCount++;
+      }
+    }
+
+    return {
+      totalProcessed: data.doctors.length,
+      createdCount,
+      updatedCount,
+      skippedCount,
+      skippedBmdc,
+      errors,
+    };
+  },
 };

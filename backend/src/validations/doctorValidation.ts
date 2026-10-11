@@ -35,3 +35,26 @@ export const doctorIdParamSchema = z.object({
 export type DoctorInput = z.infer<typeof doctorFormSchema>;
 export type CreateDoctorInput = z.infer<typeof createDoctorSchema>["body"];
 export type UpdateDoctorInput = z.infer<typeof updateDoctorSchema>["body"];
+
+export const bulkImportDoctorSchema = z.object({
+  body: z.object({
+    doctors: z
+      .array(
+        z.object({
+          doctorName: z.string().min(1, "Doctor name is required"),
+          bmdcRegNumber: z.string().min(1, "BMDC registration number is required"),
+          phone: z.string().optional().default("+880 1700-000000"),
+          specialtyAndInstitute: z.string().optional().default("General Medicine"),
+          chamber: z.string().optional().default("Central Chamber"),
+          territoryAndMio: z.string().optional().default("Dhaka / Unassigned"),
+          email: z.string().optional().default("doctor@akpharma.com"),
+          tier: z.string().optional().default("Tier 1 (High Prescriber)"),
+          patientVolumeDaily: z.coerce.number().optional().default(20),
+        })
+      )
+      .min(1, "At least one doctor is required"),
+    updateExisting: z.boolean().optional().default(false),
+  }),
+});
+
+export type BulkImportDoctorInput = z.infer<typeof bulkImportDoctorSchema>["body"];
