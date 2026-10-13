@@ -17,8 +17,8 @@ function LoginForm() {
   const fromUrl = searchParams.get("from")
   const isExpired = searchParams.get("expired") === "1"
 
-  const [email, setEmail] = React.useState("")
-  const [password, setPassword] = React.useState("")
+  const [email, setEmail] = React.useState("superadmin@pharma.com")
+  const [password, setPassword] = React.useState("admin123456")
   const [loading, setLoading] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
   const [successMessage, setSuccessMessage] = React.useState<string | null>(

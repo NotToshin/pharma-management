@@ -10,72 +10,25 @@ export const getSalariesByMonth = catchAsync(async (req: Request, res: Response)
 });
 
 export const upsertSalary = catchAsync(async (req: Request, res: Response) => {
-  const {
-    empId,
-    payPeriod,
-    baseSalary,
-    basicSalary,
-    houseRent,
-    medicalAllowance,
-    conveyanceTaDa,
-    salesIncentive,
-    specialBonus,
-    providentFund,
-    taxDeduction,
-    otherDeductions,
-    leaveDays,
-  } = req.body;
-
-  const salaryRecord = await salaryService.upsertSalary({
-    empId,
-    payPeriod,
-    baseSalary,
-    basicSalary,
-    houseRent,
-    medicalAllowance,
-    conveyanceTaDa,
-    salesIncentive,
-    specialBonus,
-    providentFund,
-    taxDeduction,
-    otherDeductions,
-    leaveDays,
-  });
-
+  const salaryRecord = await salaryService.upsertSalary(req.body);
   sendResponse(res, 201, "Salary record saved successfully", salaryRecord);
 });
 
 export const updateSalary = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const {
-    baseSalary,
-    basicSalary,
-    houseRent,
-    medicalAllowance,
-    conveyanceTaDa,
-    salesIncentive,
-    specialBonus,
-    providentFund,
-    taxDeduction,
-    otherDeductions,
-    leaveDays,
-  } = req.body;
-
-  const updated = await salaryService.updateSalary(id, {
-    baseSalary,
-    basicSalary,
-    houseRent,
-    medicalAllowance,
-    conveyanceTaDa,
-    salesIncentive,
-    specialBonus,
-    providentFund,
-    taxDeduction,
-    otherDeductions,
-    leaveDays,
-  });
-
+  const updated = await salaryService.updateSalary(id, req.body);
   sendResponse(res, 200, "Salary updated successfully", updated);
+});
+
+export const generatePayrollForMonth = catchAsync(async (req: Request, res: Response) => {
+  const { payPeriod } = req.body;
+  const createdRecords = await salaryService.generatePayrollForMonth(payPeriod);
+  sendResponse(
+    res,
+    201,
+    `Payroll generated for ${createdRecords.length} staff member(s) for ${payPeriod}`,
+    createdRecords
+  );
 });
 
 export const deleteSalary = catchAsync(async (req: Request, res: Response) => {

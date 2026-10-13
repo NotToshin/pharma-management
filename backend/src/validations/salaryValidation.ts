@@ -17,6 +17,8 @@ export const upsertSalarySchema = z.object({
     taxDeduction: z.coerce.number().min(0).optional().default(0),
     otherDeductions: z.coerce.number().min(0).optional().default(0),
     leaveDays: z.coerce.number().int().min(0).optional().default(0),
+    paymentStatus: paymentStatusEnum.optional(),
+    status: z.string().optional(),
   }),
 });
 
@@ -33,9 +35,17 @@ export const updateSalarySchema = z.object({
     taxDeduction: z.coerce.number().min(0).optional(),
     otherDeductions: z.coerce.number().min(0).optional(),
     leaveDays: z.coerce.number().int().min(0).optional(),
+    paymentStatus: paymentStatusEnum.optional(),
+    status: z.string().optional(),
   }),
   params: z.object({
     id: z.string().min(1, "Salary ID is required"),
+  }),
+});
+
+export const generatePayrollSchema = z.object({
+  body: z.object({
+    payPeriod: z.string().min(1, "Pay period is required"),
   }),
 });
 

@@ -28,6 +28,7 @@ import {
   ShieldCheck,
 } from "lucide-react"
 import { logout, getStoredUser } from "@/lib/auth"
+import { getEndpoint } from "@/lib/api"
 
 import {
   Sidebar,
@@ -255,6 +256,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     name: string
     email: string
   } | null>(null)
+  const [totalClientsCount, setTotalClientsCount] = React.useState<number | string>(12)
+
+  const fetchClientCount = React.useCallback(async () => {
+    try {
+      const res = await fetch(getEndpoint("/clients?limit=1")).catch(() => null)
+      if (res && res.ok) {
+        const json = await res.json()
+        if (json.meta && typeof json.meta.total === "number") {
+          setTotalClientsCount(json.meta.total)
+        } else if (Array.isArray(json.data)) {
+          setTotalClientsCount(json.data.length)
+        }
+      }
+    } catch {
+      // keep fallback
+    }
+  }, [])
 
   React.useEffect(() => {
     const user = getStoredUser()
@@ -264,7 +282,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         email: user.email || "admin@akpharma.com",
       })
     }
-  }, [])
+
+    fetchClientCount()
+
+    const handleUpdate = () => fetchClientCount()
+    if (typeof window !== "undefined") {
+      window.addEventListener("clients-updated", handleUpdate)
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("clients-updated", handleUpdate)
+      }
+    }
+  }, [fetchClientCount])
 
   return (
     <Sidebar
@@ -399,11 +429,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             {item.title}
                           </span>
                         </div>
-                        {(item as any).badge && (
+                        {item.title === "Pharmacy Clients" ? (
+                          <span className="pr-1 text-xs font-medium text-blue-500/90 group-data-[collapsible=icon]:hidden">
+                            {totalClientsCount}
+                          </span>
+                        ) : (item as any).badge ? (
                           <span className="pr-1 text-xs font-medium text-slate-400 group-data-[collapsible=icon]:hidden">
                             {(item as any).badge}
                           </span>
-                        )}
+                        ) : null}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

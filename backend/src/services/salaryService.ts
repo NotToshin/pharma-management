@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, PaymentStatus } from "@prisma/client";
 import { AppError } from "../errors";
 
 const prisma = new PrismaClient();
@@ -17,6 +17,8 @@ interface SalaryInput {
   taxDeduction?: number;
   otherDeductions?: number;
   leaveDays?: number;
+  paymentStatus?: PaymentStatus;
+  status?: string;
 }
 
 interface SalaryUpdateInput {
@@ -31,9 +33,20 @@ interface SalaryUpdateInput {
   taxDeduction?: number;
   otherDeductions?: number;
   leaveDays?: number;
+  paymentStatus?: PaymentStatus;
+  status?: string;
 }
 
-const calculateNetPay = (data: SalaryInput) => {
+const resolvePaymentStatus = (statusStr?: string): PaymentStatus | undefined => {
+  if (!statusStr) return undefined;
+  const s = statusStr.trim().toUpperCase();
+  if (s === "PAID" || s === "DISBURSED") return PaymentStatus.PAID;
+  if (s === "PROCESSING") return PaymentStatus.PROCESSING;
+  if (s === "PENDING" || s === "DRAFT") return PaymentStatus.PENDING;
+  return undefined;
+};
+
+const calculateNetPay = (data: Partial<SalaryInput>) => {
   const numericBase = Number(data.baseSalary ?? data.basicSalary) || 0;
   const numericRent = Number(data.houseRent) || 0;
   const numericMed = Number(data.medicalAllowance) || 0;
@@ -81,6 +94,7 @@ export const salaryService = {
 
     const calculated = calculateNetPay(data);
     const payPeriod = data.payPeriod || "September 2026";
+    const statusEnum = resolvePaymentStatus(data.paymentStatus || data.status) || PaymentStatus.PENDING;
 
     return prisma.salary.upsert({
       where: {
@@ -91,12 +105,14 @@ export const salaryService = {
       },
       update: {
         ...calculated,
+        ...(data.paymentStatus || data.status ? { paymentStatus: statusEnum } : {}),
         effectiveDate: new Date(),
       },
       create: {
         staffId: staffMember.id,
         payPeriod,
         ...calculated,
+        paymentStatus: statusEnum,
         effectiveDate: new Date(),
       },
       include: { staff: { include: { role: true } } },
@@ -109,15 +125,97 @@ export const salaryService = {
       throw new AppError("Salary record not found", 404);
     }
 
-    const calculated = calculateNetPay(data as SalaryInput);
+    // Safely merge only provided fields to prevent overwriting with 0
+    const mergedData: Partial<SalaryInput> = {
+      baseSalary: data.baseSalary !== undefined ? data.baseSalary : (data.basicSalary !== undefined ? data.basicSalary : existing.baseSalary),
+      houseRent: data.houseRent !== undefined ? data.houseRent : existing.houseRent,
+      medicalAllowance: data.medicalAllowance !== undefined ? data.medicalAllowance : existing.medicalAllowance,
+      conveyanceTaDa: data.conveyanceTaDa !== undefined ? data.conveyanceTaDa : existing.conveyanceTaDa,
+      salesIncentive: data.salesIncentive !== undefined ? data.salesIncentive : existing.salesIncentive,
+      specialBonus: data.specialBonus !== undefined ? data.specialBonus : existing.specialBonus,
+      providentFund: data.providentFund !== undefined ? data.providentFund : existing.providentFund,
+      taxDeduction: data.taxDeduction !== undefined ? data.taxDeduction : existing.taxDeduction,
+      otherDeductions: data.otherDeductions !== undefined ? data.otherDeductions : existing.otherDeductions,
+      leaveDays: data.leaveDays !== undefined ? data.leaveDays : existing.leaveDays,
+    };
+
+    const calculated = calculateNetPay(mergedData);
+    const statusEnum = resolvePaymentStatus(data.paymentStatus || data.status);
 
     return prisma.salary.update({
       where: { id },
       data: {
         ...calculated,
+        ...(statusEnum ? { paymentStatus: statusEnum } : {}),
       },
       include: { staff: { include: { role: true } } },
     });
+  },
+
+  async generatePayrollForMonth(payPeriod: string) {
+    const allStaff = await prisma.staff.findMany({
+      where: { status: "ACTIVE" },
+      include: {
+        salaries: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+        role: true,
+      },
+    });
+
+    const createdRecords = [];
+
+    for (const staff of allStaff) {
+      const existing = await prisma.salary.findUnique({
+        where: {
+          staffId_payPeriod: {
+            staffId: staff.id,
+            payPeriod,
+          },
+        },
+      });
+
+      if (!existing) {
+        const lastSalary = staff.salaries[0];
+        const baseSalary = lastSalary ? lastSalary.baseSalary : 25000;
+        const houseRent = lastSalary ? lastSalary.houseRent : baseSalary * 0.5;
+        const medicalAllowance = lastSalary ? lastSalary.medicalAllowance : 3500;
+        const conveyanceTaDa = lastSalary ? lastSalary.conveyanceTaDa : 15000;
+        const providentFund = lastSalary ? lastSalary.providentFund : baseSalary * 0.1;
+        const taxDeduction = lastSalary ? lastSalary.taxDeduction : 1000;
+
+        const calculated = calculateNetPay({
+          empId: staff.empId,
+          payPeriod,
+          baseSalary,
+          houseRent,
+          medicalAllowance,
+          conveyanceTaDa,
+          salesIncentive: 0,
+          specialBonus: 0,
+          providentFund,
+          taxDeduction,
+          otherDeductions: 0,
+          leaveDays: 0,
+        });
+
+        const newSalary = await prisma.salary.create({
+          data: {
+            staffId: staff.id,
+            payPeriod,
+            ...calculated,
+            paymentStatus: PaymentStatus.PENDING,
+            effectiveDate: new Date(),
+          },
+          include: { staff: { include: { role: true } } },
+        });
+
+        createdRecords.push(newSalary);
+      }
+    }
+
+    return createdRecords;
   },
 
   async deleteSalary(id: string) {

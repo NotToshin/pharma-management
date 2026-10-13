@@ -1,11 +1,136 @@
+import { Prisma, Doctor } from "@prisma/client";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
+import {
+  paginationHelper,
+  IPaginationOptions,
+  IPaginatedResult,
+} from "../utils/paginationHelper";
+
+export interface IDoctorFilterOptions {
+  searchTerm?: string;
+  doctorName?: string;
+  phone?: string;
+  bmdcRegNumber?: string;
+  specialtyAndInstitute?: string;
+  chamber?: string;
+  territoryAndMio?: string;
+  email?: string;
+  tier?: string;
+  [key: string]: any;
+}
+
+export const doctorSearchableFields = [
+  "doctorName",
+  "phone",
+  "bmdcRegNumber",
+  "specialtyAndInstitute",
+  "chamber",
+  "territoryAndMio",
+  "email",
+  "tier",
+] as const;
+
+export const doctorFilterableFields = [
+  "searchTerm",
+  "doctorName",
+  "phone",
+  "bmdcRegNumber",
+  "specialtyAndInstitute",
+  "chamber",
+  "territoryAndMio",
+  "email",
+  "tier",
+] as const;
 
 export const doctorService = {
-  async getAllDoctors() {
-    return prisma.doctor.findMany({
-      orderBy: { createdAt: "desc" },
-    });
+  async getAllDoctors(
+    filters?: IDoctorFilterOptions,
+    paginationOptions?: IPaginationOptions
+  ): Promise<IPaginatedResult<Doctor[]>> {
+    // Support calling getAllDoctors(paginationOptions) with a single argument
+    if (
+      !paginationOptions &&
+      filters &&
+      ("page" in filters ||
+        "limit" in filters ||
+        "sortBy" in filters ||
+        "sortOrder" in filters)
+    ) {
+      paginationOptions = filters as IPaginationOptions;
+      filters = {};
+    }
+
+    const { page, limit, skip, sortBy, sortOrder } =
+      paginationHelper.calculatePagination(paginationOptions, {
+        sortBy: "createdAt",
+        sortOrder: "desc",
+      });
+
+    const { searchTerm, ...filterData } = filters || {};
+    const andConditions: Prisma.DoctorWhereInput[] = [];
+
+    // Search across searchable fields
+    if (searchTerm) {
+      andConditions.push({
+        OR: doctorSearchableFields.map((field) => ({
+          [field]: {
+            contains: searchTerm,
+            mode: "insensitive",
+          },
+        })),
+      });
+    }
+
+    // Specific field filters
+    if (Object.keys(filterData).length > 0) {
+      andConditions.push({
+        AND: Object.entries(filterData).map(([field, value]) => ({
+          [field]: {
+            contains: String(value),
+            mode: "insensitive",
+          },
+        })),
+      });
+    }
+
+    const whereConditions: Prisma.DoctorWhereInput =
+      andConditions.length > 0 ? { AND: andConditions } : {};
+
+    // Validate safe sort field against Doctor model properties
+    const allowedSortFields = [
+      "createdAt",
+      "updatedAt",
+      "doctorName",
+      "bmdcRegNumber",
+      "tier",
+      "patientVolumeDaily",
+    ];
+    const safeSortBy = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : "createdAt";
+
+    const findArgs: Prisma.DoctorFindManyArgs = {
+      where: whereConditions,
+      orderBy: { [safeSortBy]: sortOrder },
+    };
+
+    if (limit > 0) {
+      findArgs.skip = skip;
+      findArgs.take = limit;
+    }
+
+    const [doctors, total] = await Promise.all([
+      prisma.doctor.findMany(findArgs),
+      prisma.doctor.count({ where: whereConditions }),
+    ]);
+
+    const meta = paginationHelper.createPaginationMeta(total, { page, limit });
+
+    return {
+      meta,
+      data: doctors,
+    };
   },
 
   async getDoctorById(id: string) {
