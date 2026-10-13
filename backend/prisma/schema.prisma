@@ -120,6 +120,7 @@ model Staff {
   roleId   String? @db.ObjectId
   role     Role?   @relation(fields: [roleId], references: [id])
   salaries Salary[]
+  zoneAllocations MioZoneAllocation[]
 }
 
 model Salary {
@@ -329,3 +330,24 @@ model SystemUser {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 }
+
+// ─────────────────────────────────────────────
+// Field Force: MIO Zone Allocations
+// ─────────────────────────────────────────────
+
+model MioZoneAllocation {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  staffId       String?  @db.ObjectId
+  staff         Staff?   @relation(fields: [staffId], references: [id])
+  mioName       String
+  employeeId    String
+  phone         String
+  division      String
+  territory     String
+  allocatedZone String
+  effectiveDate String
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+

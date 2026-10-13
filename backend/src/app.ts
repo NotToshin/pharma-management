@@ -70,7 +70,10 @@ import doctorVisitLogRoutes from "./routes/doctorVisitLogRoutes";
 
 import roleRoutes from "./routes/roleRoutes";
 
+import zoneAllocationRoutes from "./routes/zoneAllocationRoutes";
+
 // Core Modules
+app.use("/api/zone-allocations", zoneAllocationRoutes);
 app.use("/api/clients", clientRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/treasury", treasuryRoutes);
