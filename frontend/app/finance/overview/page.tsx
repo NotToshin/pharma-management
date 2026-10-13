@@ -152,12 +152,17 @@ export default function FinanceOverviewPage() {
         })),
       ])
 
-      const rawOrders: any[] = ordRes.ok ? await ordRes.json() : []
-      const standardExpenses: any[] = expRes.ok ? await expRes.json() : []
-      const voucherExpenses: any[] = voucherRes.ok
-        ? await voucherRes.json()
-        : []
-      const inventoryBatches: any[] = batchRes.ok ? await batchRes.json() : []
+      const ordJson = ordRes.ok ? await ordRes.json() : []
+      const rawOrders: any[] = Array.isArray(ordJson) ? ordJson : ordJson?.data || []
+
+      const expJson = expRes.ok ? await expRes.json() : []
+      const standardExpenses: any[] = Array.isArray(expJson) ? expJson : expJson?.data || []
+
+      const voucherJson = voucherRes.ok ? await voucherRes.json() : []
+      const voucherExpenses: any[] = Array.isArray(voucherJson) ? voucherJson : voucherJson?.data || []
+
+      const batchJson = batchRes.ok ? await batchRes.json() : []
+      const inventoryBatches: any[] = Array.isArray(batchJson) ? batchJson : batchJson?.data || []
 
       const allExpenses: any[] = [
         ...(Array.isArray(standardExpenses) ? standardExpenses : []),

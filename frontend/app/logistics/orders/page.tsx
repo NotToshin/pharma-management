@@ -247,11 +247,12 @@ function LogisticsOrdersContent() {
       // Dynamic Product Catalog mapped from live inventory batches
       if (invRes.ok) {
         const batchData = await invRes.json()
-        if (Array.isArray(batchData) && batchData.length > 0) {
+        const rawBatches = Array.isArray(batchData) ? batchData : batchData?.data || []
+        if (Array.isArray(rawBatches) && rawBatches.length > 0) {
           // Group by medicine brand name and sum total available units
           const groupedMap = new Map<string, StockProduct>()
 
-          batchData.forEach((b: any) => {
+          rawBatches.forEach((b: any) => {
             const name = (b.brandName || b.name || "Medicine").trim()
             const units = Number(b.availableUnits ?? b.stockQty ?? 0)
             const price = Number(b.unitPrice ?? 0)
@@ -279,8 +280,9 @@ function LogisticsOrdersContent() {
 
       if (ordRes.ok) {
         const ordData = await ordRes.json()
+        const rawOrders = Array.isArray(ordData) ? ordData : ordData?.data || []
         setOrders(
-          ordData.map((item: any, idx: number) => {
+          rawOrders.map((item: any, idx: number) => {
             let parsedItems: InvoiceItem[] = []
             if (
               Array.isArray(item.itemsDetail) &&
@@ -355,12 +357,14 @@ function LogisticsOrdersContent() {
 
       if (clientRes.ok) {
         const clientData = await clientRes.json()
-        setClientList(clientData)
+        const rawClients = Array.isArray(clientData) ? clientData : clientData?.data || []
+        setClientList(rawClients)
       }
 
       if (staffRes.ok) {
         const staffData = await staffRes.json()
-        setStaffList(staffData)
+        const rawStaff = Array.isArray(staffData) ? staffData : staffData?.data || []
+        setStaffList(rawStaff)
       }
 
       setLoading(false)
