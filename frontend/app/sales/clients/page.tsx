@@ -1,13 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { API_URL } from "@/lib/api"
+import { getEndpoint } from "@/lib/api"
 import * as XLSX from "xlsx"
-import { toast } from "sonner"
-import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,6 +26,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -43,6 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Switch } from "@/components/ui/switch"
 import {
   Store,
   Plus,
@@ -60,7 +66,37 @@ import {
   Receipt,
   Clock,
   MoreHorizontal,
+  Building2,
+  CheckCircle2,
+  AlertCircle,
+  ArrowUpDown,
+  Loader2,
+  ShieldCheck,
+  FileSpreadsheet,
+  Sparkles,
+  RefreshCw,
+  BadgePercent,
+  ExternalLink,
+  UserPlus,
+  Shield,
+  FileCheck2,
+  Users,
 } from "lucide-react"
+
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+
+import { clientFormSchema } from "@/lib/validations/clientValidation"
+import { toast } from "sonner"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { getStoredUser } from "@/lib/auth"
 
 export interface ClientProfile {
   id: string
@@ -76,19 +112,119 @@ export interface ClientProfile {
   creditLimitBDT: number
   outstandingBalanceBDT: number
   creditTermDays: number
-  status: "Active / Healthy" | "Credit Hold" | "Watchlist"
+  status: "Active / Healthy" | "Credit Hold" | "Watchlist" | "Cash Only"
   lastBilledDate: string
+}
+
+interface ParsedClientRow {
+  clientCode?: string
+  pharmacyName: string
+  proprietor: string
+  phone: string
+  drugLicenseNo: string
+  tradeLicenseNo: string
+  address: string
+  territory: string
+  assignedMio: string
+  creditLimitBDT: number
+  outstandingBalanceBDT: number
+  creditTermDays: number
+  status: string
+  isValid: boolean
+  errorReason?: string
+}
+
+interface StaffMember {
+  id: string
+  name: string
+  territory?: string
+}
+
+function parseClientRow(row: any): ParsedClientRow {
+  const getCol = (...aliases: string[]) => {
+    for (const alias of aliases) {
+      const lower = alias.toLowerCase().replace(/[^a-z0-9]/g, "")
+      for (const [key, val] of Object.entries(row)) {
+        const keyLower = key.toLowerCase().replace(/[^a-z0-9]/g, "")
+        if (keyLower === lower && val !== undefined && val !== null && String(val).trim() !== "") {
+          return String(val).trim()
+        }
+      }
+    }
+    return ""
+  }
+
+  const pharmacyName = getCol("Pharmacy Name", "Chemist Name", "Store Name", "Pharmacy", "Name")
+  const clientCode = getCol("Client Code", "Code", "ID")
+  const proprietor = getCol("Proprietor", "Owner", "Pharmacist", "Contact Person") || "N/A"
+  const phone = getCol("Phone", "Mobile", "Contact", "Contact Number", "Direct Phone") || "+880 1700-000000"
+  const drugLicenseNo = getCol("Drug License #", "Drug License", "DGDA License", "License No", "License") || "N/A"
+  const tradeLicenseNo = getCol("Trade License #", "Trade License", "Trade Lic") || "N/A"
+  const address = getCol("Address", "Location", "Market Address", "Chamber Address") || "N/A"
+  const territory = getCol("Territory", "Area", "Zone", "Region") || "Dhaka North"
+  const assignedMio = getCol("Assigned MIO", "MIO", "Representative", "Field Officer") || "Unassigned"
+  const rawCredit = getCol("Credit Limit (BDT)", "Credit Limit", "Limit", "Credit")
+  const creditLimitBDT = parseFloat(rawCredit) || 150000
+  const rawBalance = getCol("Outstanding Balance (BDT)", "Outstanding Balance", "Balance", "Due")
+  const outstandingBalanceBDT = parseFloat(rawBalance) || 0
+  const rawTerms = getCol("Credit Terms (Days)", "Credit Terms", "Terms (Days)", "Terms")
+  const creditTermDays = parseInt(rawTerms, 10) || 30
+  const status = getCol("Account Status", "Status") || "Active / Healthy"
+
+  let isValid = true
+  let errorReason = ""
+
+  if (!pharmacyName) {
+    isValid = false
+    errorReason = "Missing Pharmacy Name"
+  } else if (!phone || phone === "+880 ") {
+    isValid = false
+    errorReason = "Missing Phone Number"
+  }
+
+  return {
+    clientCode: clientCode || undefined,
+    pharmacyName: pharmacyName || "Unnamed Pharmacy",
+    proprietor,
+    phone,
+    drugLicenseNo,
+    tradeLicenseNo,
+    address,
+    territory,
+    assignedMio,
+    creditLimitBDT,
+    outstandingBalanceBDT,
+    creditTermDays,
+    status,
+    isValid,
+    errorReason,
+  }
 }
 
 export default function ClientsDirectoryPage() {
   const router = useRouter()
   const [clients, setClients] = React.useState<ClientProfile[]>([])
+  const [staffList, setStaffList] = React.useState<StaffMember[]>([])
   const [loading, setLoading] = React.useState(true)
+  const [isSearching, setIsSearching] = React.useState(false)
+
+  // Server-side Pagination, Sort & Filter State
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(10)
+  const [totalItems, setTotalItems] = React.useState(0)
+  const [totalPages, setTotalPages] = React.useState(1)
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [debouncedSearch, setDebouncedSearch] = React.useState("")
+  const [sortBy, setSortBy] = React.useState("createdAt")
+  const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("desc")
   const [territoryFilter, setTerritoryFilter] = React.useState("all")
   const [statusFilter, setStatusFilter] = React.useState("all")
 
-  // Create & Edit State
+  // Statement / Profile Sheet State
+  const [activeClient, setActiveClient] = React.useState<ClientProfile | null>(null)
+  const [isStatementOpen, setIsStatementOpen] = React.useState(false)
+
+  // Add & Edit Dialog State
   const [isFormOpen, setIsFormOpen] = React.useState(false)
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [formData, setFormData] = React.useState<Omit<ClientProfile, "id">>({
@@ -100,7 +236,7 @@ export default function ClientsDirectoryPage() {
     tradeLicenseNo: "",
     address: "",
     territory: "Dhaka North",
-    assignedMio: "",
+    assignedMio: "Unassigned",
     creditLimitBDT: 150000,
     outstandingBalanceBDT: 0,
     creditTermDays: 30,
@@ -111,56 +247,133 @@ export default function ClientsDirectoryPage() {
       year: "numeric",
     }),
   })
+  const [formErrors, setFormErrors] = React.useState<Record<string, string>>({})
+  const [isSaving, setIsSaving] = React.useState(false)
 
-  // Statement / Profile Modal State
-  const [activeClient, setActiveClient] = React.useState<ClientProfile | null>(
-    null
-  )
-  const [isStatementOpen, setIsStatementOpen] = React.useState(false)
-
-  // Global Delete Modal State
+  // Global Delete Confirmation Modal State
   const [clientToDelete, setClientToDelete] = React.useState<ClientProfile | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [isDeletingClient, setIsDeletingClient] = React.useState(false)
 
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null)
+  // Excel Bulk Import Modal State
+  const [isImportOpen, setIsImportOpen] = React.useState(false)
+  const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
+  const [parsedClients, setParsedClients] = React.useState<ParsedClientRow[]>([])
+  const [updateExisting, setUpdateExisting] = React.useState(true)
+  const [isImporting, setIsImporting] = React.useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  // Fetch Live Client Data from Backend API
-  const fetchClients = async () => {
+  // Debounce search query
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+      setCurrentPage(1)
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Fetch client directory and staff list from backend
+  const fetchData = React.useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/clients`)
-      if (!res.ok) throw new Error("Failed to fetch client directory")
-      const data = await res.json()
+      setIsSearching(true)
+      const params = new URLSearchParams()
+      params.set("page", String(currentPage))
+      params.set("limit", String(pageSize))
+      params.set("sortBy", sortBy)
+      params.set("sortOrder", sortOrder)
 
-      const formatted = data.map((item: any) => ({
-        id: item.id,
-        clientCode: item.clientCode || `AKP-CL-${item.id.slice(0, 4)}`,
-        pharmacyName: item.pharmacyName,
-        proprietor: item.proprietor || "N/A",
-        phone: item.phone || "+880 ",
-        drugLicenseNo: item.drugLicenseNo || "N/A",
-        tradeLicenseNo: item.tradeLicenseNo || "N/A",
-        address: item.address || "N/A",
-        territory: item.territory || "Dhaka North",
-        assignedMio: item.assignedMio || "Unassigned",
-        creditLimitBDT: Number(item.creditLimitBDT) || 150000,
-        outstandingBalanceBDT: Number(item.outstandingBalanceBDT) || 0,
-        creditTermDays: Number(item.creditTermDays) || 30,
-        status: item.status || "Active / Healthy",
-        lastBilledDate: item.lastBilledDate || "Recent",
-      }))
+      if (debouncedSearch.trim()) {
+        params.set("searchTerm", debouncedSearch.trim())
+      }
 
-      setClients(formatted)
-      setLoading(false)
+      if (territoryFilter !== "all") {
+        params.set("territory", territoryFilter)
+      }
+
+      if (statusFilter !== "all") {
+        params.set("status", statusFilter)
+      }
+
+      const [clientRes, staffRes] = await Promise.all([
+        fetch(getEndpoint(`/clients?${params.toString()}`)).catch(() => null),
+        staffList.length === 0 ? fetch(getEndpoint("/staff")).catch(() => null) : null,
+      ])
+
+      if (clientRes && clientRes.ok) {
+        const json = await clientRes.json()
+        const rawData = Array.isArray(json) ? json : json.data || []
+
+        if (json.meta) {
+          setTotalItems(json.meta.total ?? rawData.length)
+          setTotalPages(json.meta.totalPage ?? 1)
+        } else {
+          setTotalItems(rawData.length)
+          setTotalPages(1)
+        }
+
+        const formatted: ClientProfile[] = rawData.map((item: any) => ({
+          id: item.id,
+          clientCode: item.clientCode || `AKP-CL-${item.id?.slice(0, 4) || "0000"}`,
+          pharmacyName: item.pharmacyName,
+          proprietor: item.proprietor || "N/A",
+          phone: item.phone || "+880 ",
+          drugLicenseNo: item.drugLicenseNo || "N/A",
+          tradeLicenseNo: item.tradeLicenseNo || "N/A",
+          address: item.address || "N/A",
+          territory: item.territory || "Dhaka North",
+          assignedMio: item.assignedMio || "Unassigned",
+          creditLimitBDT: Number(item.creditLimitBDT) || 150000,
+          outstandingBalanceBDT: Number(item.outstandingBalanceBDT) || 0,
+          creditTermDays: Number(item.creditTermDays) || 30,
+          status: item.status || "Active / Healthy",
+          lastBilledDate: item.lastBilledDate || "Recent",
+        }))
+
+        setClients(formatted)
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("clients-updated"))
+        }
+      }
+
+      if (staffRes && staffRes.ok) {
+        const staffJson = await staffRes.json()
+        const rawStaff = Array.isArray(staffJson) ? staffJson : staffJson.data || []
+        setStaffList(
+          rawStaff.map((s: any) => ({
+            id: s.id,
+            name: s.fullName || s.name,
+            territory: s.territory,
+          }))
+        )
+      } else if (staffList.length === 0) {
+        setStaffList([
+          { id: "1", name: "Rafiqul Islam", territory: "Dhaka North" },
+          { id: "2", name: "Tanvir Ahmed", territory: "Chittagong Central" },
+          { id: "3", name: "Kamrul Hasan", territory: "Dhanmondi" },
+          { id: "4", name: "Enamul Haque", territory: "Gulshan" },
+          { id: "5", name: "Sabbir Hossain", territory: "Sylhet" },
+        ])
+      }
     } catch (err) {
-      console.error("Error loading clients from database:", err)
+      console.error("Error loading clients from backend:", err)
+    } finally {
       setLoading(false)
+      setIsSearching(false)
     }
-  }
+  }, [
+    currentPage,
+    pageSize,
+    sortBy,
+    sortOrder,
+    debouncedSearch,
+    territoryFilter,
+    statusFilter,
+    staffList.length,
+  ])
 
   React.useEffect(() => {
-    fetchClients()
-  }, [])
+    fetchData()
+  }, [fetchData])
 
   // Direct connection to /logistics/orders
   const handleRedirectToOrder = (client: ClientProfile) => {
@@ -190,7 +403,7 @@ export default function ClientsDirectoryPage() {
       tradeLicenseNo: "",
       address: "",
       territory: "Dhaka North",
-      assignedMio: "",
+      assignedMio: "Unassigned",
       creditLimitBDT: 150000,
       outstandingBalanceBDT: 0,
       creditTermDays: 30,
@@ -201,6 +414,7 @@ export default function ClientsDirectoryPage() {
         year: "numeric",
       }),
     })
+    setFormErrors({})
     setIsFormOpen(true)
   }
 
@@ -222,22 +436,41 @@ export default function ClientsDirectoryPage() {
       status: client.status,
       lastBilledDate: client.lastBilledDate,
     })
+    setFormErrors({})
     setIsFormOpen(true)
   }
 
   const handleSaveForm = async (e: React.FormEvent) => {
     e.preventDefault()
-    const toastId = toast.loading(editingId ? "Updating pharmacy client record..." : "Enrolling new chemist client...")
+    setFormErrors({})
+
+    const validationResult = clientFormSchema.safeParse(formData)
+    if (!validationResult.success) {
+      const errorsMap: Record<string, string> = {}
+      validationResult.error.issues.forEach((issue) => {
+        const pathKey = issue.path[0]?.toString() || "form"
+        errorsMap[pathKey] = issue.message
+      })
+      setFormErrors(errorsMap)
+      toast.error("Form validation failed. Please check the highlighted fields.")
+      return
+    }
+
+    setIsSaving(true)
+    const toastId = toast.loading(
+      editingId ? "Updating pharmacy client record..." : "Enrolling new chemist client..."
+    )
+
     try {
       const endpoint = editingId
-        ? `${API_URL}/clients/${editingId}`
-        : `${API_URL}/clients`
+        ? getEndpoint(`/clients/${editingId}`)
+        : getEndpoint("/clients")
       const method = editingId ? "PUT" : "POST"
 
       const res = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(validationResult.data),
       })
 
       if (!res.ok) {
@@ -245,12 +478,19 @@ export default function ClientsDirectoryPage() {
         throw new Error(errData.message || "Failed to save client record")
       }
 
-      toast.success(editingId ? `Pharmacy ${formData.pharmacyName} updated successfully!` : `Pharmacy ${formData.pharmacyName} enrolled successfully!`, { id: toastId })
+      toast.success(
+        editingId
+          ? `Pharmacy ${formData.pharmacyName} updated successfully!`
+          : `Pharmacy ${formData.pharmacyName} enrolled successfully!`,
+        { id: toastId }
+      )
       setIsFormOpen(false)
-      fetchClients()
+      fetchData()
     } catch (error: any) {
       console.error("Error saving client:", error)
       toast.error(error.message || "Failed to save client record to database.", { id: toastId })
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -265,7 +505,7 @@ export default function ClientsDirectoryPage() {
     const toastId = toast.loading(`Deleting pharmacy client record for ${clientToDelete.pharmacyName}...`)
     try {
       setIsDeletingClient(true)
-      const res = await fetch(`${API_URL}/clients/${clientToDelete.id}`, {
+      const res = await fetch(getEndpoint(`/clients/${clientToDelete.id}`), {
         method: "DELETE",
       })
 
@@ -277,7 +517,7 @@ export default function ClientsDirectoryPage() {
       toast.success(`Pharmacy client ${clientToDelete.pharmacyName} deleted successfully.`, { id: toastId })
       setIsDeleteModalOpen(false)
       setClientToDelete(null)
-      fetchClients()
+      fetchData()
     } catch (error: any) {
       console.error("Error deleting client:", error)
       toast.error(error.message || "Failed to delete client record.", { id: toastId })
@@ -286,58 +526,233 @@ export default function ClientsDirectoryPage() {
     }
   }
 
-  // Excel Import Handler
-  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Excel Export Handler (Fetching complete dataset when limit=0)
+  const handleExportExcel = async () => {
+    const toastId = toast.loading("Preparing chemist client master database export...")
+    try {
+      let exportClients = clients
+      const res = await fetch(getEndpoint("/clients?limit=0")).catch(() => null)
+      if (res && res.ok) {
+        const json = await res.json()
+        const raw = Array.isArray(json) ? json : json.data || []
+        exportClients = raw.map((item: any) => ({
+          id: item.id,
+          clientCode: item.clientCode,
+          pharmacyName: item.pharmacyName,
+          proprietor: item.proprietor || "N/A",
+          phone: item.phone || "+880 ",
+          drugLicenseNo: item.drugLicenseNo || "N/A",
+          tradeLicenseNo: item.tradeLicenseNo || "N/A",
+          address: item.address || "N/A",
+          territory: item.territory || "Dhaka North",
+          assignedMio: item.assignedMio || "Unassigned",
+          creditLimitBDT: Number(item.creditLimitBDT) || 150000,
+          outstandingBalanceBDT: Number(item.outstandingBalanceBDT) || 0,
+          creditTermDays: Number(item.creditTermDays) || 30,
+          status: item.status || "Active / Healthy",
+          lastBilledDate: item.lastBilledDate || "N/A",
+        }))
+      }
+
+      const excelData = exportClients.map((c) => ({
+        "Client Code": c.clientCode,
+        "Pharmacy / Chemist": c.pharmacyName,
+        Proprietor: c.proprietor,
+        Phone: c.phone,
+        "Drug License #": c.drugLicenseNo,
+        "Trade License #": c.tradeLicenseNo,
+        Address: c.address,
+        Territory: c.territory,
+        "Assigned MIO": c.assignedMio,
+        "Credit Limit (BDT)": c.creditLimitBDT,
+        "Outstanding Balance (BDT)": c.outstandingBalanceBDT,
+        "Available Credit (BDT)": Math.max(0, c.creditLimitBDT - c.outstandingBalanceBDT),
+        "Credit Terms (Days)": c.creditTermDays,
+        "Account Status": c.status,
+        "Last Billed Date": c.lastBilledDate,
+      }))
+
+      const worksheet = XLSX.utils.json_to_sheet(excelData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Chemist Master Database")
+      XLSX.writeFile(
+        workbook,
+        `AK_Pharma_Chemist_Clients_${new Date().toISOString().slice(0, 10)}.xlsx`
+      )
+      toast.success("Chemist client master database exported successfully!", { id: toastId })
+    } catch (err) {
+      console.error("Export error:", err)
+      toast.error("Failed to export client database.", { id: toastId })
+    }
+  }
+
+  // Bulk Ingestion Modal Handlers
+  const handleOpenImportModal = () => {
+    const user = getStoredUser()
+    const isSuperAdmin = Boolean(
+      !user ||
+      user.role?.toLowerCase().includes("super") ||
+      user.role?.toLowerCase().includes("admin") ||
+      user.roleName?.toLowerCase().includes("super") ||
+      user.roleName?.toLowerCase().includes("admin") ||
+      user.roleName?.toLowerCase().includes("managing director")
+    )
+
+    if (!isSuperAdmin) {
+      toast.error(
+        "Super Admin Clearance Required: Only Super Administrators have permission to bulk import client rosters into the Master Database."
+      )
+      return
+    }
+
+    setIsImportOpen(true)
+  }
+
+  const handleDownloadTemplate = () => {
+    const sampleData = [
+      {
+        "Client Code": "AKP-CL-8801",
+        "Pharmacy Name": "Lazz Pharma Kalabagan",
+        Proprietor: "Md. Lutfor Rahman",
+        Phone: "+880 1711-445566",
+        "Drug License #": "DL-DHK-9921",
+        "Trade License #": "TR-2024-5120",
+        Address: "House 12, Mirpur Road, Kalabagan, Dhaka",
+        Territory: "Dhaka North",
+        "Assigned MIO": "Rafiqul Islam",
+        "Credit Limit (BDT)": 300000,
+        "Credit Terms (Days)": 30,
+        "Account Status": "Active / Healthy",
+      },
+      {
+        "Client Code": "AKP-CL-8802",
+        "Pharmacy Name": "Tamanna Medical Hall",
+        Proprietor: "Abdul Karim",
+        Phone: "+880 1819-778899",
+        "Drug License #": "DL-CTG-3301",
+        "Trade License #": "TR-2024-8199",
+        Address: "GEC Circle, Central Avenue, Chittagong",
+        Territory: "Chittagong Central",
+        "Assigned MIO": "Tanvir Ahmed",
+        "Credit Limit (BDT)": 200000,
+        "Credit Terms (Days)": 15,
+        "Account Status": "Active / Healthy",
+      },
+    ]
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Chemist Import Template")
+    XLSX.writeFile(workbook, "AK_Pharma_Chemist_Import_Template.xlsx")
+    toast.success("Excel template downloaded successfully!")
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
+    setSelectedFile(file)
     const reader = new FileReader()
-    reader.onload = async (evt) => {
+
+    reader.onload = (event) => {
       try {
-        const bstr = evt.target?.result
-        const workbook = XLSX.read(bstr, { type: "binary" })
-        const wsname = workbook.SheetNames[0]
-        const ws = workbook.Sheets[wsname]
-        const data = XLSX.utils.sheet_to_json(ws) as any[]
+        const data = new Uint8Array(event.target?.result as ArrayBuffer)
+        const workbook = XLSX.read(data, { type: "array" })
+        const firstSheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[firstSheetName]
+        const rows: any[] = XLSX.utils.sheet_to_json(worksheet)
 
-        for (const row of data) {
-          const clientPayload = {
-            clientCode:
-              row["Client Code"] ||
-              `AKP-CL-${Math.floor(1000 + Math.random() * 9000)}`,
-            pharmacyName:
-              row["Pharmacy / Chemist"] ||
-              row["Pharmacy Name"] ||
-              "Unnamed Pharmacy",
-            proprietor: row["Proprietor"] || "N/A",
-            phone: String(row["Phone"] || "+880 "),
-            drugLicenseNo: String(row["Drug License #"] || "N/A"),
-            tradeLicenseNo: String(row["Trade License #"] || "N/A"),
-            address: row["Address"] || "N/A",
-            territory: row["Territory"] || "Dhaka North",
-            assignedMio: row["Assigned MIO"] || "Unassigned",
-            creditLimitBDT: Number(row["Credit Limit (BDT)"]) || 150000,
-            outstandingBalanceBDT:
-              Number(row["Outstanding Balance (BDT)"]) || 0,
-            creditTermDays: Number(row["Credit Terms (Days)"]) || 30,
-            status: row["Account Status"] || "Active / Healthy",
-          }
-
-          await fetch(`${API_URL}/clients`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(clientPayload),
-          })
+        if (rows.length === 0) {
+          toast.error("The uploaded Excel sheet contains no data.")
+          setParsedClients([])
+          return
         }
 
-        fetchClients()
-        alert("Client Roster imported successfully!")
+        const parsed = rows.map(parseClientRow)
+        setParsedClients(parsed)
+        const validCount = parsed.filter((c) => c.isValid).length
+        toast.info(`Parsed ${parsed.length} rows (${validCount} valid) from ${file.name}`)
       } catch (err) {
         console.error("Error parsing Excel file:", err)
-        alert("Failed to import Excel file format.")
+        toast.error("Failed to parse Excel file. Please ensure it is a valid .xlsx or .xls file.")
       }
     }
-    reader.readAsBinaryString(file)
+
+    reader.readAsArrayBuffer(file)
+  }
+
+  const handleExecuteImport = async () => {
+    const validClients = parsedClients.filter((c) => c.isValid)
+    if (validClients.length === 0) {
+      toast.error("No valid client records found to import. Please check required pharmacy names and phone numbers.")
+      return
+    }
+
+    const toastId = toast.loading(`Importing ${validClients.length} pharmacy clients into master database...`)
+    setIsImporting(true)
+
+    try {
+      const payload = {
+        clients: validClients.map((c) => ({
+          clientCode: c.clientCode,
+          pharmacyName: c.pharmacyName,
+          proprietor: c.proprietor,
+          phone: c.phone,
+          drugLicenseNo: c.drugLicenseNo,
+          tradeLicenseNo: c.tradeLicenseNo,
+          address: c.address,
+          territory: c.territory,
+          assignedMio: c.assignedMio,
+          creditLimitBDT: c.creditLimitBDT,
+          outstandingBalanceBDT: c.outstandingBalanceBDT,
+          creditTermDays: c.creditTermDays,
+          status: c.status,
+        })),
+        updateExisting,
+      }
+
+      const res = await fetch(getEndpoint("/clients/bulk-import"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to bulk import clients")
+      }
+
+      const resJson = await res.json()
+      const resultData = resJson.data || resJson
+
+      const created = resultData.createdCount ?? 0
+      const updated = resultData.updatedCount ?? 0
+      const skipped = resultData.skippedCount ?? 0
+
+      let successMsg = `Successfully processed ${validClients.length} pharmacy clients!`
+      if (created > 0 && updated > 0) {
+        successMsg = `Imported ${created} new clients, updated ${updated} existing records!`
+      } else if (created > 0) {
+        successMsg = `Imported ${created} new pharmacy clients successfully!`
+      } else if (updated > 0) {
+        successMsg = `Updated ${updated} existing client records!`
+      }
+
+      if (skipped > 0 && !updateExisting) {
+        successMsg += ` (${skipped} already existing records skipped)`
+      }
+
+      toast.success(successMsg, { id: toastId })
+      setIsImportOpen(false)
+      setSelectedFile(null)
+      setParsedClients([])
+      await fetchData()
+    } catch (err: any) {
+      console.error("Bulk import error:", err)
+      toast.error(err.message || "Failed to import pharmacy clients", { id: toastId })
+    } finally {
+      setIsImporting(false)
+    }
   }
 
   const handleOpenStatement = (client: ClientProfile) => {
@@ -345,113 +760,33 @@ export default function ClientsDirectoryPage() {
     setIsStatementOpen(true)
   }
 
-  const handleExportExcel = () => {
-    const data = clients.map((c) => ({
-      "Client Code": c.clientCode,
-      "Pharmacy / Chemist": c.pharmacyName,
-      Proprietor: c.proprietor,
-      Phone: c.phone,
-      "Drug License #": c.drugLicenseNo,
-      "Trade License #": c.tradeLicenseNo,
-      Address: c.address,
-      Territory: c.territory,
-      "Assigned MIO": c.assignedMio,
-      "Credit Limit (BDT)": c.creditLimitBDT,
-      "Outstanding Balance (BDT)": c.outstandingBalanceBDT,
-      "Credit Available (BDT)": Math.max(
-        0,
-        c.creditLimitBDT - c.outstandingBalanceBDT
-      ),
-      "Credit Terms (Days)": c.creditTermDays,
-      "Account Status": c.status,
-      "Last Billed Date": c.lastBilledDate,
-    }))
-
-    const worksheet = XLSX.utils.json_to_sheet(data)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Client Directory")
-    XLSX.writeFile(
-      workbook,
-      `AK_Pharma_Client_Directory_${new Date().toISOString().slice(0, 10)}.xlsx`
-    )
-  }
-
-  const filteredClients = clients.filter((c) => {
-    const matchesSearch =
-      c.pharmacyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.clientCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.proprietor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.phone.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.drugLicenseNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.assignedMio.toLowerCase().includes(searchQuery.toLowerCase())
-
-    const matchesTerritory =
-      territoryFilter === "all" ||
-      c.territory.toLowerCase() === territoryFilter.toLowerCase()
-
-    const matchesStatus =
-      statusFilter === "all" ||
-      c.status.toLowerCase() === statusFilter.toLowerCase()
-
-    return matchesSearch && matchesTerritory && matchesStatus
-  })
-
-  const totalCreditAllocated = clients.reduce(
-    (acc, curr) => acc + curr.creditLimitBDT,
-    0
-  )
-  const totalOutstanding = clients.reduce(
-    (acc, curr) => acc + curr.outstandingBalanceBDT,
-    0
-  )
-  const totalAvailableHeadroom = Math.max(
-    0,
-    totalCreditAllocated - totalOutstanding
-  )
-  const creditHoldCount = clients.filter(
-    (c) => c.status === "Credit Hold"
-  ).length
+  // Summary Metrics
+  const totalCreditPool = clients.reduce((sum, c) => sum + c.creditLimitBDT, 0)
+  const totalOutstanding = clients.reduce((sum, c) => sum + c.outstandingBalanceBDT, 0)
+  const activeHealthyCount = clients.filter((c) => c.status === "Active / Healthy").length
+  const healthyPercent = clients.length > 0 ? Math.round((activeHealthyCount / clients.length) * 100) : 100
 
   return (
-    <div className="mx-auto max-w-[1380px] space-y-6 pb-16">
-      {/* Hidden file input for excel import */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleImportExcel}
-        accept=".xlsx, .xls, .csv"
-        className="hidden"
-      />
-
-      {/* 1. Header Toolbar */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:justify-between print:hidden">
+    <div className="mx-auto max-w-[1360px] space-y-6 pb-12">
+      {/* Top Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[#0090FF]" />
-            <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-              COMMERCIAL SALES & DISTRIBUTION
+            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+              SALES & DISTRIBUTION
             </span>
+            <span className="text-slate-300">/</span>
+            <span className="text-xs font-semibold text-slate-500">Pharmacy Network</span>
           </div>
-          <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
-            Pharmacy & Wholesale Client Master
+          <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900">
+            Chemist Client Master Database
           </h1>
           <p className="mt-0.5 text-xs text-slate-500">
-            Licensed chemist accounts, statutory DGDA drug licenses, territorial
-            assignments, and credit limit governance.
+            Comprehensive central registry of licensed pharmacy partners, credit facilities, regulatory compliance, and territory distribution.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
-          >
-            <Upload className="h-3.5 w-3.5 text-blue-600" />
-            Import Excel
-          </Button>
-
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
             variant="outline"
@@ -459,180 +794,213 @@ export default function ClientsDirectoryPage() {
             className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
           >
             <Download className="h-3.5 w-3.5 text-emerald-600" />
-            Export Directory
+            Export Database
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleOpenImportModal}
+            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5 text-blue-600" />
+            Bulk Ingestion
           </Button>
 
           <Button
             size="sm"
             onClick={handleOpenCreate}
-            className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+            className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
           >
-            <Plus className="h-4 w-4" />
-            Onboard New Pharmacy
+            <UserPlus className="h-3.5 w-3.5" />
+            Enroll New Chemist
           </Button>
         </div>
       </div>
 
-      {/* 2. Top Metric Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
+      {/* KPI Stat Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
-              Total Enrolled Accounts
-            </span>
-            <div className="rounded-xl bg-blue-50 p-2 text-[#0090FF]">
+            <span className="text-xs font-semibold text-slate-500">Total Enrolled Chemists</span>
+            <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
               <Store className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 font-mono text-[28px] leading-none font-extrabold tracking-tight text-slate-900">
-            {clients.length} Chemist Outlets
+          <div className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+            {totalItems}
           </div>
-          <p className="mt-3 text-[11px] font-medium text-slate-400">
-            Active regional database records
+          <p className="mt-1 text-[11px] text-slate-400">
+            Active retail dispensing accounts in network
           </p>
         </Card>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
+        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
-              Total Floating Credit (A/R)
-            </span>
-            <div className="rounded-xl bg-amber-50 p-2 text-amber-600">
-              <Clock className="h-4 w-4" />
+            <span className="text-xs font-semibold text-slate-500">Credit Health Rate</span>
+            <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
+              <ShieldCheck className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 font-mono text-[28px] leading-none font-extrabold tracking-tight text-slate-900">
-            ৳{totalOutstanding.toLocaleString("en-IN")}
+          <div className="mt-2 text-2xl font-bold tracking-tight text-emerald-600">
+            {healthyPercent}%
           </div>
-          <p className="mt-3 text-[11px] font-medium text-slate-400">
-            Active receivables linked to Collections
+          <p className="mt-1 text-[11px] text-slate-400">
+            {activeHealthyCount} of {clients.length} accounts in good standing
           </p>
         </Card>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
+        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
-              Available Credit Headroom
-            </span>
-            <div className="rounded-xl bg-emerald-50 p-2 text-emerald-600">
+            <span className="text-xs font-semibold text-slate-500">Extended Credit Limit</span>
+            <div className="rounded-lg bg-purple-50 p-2 text-purple-600">
               <CreditCard className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 font-mono text-[28px] leading-none font-extrabold tracking-tight text-emerald-600">
-            ৳{totalAvailableHeadroom.toLocaleString("en-IN")}
+          <div className="mt-2 font-mono text-2xl font-bold tracking-tight text-slate-900">
+            ৳{(totalCreditPool / 100000).toFixed(1)} Lakh
           </div>
-          <p className="mt-3 text-[11px] font-medium text-emerald-600">
-            Safe limit capacity for new deliveries
+          <p className="mt-1 text-[11px] text-slate-400">
+            Total distributor authorized credit line
           </p>
         </Card>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
+        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
-              Credit Hold Risk
-            </span>
-            <Badge
-              variant="outline"
-              className="border-rose-200 bg-rose-50 text-[10px] font-bold text-rose-700"
-            >
-              {creditHoldCount} Accounts
-            </Badge>
+            <span className="text-xs font-semibold text-slate-500">Outstanding Receivable</span>
+            <div className="rounded-lg bg-amber-50 p-2 text-amber-600">
+              <Receipt className="h-4 w-4" />
+            </div>
           </div>
-          <div className="mt-3 font-mono text-[28px] leading-none font-extrabold tracking-tight text-rose-600">
-            {creditHoldCount} Blocked
+          <div className="mt-2 font-mono text-2xl font-bold tracking-tight text-amber-700">
+            ৳{(totalOutstanding / 100000).toFixed(1)} Lakh
           </div>
-          <p className="mt-3 text-[11px] font-medium text-rose-600">
-            Dispatch locked pending payment clearance
+          <p className="mt-1 text-[11px] text-slate-400">
+            Pending field realization and collection
           </p>
         </Card>
       </div>
 
-      {/* 3. Search & Filter Bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white p-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Search pharmacy, code, proprietor, phone, DL..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
-          />
-        </div>
+      {/* Main Table Card */}
+      <Card className="rounded-xl border border-slate-200/90 bg-white shadow-none">
+        {/* Toolbar */}
+        <div className="border-b border-slate-100 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-1 flex-wrap items-center gap-2.5">
+              {/* Search Bar */}
+              <div className="relative min-w-[260px] flex-1 sm:max-w-xs">
+                <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
+                <Input
+                  placeholder="Search chemist, license, phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8 pl-8 text-xs bg-slate-50/50"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute top-2 right-2 text-xs text-slate-400 hover:text-slate-600"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
 
-        <div className="flex items-center gap-2">
-          <Select value={territoryFilter} onValueChange={setTerritoryFilter}>
-            <SelectTrigger className="h-8 w-[170px] border-slate-200 bg-white text-xs">
-              <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
-              <SelectValue placeholder="All Territories" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Territories</SelectItem>
-              <SelectItem value="dhaka north">Dhaka North</SelectItem>
-              <SelectItem value="dhaka south">Dhaka South</SelectItem>
-              <SelectItem value="chittagong central">
-                Chittagong Central
-              </SelectItem>
-              <SelectItem value="sylhet sadar">Sylhet Sadar</SelectItem>
-              <SelectItem value="rajshahi metro">Rajshahi Metro</SelectItem>
-            </SelectContent>
-          </Select>
+              {/* Territory Filter */}
+              <Select value={territoryFilter} onValueChange={(val) => { setTerritoryFilter(val); setCurrentPage(1); }}>
+                <SelectTrigger className="h-8 w-[150px] bg-white text-xs">
+                  <SelectValue placeholder="Territory" />
+                </SelectTrigger>
+                <SelectContent className="text-xs">
+                  <SelectItem value="all">All Territories</SelectItem>
+                  <SelectItem value="Dhaka North">Dhaka North</SelectItem>
+                  <SelectItem value="Dhaka South">Dhaka South</SelectItem>
+                  <SelectItem value="Dhanmondi">Dhanmondi</SelectItem>
+                  <SelectItem value="Gulshan">Gulshan</SelectItem>
+                  <SelectItem value="Uttara">Uttara</SelectItem>
+                  <SelectItem value="Chittagong Central">Chittagong Central</SelectItem>
+                  <SelectItem value="Rajshahi">Rajshahi</SelectItem>
+                  <SelectItem value="Sylhet">Sylhet</SelectItem>
+                </SelectContent>
+              </Select>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 w-[160px] border-slate-200 bg-white text-xs">
-              <SelectValue placeholder="All Status" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active / healthy">Active / Healthy</SelectItem>
-              <SelectItem value="credit hold">Credit Hold</SelectItem>
-              <SelectItem value="watchlist">Watchlist</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+              {/* Account Status Filter */}
+              <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}>
+                <SelectTrigger className="h-8 w-[150px] bg-white text-xs">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className="text-xs">
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="Active / Healthy">Active / Healthy</SelectItem>
+                  <SelectItem value="Watchlist">Watchlist</SelectItem>
+                  <SelectItem value="Credit Hold">Credit Hold</SelectItem>
+                  <SelectItem value="Cash Only">Cash Only</SelectItem>
+                </SelectContent>
+              </Select>
 
-      {/* 4. Client Master Table */}
-      <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none print:hidden">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-              REGISTERED PHARMACY & CHEMIST ACCOUNTS
-            </h3>
-            <p className="mt-0.5 text-xs text-slate-400">
-              Click "Create Order" to auto-dispatch consignments, "Statement"
-              for account confirmation, or "Edit" to modify limits
-            </p>
+              {(searchQuery || territoryFilter !== "all" || statusFilter !== "all") && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setSearchQuery("")
+                    setTerritoryFilter("all")
+                    setStatusFilter("all")
+                    setCurrentPage(1)
+                  }}
+                  className="h-8 px-2 text-xs text-slate-500 hover:text-slate-800"
+                >
+                  Reset
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400">Rows per page:</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(val) => {
+                  setPageSize(Number(val))
+                  setCurrentPage(1)
+                }}
+              >
+                <SelectTrigger className="h-8 w-[70px] bg-white text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="text-xs">
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <span className="text-xs font-medium text-slate-400">
-            Showing {filteredClients.length} Accounts
-          </span>
         </div>
 
+        {/* Master Table */}
         <Table>
           <TableHeader>
             <TableRow className="border-b border-slate-100 text-xs text-slate-600 hover:bg-transparent">
-              <TableHead className="pl-0 text-xs font-medium text-slate-600">
-                Pharmacy & Code
+              <TableHead className="pl-4 text-xs font-semibold text-slate-600">
+                Chemist & Proprietor
               </TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">
-                Proprietor & Phone
+              <TableHead className="text-xs font-semibold text-slate-600">
+                Client Code & Drug License
               </TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">
-                Drug License #
+              <TableHead className="text-xs font-semibold text-slate-600">
+                Contact Phone & Address
               </TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">
+              <TableHead className="text-xs font-semibold text-slate-600">
                 Territory & MIO
               </TableHead>
-              <TableHead className="text-right text-xs font-medium text-slate-600">
-                Credit Limit
+              <TableHead className="text-xs font-semibold text-slate-600">
+                Credit Facility (BDT)
               </TableHead>
-              <TableHead className="text-right text-xs font-medium text-slate-600">
-                Dues (A/R)
-              </TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">
+              <TableHead className="text-xs font-semibold text-slate-600">
                 Status
               </TableHead>
-              <TableHead className="pr-0 text-right text-xs font-medium text-slate-600">
+              <TableHead className="pr-4 text-right text-xs font-semibold text-slate-600">
                 Actions
               </TableHead>
             </TableRow>
@@ -640,205 +1008,151 @@ export default function ClientsDirectoryPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell
-                  colSpan={8}
-                  className="py-8 text-center text-xs text-slate-400"
-                >
-                  Loading client directory from database...
+                <TableCell colSpan={7} className="py-10 text-center text-xs text-slate-400">
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-[#0090FF]" />
+                    <span>Loading chemist master directory...</span>
+                  </div>
                 </TableCell>
               </TableRow>
-            ) : filteredClients.length === 0 ? (
+            ) : clients.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={8}
-                  className="py-8 text-center text-xs text-slate-400"
-                >
-                  No pharmacy client records found. Click "Onboard New Pharmacy"
-                  or "Import Excel" to add accounts.
+                <TableCell colSpan={7} className="py-10 text-center text-xs text-slate-400">
+                  No pharmacy clients found matching your query.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredClients.map((client) => {
-                const availableHeadroom = Math.max(
-                  0,
-                  client.creditLimitBDT - client.outstandingBalanceBDT
-                )
+              clients.map((client) => {
+                const availableCredit = Math.max(0, client.creditLimitBDT - client.outstandingBalanceBDT)
+                const utilizationPct = client.creditLimitBDT > 0 ? Math.min(100, Math.round((client.outstandingBalanceBDT / client.creditLimitBDT) * 100)) : 0
 
                 return (
-                  <TableRow
-                    key={client.id}
-                    className="border-b border-slate-50 hover:bg-slate-50/50"
-                  >
-                    <TableCell className="py-3 pl-0">
-                      <div className="leading-tight">
-                        <span className="block text-xs font-bold text-slate-900">
-                          {client.pharmacyName}
-                        </span>
-                        <span className="mt-0.5 block font-mono text-[10px] text-[#0090FF]">
-                          {client.clientCode}
-                        </span>
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="py-3 text-xs">
-                      <div>
-                        <span className="block font-semibold text-slate-900">
-                          {client.proprietor}
-                        </span>
-                        <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-400">
-                          <Phone className="h-2.5 w-2.5 text-slate-400" />
-                          <span className="font-mono text-slate-600">
-                            {client.phone}
+                  <TableRow key={client.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                    <TableCell className="py-3.5 pl-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="shrink-0 rounded-lg bg-blue-50 p-2 text-[#0090FF]">
+                          <Store className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className="block text-xs font-bold text-slate-900">
+                            {client.pharmacyName}
+                          </span>
+                          <span className="mt-0.5 block text-[11px] text-slate-500">
+                            Proprietor: {client.proprietor || "N/A"}
                           </span>
                         </div>
                       </div>
                     </TableCell>
 
-                    <TableCell className="py-3 font-mono text-xs text-slate-700">
-                      <div>
-                        <span className="block font-medium">
-                          {client.drugLicenseNo}
-                        </span>
-                        <span className="block text-[10px] text-slate-400">
-                          {client.tradeLicenseNo}
+                    <TableCell className="py-3.5 text-xs">
+                      <span className="block font-mono font-bold text-blue-600">{client.clientCode}</span>
+                      <span className="mt-0.5 block font-mono text-[11px] text-slate-500">
+                        {client.drugLicenseNo || "No License"}
+                      </span>
+                    </TableCell>
+
+                    <TableCell className="py-3.5 text-xs">
+                      <div className="flex items-center gap-1 font-mono text-slate-700">
+                        <Phone className="h-3 w-3 text-slate-400" />
+                        {client.phone}
+                      </div>
+                      <span className="mt-0.5 block max-w-[200px] truncate text-[11px] text-slate-400">
+                        {client.address || "N/A"}
+                      </span>
+                    </TableCell>
+
+                    <TableCell className="py-3.5 text-xs">
+                      <span className="block font-medium text-slate-800">{client.territory}</span>
+                      <span className="mt-0.5 block text-[11px] text-slate-500">
+                        MIO: {client.assignedMio}
+                      </span>
+                    </TableCell>
+
+                    <TableCell className="py-3.5 text-xs">
+                      <div className="flex items-center justify-between font-mono font-semibold text-slate-800">
+                        <span>৳{client.creditLimitBDT.toLocaleString()}</span>
+                        <span className="text-[10px] text-slate-400">({client.creditTermDays}d)</span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className={`h-full ${
+                              utilizationPct > 80
+                                ? "bg-rose-500"
+                                : utilizationPct > 50
+                                ? "bg-amber-500"
+                                : "bg-emerald-500"
+                            }`}
+                            style={{ width: `${utilizationPct}%` }}
+                          />
+                        </div>
+                        <span className="font-mono text-[10px] text-slate-400">
+                          {utilizationPct}%
                         </span>
                       </div>
                     </TableCell>
 
-                    <TableCell className="py-3 text-xs text-slate-700">
-                      <div>
-                        <span className="block font-medium text-slate-900">
-                          {client.territory}
-                        </span>
-                        <span className="block text-[10px] text-slate-400">
-                          MIO: {client.assignedMio}
-                        </span>
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="py-3 text-right font-mono text-xs text-slate-700">
-                      ৳{client.creditLimitBDT.toLocaleString("en-IN")}
-                      <span className="block text-[10px] text-slate-400">
-                        {client.creditTermDays} Days Term
-                      </span>
-                    </TableCell>
-
-                    <TableCell className="py-3 text-right font-mono text-xs font-bold text-slate-900">
-                      {client.outstandingBalanceBDT > 0 ? (
-                        <span
-                          className={
-                            client.status === "Credit Hold"
-                              ? "text-rose-600"
-                              : "text-amber-600"
-                          }
-                        >
-                          ৳
-                          {client.outstandingBalanceBDT.toLocaleString("en-IN")}
-                        </span>
-                      ) : (
-                        <span className="font-normal text-emerald-600">
-                          ৳0 (Clear)
-                        </span>
-                      )}
-                      <span className="block text-[10px] font-normal text-slate-400">
-                        Avail: ৳{availableHeadroom.toLocaleString("en-IN")}
-                      </span>
-                    </TableCell>
-
-                    <TableCell className="py-3 text-xs">
+                    <TableCell className="py-3.5 text-xs">
                       <Badge
                         variant="outline"
-                        className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                        className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                           client.status === "Active / Healthy"
                             ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : client.status === "Watchlist"
-                              ? "border-amber-200 bg-amber-50 text-amber-700"
-                              : "border-rose-200 bg-rose-50 text-rose-700"
+                            : client.status === "Credit Hold"
+                            ? "border-rose-200 bg-rose-50 text-rose-700"
+                            : "border-amber-200 bg-amber-50 text-amber-700"
                         }`}
                       >
                         {client.status}
                       </Badge>
                     </TableCell>
 
-                    <TableCell className="py-3 pr-0 text-right text-xs">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <TableCell className="py-3.5 pr-4 text-right text-xs">
+                      <div className="flex items-center justify-end gap-1">
                         <Button
                           size="sm"
-                          variant="outline"
+                          variant="ghost"
                           onClick={() => handleRedirectToOrder(client)}
-                          className="h-7 gap-1 border-blue-200 px-2.5 text-xs font-semibold text-[#0090FF] hover:bg-blue-50"
+                          className="h-7 gap-1 px-2 text-[11px] font-semibold text-blue-600 hover:bg-blue-50"
+                          title="Generate Delivery Order"
                         >
                           <Truck className="h-3 w-3" />
-                          Create Order
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleOpenEdit(client)}
-                          className="h-7 gap-1 border-slate-200 px-2 text-xs text-slate-700 hover:bg-slate-50"
-                        >
-                          <Pencil className="h-3 w-3 text-slate-400" />
-                          Edit
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleOpenStatement(client)}
-                          className="h-7 gap-1 border-slate-200 px-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                          <FileText className="h-3 w-3" />
-                          Statement
+                          Order
                         </Button>
 
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
+                              size="sm"
                               variant="ghost"
-                              className="h-7 w-7 p-0 text-slate-400 hover:text-slate-800"
+                              className="h-7 w-7 p-0 text-slate-400 hover:text-slate-700"
                             >
-                              <MoreHorizontal className="h-3.5 w-3.5" />
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            align="end"
-                            className="w-52 bg-white"
-                          >
-                            <DropdownMenuLabel className="text-[10px] tracking-wider text-slate-400 uppercase">
-                              Direct Workflows
+                          <DropdownMenuContent align="end" className="w-48 text-xs">
+                            <DropdownMenuLabel className="text-[11px] font-bold text-slate-500">
+                              Chemist Actions
                             </DropdownMenuLabel>
-                            <DropdownMenuItem
-                              onClick={() => handleRedirectToOrder(client)}
-                              className="cursor-pointer text-xs"
-                            >
-                              <Truck className="mr-2 h-3.5 w-3.5 text-[#0090FF]" />
-                              Book Delivery Order
+                            <DropdownMenuItem onClick={() => handleOpenStatement(client)}>
+                              <FileText className="mr-2 h-3.5 w-3.5 text-blue-600" />
+                              View Statement & Profile
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              asChild
-                              className="cursor-pointer text-xs"
-                            >
-                              <Link href="/finance/collections">
-                                <Receipt className="mr-2 h-3.5 w-3.5 text-emerald-600" />
-                                Record Collection Receipt
-                              </Link>
+                            <DropdownMenuItem onClick={() => handleRedirectToOrder(client)}>
+                              <Truck className="mr-2 h-3.5 w-3.5 text-emerald-600" />
+                              Create Sales Order
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => handleOpenStatement(client)}
-                              className="cursor-pointer text-xs text-slate-700"
-                            >
-                              <Printer className="mr-2 h-3.5 w-3.5 text-slate-500" />
-                              Print Account Statement
+                            <DropdownMenuItem onClick={() => handleOpenEdit(client)}>
+                              <Pencil className="mr-2 h-3.5 w-3.5 text-amber-600" />
+                              Edit Chemist Profile
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               onClick={() => handleOpenDeleteModal(client)}
-                              className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
+                              className="text-rose-600 focus:bg-rose-50 focus:text-rose-600"
                             >
-                              <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-600" />
-                              Delete / Deactivate Client
+                              <Trash2 className="mr-2 h-3.5 w-3.5" />
+                              Delete Client
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -850,110 +1164,341 @@ export default function ClientsDirectoryPage() {
             )}
           </TableBody>
         </Table>
+
+        {/* Pagination Bar */}
+        <div className="flex items-center justify-between border-t border-slate-100 p-4">
+          <div className="text-xs text-slate-500">
+            Showing{" "}
+            <span className="font-semibold text-slate-800">
+              {clients.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}
+            </span>{" "}
+            to{" "}
+            <span className="font-semibold text-slate-800">
+              {Math.min(currentPage * pageSize, totalItems)}
+            </span>{" "}
+            of <span className="font-semibold text-slate-800">{totalItems}</span> chemists
+          </div>
+
+          <Pagination className="mx-0 w-auto justify-end">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className={currentPage === 1 ? "pointer-events-none opacity-40 text-xs" : "cursor-pointer text-xs"}
+                />
+              </PaginationItem>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                .map((pageNum, idx, arr) => {
+                  const prev = arr[idx - 1]
+                  return (
+                    <React.Fragment key={pageNum}>
+                      {prev && pageNum - prev > 1 && (
+                        <PaginationItem>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      )}
+                      <PaginationItem>
+                        <PaginationLink
+                          isActive={currentPage === pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className="cursor-pointer text-xs"
+                        >
+                          {pageNum}
+                        </PaginationLink>
+                      </PaginationItem>
+                    </React.Fragment>
+                  )
+                })}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className={currentPage === totalPages || totalPages === 0 ? "pointer-events-none opacity-40 text-xs" : "cursor-pointer text-xs"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
       </Card>
 
-      {/* 5. Create & Edit Pharmacy Modal */}
+      {/* Excel Bulk Ingestion Dialog (Super Admin / Master Ingestion) */}
+      <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+        <DialogContent className="max-w-3xl overflow-hidden rounded-xl border border-slate-200 bg-white p-6 shadow-xl sm:max-w-4xl">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
+                <FileSpreadsheet className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Bulk Chemist Client Excel Ingestion
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Upload an Excel (.xlsx, .xls) roster of licensed pharmacies to batch-enroll or update the client master directory.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            {/* Template Download & File Selector */}
+            <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <span className="block text-xs font-bold text-slate-800">
+                  Standard Chemist Import Template
+                </span>
+                <span className="block text-[11px] text-slate-500">
+                  Columns: Pharmacy Name, Drug License #, Proprietor, Phone, Territory, MIO, Credit Terms
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadTemplate}
+                className="h-8 gap-1.5 border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
+              >
+                <Download className="h-3.5 w-3.5 text-emerald-600" />
+                Download Blank Template
+              </Button>
+            </div>
+
+            {/* Drop Zone */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/40 p-6 text-center transition hover:border-[#0090FF] hover:bg-blue-50/20"
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept=".xlsx, .xls, .csv"
+                className="hidden"
+              />
+              <Upload className="h-6 w-6 text-slate-400" />
+              <span className="mt-2 text-xs font-bold text-slate-800">
+                {selectedFile ? selectedFile.name : "Click to select or drag & drop Excel workbook"}
+              </span>
+              <span className="mt-0.5 text-[11px] text-slate-400">
+                Supports Microsoft Excel .xlsx, .xls, and .csv files
+              </span>
+            </div>
+
+            {/* Ingestion Settings */}
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-slate-800">
+                  Update Existing Clients
+                </span>
+                <span className="block text-[11px] text-slate-500">
+                  If Drug License # or Client Code matches an existing client, update their record instead of skipping
+                </span>
+              </div>
+              <Switch
+                checked={updateExisting}
+                onCheckedChange={setUpdateExisting}
+              />
+            </div>
+
+            {/* Parsed Preview Table */}
+            {parsedClients.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800">
+                    Parsed Chemist Records Preview ({parsedClients.length})
+                  </span>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-600">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {parsedClients.filter((c) => c.isValid).length} Valid
+                    </span>
+                    <span className="inline-flex items-center gap-1 font-semibold text-rose-500">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      {parsedClients.filter((c) => !c.isValid).length} Invalid
+                    </span>
+                  </div>
+                </div>
+
+                <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200">
+                  <Table>
+                    <TableHeader className="bg-slate-50">
+                      <TableRow className="text-xs">
+                        <TableHead className="py-2 text-xs">Status</TableHead>
+                        <TableHead className="py-2 text-xs">Pharmacy Name</TableHead>
+                        <TableHead className="py-2 text-xs">Drug License #</TableHead>
+                        <TableHead className="py-2 text-xs">Contact Phone</TableHead>
+                        <TableHead className="py-2 text-xs">Territory</TableHead>
+                        <TableHead className="py-2 text-xs">Credit Limit</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {parsedClients.slice(0, 50).map((row, idx) => (
+                        <TableRow key={idx} className="text-xs">
+                          <TableCell className="py-2">
+                            {row.isValid ? (
+                              <Badge className="bg-emerald-100 text-[10px] text-emerald-800 shadow-none hover:bg-emerald-100">
+                                Ready
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-rose-100 text-[10px] text-rose-800 shadow-none hover:bg-rose-100">
+                                {row.errorReason}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="py-2 font-medium">{row.pharmacyName}</TableCell>
+                          <TableCell className="py-2 font-mono">{row.drugLicenseNo}</TableCell>
+                          <TableCell className="py-2 font-mono">{row.phone}</TableCell>
+                          <TableCell className="py-2">{row.territory}</TableCell>
+                          <TableCell className="py-2 font-mono">৳{row.creditLimitBDT.toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsImportOpen(false)
+                setSelectedFile(null)
+                setParsedClients([])
+              }}
+              className="h-8 text-xs font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleExecuteImport}
+              disabled={isImporting || parsedClients.filter((c) => c.isValid).length === 0}
+              className="h-8 bg-[#0090FF] text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+            >
+              {isImporting ? (
+                <>
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  Ingesting Data...
+                </>
+              ) : (
+                `Execute Bulk Ingestion (${parsedClients.filter((c) => c.isValid).length})`
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit / Quick Add Modal */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white sm:max-w-[620px]">
+        <DialogContent className="max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900">
-              {editingId
-                ? "Edit Pharmacy Client Particulars"
-                : "Enroll New Chemist Client"}
+              {editingId ? "Edit Pharmacy Client Profile" : "Enroll New Chemist Client"}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Configure business licenses, territorial field assignment, and
-              credit limits.
+              {editingId
+                ? "Update commercial terms, license numbers, or territory details for this account."
+                : "Register a new pharmacy partner with verified commercial and credit credentials."}
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSaveForm} className="space-y-4 py-2 text-xs">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">
-                  Client Code *
-                </Label>
-                <Input
-                  value={formData.clientCode}
-                  onChange={(e) =>
-                    setFormData({ ...formData, clientCode: e.target.value })
-                  }
-                  required
-                  className="h-8 font-mono text-xs font-bold"
-                />
-              </div>
+          <form onSubmit={handleSaveForm} className="space-y-4 pt-2 text-xs">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Pharmacy / Chemist Name *
                 </Label>
                 <Input
-                  placeholder="e.g. Al-Madina Model Pharmacy"
                   value={formData.pharmacyName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, pharmacyName: e.target.value })
-                  }
-                  required
-                  className="h-8 text-xs font-semibold"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">
-                  Proprietor Name *
-                </Label>
-                <Input
-                  placeholder="e.g. Rafiq Ahmed"
-                  value={formData.proprietor}
-                  onChange={(e) =>
-                    setFormData({ ...formData, proprietor: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, pharmacyName: e.target.value })}
                   required
                   className="h-8 text-xs"
                 />
+                {formErrors.pharmacyName && (
+                  <p className="text-[11px] text-rose-500">{formErrors.pharmacyName}</p>
+                )}
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
-                  Official Contact Phone *
+                  Proprietor / Contact Person
                 </Label>
                 <Input
-                  placeholder="+880 1711-000000"
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  required
-                  className="h-8 font-mono text-xs"
+                  value={formData.proprietor}
+                  onChange={(e) => setFormData({ ...formData, proprietor: e.target.value })}
+                  className="h-8 text-xs"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
-                  DGDA Drug License # *
+                  Contact Phone Number *
                 </Label>
                 <Input
-                  placeholder="DL-DH-00000"
-                  value={formData.drugLicenseNo}
-                  onChange={(e) =>
-                    setFormData({ ...formData, drugLicenseNo: e.target.value })
-                  }
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   required
                   className="h-8 font-mono text-xs"
                 />
+                {formErrors.phone && (
+                  <p className="text-[11px] text-rose-500">{formErrors.phone}</p>
+                )}
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
-                  City Trade License #
+                  Client Code
+                </Label>
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    value={formData.clientCode}
+                    onChange={(e) => setFormData({ ...formData, clientCode: e.target.value })}
+                    className="h-8 font-mono text-xs flex-1"
+                  />
+                  {!editingId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFormData({ ...formData, clientCode: `AKP-CL-${Math.floor(1000 + Math.random() * 9000)}` })}
+                      className="h-8 px-2 text-slate-500 hover:text-slate-800"
+                      title="Generate new client code"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">
+                  DGDA Drug License #
                 </Label>
                 <Input
-                  placeholder="TRAD/DNCC/00000"
+                  value={formData.drugLicenseNo}
+                  onChange={(e) => setFormData({ ...formData, drugLicenseNo: e.target.value })}
+                  placeholder="e.g. DL-DHK-9921"
+                  className="h-8 font-mono text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">
+                  Municipal Trade License #
+                </Label>
+                <Input
                   value={formData.tradeLicenseNo}
-                  onChange={(e) =>
-                    setFormData({ ...formData, tradeLicenseNo: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, tradeLicenseNo: e.target.value })}
+                  placeholder="e.g. TR-2024-5120"
                   className="h-8 font-mono text-xs"
                 />
               </div>
@@ -961,29 +1506,24 @@ export default function ClientsDirectoryPage() {
 
             <div className="space-y-1">
               <Label className="text-xs font-medium text-slate-700">
-                Outlet Address *
+                Physical Pharmacy Address
               </Label>
               <Input
-                placeholder="Shop 12, Market Point, Road 4, Dhaka"
                 value={formData.address}
-                onChange={(e) =>
-                  setFormData({ ...formData, address: e.target.value })
-                }
-                required
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                placeholder="e.g. House 12, Mirpur Road, Kalabagan, Dhaka"
                 className="h-8 text-xs"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
-                  Territory
+                  Territory / Zone *
                 </Label>
                 <Select
                   value={formData.territory}
-                  onValueChange={(val) =>
-                    setFormData({ ...formData, territory: val })
-                  }
+                  onValueChange={(val) => setFormData({ ...formData, territory: val })}
                 >
                   <SelectTrigger className="h-8 bg-white text-xs">
                     <SelectValue />
@@ -991,359 +1531,266 @@ export default function ClientsDirectoryPage() {
                   <SelectContent className="text-xs">
                     <SelectItem value="Dhaka North">Dhaka North</SelectItem>
                     <SelectItem value="Dhaka South">Dhaka South</SelectItem>
-                    <SelectItem value="Chittagong Central">
-                      Chittagong Central
-                    </SelectItem>
-                    <SelectItem value="Sylhet Sadar">Sylhet Sadar</SelectItem>
-                    <SelectItem value="Rajshahi Metro">
-                      Rajshahi Metro
-                    </SelectItem>
+                    <SelectItem value="Dhanmondi">Dhanmondi</SelectItem>
+                    <SelectItem value="Gulshan">Gulshan</SelectItem>
+                    <SelectItem value="Uttara">Uttara</SelectItem>
+                    <SelectItem value="Chittagong Central">Chittagong Central</SelectItem>
+                    <SelectItem value="Rajshahi">Rajshahi</SelectItem>
+                    <SelectItem value="Sylhet">Sylhet</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Assigned MIO
                 </Label>
-                <Input
-                  placeholder="Rafiqul Islam"
+                <Select
                   value={formData.assignedMio}
-                  onChange={(e) =>
-                    setFormData({ ...formData, assignedMio: e.target.value })
-                  }
-                  required
-                  className="h-8 text-xs"
-                />
+                  onValueChange={(val) => setFormData({ ...formData, assignedMio: val })}
+                >
+                  <SelectTrigger className="h-8 bg-white text-xs">
+                    <SelectValue placeholder="Select active MIO" />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs">
+                    <SelectItem value="Unassigned">Unassigned</SelectItem>
+                    {staffList.map((s) => (
+                      <SelectItem key={s.id} value={s.name || s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
-              <span className="block text-[11px] font-bold tracking-wider text-slate-800 uppercase">
-                Credit Line & Governance
-              </span>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-700">
-                    Credit Limit (৳)
-                  </Label>
-                  <Input
-                    type="number"
-                    value={formData.creditLimitBDT}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        creditLimitBDT: Number(e.target.value) || 0,
-                      })
-                    }
-                    required
-                    className="h-8 font-mono text-xs font-bold"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-700">
-                    Current Dues (৳)
-                  </Label>
-                  <Input
-                    type="number"
-                    value={formData.outstandingBalanceBDT}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        outstandingBalanceBDT: Number(e.target.value) || 0,
-                      })
-                    }
-                    className="h-8 font-mono text-xs"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-700">
-                    Credit Term (Days)
-                  </Label>
-                  <Input
-                    type="number"
-                    value={formData.creditTermDays}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        creditTermDays: Number(e.target.value) || 0,
-                      })
-                    }
-                    className="h-8 font-mono text-xs"
-                  />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">
+                  Credit Limit (BDT) *
+                </Label>
+                <Input
+                  type="number"
+                  value={formData.creditLimitBDT}
+                  onChange={(e) => setFormData({ ...formData, creditLimitBDT: Number(e.target.value) })}
+                  className="h-8 font-mono text-xs"
+                />
+                <div className="flex gap-1 pt-1">
+                  {[50000, 150000, 300000, 500000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, creditLimitBDT: amt })}
+                      className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-medium text-slate-600 hover:bg-slate-100"
+                    >
+                      ৳{(amt / 1000)}k
+                    </button>
+                  ))}
                 </div>
               </div>
 
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
-                  Account Health Status
+                  Credit Terms (Days)
                 </Label>
                 <Select
-                  value={formData.status}
-                  onValueChange={(val) =>
-                    setFormData({
-                      ...formData,
-                      status: val as ClientProfile["status"],
-                    })
-                  }
+                  value={String(formData.creditTermDays)}
+                  onValueChange={(val) => setFormData({ ...formData, creditTermDays: Number(val) })}
                 >
                   <SelectTrigger className="h-8 bg-white text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="text-xs">
-                    <SelectItem value="Active / Healthy">
-                      Active / Healthy
-                    </SelectItem>
+                    <SelectItem value="7">7 Days</SelectItem>
+                    <SelectItem value="15">15 Days</SelectItem>
+                    <SelectItem value="30">30 Days</SelectItem>
+                    <SelectItem value="45">45 Days</SelectItem>
+                    <SelectItem value="60">60 Days</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-700">
+                  Account Status
+                </Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(val: any) => setFormData({ ...formData, status: val })}
+                >
+                  <SelectTrigger className="h-8 bg-white text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs">
+                    <SelectItem value="Active / Healthy">Active / Healthy</SelectItem>
                     <SelectItem value="Watchlist">Watchlist</SelectItem>
-                    <SelectItem value="Credit Hold">
-                      Credit Hold (Dispatch Blocked)
-                    </SelectItem>
+                    <SelectItem value="Credit Hold">Credit Hold</SelectItem>
+                    <SelectItem value="Cash Only">Cash Only</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            <DialogFooter className="pt-2">
+            <DialogFooter className="pt-3">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setIsFormOpen(false)}
-                className="h-8 text-xs"
+                className="h-8 text-xs font-semibold"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
+                disabled={isSaving}
+                className="h-8 bg-[#0090FF] text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
               >
-                {editingId ? "Save Changes" : "Enroll Pharmacy"}
+                {isSaving ? "Saving..." : editingId ? "Update Client" : "Enroll Chemist"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* 6. Printable Account Statement & Health Slip */}
-      <Dialog open={isStatementOpen} onOpenChange={setIsStatementOpen}>
-        <DialogContent className="flex max-h-[95vh] flex-col overflow-hidden rounded-2xl bg-white p-0 sm:max-w-[760px]">
+      {/* Statement & Profile Sheet */}
+      <Sheet open={isStatementOpen} onOpenChange={setIsStatementOpen}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           {activeClient && (
             <>
-              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4 print:hidden">
+              <SheetHeader>
                 <div className="flex items-center gap-2">
-                  <Store className="h-4 w-4 text-[#0090FF]" />
-                  <span className="text-xs font-bold text-slate-800">
-                    Chemist Ledger Certificate — {activeClient.pharmacyName}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => window.print()}
-                    className="h-8 gap-1.5 bg-[#0090FF] text-xs text-white shadow-none hover:bg-[#0080e5]"
-                  >
-                    <Printer className="h-3.5 w-3.5" />
-                    Print Statement
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsStatementOpen(false)}
-                    className="h-8 text-xs"
-                  >
-                    Close
-                  </Button>
-                </div>
-              </div>
-
-              <div
-                className="overflow-y-auto p-8 font-sans text-xs leading-relaxed text-slate-900 sm:p-10 print:m-0 print:overflow-visible print:p-0"
-                id="printable-client-statement"
-              >
-                <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
+                  <div className="rounded-lg bg-blue-50 p-2 text-[#0090FF]">
+                    <Store className="h-5 w-5" />
+                  </div>
                   <div>
-                    <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">
-                      AK PHARMA
-                    </h1>
-                    <p className="mt-0.5 text-[11px] font-semibold text-slate-600">
-                      Commercial Distribution & Credit Management
-                    </p>
-                    <p className="text-[10px] text-slate-500">
-                      Plot 14, Sector 7, Uttara Commercial Zone, Dhaka • DGDA
-                      Lic: DL-PH-2026-88
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="block inline-block border border-slate-900 px-2 py-0.5 text-xs font-extrabold tracking-wider text-slate-900 uppercase">
-                      CLIENT ACCOUNT STATEMENT
-                    </span>
-                    <span className="mt-1.5 block font-mono text-xs font-bold text-[#0090FF]">
-                      {activeClient.clientCode}
-                    </span>
-                    <span className="mt-0.5 block font-mono text-[10px] text-slate-500">
-                      Date: {new Date().toISOString().slice(0, 10)}
-                    </span>
+                    <SheetTitle className="text-base font-bold text-slate-900">
+                      {activeClient.pharmacyName}
+                    </SheetTitle>
+                    <SheetDescription className="text-xs font-mono text-slate-500">
+                      {activeClient.clientCode} • {activeClient.territory}
+                    </SheetDescription>
                   </div>
                 </div>
+              </SheetHeader>
 
-                <div className="grid grid-cols-2 gap-6 border-b border-slate-300 py-4 text-xs">
-                  <div className="space-y-1">
+              <div className="space-y-6 pt-6 text-xs">
+                {/* Credit Overview Card */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800">Commercial Credit Status</span>
+                    <Badge
+                      variant="outline"
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+                        activeClient.status === "Active / Healthy"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : activeClient.status === "Credit Hold"
+                          ? "border-rose-200 bg-rose-50 text-rose-700"
+                          : "border-amber-200 bg-amber-50 text-amber-700"
+                      }`}
+                    >
+                      {activeClient.status}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
                     <div>
-                      <span className="block text-[10px] font-bold text-slate-400 uppercase">
-                        Chemist Outlet:
-                      </span>
-                      <strong className="block text-sm text-slate-900">
-                        {activeClient.pharmacyName}
-                      </strong>
+                      <span className="text-[11px] text-slate-500">Credit Limit:</span>
+                      <p className="font-mono text-sm font-bold text-slate-900">
+                        ৳{activeClient.creditLimitBDT.toLocaleString()}
+                      </p>
                     </div>
                     <div>
-                      <span className="block text-[10px] text-slate-400">
-                        Proprietor / Signatory:
+                      <span className="text-[11px] text-slate-500">Outstanding Due:</span>
+                      <p className="font-mono text-sm font-bold text-rose-600">
+                        ৳{activeClient.outstandingBalanceBDT.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-200 pt-2 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500">Available Credit Headroom:</span>
+                    <span className="font-mono font-bold text-emerald-700">
+                      ৳{Math.max(0, activeClient.creditLimitBDT - activeClient.outstandingBalanceBDT).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Regulatory & Commercial Profile */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Regulatory Credentials
+                  </h4>
+                  <div className="space-y-2 rounded-xl border border-slate-100 bg-white p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">DGDA Drug License:</span>
+                      <span className="font-mono font-semibold text-slate-800">
+                        {activeClient.drugLicenseNo}
                       </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Trade License #:</span>
+                      <span className="font-mono font-semibold text-slate-800">
+                        {activeClient.tradeLicenseNo}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Proprietor / Pharmacist:</span>
                       <span className="font-semibold text-slate-800">
                         {activeClient.proprietor}
                       </span>
                     </div>
-                    <div>
-                      <span className="block text-[10px] text-slate-400">
-                        Outlet Address:
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Primary Phone:</span>
+                      <span className="font-mono font-semibold text-slate-800">
+                        {activeClient.phone}
                       </span>
-                      <span className="text-slate-800">
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Store Address:</span>
+                      <span className="text-slate-800 max-w-[220px] text-right truncate">
                         {activeClient.address}
                       </span>
                     </div>
                   </div>
-
-                  <div className="space-y-1 text-right sm:text-left">
-                    <div>
-                      <span className="block text-[10px] font-bold text-slate-400 uppercase">
-                        DGDA Drug License #:
-                      </span>
-                      <strong className="block font-mono text-slate-900">
-                        {activeClient.drugLicenseNo}
-                      </strong>
-                      <span className="font-mono text-[10px] text-slate-500">
-                        {activeClient.tradeLicenseNo}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-[10px] text-slate-400">
-                        Territory & Assigned Field Officer:
-                      </span>
-                      <span className="font-medium text-slate-800">
-                        {activeClient.territory} • MIO:{" "}
-                        {activeClient.assignedMio}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-[10px] text-slate-400">
-                        Account Standing:
-                      </span>
-                      <strong
-                        className={
-                          activeClient.status === "Credit Hold"
-                            ? "text-rose-600"
-                            : "text-emerald-700"
-                        }
-                      >
-                        {activeClient.status}
-                      </strong>
-                    </div>
-                  </div>
                 </div>
 
-                {/* Credit Matrix */}
-                <div className="my-4 space-y-2 rounded-xl border border-slate-300 bg-slate-50 p-4">
-                  <span className="block text-xs font-bold tracking-wider text-slate-800 uppercase">
-                    Credit Position & Balance Summary
-                  </span>
-                  <div className="grid grid-cols-3 gap-4 pt-1 text-xs">
-                    <div>
-                      <span className="block text-[11px] text-slate-500">
-                        Approved Limit:
-                      </span>
-                      <span className="font-mono text-sm font-bold text-slate-900">
-                        ৳{activeClient.creditLimitBDT.toLocaleString("en-IN")}/-
-                      </span>
-                      <span className="mt-0.5 block text-[10px] text-slate-400">
-                        Term: {activeClient.creditTermDays} Days
-                      </span>
+                {/* Field Force Assignment */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Field Assignment
+                  </h4>
+                  <div className="space-y-2 rounded-xl border border-slate-100 bg-white p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Territory:</span>
+                      <span className="font-semibold text-slate-800">{activeClient.territory}</span>
                     </div>
-                    <div>
-                      <span className="block text-[11px] text-slate-500">
-                        Outstanding Receivable:
-                      </span>
-                      <span className="font-mono text-sm font-bold text-rose-600">
-                        ৳
-                        {activeClient.outstandingBalanceBDT.toLocaleString(
-                          "en-IN"
-                        )}
-                        /-
-                      </span>
-                      <span className="mt-0.5 block text-[10px] text-slate-400">
-                        Last Billed: {activeClient.lastBilledDate}
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Assigned MIO Officer:</span>
+                      <span className="font-semibold text-slate-800">{activeClient.assignedMio}</span>
                     </div>
-                    <div>
-                      <span className="block text-[11px] text-slate-500">
-                        Available Headroom:
-                      </span>
-                      <span className="font-mono text-sm font-bold text-emerald-600">
-                        ৳
-                        {Math.max(
-                          0,
-                          activeClient.creditLimitBDT -
-                            activeClient.outstandingBalanceBDT
-                        ).toLocaleString("en-IN")}
-                        /-
-                      </span>
-                      <span className="mt-0.5 block text-[10px] font-semibold text-emerald-600">
-                        Eligible for Dispatch
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Credit Term Agreement:</span>
+                      <span className="font-mono font-semibold text-slate-800">
+                        {activeClient.creditTermDays} Days Net
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <p className="mt-4 text-[11px] leading-relaxed text-slate-500">
-                  This confirmation certificate is generated from the central
-                  enterprise ledger of AK PHARMA. All shipments dispatched under
-                  commercial Delivery Challans remain subject to verified
-                  payment realization according to agreed terms.
-                </p>
-
-                {/* Sign-off Blocks */}
-                <div className="mt-14 grid grid-cols-3 gap-6 border-t-2 border-slate-200 pt-8 text-center text-[11px]">
-                  <div>
-                    <div className="mx-auto mb-1.5 w-36 border-b border-slate-400" />
-                    <span className="block font-bold text-slate-900">
-                      {activeClient.assignedMio}
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      Territory MIO
-                    </span>
-                  </div>
-                  <div>
-                    <div className="mx-auto mb-1.5 w-36 border-b border-slate-400" />
-                    <span className="block font-bold text-slate-900">
-                      Territory Credit Auditor
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      Accounts & Receivables
-                    </span>
-                  </div>
-                  <div>
-                    <div className="mx-auto mb-1.5 w-36 border-b border-slate-400" />
-                    <span className="block font-bold text-slate-900">
-                      Authorized Signatory
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      Commercial Operations
-                    </span>
-                  </div>
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    onClick={() => handleRedirectToOrder(activeClient)}
+                    className="flex-1 h-9 bg-[#0090FF] text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+                  >
+                    <Truck className="mr-1.5 h-3.5 w-3.5" />
+                    Book Delivery Order
+                  </Button>
                 </div>
               </div>
             </>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* Global Delete Confirmation Modal */}
       <DeleteConfirmationModal
@@ -1351,10 +1798,8 @@ export default function ClientsDirectoryPage() {
         onOpenChange={setIsDeleteModalOpen}
         onConfirm={handleConfirmDeleteClient}
         title="Delete Pharmacy Client Record"
-        description="Are you sure you want to remove this pharmacy client record from the master directory? This action cannot be undone."
-        itemName={clientToDelete ? `${clientToDelete.pharmacyName} (${clientToDelete.clientCode} - Prop: ${clientToDelete.proprietor})` : undefined}
-        confirmText="Delete Client"
-        cancelText="Cancel"
+        description="Are you sure you want to remove this client from the distributor master directory? This action cannot be undone."
+        itemName={clientToDelete?.pharmacyName}
         isDeleting={isDeletingClient}
       />
     </div>
