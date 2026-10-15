@@ -71,7 +71,7 @@ model Doctor {
 
 model DoctorVisitLog {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  dcrCode       String   @unique
+  dcrCode       String
   doctorName    String
   specialty     String
   chamber       String
@@ -279,6 +279,26 @@ model InventoryBatch {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
+
+model StockAdjustment {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  adjustmentRef     String   @unique
+  date              String
+  skuCode           String
+  formulationName   String
+  batchNumber       String
+  warehouseLocation String
+  type              String   // "Write-off (Damaged/Broken)" | "Quarantine Transfer" | "Audit Count Discrepancy" | "Restock Inward Correction"
+  quantity          Float
+  unitCostBDT       Float
+  totalImpactBDT    Float
+  reasonCode        String
+  authorizedBy      String
+  approvalStatus    String   @default("Approved & Adjusted") // "Approved & Adjusted" | "Pending Review" | "Rejected"
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
 
 // ─────────────────────────────────────────────
 // System access control
