@@ -72,8 +72,11 @@ import roleRoutes from "./routes/roleRoutes";
 
 import zoneAllocationRoutes from "./routes/zoneAllocationRoutes";
 
+import stockAdjustmentRoutes from "./routes/stockAdjustmentRoutes";
+
 // Core Modules
 app.use("/api/zone-allocations", zoneAllocationRoutes);
+app.use("/api/stock-adjustments", stockAdjustmentRoutes);
 app.use("/api/clients", clientRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/treasury", treasuryRoutes);

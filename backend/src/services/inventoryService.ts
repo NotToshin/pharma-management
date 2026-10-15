@@ -23,8 +23,90 @@ const generateSKU = (brandName?: string) => {
 
 const generateBatchNumber = () => `BX-${Date.now()}`;
 
+const INITIAL_BATCHES = [
+  {
+    skuCode: "SKU-CF-200",
+    brandName: "Cef-3 200mg/5ml Susp",
+    genericName: "Cefixime Trihydrate",
+    category: "Antibiotic",
+    batchNumber: "BX-2026-039",
+    mfgDate: "2026-01-10",
+    expiryDate: "2027-08-30",
+    availableUnits: 450,
+    unitPrice: 185.0,
+    warehouseBin: "Cold Room A (2-8°C)",
+    storageCondition: "Cold Chain (2-8°C)",
+  },
+  {
+    skuCode: "SKU-CL-625",
+    brandName: "Clavroc 625mg Tab",
+    genericName: "Amoxicillin + Clavulanic Acid",
+    category: "Antibiotic",
+    batchNumber: "BX-2025-119",
+    mfgDate: "2025-06-15",
+    expiryDate: "2027-04-20",
+    availableUnits: 1200,
+    unitPrice: 315.0,
+    warehouseBin: "Bay 01 - Shelf A",
+    storageCondition: "Controlled Ambient (<25°C)",
+  },
+  {
+    skuCode: "SKU-CP-500",
+    brandName: "Ciprocin 500mg Tab",
+    genericName: "Ciprofloxacin HCl",
+    category: "Antibiotic",
+    batchNumber: "BX-2025-412",
+    mfgDate: "2025-04-10",
+    expiryDate: "2026-12-15",
+    availableUnits: 850,
+    unitPrice: 28.5,
+    warehouseBin: "Bay 01 - Shelf A",
+    storageCondition: "Controlled Ambient (<25°C)",
+  },
+  {
+    skuCode: "SKU-NP-500",
+    brandName: "Napa Extra 500mg",
+    genericName: "Paracetamol + Caffeine",
+    category: "Analgesic & Antipyretic",
+    batchNumber: "BX-2026-802",
+    mfgDate: "2026-02-01",
+    expiryDate: "2028-01-15",
+    availableUnits: 2500,
+    unitPrice: 2.4,
+    warehouseBin: "Bay 02 - Shelf B",
+    storageCondition: "Controlled Ambient (<25°C)",
+  },
+  {
+    skuCode: "SKU-AZ-500",
+    brandName: "Azithromycin 500mg",
+    genericName: "Azithromycin Dihydrate",
+    category: "Antibiotic",
+    batchNumber: "BX-2026-301",
+    mfgDate: "2026-03-01",
+    expiryDate: "2027-11-20",
+    availableUnits: 600,
+    unitPrice: 45.0,
+    warehouseBin: "Bay 01 - Shelf A",
+    storageCondition: "Controlled Ambient (<25°C)",
+  },
+];
+
 export const inventoryService = {
+  async seedInitialBatchesIfEmpty() {
+    try {
+      const count = await prisma.inventoryBatch.count();
+      if (count === 0) {
+        for (const item of INITIAL_BATCHES) {
+          await prisma.inventoryBatch.create({ data: item });
+        }
+      }
+    } catch (err) {
+      console.warn("Could not seed initial batches:", err);
+    }
+  },
+
   async getAllBatches() {
+    await this.seedInitialBatchesIfEmpty();
     const batches = await prisma.inventoryBatch.findMany({
       orderBy: { expiryDate: "asc" },
     });

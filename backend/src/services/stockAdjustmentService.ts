@@ -1,0 +1,342 @@
+import prisma from "../utils/prisma";
+import { AppError } from "../errors";
+import { CreateStockAdjustmentInput, UpdateStockAdjustmentInput } from "../validations/stockAdjustmentValidation";
+
+function formatCurrentDate(): string {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const d = new Date();
+  const day = d.getDate();
+  const month = months[d.getMonth()];
+  const year = d.getFullYear();
+  return `${day} ${month} ${year}`;
+}
+
+const INITIAL_ADJUSTMENTS = [
+  {
+    adjustmentRef: "ADJ-2026-081",
+    date: "16 Sep 2026",
+    skuCode: "SKU-CF-200",
+    formulationName: "Cef-3 200mg/5ml Susp",
+    batchNumber: "BX-2026-039",
+    warehouseLocation: "Cold Room A (2-8°C)",
+    type: "Write-off (Damaged/Broken)",
+    quantity: -15,
+    unitCostBDT: 185.0,
+    totalImpactBDT: -2775.0,
+    reasonCode: "Packaging seal compromised during cold-chain offloading",
+    authorizedBy: "Mahbubur Rashid (WH Lead)",
+    approvalStatus: "Approved & Adjusted",
+  },
+  {
+    adjustmentRef: "ADJ-2026-082",
+    date: "16 Sep 2026",
+    skuCode: "SKU-CL-625",
+    formulationName: "Clavroc 625mg Tab",
+    batchNumber: "BX-2025-119",
+    warehouseLocation: "Quarantine Bay Q-01",
+    type: "Quarantine Transfer",
+    quantity: -60,
+    unitCostBDT: 315.0,
+    totalImpactBDT: -18900.0,
+    reasonCode: "Batch stability threshold breach: transferred out of active pick bays",
+    authorizedBy: "Toshin Bin Azad (Super Admin)",
+    approvalStatus: "Approved & Adjusted",
+  },
+  {
+    adjustmentRef: "ADJ-2026-083",
+    date: "15 Sep 2026",
+    skuCode: "SKU-CP-500",
+    formulationName: "Ciprocin 500mg Tab",
+    batchNumber: "BX-2025-412",
+    warehouseLocation: "Bay 01 - Shelf A",
+    type: "Audit Count Discrepancy",
+    quantity: -12,
+    unitCostBDT: 28.5,
+    totalImpactBDT: -342.0,
+    reasonCode: "Physical count reconciliation variance vs. system bin ledger",
+    authorizedBy: "Internal Audit Team",
+    approvalStatus: "Approved & Adjusted",
+  },
+  {
+    adjustmentRef: "ADJ-2026-084",
+    date: "14 Sep 2026",
+    skuCode: "SKU-NP-500",
+    formulationName: "Napa Extra 500mg",
+    batchNumber: "BX-2026-802",
+    warehouseLocation: "Bay 02 - Shelf B",
+    type: "Restock Inward Correction",
+    quantity: 100,
+    unitCostBDT: 2.4,
+    totalImpactBDT: 240.0,
+    reasonCode: "Supplier shipper carton bonus units unlogged at initial receiving",
+    authorizedBy: "Mahbubur Rashid (WH Lead)",
+    approvalStatus: "Approved & Adjusted",
+  },
+  {
+    adjustmentRef: "ADJ-2026-085",
+    date: "14 Sep 2026",
+    skuCode: "SKU-AZ-500",
+    formulationName: "Azithromycin 500mg",
+    batchNumber: "BX-2026-301",
+    warehouseLocation: "Bay 01 - Shelf A",
+    type: "Write-off (Damaged/Broken)",
+    quantity: -8,
+    unitCostBDT: 45.0,
+    totalImpactBDT: -360.0,
+    reasonCode: "Outer blister dented by hydraulic pallet jack",
+    authorizedBy: "Pending Review",
+    approvalStatus: "Pending Review",
+  },
+];
+
+export const stockAdjustmentService = {
+  async seedInitialIfEmpty(): Promise<void> {
+    try {
+      const count = await prisma.stockAdjustment.count();
+      if (count === 0) {
+        for (const item of INITIAL_ADJUSTMENTS) {
+          await prisma.stockAdjustment.create({ data: item });
+        }
+      }
+    } catch (err) {
+      console.warn("Could not seed initial stock adjustments:", err);
+    }
+  },
+
+  async getAllAdjustments(filters?: { search?: string; type?: string; status?: string }) {
+    await this.seedInitialIfEmpty();
+
+    const where: any = {};
+
+    if (filters?.search && filters.search.trim()) {
+      const s = filters.search.trim();
+      where.OR = [
+        { adjustmentRef: { contains: s, mode: "insensitive" } },
+        { skuCode: { contains: s, mode: "insensitive" } },
+        { formulationName: { contains: s, mode: "insensitive" } },
+        { batchNumber: { contains: s, mode: "insensitive" } },
+        { reasonCode: { contains: s, mode: "insensitive" } },
+        { authorizedBy: { contains: s, mode: "insensitive" } },
+      ];
+    }
+
+    if (filters?.type && filters.type !== "all") {
+      where.type = { equals: filters.type, mode: "insensitive" };
+    }
+
+    if (filters?.status && filters.status !== "all") {
+      where.approvalStatus = { equals: filters.status, mode: "insensitive" };
+    }
+
+    const adjustments = await prisma.stockAdjustment.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+    });
+
+    return adjustments;
+  },
+
+  async getSummaryMetrics() {
+    await this.seedInitialIfEmpty();
+
+    const adjustments = await prisma.stockAdjustment.findMany();
+
+    const totalRecords = adjustments.length;
+    let netImpactBDT = 0;
+    let writeOffCount = 0;
+    let writeOffValue = 0;
+    let quarantineCount = 0;
+    let quarantineValue = 0;
+    let approvedCount = 0;
+    let pendingCount = 0;
+    let rejectedCount = 0;
+
+    for (const adj of adjustments) {
+      netImpactBDT += adj.totalImpactBDT;
+
+      const typeLower = adj.type.toLowerCase();
+      const locLower = adj.warehouseLocation.toLowerCase();
+
+      if (typeLower.includes("write-off") || typeLower.includes("write off")) {
+        writeOffCount += 1;
+        writeOffValue += Math.abs(adj.totalImpactBDT);
+      }
+
+      if (typeLower.includes("quarantine") || locLower.includes("quarantine") || locLower.includes("q-01")) {
+        quarantineCount += 1;
+        quarantineValue += Math.abs(adj.totalImpactBDT);
+      }
+
+      if (adj.approvalStatus === "Approved & Adjusted") {
+        approvedCount += 1;
+      } else if (adj.approvalStatus === "Pending Review") {
+        pendingCount += 1;
+      } else if (adj.approvalStatus === "Rejected") {
+        rejectedCount += 1;
+      }
+    }
+
+    const auditComplianceRate = totalRecords > 0 ? Math.round((approvedCount / totalRecords) * 100) : 100;
+
+    return {
+      totalRecords,
+      netImpactBDT,
+      writeOffCount,
+      writeOffValue,
+      quarantineCount,
+      quarantineValue,
+      approvedCount,
+      pendingCount,
+      rejectedCount,
+      auditComplianceRate,
+    };
+  },
+
+  async getAdjustmentById(id: string) {
+    const adj = await prisma.stockAdjustment.findUnique({
+      where: { id },
+    });
+
+    if (!adj) {
+      throw new AppError(`Stock adjustment with ID '${id}' not found`, 404);
+    }
+
+    return adj;
+  },
+
+  async createAdjustment(data: CreateStockAdjustmentInput) {
+    let adjustmentRef = data.adjustmentRef?.trim();
+    if (!adjustmentRef) {
+      const allAdjs = await prisma.stockAdjustment.findMany({ select: { adjustmentRef: true } });
+      let maxNum = 85;
+      for (const a of allAdjs) {
+        const match = a.adjustmentRef?.match(/ADJ-\d+-(\d+)/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+      adjustmentRef = `ADJ-${new Date().getFullYear()}-${String(maxNum + 1).padStart(3, "0")}`;
+    }
+    const date = data.date?.trim() || formatCurrentDate();
+    const quantity = Number(data.quantity);
+    const unitCostBDT = Number(data.unitCostBDT);
+    const totalImpactBDT = data.totalImpactBDT !== undefined ? Number(data.totalImpactBDT) : quantity * unitCostBDT;
+    const authorizedBy = data.authorizedBy?.trim() || "Toshin Bin Azad (Super Admin)";
+    const approvalStatus = data.approvalStatus || "Approved & Adjusted";
+
+    const adjustment = await prisma.stockAdjustment.create({
+      data: {
+        adjustmentRef,
+        date,
+        skuCode: data.skuCode.trim(),
+        formulationName: data.formulationName.trim(),
+        batchNumber: data.batchNumber.trim(),
+        warehouseLocation: data.warehouseLocation.trim(),
+        type: data.type.trim(),
+        quantity,
+        unitCostBDT,
+        totalImpactBDT,
+        reasonCode: data.reasonCode.trim(),
+        authorizedBy,
+        approvalStatus,
+      },
+    });
+
+    // Sync inventory batch stock if adjustment is immediately approved
+    if (approvalStatus === "Approved & Adjusted") {
+      await this.applyBatchStockSync(data.batchNumber.trim(), data.skuCode.trim(), quantity);
+    }
+
+    return adjustment;
+  },
+
+  async updateAdjustment(id: string, data: UpdateStockAdjustmentInput) {
+    const existing = await this.getAdjustmentById(id);
+
+    const updateData: any = {};
+    if (data.adjustmentRef !== undefined) updateData.adjustmentRef = data.adjustmentRef.trim();
+    if (data.date !== undefined) updateData.date = data.date.trim();
+    if (data.skuCode !== undefined) updateData.skuCode = data.skuCode.trim();
+    if (data.formulationName !== undefined) updateData.formulationName = data.formulationName.trim();
+    if (data.batchNumber !== undefined) updateData.batchNumber = data.batchNumber.trim();
+    if (data.warehouseLocation !== undefined) updateData.warehouseLocation = data.warehouseLocation.trim();
+    if (data.type !== undefined) updateData.type = data.type.trim();
+    if (data.reasonCode !== undefined) updateData.reasonCode = data.reasonCode.trim();
+    if (data.authorizedBy !== undefined) updateData.authorizedBy = data.authorizedBy.trim();
+
+    const quantity = data.quantity !== undefined ? Number(data.quantity) : existing.quantity;
+    const unitCostBDT = data.unitCostBDT !== undefined ? Number(data.unitCostBDT) : existing.unitCostBDT;
+    if (data.quantity !== undefined) updateData.quantity = quantity;
+    if (data.unitCostBDT !== undefined) updateData.unitCostBDT = unitCostBDT;
+    updateData.totalImpactBDT = data.totalImpactBDT !== undefined ? Number(data.totalImpactBDT) : quantity * unitCostBDT;
+
+    if (data.approvalStatus !== undefined) {
+      updateData.approvalStatus = data.approvalStatus;
+      // If transitioned from pending/rejected to Approved & Adjusted
+      if (existing.approvalStatus !== "Approved & Adjusted" && data.approvalStatus === "Approved & Adjusted") {
+        await this.applyBatchStockSync(
+          updateData.batchNumber || existing.batchNumber,
+          updateData.skuCode || existing.skuCode,
+          quantity
+        );
+      }
+    }
+
+    const updated = await prisma.stockAdjustment.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return updated;
+  },
+
+  async updateStatus(id: string, approvalStatus: "Approved & Adjusted" | "Pending Review" | "Rejected") {
+    const existing = await this.getAdjustmentById(id);
+
+    if (existing.approvalStatus !== "Approved & Adjusted" && approvalStatus === "Approved & Adjusted") {
+      await this.applyBatchStockSync(existing.batchNumber, existing.skuCode, existing.quantity);
+    }
+
+    const updated = await prisma.stockAdjustment.update({
+      where: { id },
+      data: { approvalStatus },
+    });
+
+    return updated;
+  },
+
+  async deleteAdjustment(id: string) {
+    const existing = await this.getAdjustmentById(id);
+    if (existing.approvalStatus === "Approved & Adjusted") {
+      await this.applyBatchStockSync(existing.batchNumber, existing.skuCode, -existing.quantity);
+    }
+    return prisma.stockAdjustment.delete({
+      where: { id },
+    });
+  },
+
+  async applyBatchStockSync(batchNumber: string, skuCode: string, quantity: number): Promise<void> {
+    try {
+      let batch = await prisma.inventoryBatch.findFirst({
+        where: { batchNumber: { equals: batchNumber, mode: "insensitive" } },
+      });
+
+      if (!batch && skuCode) {
+        batch = await prisma.inventoryBatch.findFirst({
+          where: { skuCode: { equals: skuCode, mode: "insensitive" } },
+        });
+      }
+
+      if (batch) {
+        const newAvailable = Math.max(0, batch.availableUnits + Math.round(quantity));
+        await prisma.inventoryBatch.update({
+          where: { id: batch.id },
+          data: { availableUnits: newAvailable },
+        });
+      }
+    } catch (err) {
+      console.warn("Could not sync stock with inventory batch:", err);
+    }
+  },
+};

@@ -120,22 +120,22 @@ const navSections = [
           // { title: "Add New Doctor", href: "/doctors/new" },
         ],
       },
-      {
-        title: "Prescription Potential",
-        icon: FileSpreadsheet,
-        defaultOpen: true,
-        subItems: [
-          { title: "Category Ranking", href: "/doctors/ranking" },
-          { title: "Visit History Timeline", href: "/doctors/timeline" },
-        ],
-      },
+      // {
+      //   title: "Prescription Potential",
+      //   icon: FileSpreadsheet,
+      //   defaultOpen: true,
+      //   subItems: [
+      //     { title: "Category Ranking", href: "/doctors/ranking" },
+      //     { title: "Visit History Timeline", href: "/doctors/timeline" },
+      //   ],
+      // },
       {
         title: "Daily Call Reports (DCR)",
         icon: Clock,
         defaultOpen: true,
         subItems: [
           { title: "Doctor Visit Logs", href: "/field-force/visit-logs" },
-          { title: "Sample & Gift Distribution", href: "/field-force/samples" },
+          // { title: "Sample & Gift Distribution", href: "/field-force/samples" },
         ],
       },
     ],
@@ -149,7 +149,7 @@ const navSections = [
         defaultOpen: true,
         subItems: [
           { title: "Active Inventory Ledger", href: "/inventory/ledger" },
-          { title: "Expiry Watchlist", href: "/inventory/expiry" },
+          // { title: "Expiry Watchlist", href: "/inventory/expiry" },
         ],
       },
       {
@@ -158,7 +158,7 @@ const navSections = [
         defaultOpen: true,
         subItems: [
           { title: "Purchase Orders", href: "/procurement/orders" },
-          { title: "Receive Stock Batch Log", href: "/procurement/batch-logs" },
+          // { title: "Receive Stock Batch Log", href: "/procurement/batch-logs" },
         ],
       },
       {

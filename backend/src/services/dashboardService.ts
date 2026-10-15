@@ -16,14 +16,18 @@ export const dashboardService = {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth();
 
-    const [orders, batches, accounts, doctors, expenses, staffCount] = await Promise.all([
+    const [orders, batches, accounts, doctors, expenses, staffCount, adjustments] = await Promise.all([
       prisma.order.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.inventoryBatch.findMany({ orderBy: { expiryDate: "asc" } }).catch(() => []),
       prisma.financialAccount.findMany({ orderBy: { balance: "desc" } }).catch(() => []),
       prisma.doctor.findMany({ take: 5, orderBy: { createdAt: "desc" } }).catch(() => []),
       prisma.expenseVoucher.findMany({ orderBy: { createdAt: "desc" } }).catch(() => []),
       prisma.staff.count().catch(() => 0),
+      prisma.stockAdjustment.findMany({ orderBy: { createdAt: "desc" } }).catch(() => []),
     ]);
+
+    const stockAdjustmentsNetImpact = (adjustments as any[]).reduce((sum, a) => sum + Number(a.totalImpactBDT || 0), 0);
+    const stockWriteOffCount = (adjustments as any[]).filter((a) => (a.type || "").toLowerCase().includes("write-off")).length;
 
     const grossTurnover = orders.reduce((sum, o) => sum + Number(o.orderValue || 0), 0);
     const realizedCash = orders
@@ -138,6 +142,15 @@ export const dashboardService = {
         totalStockValuation,
         reconciledAccountsCount: accounts.length,
         staffCount,
+        stockAdjustmentsCount: (adjustments as any[]).length,
+        stockAdjustmentsNetImpact,
+        stockWriteOffCount,
+      },
+      stockAdjustmentsSummary: {
+        totalCount: (adjustments as any[]).length,
+        netImpactBDT: stockAdjustmentsNetImpact,
+        writeOffCount: stockWriteOffCount,
+        recent: (adjustments as any[]).slice(0, 5),
       },
       monthlyRunRate,
       categorySalesShare,
