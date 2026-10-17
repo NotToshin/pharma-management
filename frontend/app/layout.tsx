@@ -34,9 +34,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Shield, User, LogOut, Camera } from "lucide-react"
+import { Shield, User, LogOut, Camera, ShieldAlert, ArrowLeft } from "lucide-react"
 import { Toaster } from "@/components/ui/toaster"
-import { isAuthenticated, getStoredUser, logout } from "@/lib/auth"
+import { isAuthenticated, getStoredUser, logout, isUserSuperAdmin } from "@/lib/auth"
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -107,6 +107,7 @@ export default function RootLayout({
   const [userData, setUserData] = React.useState({
     name: "Toshin",
     email: "toshin@akpharma.com",
+    role: "SUPERADMIN",
     roleName: "Managing Director / Super Admin",
     territory: "Central HQ",
     avatar: "",
@@ -133,6 +134,7 @@ export default function RootLayout({
         setUserData({
           name: storedUser.name || "Toshin",
           email: storedUser.email || "toshin@akpharma.com",
+          role: storedUser.role || storedUser.roleName || (storedUser as any).roleCode || "SUPERADMIN",
           roleName: storedUser.roleName || storedUser.role || "Administrator",
           territory: storedUser.territory || "Central HQ",
           avatar: storedUser.avatar || "",
@@ -144,6 +146,70 @@ export default function RootLayout({
       setAuthorized(true)
     }
   }, [pathname, router, isLoginPage])
+
+  // Dynamic browser tab title
+  React.useEffect(() => {
+    const pageName = getPageTitle(pathname)
+    document.title = `AK-Pharma | ${pageName}`
+  }, [pathname])
+
+  const isSuperAdminUser = React.useMemo(() => {
+    return isUserSuperAdmin({
+      id: "",
+      name: userData.name,
+      email: userData.email,
+      role: userData.role || userData.roleName || "",
+      roleName: userData.roleName,
+    })
+  }, [userData.roleName, userData.role, userData.name, userData.email])
+
+  const isCurrentPageAllowed = React.useMemo(() => {
+    if (isSuperAdminUser) return true
+    if (pathname === "/dashboard" || pathname === "/login" || pathname === "/") return true
+    if (pathname === "/settings/rbac") return false // Super Admin exclusive
+
+    const permissions = userData.permissions || []
+    if (permissions.length === 0) return true // fallback allow
+
+    const perm = permissions.find((p: any) => {
+      if (!p) return false
+      const modTitle = (p.module || "").toLowerCase()
+      if (pathname.startsWith("/analytics/targets") && modTitle.includes("target")) return true
+      if (pathname.startsWith("/analytics/territories") && modTitle.includes("territory")) return true
+      if (pathname.startsWith("/field-force/zones") && modTitle.includes("zone")) return true
+      if (pathname.startsWith("/field-force/visit-logs") && modTitle.includes("visit")) return true
+      if (pathname.startsWith("/field-force/tour-plans") && modTitle.includes("tour")) return true
+      if (pathname.startsWith("/field-force/approvals") && modTitle.includes("approval")) return true
+      if (pathname.startsWith("/field-force/samples") && modTitle.includes("sample")) return true
+      if (pathname.startsWith("/field-force/routes") && modTitle.includes("route")) return true
+      if (pathname.startsWith("/doctors/database") && modTitle.includes("doctor database")) return true
+      if (pathname.startsWith("/doctors/new") && modTitle.includes("add new doctor")) return true
+      if (pathname.startsWith("/doctors/ranking") && modTitle.includes("ranking")) return true
+      if (pathname.startsWith("/doctors/timeline") && modTitle.includes("timeline")) return true
+      if (pathname.startsWith("/inventory/ledger") && modTitle.includes("inventory ledger")) return true
+      if (pathname.startsWith("/procurement/orders") && modTitle.includes("purchase orders")) return true
+      if (pathname.startsWith("/inventory/adjustments") && modTitle.includes("adjustments")) return true
+      if (pathname.startsWith("/inventory/expiry") && modTitle.includes("expiry")) return true
+      if (pathname.startsWith("/procurement/batch-logs") && modTitle.includes("batch log")) return true
+      if (pathname.startsWith("/logistics/orders") && modTitle.includes("delivery logistics")) return true
+      if (pathname.startsWith("/logistics/batch-log") && modTitle.includes("stock delivery log")) return true
+      if (pathname.startsWith("/sales/clients") && modTitle.includes("pharmacy clients")) return true
+      if (pathname.startsWith("/finance/overview") && modTitle.includes("treasury")) return true
+      if (pathname.startsWith("/finance/bank-ledger") && modTitle.includes("bank accounts")) return true
+      if (pathname.startsWith("/finance/collections") && modTitle.includes("cash collections")) return true
+      if (pathname.startsWith("/finance/payments") && modTitle.includes("payments")) return true
+      if (pathname.startsWith("/hr/staff-directory") && modTitle.includes("staff directory")) return true
+      if (pathname.startsWith("/hr/salary") && modTitle.includes("salary")) return true
+      if (pathname.startsWith("/settings/audit-logs") && modTitle.includes("audit logs")) return true
+      return false
+    })
+
+    if (perm) {
+      return Boolean(perm.read)
+    }
+
+    return true
+  }, [isSuperAdminUser, pathname, userData.permissions])
 
   const handleLogout = () => {
     logout()
@@ -330,7 +396,46 @@ export default function RootLayout({
                   </div>
                 </header>
 
-                <main className="flex-1 p-6 md:p-8">{children}</main>
+                <main className="flex-1 p-6 md:p-8">
+                  {isCurrentPageAllowed ? (
+                    children
+                  ) : (
+                    <div className="mx-auto flex min-h-[60vh] max-w-[620px] flex-col items-center justify-center p-6 text-center">
+                      <div className="w-full rounded-2xl border border-rose-200 bg-rose-50/40 p-8 shadow-xs">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 ring-6 ring-rose-50">
+                          <ShieldAlert className="h-7 w-7" />
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="mt-5 border-rose-300 bg-white px-3 py-1 text-xs font-bold text-rose-700 uppercase"
+                        >
+                          Access Denied • 403 Forbidden
+                        </Badge>
+                        <h2 className="mt-4 text-xl font-black tracking-tight text-slate-900">
+                          Module Access Restricted: {getPageTitle(pathname)}
+                        </h2>
+                        <p className="mt-2.5 text-xs leading-relaxed text-slate-600">
+                          Your assigned corporate operational role (
+                          <strong className="text-rose-600">{userData.roleName}</strong>)
+                          has not been granted view permissions for this page.
+                          Please contact the Super Administrator to update your permissions in the
+                          RBAC security control matrix.
+                        </p>
+                        <div className="mt-6 flex items-center justify-center">
+                          <Button
+                            asChild
+                            className="h-8 gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800"
+                          >
+                            <a href="/dashboard">
+                              <ArrowLeft className="h-3.5 w-3.5" />
+                              Return to Dashboard
+                            </a>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </main>
               </SidebarInset>
             </SidebarProvider>
           </TooltipProvider>

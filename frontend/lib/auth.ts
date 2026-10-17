@@ -132,11 +132,35 @@ export function setAuthSession({
     setCookie("ak_session", "true", maxAge)
 
     if (user) {
+      const userRole = user.role || user.roleName || (user as any).roleCode || ""
+      setCookie("ak_role", userRole, maxAge)
       const userJson = JSON.stringify(user)
       localStorage.setItem(STORAGE_USER, userJson)
       localStorage.setItem(STORAGE_AK_USER, userJson)
     }
   }
+}
+
+/**
+ * Checks if a user has Super Administrator privileges
+ */
+export function isUserSuperAdmin(user?: AuthUser | null): boolean {
+  if (!user) return false
+  if (
+    user.email &&
+    (user.email.toLowerCase().includes("superadmin") ||
+      user.email.toLowerCase() === "toshin@akpharma.com")
+  ) {
+    return true
+  }
+  const role = `${user.role || ""} ${user.roleName || ""} ${(user as any).roleCode || ""}`
+    .trim()
+    .replace(/[\s_]+/g, "")
+    .toUpperCase()
+  return (
+    role.includes("SUPERADMIN") ||
+    role.includes("SUPERADMINISTRATOR")
+  )
 }
 
 /**
@@ -191,6 +215,7 @@ export function isAuthenticated(): boolean {
 export function clearAuthSession() {
   // Clear frontend session flag
   deleteCookie("ak_session")
+  deleteCookie("ak_role")
   deleteCookie(COOKIE_ACCESS_TOKEN)
   deleteCookie(COOKIE_TOKEN_ALIAS)
   deleteCookie(COOKIE_REFRESH_TOKEN)

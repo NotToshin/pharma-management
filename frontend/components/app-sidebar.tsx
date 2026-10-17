@@ -27,7 +27,7 @@ import {
   Sparkles,
   ShieldCheck,
 } from "lucide-react"
-import { logout, getStoredUser } from "@/lib/auth"
+import { logout, getStoredUser, isUserSuperAdmin } from "@/lib/auth"
 import { getEndpoint } from "@/lib/api"
 
 import {
@@ -62,7 +62,27 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-const navSections = [
+interface NavSubItem {
+  title: string
+  href: string
+  superAdminOnly?: boolean
+}
+
+interface NavItem {
+  title: string
+  icon: any
+  href?: string
+  defaultOpen?: boolean
+  subItems?: NavSubItem[]
+  badge?: string
+}
+
+interface NavSection {
+  group: string
+  items: NavItem[]
+}
+
+const navSections: NavSection[] = [
   {
     group: "OVERVIEW & ANALYTICS",
     items: [
@@ -72,7 +92,7 @@ const navSections = [
         href: "/dashboard",
       },
       {
-        title: "Performance Analytics",
+        title: "Target",
         icon: LineChart,
         defaultOpen: true,
         subItems: [
@@ -103,7 +123,7 @@ const navSections = [
         defaultOpen: true,
         subItems: [
           { title: "MIO Zone Allocations", href: "/field-force/zones" },
-          { title: "Route Optimization", href: "/field-force/routes" },
+          // { title: "Route Optimization", href: "/field-force/routes" },
         ],
       },
     ],
@@ -237,7 +257,11 @@ const navSections = [
         icon: Settings,
         defaultOpen: true,
         subItems: [
-          { title: "Role Permissions (RBAC)", href: "/settings/rbac" },
+          {
+            title: "Role Permissions (RBAC)",
+            href: "/settings/rbac",
+            superAdminOnly: true,
+          },
           {
             title: "Audit Logs (21 CFR Compliant)",
             href: "/settings/audit-logs",
@@ -255,8 +279,77 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [currentUser, setCurrentUser] = React.useState<{
     name: string
     email: string
+    role?: string
+    permissions?: any[]
   } | null>(null)
   const [totalClientsCount, setTotalClientsCount] = React.useState<number | string>(12)
+
+  const isSuperAdmin = React.useMemo(() => {
+    if (!currentUser) return true // Default optimistic state during initial hydration
+    return isUserSuperAdmin({
+      id: "",
+      name: currentUser.name,
+      email: currentUser.email,
+      role: currentUser.role || "",
+      roleName: currentUser.role || "",
+    })
+  }, [currentUser])
+
+  const canAccessRoute = React.useCallback(
+    (href?: string, title?: string) => {
+      if (isSuperAdmin) return true
+      if (!href) return true
+      if (href === "/settings/rbac") return false // Super Admin only
+
+      const permissions = currentUser?.permissions || []
+      if (permissions.length === 0) return true // default allow if permissions not yet loaded
+
+      const perm = permissions.find((p: any) => {
+        if (!p) return false
+        const modTitle = (p.module || "").toLowerCase()
+        const checkTitle = (title || "").toLowerCase()
+        if (checkTitle && modTitle.includes(checkTitle)) return true
+        if (checkTitle && checkTitle.includes(modTitle)) return true
+
+        if (href === "/dashboard" && modTitle.includes("dashboard")) return true
+        if (href.startsWith("/analytics/targets") && modTitle.includes("target")) return true
+        if (href.startsWith("/analytics/territories") && modTitle.includes("territory")) return true
+        if (href.startsWith("/field-force/zones") && modTitle.includes("zone")) return true
+        if (href.startsWith("/field-force/visit-logs") && modTitle.includes("visit")) return true
+        if (href.startsWith("/field-force/tour-plans") && modTitle.includes("tour")) return true
+        if (href.startsWith("/field-force/approvals") && modTitle.includes("approval")) return true
+        if (href.startsWith("/field-force/samples") && modTitle.includes("sample")) return true
+        if (href.startsWith("/field-force/routes") && modTitle.includes("route")) return true
+        if (href.startsWith("/doctors/database") && modTitle.includes("doctor database")) return true
+        if (href.startsWith("/doctors/new") && modTitle.includes("add new doctor")) return true
+        if (href.startsWith("/doctors/ranking") && modTitle.includes("ranking")) return true
+        if (href.startsWith("/doctors/timeline") && modTitle.includes("timeline")) return true
+        if (href.startsWith("/inventory/ledger") && modTitle.includes("inventory ledger")) return true
+        if (href.startsWith("/procurement/orders") && modTitle.includes("purchase orders")) return true
+        if (href.startsWith("/inventory/adjustments") && modTitle.includes("adjustments")) return true
+        if (href.startsWith("/inventory/expiry") && modTitle.includes("expiry")) return true
+        if (href.startsWith("/procurement/batch-logs") && modTitle.includes("batch log")) return true
+        if (href.startsWith("/logistics/orders") && modTitle.includes("delivery logistics")) return true
+        if (href.startsWith("/logistics/batch-log") && modTitle.includes("stock delivery log")) return true
+        if (href.startsWith("/sales/clients") && modTitle.includes("pharmacy clients")) return true
+        if (href.startsWith("/finance/overview") && modTitle.includes("treasury")) return true
+        if (href.startsWith("/finance/bank-ledger") && modTitle.includes("bank accounts")) return true
+        if (href.startsWith("/finance/collections") && modTitle.includes("cash collections")) return true
+        if (href.startsWith("/finance/payments") && modTitle.includes("payments")) return true
+        if (href.startsWith("/hr/staff-directory") && modTitle.includes("staff directory")) return true
+        if (href.startsWith("/hr/salary") && modTitle.includes("salary")) return true
+        if (href.startsWith("/settings/audit-logs") && modTitle.includes("audit logs")) return true
+        return false
+      })
+
+      if (perm) {
+        return Boolean(perm.read)
+      }
+
+      return true
+    },
+    [isSuperAdmin, currentUser]
+  )
 
   const fetchClientCount = React.useCallback(async () => {
     try {
@@ -280,6 +373,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setCurrentUser({
         name: user.name || "Administrator",
         email: user.email || "admin@akpharma.com",
+        role: user.role || user.roleName || (user as any).roleCode || "",
+        permissions: user.permissions || [],
       })
     }
 
@@ -337,94 +432,111 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       {/* 2. Scrollable Navigation Content with Draggable Scrollbar */}
       <SidebarContent className="draggable-scrollbar min-h-0 flex-1 gap-2 overscroll-contain px-2 py-2 focus:outline-none">
-        {navSections.map((section) => (
-          <SidebarGroup key={section.group} className="py-1">
-            <SidebarGroupLabel className="mb-1 px-2 text-[10px] font-semibold tracking-wider text-slate-400 uppercase group-data-[collapsible=icon]:hidden">
-              {section.group}
-            </SidebarGroupLabel>
-            <SidebarMenu className="gap-1">
-              {section.items.map((item) => {
-                const hasSub = item.subItems && item.subItems.length > 0
-                const isSubActive =
-                  hasSub && item.subItems.some((sub) => pathname === sub.href)
-                const isDirectActive = item.href
-                  ? pathname === item.href
-                  : false
+        {navSections.map((section) => {
+          const visibleItems = section.items.filter((item) => {
+            const subItems = item.subItems || []
+            if (subItems.length > 0) {
+              const visibleSubs = subItems.filter(
+                (sub) => (!sub.superAdminOnly || isSuperAdmin) && canAccessRoute(sub.href, sub.title)
+              )
+              return visibleSubs.length > 0
+            }
+            return canAccessRoute(item.href, item.title)
+          })
 
-                if (hasSub) {
-                  return (
-                    <Collapsible
-                      key={item.title}
-                      defaultOpen={item.defaultOpen || isSubActive}
-                      className="group/collapsible"
-                    >
-                      <SidebarMenuItem>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton
-                            tooltip={item.title}
-                            className="h-9 w-full justify-between px-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
-                          >
-                            <div className="flex items-center gap-2.5 truncate">
-                              <item.icon className="h-4 w-4 shrink-0 text-slate-600" />
-                              <span className="truncate group-data-[collapsible=icon]:hidden">
-                                {item.title}
-                              </span>
-                            </div>
-                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-data-[collapsible=icon]:hidden group-data-[state=open]/collapsible:rotate-90" />
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
-                          <SidebarMenuSub className="mx-2 space-y-1 border-l border-slate-200 py-1 pl-3.5">
-                            {item.subItems.map((subItem, idx) => {
-                              const isActive = pathname === subItem.href
-                              return (
-                                <SidebarMenuSubItem
-                                  key={`${subItem.title}-${idx}`}
-                                >
-                                  <SidebarMenuSubButton
-                                    asChild
-                                    isActive={isActive}
-                                    className={`h-7 text-xs transition-colors ${isActive
-                                      ? "bg-slate-100 font-semibold text-slate-900"
-                                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                                      }`}
-                                  >
-                                    <Link
-                                      href={subItem.href}
-                                      className="w-full"
-                                    >
-                                      <span className="leading-snug whitespace-nowrap">
-                                        {subItem.title}
-                                      </span>
-                                    </Link>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              )
-                            })}
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </SidebarMenuItem>
-                    </Collapsible>
+          if (visibleItems.length === 0) return null
+
+          return (
+            <SidebarGroup key={section.group} className="py-1">
+              <SidebarGroupLabel className="mb-1 px-2 text-[10px] font-semibold tracking-wider text-slate-400 uppercase group-data-[collapsible=icon]:hidden">
+                {section.group}
+              </SidebarGroupLabel>
+              <SidebarMenu className="gap-1">
+                {visibleItems.map((item) => {
+                  const subItems = (item.subItems || []).filter(
+                    (sub) => (!sub.superAdminOnly || isSuperAdmin) && canAccessRoute(sub.href, sub.title)
                   )
-                }
+                  const hasSub = subItems.length > 0
+                  const isSubActive =
+                    hasSub && subItems.some((sub) => pathname === sub.href)
+                  const isDirectActive = item.href
+                    ? pathname === item.href
+                    : false
 
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isDirectActive}
-                      tooltip={item.title}
-                      className={`h-9 w-full justify-between rounded-md px-2 text-xs font-medium transition-colors ${isDirectActive
-                        ? "bg-slate-100 font-semibold text-slate-900"
-                        : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-                        }`}
-                    >
-                      <Link
-                        href={item.href || "#"}
-                        className="flex w-full items-center justify-between"
+                  if (hasSub) {
+                    return (
+                      <Collapsible
+                        key={item.title}
+                        defaultOpen={item.defaultOpen || isSubActive}
+                        className="group/collapsible"
                       >
-                        <div className="flex items-center gap-2.5">
-                          <item.icon className="h-4 w-4 shrink-0 text-slate-600" />
+                        <SidebarMenuItem>
+                          <CollapsibleTrigger asChild>
+                            <SidebarMenuButton
+                              tooltip={item.title}
+                              className="h-9 w-full justify-between px-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                            >
+                              <div className="flex items-center gap-2.5 truncate">
+                                <item.icon className="h-4 w-4 shrink-0 text-slate-600" />
+                                <span className="truncate group-data-[collapsible=icon]:hidden">
+                                  {item.title}
+                                </span>
+                              </div>
+                              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-data-[collapsible=icon]:hidden group-data-[state=open]/collapsible:rotate-90" />
+                            </SidebarMenuButton>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
+                            <SidebarMenuSub className="mx-2 space-y-1 border-l border-slate-200 py-1 pl-3.5">
+                              {subItems.map((subItem, idx) => {
+                                const isActive = pathname === subItem.href
+                                return (
+                                  <SidebarMenuSubItem
+                                    key={`${subItem.title}-${idx}`}
+                                  >
+                                    <SidebarMenuSubButton
+                                      asChild
+                                      isActive={isActive}
+                                      className={`h-7 text-xs transition-colors ${isActive
+                                        ? "bg-slate-100 font-semibold text-slate-900"
+                                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                                        }`}
+                                    >
+                                      <Link
+                                        href={subItem.href}
+                                        className="w-full"
+                                      >
+                                        <span className="leading-snug whitespace-nowrap">
+                                          {subItem.title}
+                                        </span>
+                                      </Link>
+                                    </SidebarMenuSubButton>
+                                  </SidebarMenuSubItem>
+                                )
+                              })}
+                            </SidebarMenuSub>
+                          </CollapsibleContent>
+                        </SidebarMenuItem>
+                      </Collapsible>
+                    )
+                  }
+
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isDirectActive}
+                        tooltip={item.title}
+                        className={`h-9 w-full justify-between rounded-md px-2 text-xs font-medium transition-colors ${isDirectActive
+                          ? "bg-slate-100 font-semibold text-slate-900"
+                          : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                          }`}
+                      >
+                        <Link
+                          href={item.href || "#"}
+                          className="flex w-full items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <item.icon className="h-4 w-4 shrink-0 text-slate-600" />
                           <span className="group-data-[collapsible=icon]:hidden">
                             {item.title}
                           </span>
@@ -444,8 +556,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 )
               })}
             </SidebarMenu>
-          </SidebarGroup>
-        ))}
+            </SidebarGroup>
+          )
+        })}
       </SidebarContent>
 
       {/* 3. User Dropdown Footer */}
@@ -505,15 +618,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </div>
                   </div>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                    <Link href="/settings/rbac">
-                      <ShieldCheck className="mr-2 h-3.5 w-3.5" />
-                      Role Privileges
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
+                {isSuperAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                        <Link href="/settings/rbac">
+                          <ShieldCheck className="mr-2 h-3.5 w-3.5 text-blue-600" />
+                          Role Privileges (RBAC)
+                        </Link>
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => logout()}
