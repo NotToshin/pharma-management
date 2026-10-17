@@ -2,6 +2,10 @@ import { Request, Response } from "express";
 import { rbacService } from "../services/rbacService";
 import { sendResponse } from "../utils/response";
 import { catchAsync } from "../utils/catchAsync";
+import {
+  getAccessTokenCookieOptions,
+  getRefreshTokenCookieOptions,
+} from "../middlewares/token";
 
 export const getRoles = catchAsync(async (req: Request, res: Response) => {
   const roles = await rbacService.getRoles();
@@ -67,5 +71,9 @@ export const loginOperator = catchAsync(async (req: Request, res: Response) => {
   }
 
   const result = await rbacService.loginOperator(email, password);
+
+  // Set tokens as HttpOnly cookies
+  res.cookie("accessToken", result.token, getAccessTokenCookieOptions());
+
   sendResponse(res, 200, "Login successful", result);
 });

@@ -117,10 +117,14 @@ export function middleware(request: NextRequest) {
   if (pathname.startsWith("/settings/rbac")) {
     const roleCookie = request.cookies.get("ak_role")?.value
     const userRole = getUserRole(accessTokenCookie, roleCookie)
-    const normalizedRole = (userRole || "").replace(/_/g, "").toUpperCase()
+    const normalizedRole = (userRole || "").replace(/[\s_]+/g, "").toUpperCase()
 
     // If role is detected and not SUPERADMIN, redirect to dashboard with unauthorized flag
-    if (normalizedRole && normalizedRole !== "SUPERADMIN") {
+    const isSuperAdminRole =
+      normalizedRole.includes("SUPERADMIN") ||
+      normalizedRole.includes("SUPERADMINISTRATOR")
+
+    if (normalizedRole && !isSuperAdminRole) {
       const redirectUrl = new URL("/dashboard", request.url)
       redirectUrl.searchParams.set("unauthorized", "rbac")
       return NextResponse.redirect(redirectUrl)

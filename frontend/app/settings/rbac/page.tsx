@@ -59,7 +59,6 @@ import {
   Check,
   X,
   AlertTriangle,
-  Layers,
 } from "lucide-react"
 
 interface RolePermission {
@@ -113,6 +112,7 @@ export default function RBACManagementPage() {
   const [searchUserQuery, setSearchUserQuery] = React.useState("")
   const [roleFilter, setRoleFilter] = React.useState<string>("ALL")
   const [statusFilter, setStatusFilter] = React.useState<string>("ALL")
+  const [matrixCategoryFilter, setMatrixCategoryFilter] = React.useState<string>("ALL")
 
   // Matrix edit tracking
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false)
@@ -136,13 +136,6 @@ export default function RBACManagementPage() {
   const [editRoleCode, setEditRoleCode] = React.useState("")
   const [editTerritory, setEditTerritory] = React.useState("")
   const [editPassword, setEditPassword] = React.useState("")
-
-  // Create Role Modal state
-  const [isCreateRoleOpen, setIsCreateRoleOpen] = React.useState(false)
-  const [isSubmittingRole, setIsSubmittingRole] = React.useState(false)
-  const [newRoleName, setNewRoleName] = React.useState("")
-  const [newRoleCode, setNewRoleCode] = React.useState("")
-  const [newRoleDesc, setNewRoleDesc] = React.useState("")
 
   // Global Delete Modal state
   const [userToDelete, setUserToDelete] = React.useState<{ id: string; name: string } | null>(null)
@@ -213,6 +206,23 @@ export default function RBACManagementPage() {
   const selectedRole = React.useMemo(() => {
     return roles.find((r) => r.id === selectedRoleId) || roles[0] || null
   }, [roles, selectedRoleId])
+
+  const matrixCategories = React.useMemo(() => {
+    if (!selectedRole?.permissions) return []
+    const set = new Set<string>()
+    selectedRole.permissions.forEach((p) => {
+      if (p.category) set.add(p.category)
+    })
+    return Array.from(set)
+  }, [selectedRole])
+
+  const visiblePermissions = React.useMemo(() => {
+    if (!selectedRole || !selectedRole.permissions) return []
+    if (matrixCategoryFilter === "ALL") return selectedRole.permissions
+    return selectedRole.permissions.filter(
+      (p) => p.category?.toLowerCase() === matrixCategoryFilter.toLowerCase()
+    )
+  }, [selectedRole, matrixCategoryFilter])
 
   // 3. Matrix Permission Handlers
   const handleTogglePermission = (
@@ -418,46 +428,7 @@ export default function RBACManagementPage() {
     }
   }
 
-  // 6. Create Custom System Role
-  const handleCreateRole = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newRoleName.trim() || !newRoleCode.trim()) {
-      toast.error("Please specify both role name and unique role code.")
-      return
-    }
 
-    const toastId = toast.loading(`Registering custom role "${newRoleName}"...`)
-    try {
-      setIsSubmittingRole(true)
-      const res = await apiFetch(`${API_URL}/rbac/roles`, {
-        method: "POST",
-        body: JSON.stringify({
-          name: newRoleName.trim(),
-          code: newRoleCode.trim(),
-          description: newRoleDesc.trim() || `Custom system role for ${newRoleName.trim()}`,
-        }),
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.message || data.error || "Role creation failed")
-      }
-
-      toast.success(`Custom role "${newRoleName}" created with default security matrix.`, {
-        id: toastId,
-      })
-
-      setNewRoleName("")
-      setNewRoleCode("")
-      setNewRoleDesc("")
-      setIsCreateRoleOpen(false)
-      fetchRBACData(false)
-    } catch (err: any) {
-      toast.error(err.message || "Could not create custom system role.", { id: toastId })
-    } finally {
-      setIsSubmittingRole(false)
-    }
-  }
 
   // 7. Toggle Account Status
   const handleToggleUserStatus = async (user: UserAssignment) => {
@@ -712,16 +683,6 @@ export default function RBACManagementPage() {
 
           <Button
             size="sm"
-            variant="outline"
-            onClick={() => setIsCreateRoleOpen(true)}
-            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
-          >
-            <Layers className="h-3.5 w-3.5 text-blue-600" />
-            New Role Tier
-          </Button>
-
-          <Button
-            size="sm"
             onClick={() => setIsProvisionOpen(true)}
             className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
           >
@@ -818,7 +779,7 @@ export default function RBACManagementPage() {
             </span>
           </div>
 
-          <div className="space-y-2">
+          <div className="max-h-[850px] space-y-2 overflow-y-auto pr-1">
             {roles.map((r) => {
               const isSelected = selectedRoleId === r.id
               return (
@@ -933,7 +894,40 @@ export default function RBACManagementPage() {
                 </div>
               )}
 
-              <div className="pt-3">
+              {/* Category Filter Pills */}
+              <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 py-3">
+                <button
+                  type="button"
+                  onClick={() => setMatrixCategoryFilter("ALL")}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                    matrixCategoryFilter === "ALL"
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  All Modules ({(selectedRole.permissions || []).length})
+                </button>
+                {matrixCategories.map((cat) => {
+                  const count = (selectedRole.permissions || []).filter((p) => p.category === cat).length
+                  const isCatSelected = matrixCategoryFilter === cat
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setMatrixCategoryFilter(cat)}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                        isCatSelected
+                          ? "bg-[#0090FF] text-white shadow-xs"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {cat} ({count})
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="max-h-[620px] overflow-y-auto pt-2">
                 <Table>
                   <TableHeader>
                     <TableRow className="border-b border-slate-100 text-xs text-slate-600 hover:bg-transparent">
@@ -946,7 +940,7 @@ export default function RBACManagementPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(selectedRole.permissions || []).map((perm) => (
+                    {(visiblePermissions || []).map((perm) => (
                       <TableRow
                         key={perm.module}
                         className="border-b border-slate-50 hover:bg-slate-50/50"
@@ -1444,78 +1438,6 @@ export default function RBACManagementPage() {
                 className="h-8 bg-[#0090FF] text-xs font-semibold text-white hover:bg-[#0080e5]"
               >
                 {isSubmittingEdit ? "Updating..." : "Save Operator Changes"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* 7. Create Custom Role Modal */}
-      <Dialog open={isCreateRoleOpen} onOpenChange={setIsCreateRoleOpen}>
-        <DialogContent className="rounded-xl bg-white sm:max-w-[460px]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              Create Custom System Role Tier
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Define a new security tier. A default permission matrix template will be generated
-              which you can fine-tune in the matrix editor.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleCreateRole} className="space-y-3.5 py-2 text-xs">
-            <div className="space-y-1">
-              <Label className="font-semibold text-slate-700">Role Title / Designation *</Label>
-              <Input
-                placeholder="e.g. Area Field Supervisor"
-                value={newRoleName}
-                onChange={(e) => setNewRoleName(e.target.value)}
-                required
-                className="h-8 text-xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="font-semibold text-slate-700">
-                Unique Role Code (Identifier) *
-              </Label>
-              <Input
-                placeholder="e.g. AFS_FIELD"
-                value={newRoleCode}
-                onChange={(e) => setNewRoleCode(e.target.value.toUpperCase())}
-                required
-                className="h-8 font-mono text-xs uppercase"
-              />
-              <p className="text-[10px] text-slate-400">
-                Unique slug used by middleware and backend authorization tokens.
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="font-semibold text-slate-700">Role Description & Scope</Label>
-              <Input
-                placeholder="e.g. Regional team oversight and route auditing"
-                value={newRoleDesc}
-                onChange={(e) => setNewRoleDesc(e.target.value)}
-                className="h-8 text-xs"
-              />
-            </div>
-
-            <DialogFooter className="pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsCreateRoleOpen(false)}
-                className="h-8 text-xs"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmittingRole}
-                className="h-8 bg-[#0090FF] text-xs font-semibold text-white hover:bg-[#0080e5]"
-              >
-                {isSubmittingRole ? "Creating..." : "Create Role Tier"}
               </Button>
             </DialogFooter>
           </form>

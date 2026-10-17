@@ -61,15 +61,19 @@ export const requireAuth = (...allowedRoles: string[]) => {
       if (allowedRoles.length > 0) {
         const userRoleCode = (user.role?.code || "").toUpperCase();
         const userRoleName = (user.role?.name || "").toUpperCase();
-        const normalizedDbCode = userRoleCode.replace(/_/g, ""); // "SUPER_ADMIN" -> "SUPERADMIN"
+        const normalizedDbCode = userRoleCode.replace(/[\s_]+/g, "");
+        const normalizedDbName = userRoleName.replace(/[\s_]+/g, "");
 
         const hasAllowedRole = allowedRoles.some((role) => {
           const upperRole = role.trim().toUpperCase();
-          const normalizedAllowed = upperRole.replace(/_/g, "");
+          const normalizedAllowed = upperRole.replace(/[\s_]+/g, "");
           return (
             upperRole === userRoleCode ||
             upperRole === userRoleName ||
-            normalizedAllowed === normalizedDbCode
+            normalizedAllowed === normalizedDbCode ||
+            normalizedAllowed === normalizedDbName ||
+            (normalizedDbCode.includes("SUPERADMIN") && normalizedAllowed.includes("SUPERADMIN")) ||
+            (normalizedDbName.includes("SUPERADMIN") && normalizedAllowed.includes("SUPERADMIN"))
           );
         });
 
