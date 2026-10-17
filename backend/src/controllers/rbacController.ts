@@ -8,6 +8,12 @@ export const getRoles = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, 200, "Roles retrieved successfully", roles);
 });
 
+export const createRole = catchAsync(async (req: Request, res: Response) => {
+  const { name, code, description } = req.body;
+  const newRole = await rbacService.createRole({ name, code, description });
+  sendResponse(res, 201, "Role created successfully", newRole);
+});
+
 export const updateRolePermissions = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { permissions } = req.body;
@@ -34,6 +40,12 @@ export const provisionUser = catchAsync(async (req: Request, res: Response) => {
 
   const newUser = await rbacService.provisionUser({ name, email, password, roleCode, territory });
   sendResponse(res, 201, "Operator account provisioned successfully", newUser);
+});
+
+export const updateUser = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const updatedUser = await rbacService.updateUser(id, req.body);
+  sendResponse(res, 200, "Operator credentials and role updated successfully", updatedUser);
 });
 
 export const deleteUser = catchAsync(async (req: Request, res: Response) => {

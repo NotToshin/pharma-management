@@ -27,7 +27,7 @@ import {
   Sparkles,
   ShieldCheck,
 } from "lucide-react"
-import { logout, getStoredUser } from "@/lib/auth"
+import { logout, getStoredUser, isUserSuperAdmin } from "@/lib/auth"
 import { getEndpoint } from "@/lib/api"
 
 import {
@@ -62,7 +62,27 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-const navSections = [
+interface NavSubItem {
+  title: string
+  href: string
+  superAdminOnly?: boolean
+}
+
+interface NavItem {
+  title: string
+  icon: any
+  href?: string
+  defaultOpen?: boolean
+  subItems?: NavSubItem[]
+  badge?: string
+}
+
+interface NavSection {
+  group: string
+  items: NavItem[]
+}
+
+const navSections: NavSection[] = [
   {
     group: "OVERVIEW & ANALYTICS",
     items: [
@@ -237,7 +257,11 @@ const navSections = [
         icon: Settings,
         defaultOpen: true,
         subItems: [
-          { title: "Role Permissions (RBAC)", href: "/settings/rbac" },
+          {
+            title: "Role Permissions (RBAC)",
+            href: "/settings/rbac",
+            superAdminOnly: true,
+          },
           {
             title: "Audit Logs (21 CFR Compliant)",
             href: "/settings/audit-logs",
@@ -255,8 +279,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [currentUser, setCurrentUser] = React.useState<{
     name: string
     email: string
+    role?: string
   } | null>(null)
   const [totalClientsCount, setTotalClientsCount] = React.useState<number | string>(12)
+
+  const isSuperAdmin = React.useMemo(() => {
+    if (!currentUser) return true // Default optimistic state during initial hydration
+    return (currentUser.role || "").trim().replace(/_/g, "").toUpperCase() === "SUPERADMIN"
+  }, [currentUser])
 
   const fetchClientCount = React.useCallback(async () => {
     try {
@@ -280,6 +310,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setCurrentUser({
         name: user.name || "Administrator",
         email: user.email || "admin@akpharma.com",
+        role: user.role || user.roleName || (user as any).roleCode || "",
       })
     }
 
@@ -344,9 +375,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarGroupLabel>
             <SidebarMenu className="gap-1">
               {section.items.map((item) => {
-                const hasSub = item.subItems && item.subItems.length > 0
+                const subItems = item.subItems || []
+                const hasSub = subItems.length > 0
                 const isSubActive =
-                  hasSub && item.subItems.some((sub) => pathname === sub.href)
+                  hasSub && subItems.some((sub) => pathname === sub.href)
                 const isDirectActive = item.href
                   ? pathname === item.href
                   : false
@@ -375,7 +407,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         </CollapsibleTrigger>
                         <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
                           <SidebarMenuSub className="mx-2 space-y-1 border-l border-slate-200 py-1 pl-3.5">
-                            {item.subItems.map((subItem, idx) => {
+                            {subItems
+                              .filter((subItem) => !subItem.superAdminOnly || isSuperAdmin)
+                              .map((subItem, idx) => {
                               const isActive = pathname === subItem.href
                               return (
                                 <SidebarMenuSubItem
@@ -505,15 +539,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </div>
                   </div>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                    <Link href="/settings/rbac">
-                      <ShieldCheck className="mr-2 h-3.5 w-3.5" />
-                      Role Privileges
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
+                {isSuperAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                        <Link href="/settings/rbac">
+                          <ShieldCheck className="mr-2 h-3.5 w-3.5 text-blue-600" />
+                          Role Privileges (RBAC)
+                        </Link>
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => logout()}

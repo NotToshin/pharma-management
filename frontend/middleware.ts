@@ -26,6 +26,29 @@ function isTokenExpired(token: string): boolean {
   }
 }
 
+/**
+ * Safely extracts user role from token or cookie
+ */
+function getUserRole(token?: string, cookieRole?: string): string | null {
+  if (cookieRole) return cookieRole
+  if (!token) return null
+  try {
+    const parts = token.split(".")
+    if (parts.length !== 3) return null
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    )
+    const decoded = JSON.parse(jsonPayload)
+    return decoded.role || null
+  } catch {
+    return null
+  }
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -88,6 +111,20 @@ export function middleware(request: NextRequest) {
     }
 
     return response
+  }
+
+  // 6. Super Admin Route Protection: /settings/rbac is restricted exclusively to SUPER_ADMIN
+  if (pathname.startsWith("/settings/rbac")) {
+    const roleCookie = request.cookies.get("ak_role")?.value
+    const userRole = getUserRole(accessTokenCookie, roleCookie)
+    const normalizedRole = (userRole || "").replace(/_/g, "").toUpperCase()
+
+    // If role is detected and not SUPERADMIN, redirect to dashboard with unauthorized flag
+    if (normalizedRole && normalizedRole !== "SUPERADMIN") {
+      const redirectUrl = new URL("/dashboard", request.url)
+      redirectUrl.searchParams.set("unauthorized", "rbac")
+      return NextResponse.redirect(redirectUrl)
+    }
   }
 
   return NextResponse.next()

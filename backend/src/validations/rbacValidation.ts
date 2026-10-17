@@ -47,5 +47,28 @@ export const roleIdParamSchema = z.object({
   }),
 });
 
+export const createRoleSchema = z.object({
+  body: z.object({
+    name: z.string().min(1, "Role name is required"),
+    code: z.string().min(2, "Role code is required"),
+    description: z.string().min(1, "Description is required"),
+  }),
+});
+
+export const updateUserSchema = z.object({
+  body: z.object({
+    name: z.string().min(1).optional(),
+    email: z.string().email("Invalid email format").optional(),
+    password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal("")),
+    roleCode: z.string().min(1).optional(),
+    territory: z.string().optional(),
+  }),
+  params: z.object({
+    id: z.string().min(1, "User ID is required"),
+  }),
+});
+
 export type LoginOperatorInput = z.infer<typeof loginOperatorSchema>["body"];
 export type ProvisionUserInput = z.infer<typeof provisionUserSchema>["body"];
+export type CreateRoleInput = z.infer<typeof createRoleSchema>["body"];
+export type UpdateUserInput = z.infer<typeof updateUserSchema>["body"];

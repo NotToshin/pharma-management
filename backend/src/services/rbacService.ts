@@ -3,8 +3,7 @@ import jwt from "jsonwebtoken";
 import { AppError } from "../errors";
 import config from "../config";
 import prisma from "../utils/prisma";
-
-const JWT_SECRET = config.jwt.secret;
+import { generateAccessToken } from "../middlewares/token";
 
 const SEED_ROLES = [
   {
@@ -75,9 +74,16 @@ const SEED_ROLES = [
 ];
 
 async function ensureRolesSeeded() {
-  const count = await prisma.systemRole.count();
-  if (count === 0) {
-    for (const r of SEED_ROLES) {
+  for (const r of SEED_ROLES) {
+    const existing = await prisma.systemRole.findFirst({
+      where: {
+        OR: [
+          { code: r.code },
+          { code: r.code.replace(/_/g, "") },
+        ],
+      },
+    });
+    if (!existing) {
       await prisma.systemRole.create({
         data: {
           name: r.name,
@@ -138,6 +144,49 @@ export const rbacService = {
       userCount: r._count.users,
       permissions: r.permissions,
     }));
+  },
+
+  async createRole(data: { name: string; code: string; description: string }) {
+    await ensureRolesSeeded();
+    const cleanCode = data.code.trim().toUpperCase().replace(/\s+/g, "_");
+    const existing = await prisma.systemRole.findUnique({ where: { code: cleanCode } });
+    if (existing) {
+      throw new AppError(`A role with code '${cleanCode}' already exists.`, 400);
+    }
+
+    const defaultModules = [
+      { module: "Doctor Registry", category: "Clinical", read: true, create: false, edit: false, delete: false, specialAction: "Re-rank Category Tiers", specialGranted: false },
+      { module: "FEFO Stock Control", category: "Warehouse", read: true, create: false, edit: false, delete: false, specialAction: "Quarantine / Write-off Batch", specialGranted: false },
+      { module: "Sales & Dispatch", category: "Logistics", read: true, create: false, edit: false, delete: false, specialAction: "Override Credit Hold", specialGranted: false },
+      { module: "Accounts & Collections", category: "Finance", read: true, create: false, edit: false, delete: false, specialAction: "Authorize Bank Release", specialGranted: false },
+      { module: "Staff & Payroll", category: "Human Resources", read: false, create: false, edit: false, delete: false, specialAction: "Issue Appointment Letters", specialGranted: false },
+    ];
+
+    const role = await prisma.systemRole.create({
+      data: {
+        name: data.name.trim(),
+        code: cleanCode,
+        description: data.description.trim(),
+        isSystemDefault: false,
+        permissions: {
+          create: defaultModules,
+        },
+      },
+      include: {
+        permissions: true,
+        _count: { select: { users: true } },
+      },
+    });
+
+    return {
+      id: role.id,
+      name: role.name,
+      code: role.code,
+      description: role.description,
+      isSystemDefault: role.isSystemDefault,
+      userCount: role._count.users,
+      permissions: role.permissions,
+    };
   },
 
   async updateRolePermissions(id: string, permissions: any[]) {
@@ -203,6 +252,7 @@ export const rbacService = {
   },
 
   async provisionUser(data: { name: string; email: string; password: string; roleCode: string; territory?: string }) {
+    await ensureRolesSeeded();
     const { name, email, password, roleCode, territory } = data;
 
     const cleanEmail = email.trim().toLowerCase();
@@ -212,7 +262,15 @@ export const rbacService = {
       throw new AppError("An operator with this email is already provisioned.", 400);
     }
 
-    const role = await prisma.systemRole.findUnique({ where: { code: roleCode } });
+    const cleanRoleCode = roleCode.trim().toUpperCase();
+    const role = await prisma.systemRole.findFirst({
+      where: {
+        OR: [
+          { code: cleanRoleCode },
+          { code: cleanRoleCode.replace(/_/g, "") },
+        ],
+      },
+    });
     if (!role) {
       throw new AppError(`Specified role '${roleCode}' does not exist.`, 404);
     }
@@ -247,10 +305,113 @@ export const rbacService = {
     };
   },
 
+  async updateUser(id: string, data: { name?: string; email?: string; roleCode?: string; territory?: string; password?: string }) {
+    const user = await prisma.systemUser.findUnique({
+      where: { id },
+      include: { role: true },
+    });
+    if (!user) {
+      throw new AppError("Operator user not found", 404);
+    }
+
+    const updateData: any = {};
+    if (data.name && data.name.trim().length > 0) {
+      updateData.name = data.name.trim();
+    }
+    if (data.territory && data.territory.trim().length > 0) {
+      updateData.territory = data.territory.trim();
+    }
+    if (data.email) {
+      const cleanEmail = data.email.trim().toLowerCase();
+      if (cleanEmail !== user.email) {
+        const existing = await prisma.systemUser.findUnique({ where: { email: cleanEmail } });
+        if (existing) {
+          throw new AppError("An operator with this email is already provisioned.", 400);
+        }
+        updateData.email = cleanEmail;
+      }
+    }
+
+    if (data.roleCode) {
+      const cleanRoleCode = data.roleCode.trim().toUpperCase();
+      const targetRole = await prisma.systemRole.findFirst({
+        where: {
+          OR: [
+            { code: cleanRoleCode },
+            { code: cleanRoleCode.replace(/_/g, "") },
+          ],
+        },
+      });
+      if (!targetRole) {
+        throw new AppError(`Specified role '${data.roleCode}' does not exist.`, 404);
+      }
+      const isUserSuperAdmin = user.role.code === "SUPER_ADMIN" || user.role.code === "SUPERADMIN";
+      const isTargetSuperAdmin = targetRole.code === "SUPER_ADMIN" || targetRole.code === "SUPERADMIN";
+      if (isUserSuperAdmin && !isTargetSuperAdmin) {
+        const superAdminCount = await prisma.systemUser.count({
+          where: {
+            role: {
+              OR: [{ code: "SUPER_ADMIN" }, { code: "SUPERADMIN" }],
+            },
+            status: "Active",
+          },
+        });
+        if (superAdminCount <= 1) {
+          throw new AppError("Cannot change role: System requires at least one active Super Administrator.", 400);
+        }
+      }
+      updateData.roleId = targetRole.id;
+    }
+
+    if (data.password && data.password.trim().length > 0) {
+      if (data.password.length < 6) {
+        throw new AppError("Password must be at least 6 characters.", 400);
+      }
+      const salt = await bcrypt.genSalt(12);
+      updateData.passwordHash = await bcrypt.hash(data.password, salt);
+    }
+
+    const updatedUser = await prisma.systemUser.update({
+      where: { id },
+      data: updateData,
+      include: {
+        role: { select: { name: true, code: true } },
+      },
+    });
+
+    return {
+      id: updatedUser.id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      roleCode: updatedUser.role.code,
+      roleName: updatedUser.role.name,
+      territory: updatedUser.territory,
+      status: updatedUser.status,
+      lastLogin: updatedUser.lastLogin,
+      message: "Operator credentials and role updated successfully.",
+    };
+  },
+
   async deleteUser(id: string) {
-    const user = await prisma.systemUser.findUnique({ where: { id } });
+    const user = await prisma.systemUser.findUnique({
+      where: { id },
+      include: { role: true },
+    });
     if (!user) {
       throw new AppError("User not found", 404);
+    }
+    const isUserSuperAdmin = user.role.code === "SUPER_ADMIN" || user.role.code === "SUPERADMIN";
+    if (isUserSuperAdmin) {
+      const superAdminCount = await prisma.systemUser.count({
+        where: {
+          role: {
+            OR: [{ code: "SUPER_ADMIN" }, { code: "SUPERADMIN" }],
+          },
+        },
+      });
+      if (superAdminCount <= 1) {
+        throw new AppError("Cannot delete the sole Super Administrator account.", 400);
+      }
     }
     await prisma.systemUser.delete({ where: { id } });
     return { message: "Operator deleted successfully" };
@@ -315,17 +476,11 @@ export const rbacService = {
       data: { lastLogin: nowStr },
     });
 
-    const token = jwt.sign(
-      {
-        userId: user.id,
-        email: user.email,
-        name: user.name,
-        roleCode: user.role.code,
-        territory: user.territory,
-      },
-      JWT_SECRET,
-      { expiresIn: "12h" }
-    );
+    const token = generateAccessToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role.code,
+    });
 
     return {
       token,
