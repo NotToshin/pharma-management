@@ -162,7 +162,7 @@ model Client {
   address               String?
   territory             String?
   assignedMio           String?
-  creditLimitBDT        Float    @default(150000)
+  creditLimitBDT        Float    @default(0)
   outstandingBalanceBDT Float    @default(0.00)
   creditTermDays        Int      @default(30)
   status                String   @default("Active / Healthy")
