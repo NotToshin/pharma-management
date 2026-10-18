@@ -120,20 +120,43 @@ export function decodeTokenPayload(token: string): any | null {
 }
 
 /**
- * Sets auth session profile in localStorage and a non-sensitive session flag in cookies.
- * Does NOT set token cookies in document.cookie, preserving native HttpOnly cross-origin cookies.
+ * Sets auth session profile, accessToken, and refreshToken in localStorage and cookies.
  */
 export function setAuthSession({
   user,
+  accessToken,
+  refreshToken,
 }: AuthSessionData) {
   if (typeof window !== "undefined") {
     // Non-sensitive session flag for Next.js edge middleware awareness
     const maxAge = 7 * 24 * 60 * 60 // 7 days
     setCookie("ak_session", "true", maxAge)
 
+    if (accessToken) {
+      setCookie(COOKIE_ACCESS_TOKEN, accessToken, 15 * 60)
+      setCookie(COOKIE_TOKEN_ALIAS, accessToken, 15 * 60)
+      localStorage.setItem(STORAGE_TOKEN, accessToken)
+      localStorage.setItem(STORAGE_AK_TOKEN, accessToken)
+    }
+
+    if (refreshToken) {
+      setCookie(COOKIE_REFRESH_TOKEN, refreshToken, maxAge)
+      localStorage.setItem("refreshToken", refreshToken)
+      localStorage.setItem("ak_refreshToken", refreshToken)
+    }
+
     if (user) {
       const userRole = user.role || user.roleName || (user as any).roleCode || ""
       setCookie("ak_role", userRole, maxAge)
+      const hasRbac = Boolean(
+        isUserSuperAdmin(user) ||
+        user.permissions?.some(
+          (p: any) =>
+            (p.module || "").toLowerCase().includes("role permission") ||
+            (p.module || "").toLowerCase().includes("rbac")
+        )
+      )
+      setCookie("ak_rbac", hasRbac ? "true" : "false", maxAge)
       const userJson = JSON.stringify(user)
       localStorage.setItem(STORAGE_USER, userJson)
       localStorage.setItem(STORAGE_AK_USER, userJson)
@@ -210,12 +233,30 @@ export function isAuthenticated(): boolean {
 }
 
 /**
+ * Retrieves the current refresh token from cookies or localStorage
+ */
+export function getStoredRefreshToken(): string | null {
+  const cookieToken = getCookie(COOKIE_REFRESH_TOKEN)
+  if (cookieToken) return cookieToken
+
+  if (typeof window !== "undefined") {
+    return (
+      localStorage.getItem("refreshToken") ||
+      localStorage.getItem("ak_refreshToken") ||
+      null
+    )
+  }
+  return null
+}
+
+/**
  * Clears session data from localStorage and non-sensitive frontend cookies
  */
 export function clearAuthSession() {
   // Clear frontend session flag
   deleteCookie("ak_session")
   deleteCookie("ak_role")
+  deleteCookie("ak_rbac")
   deleteCookie(COOKIE_ACCESS_TOKEN)
   deleteCookie(COOKIE_TOKEN_ALIAS)
   deleteCookie(COOKIE_REFRESH_TOKEN)
@@ -227,6 +268,7 @@ export function clearAuthSession() {
     localStorage.removeItem(STORAGE_USER)
     localStorage.removeItem(STORAGE_AK_USER)
     localStorage.removeItem("refreshToken")
+    localStorage.removeItem("ak_refreshToken")
   }
 }
 

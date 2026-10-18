@@ -68,9 +68,11 @@ function LoginForm() {
 
       const payload = data.data || data
       const user = payload.user || data.user
+      const accessToken = payload.accessToken || data.accessToken
+      const refreshToken = payload.refreshToken || data.refreshToken
 
-      // Rely entirely on backend's native Set-Cookie header (HttpOnly, Secure, SameSite=None)
-      setAuthSession({ user })
+      // Persist auth session profile and tokens
+      setAuthSession({ user, accessToken, refreshToken })
 
       setSuccessMessage("Session verified. Redirecting...")
 

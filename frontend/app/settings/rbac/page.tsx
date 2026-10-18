@@ -49,6 +49,8 @@ import {
   CheckCircle2,
   Save,
   Lock,
+  Eye,
+  EyeOff,
   RefreshCw,
   Trash2,
   Ban,
@@ -95,6 +97,35 @@ interface UserAssignment {
   lastLogin: string
 }
 
+/**
+ * Formats user's last login timestamp strictly in (UTC+06:00) Dhaka timezone
+ */
+function formatLastActiveSession(raw?: string | null): string {
+  if (!raw || raw.trim().toLowerCase().includes("never")) {
+    return "Never logged in"
+  }
+
+  try {
+    const parsed = new Date(raw)
+    if (!isNaN(parsed.getTime())) {
+      const formatted = parsed.toLocaleString("en-GB", {
+        timeZone: "Asia/Dhaka",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+      return formatted.replace(/am|pm/i, (m) => m.toUpperCase())
+    }
+  } catch {
+    // Keep fallback
+  }
+
+  return raw
+}
+
 export default function RBACManagementPage() {
   const router = useRouter()
 
@@ -126,6 +157,7 @@ export default function RBACManagementPage() {
   const [provPassword, setProvPassword] = React.useState("")
   const [provRoleCode, setProvRoleCode] = React.useState("MIO_FIELD")
   const [provTerritory, setProvTerritory] = React.useState("Dhaka North Hub")
+  const [showProvPassword, setShowProvPassword] = React.useState(false)
 
   // Edit / Reassign User Modal state
   const [isEditUserOpen, setIsEditUserOpen] = React.useState(false)
@@ -136,6 +168,7 @@ export default function RBACManagementPage() {
   const [editRoleCode, setEditRoleCode] = React.useState("")
   const [editTerritory, setEditTerritory] = React.useState("")
   const [editPassword, setEditPassword] = React.useState("")
+  const [showEditPassword, setShowEditPassword] = React.useState(false)
 
   // Global Delete Modal state
   const [userToDelete, setUserToDelete] = React.useState<{ id: string; name: string } | null>(null)
@@ -149,8 +182,14 @@ export default function RBACManagementPage() {
     if (!user) {
       setIsAuthorized(false)
     } else {
-      const authorized = isUserSuperAdmin(user)
-      setIsAuthorized(authorized)
+      const isSuper = isUserSuperAdmin(user)
+      const rbacPerm = user.permissions?.find(
+        (p: any) =>
+          (p.module || "").toLowerCase().includes("role permission") ||
+          (p.module || "").toLowerCase().includes("rbac")
+      )
+      const hasPerm = Boolean(rbacPerm && (rbacPerm.read || rbacPerm.create || rbacPerm.edit))
+      setIsAuthorized(isSuper || hasPerm)
     }
   }, [])
 
@@ -339,17 +378,22 @@ export default function RBACManagementPage() {
       return
     }
 
+    if (provPassword.length < 6) {
+      toast.error("Password must be at least 6 characters long.")
+      return
+    }
+
     const toastId = toast.loading(`Provisioning operator credentials for ${provEmail}...`)
     try {
       setIsSubmittingProvision(true)
       const res = await apiFetch(`${API_URL}/rbac/users`, {
         method: "POST",
         body: JSON.stringify({
-          name: provName,
-          email: provEmail,
+          name: provName.trim(),
+          email: provEmail.trim(),
           password: provPassword,
           roleCode: provRoleCode,
-          territory: provTerritory,
+          territory: provTerritory.trim(),
         }),
       })
 
@@ -365,6 +409,7 @@ export default function RBACManagementPage() {
       setProvName("")
       setProvEmail("")
       setProvPassword("")
+      setShowProvPassword(false)
       setIsProvisionOpen(false)
       fetchRBACData(false)
     } catch (err: any) {
@@ -514,7 +559,7 @@ export default function RBACManagementPage() {
       "Assigned Role": u.roleName,
       "Territory Station": u.territory,
       "Account Status": u.status,
-      "Last Active Session": u.lastLogin,
+      "Last Active Session (UTC+06:00 Dhaka)": formatLastActiveSession(u.lastLogin),
     }))
 
     const worksheet = XLSX.utils.json_to_sheet(data)
@@ -1091,7 +1136,17 @@ export default function RBACManagementPage() {
               <TableHead className="pl-0">Operator & Login Email</TableHead>
               <TableHead>Assigned Security Role</TableHead>
               <TableHead>Territory Station</TableHead>
-              <TableHead>Last Active Session</TableHead>
+              <TableHead>
+                <div className="flex items-center gap-1.5">
+                  <span>Last Active Session</span>
+                  <Badge
+                    variant="outline"
+                    className="border-slate-200 bg-slate-50 px-1.5 py-0 font-mono text-[9px] font-normal text-slate-500"
+                  >
+                    UTC+06:00 Dhaka
+                  </Badge>
+                </div>
+              </TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="pr-0 text-right">Actions</TableHead>
             </TableRow>
@@ -1154,8 +1209,8 @@ export default function RBACManagementPage() {
                       {user.territory}
                     </TableCell>
 
-                    <TableCell className="py-3 font-mono text-xs text-slate-500">
-                      {user.lastLogin || "Never"}
+                    <TableCell className="py-3 font-mono text-xs text-slate-600">
+                      {formatLastActiveSession(user.lastLogin)}
                     </TableCell>
 
                     <TableCell className="py-3 text-center text-xs">
@@ -1278,13 +1333,27 @@ export default function RBACManagementPage() {
                 <div className="relative">
                   <Lock className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
                   <Input
-                    type="password"
-                    placeholder="••••••••"
+                    type={showProvPassword ? "text" : "password"}
+                    placeholder="Min. 6 characters"
                     value={provPassword}
                     onChange={(e) => setProvPassword(e.target.value)}
                     required
-                    className="h-8 pl-8 font-mono text-xs"
+                    minLength={6}
+                    className="h-8 pl-8 pr-8 font-mono text-xs"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowProvPassword(!showProvPassword)}
+                    className="absolute top-2 right-2.5 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+                    tabIndex={-1}
+                    aria-label={showProvPassword ? "Hide password" : "Show password"}
+                  >
+                    {showProvPassword ? (
+                      <EyeOff className="h-3.5 w-3.5" />
+                    ) : (
+                      <Eye className="h-3.5 w-3.5" />
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1414,12 +1483,25 @@ export default function RBACManagementPage() {
               <div className="relative">
                 <Lock className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
                 <Input
-                  type="password"
+                  type={showEditPassword ? "text" : "password"}
                   placeholder="Leave blank to keep existing password"
                   value={editPassword}
                   onChange={(e) => setEditPassword(e.target.value)}
-                  className="h-8 pl-8 font-mono text-xs"
+                  className="h-8 pl-8 pr-8 font-mono text-xs"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowEditPassword(!showEditPassword)}
+                  className="absolute top-2 right-2.5 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+                  tabIndex={-1}
+                  aria-label={showEditPassword ? "Hide password" : "Show password"}
+                >
+                  {showEditPassword ? (
+                    <EyeOff className="h-3.5 w-3.5" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5" />
+                  )}
+                </button>
               </div>
             </div>
 

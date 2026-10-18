@@ -66,11 +66,30 @@ export function getEndpoint(path: string): string {
   return cleanPath ? `${baseUrl}/${cleanPath}` : baseUrl;
 }
 
-let isRefreshing = false;
-let failedQueue: Array<(success: boolean) => void> = [];
+import { getAccessToken, getStoredRefreshToken, getStoredUser, setAuthSession } from "./auth";
 
-const processQueue = (success: boolean) => {
-  failedQueue.forEach((callback) => callback(success));
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (res: Response | Promise<Response>) => void;
+  reject: (err: any) => void;
+  targetUrl: string | URL | Request;
+  requestInit: RequestInit;
+}> = [];
+
+const processQueue = (success: boolean, newAccessToken?: string) => {
+  failedQueue.forEach(({ resolve, reject, targetUrl, requestInit }) => {
+    if (success) {
+      const retryHeaders: Record<string, string> = {
+        ...(requestInit.headers as Record<string, string>),
+      };
+      if (newAccessToken) {
+        retryHeaders["Authorization"] = `Bearer ${newAccessToken}`;
+      }
+      resolve(fetch(targetUrl, { ...requestInit, headers: retryHeaders }));
+    } else {
+      reject(new Error("Authentication session expired"));
+    }
+  });
   failedQueue = [];
 };
 
@@ -85,28 +104,38 @@ function handleSessionExpiry() {
     localStorage.removeItem("ak_user");
     localStorage.removeItem("token");
     localStorage.removeItem("ak_token");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("ak_refreshToken");
     window.location.href = "/login?expired=1";
   }
 }
 
 /**
  * Universal fetch interceptor with:
- * - cross-origin HttpOnly cookie credentials
+ * - dual authorization support (Authorization header + HttpOnly cookies)
  * - automatic 401 interception
- * - single-flight silent refresh token rotation
+ * - single-flight silent refresh token rotation (with fallback body transmission)
  * - request queueing for concurrent 401s
- * - automatic retry of failed requests
- * - logout & redirect fallback on session invalidation
+ * - automatic retry of failed requests with rotated token
+ * - logout & redirect fallback only on ultimate session invalidation
  */
 export async function apiFetch(input: string | URL | Request, init: RequestInit = {}): Promise<Response> {
   const targetUrl = typeof input === "string" && !input.startsWith("http") ? getEndpoint(input) : input;
+  const token = typeof window !== "undefined" ? getAccessToken() : null;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init.headers as Record<string, string>),
+  };
+
+  if (token && !headers["Authorization"]) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const requestInit: RequestInit = {
     credentials: "include",
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
+    headers,
   };
 
   const response = await fetch(targetUrl, requestInit);
@@ -127,13 +156,7 @@ export async function apiFetch(input: string | URL | Request, init: RequestInit 
   // If a refresh is already in flight, queue this request until refresh finishes
   if (isRefreshing) {
     return new Promise<Response>((resolve, reject) => {
-      failedQueue.push((success) => {
-        if (success) {
-          resolve(fetch(targetUrl, requestInit));
-        } else {
-          reject(new Error("Authentication session expired"));
-        }
-      });
+      failedQueue.push({ resolve, reject, targetUrl, requestInit });
     });
   }
 
@@ -141,16 +164,44 @@ export async function apiFetch(input: string | URL | Request, init: RequestInit 
   isRefreshing = true;
 
   try {
+    const storedRefreshToken = typeof window !== "undefined" ? getStoredRefreshToken() : null;
+
     const refreshRes = await fetch(`${getApiUrl()}/auth/refresh-token`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: storedRefreshToken }),
     });
 
     if (refreshRes.ok) {
-      processQueue(true);
-      // Seamlessly retry the original paused request
-      return await fetch(targetUrl, requestInit);
+      const refreshJson = await refreshRes.json().catch(() => null);
+      const payload = refreshJson?.data || refreshJson;
+      const newAccessToken = payload?.accessToken;
+      const newRefreshToken = payload?.refreshToken;
+      const updatedUser = payload?.user;
+
+      if (newAccessToken) {
+        setAuthSession({
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken || storedRefreshToken || undefined,
+          user: updatedUser || getStoredUser() || undefined,
+        });
+      }
+
+      processQueue(true, newAccessToken);
+
+      // Seamlessly retry the original paused request with new authorization header
+      const retryHeaders: Record<string, string> = {
+        ...headers,
+      };
+      if (newAccessToken) {
+        retryHeaders["Authorization"] = `Bearer ${newAccessToken}`;
+      }
+
+      return await fetch(targetUrl, {
+        ...requestInit,
+        headers: retryHeaders,
+      });
     } else {
       processQueue(false);
       handleSessionExpiry();

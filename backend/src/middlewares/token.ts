@@ -56,24 +56,24 @@ const isProduction = config.env === "production";
 
 export const getAccessTokenCookieOptions = (): CookieOptions => ({
   httpOnly: true,
-  secure: true,
-  sameSite: "none",
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
   maxAge: 15 * 60 * 1000, // 15 minutes
   path: "/",
 });
 
 export const getRefreshTokenCookieOptions = (): CookieOptions => ({
   httpOnly: true,
-  secure: true,
-  sameSite: "none",
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   path: "/",
 });
 
 export const getClearCookieOptions = (): CookieOptions => ({
   httpOnly: true,
-  secure: true,
-  sameSite: "none",
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
   path: "/",
 });
 

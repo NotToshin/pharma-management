@@ -324,14 +324,18 @@ export const rbacService = {
     }
 
     const cleanRoleCode = roleCode.trim().toUpperCase();
+    const orConditions: any[] = [
+      { code: cleanRoleCode },
+      { code: cleanRoleCode.replace(/_/g, "") },
+      { name: { equals: roleCode.trim(), mode: "insensitive" } },
+    ];
+    if (/^[0-9a-fA-F]{24}$/.test(roleCode.trim())) {
+      orConditions.unshift({ id: roleCode.trim() });
+    }
+
     const role = await prisma.systemRole.findFirst({
       where: {
-        OR: [
-          { id: roleCode.trim() },
-          { code: cleanRoleCode },
-          { code: cleanRoleCode.replace(/_/g, "") },
-          { name: { equals: roleCode.trim(), mode: "insensitive" } },
-        ],
+        OR: orConditions,
       },
     });
     if (!role) {
@@ -397,14 +401,18 @@ export const rbacService = {
 
     if (data.roleCode) {
       const cleanRoleCode = data.roleCode.trim().toUpperCase();
+      const orConditions: any[] = [
+        { code: cleanRoleCode },
+        { code: cleanRoleCode.replace(/_/g, "") },
+        { name: { equals: data.roleCode.trim(), mode: "insensitive" } },
+      ];
+      if (/^[0-9a-fA-F]{24}$/.test(data.roleCode.trim())) {
+        orConditions.unshift({ id: data.roleCode.trim() });
+      }
+
       const targetRole = await prisma.systemRole.findFirst({
         where: {
-          OR: [
-            { id: data.roleCode.trim() },
-            { code: cleanRoleCode },
-            { code: cleanRoleCode.replace(/_/g, "") },
-            { name: { equals: data.roleCode.trim(), mode: "insensitive" } },
-          ],
+          OR: orConditions,
         },
       });
       if (!targetRole) {
@@ -527,13 +535,17 @@ export const rbacService = {
       throw new AppError("Invalid credentials. Contact IT for access.", 401);
     }
 
-    const nowStr = new Date().toLocaleString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const nowStr = new Date()
+      .toLocaleString("en-GB", {
+        timeZone: "Asia/Dhaka",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+      .replace(/am|pm/i, (m) => m.toUpperCase());
     await prisma.systemUser.update({
       where: { id: user.id },
       data: { lastLogin: nowStr },

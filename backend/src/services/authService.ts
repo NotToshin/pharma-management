@@ -55,13 +55,17 @@ export const authService = {
     // Hash the refresh token and store in DB
     const refreshTokenHash = hashToken(refreshToken);
 
-    const nowStr = new Date().toLocaleString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const nowStr = new Date()
+      .toLocaleString("en-GB", {
+        timeZone: "Asia/Dhaka",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+      .replace(/am|pm/i, (m) => m.toUpperCase());
 
     await prisma.systemUser.update({
       where: { id: user.id },
@@ -164,6 +168,7 @@ export const authService = {
         roleName: user.role.name,
         territory: user.territory,
         status: user.status,
+        permissions: user.role.permissions,
       },
     };
   },

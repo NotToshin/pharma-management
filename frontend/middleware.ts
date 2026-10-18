@@ -113,18 +113,21 @@ export function middleware(request: NextRequest) {
     return response
   }
 
-  // 6. Super Admin Route Protection: /settings/rbac is restricted exclusively to SUPER_ADMIN
+  // 6. RBAC Route Protection: /settings/rbac is restricted to accounts with Super Admin or RBAC permission
   if (pathname.startsWith("/settings/rbac")) {
     const roleCookie = request.cookies.get("ak_role")?.value
+    const rbacFlag = request.cookies.get("ak_rbac")?.value
     const userRole = getUserRole(accessTokenCookie, roleCookie)
     const normalizedRole = (userRole || "").replace(/[\s_]+/g, "").toUpperCase()
 
-    // If role is detected and not SUPERADMIN, redirect to dashboard with unauthorized flag
+    // If role is detected and neither SUPERADMIN nor RBAC permitted, redirect to dashboard (keep session active, no logout)
     const isSuperAdminRole =
       normalizedRole.includes("SUPERADMIN") ||
       normalizedRole.includes("SUPERADMINISTRATOR")
 
-    if (normalizedRole && !isSuperAdminRole) {
+    const hasClearance = isSuperAdminRole || rbacFlag === "true"
+
+    if (normalizedRole && !hasClearance) {
       const redirectUrl = new URL("/dashboard", request.url)
       redirectUrl.searchParams.set("unauthorized", "rbac")
       return NextResponse.redirect(redirectUrl)

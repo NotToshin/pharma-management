@@ -260,7 +260,6 @@ const navSections: NavSection[] = [
           {
             title: "Role Permissions (RBAC)",
             href: "/settings/rbac",
-            superAdminOnly: true,
           },
           {
             title: "Audit Logs (21 CFR Compliant)",
@@ -285,7 +284,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [totalClientsCount, setTotalClientsCount] = React.useState<number | string>(12)
 
   const isSuperAdmin = React.useMemo(() => {
-    if (!currentUser) return true // Default optimistic state during initial hydration
+    if (!currentUser) return false
     return isUserSuperAdmin({
       id: "",
       name: currentUser.name,
@@ -295,11 +294,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     })
   }, [currentUser])
 
+  const hasRbacPermission = React.useMemo(() => {
+    if (isSuperAdmin) return true
+    if (!currentUser?.permissions || !Array.isArray(currentUser.permissions)) return false
+    const rbacPerm = currentUser.permissions.find((p: any) => {
+      if (!p) return false
+      const mod = (p.module || "").toLowerCase()
+      return mod.includes("role permission") || mod.includes("rbac")
+    })
+    return Boolean(rbacPerm && (rbacPerm.read || rbacPerm.create || rbacPerm.edit))
+  }, [isSuperAdmin, currentUser])
+
   const canAccessRoute = React.useCallback(
     (href?: string, title?: string) => {
       if (isSuperAdmin) return true
       if (!href) return true
-      if (href === "/settings/rbac") return false // Super Admin only
+
+      // RBAC route permission check: only super admin OR users with explicit RBAC permission
+      if (href === "/settings/rbac" || href.startsWith("/settings/rbac")) {
+        return hasRbacPermission
+      }
 
       const permissions = currentUser?.permissions || []
       if (permissions.length === 0) return true // default allow if permissions not yet loaded
@@ -437,7 +451,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             const subItems = item.subItems || []
             if (subItems.length > 0) {
               const visibleSubs = subItems.filter(
-                (sub) => (!sub.superAdminOnly || isSuperAdmin) && canAccessRoute(sub.href, sub.title)
+                (sub) => canAccessRoute(sub.href, sub.title)
               )
               return visibleSubs.length > 0
             }
@@ -454,7 +468,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenu className="gap-1">
                 {visibleItems.map((item) => {
                   const subItems = (item.subItems || []).filter(
-                    (sub) => (!sub.superAdminOnly || isSuperAdmin) && canAccessRoute(sub.href, sub.title)
+                    (sub) => canAccessRoute(sub.href, sub.title)
                   )
                   const hasSub = subItems.length > 0
                   const isSubActive =
@@ -618,7 +632,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </div>
                   </div>
                 </DropdownMenuLabel>
-                {isSuperAdmin && (
+                {hasRbacPermission && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuGroup>
