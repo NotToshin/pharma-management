@@ -85,10 +85,13 @@ import zoneAllocationRoutes from "./routes/zoneAllocationRoutes";
 import stockAdjustmentRoutes from "./routes/stockAdjustmentRoutes";
 
 import auditLogRoutes from "./routes/auditLogRoutes";
+import territoryTargetRoutes from "./routes/territoryTargetRoutes";
 
 // Core Modules
 app.use("/api/audit-logs", auditLogRoutes);
 app.use("/api/zone-allocations", zoneAllocationRoutes);
+app.use("/api/targets", territoryTargetRoutes);
+app.use("/api/territory-targets", territoryTargetRoutes);
 app.use("/api/stock-adjustments", stockAdjustmentRoutes);
 app.use("/api/clients", clientRoutes);
 app.use("/api/orders", orderRoutes);

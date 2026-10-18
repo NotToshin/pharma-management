@@ -412,3 +412,19 @@ model MioZoneAllocation {
   updatedAt     DateTime @updatedAt
 }
 
+// ─────────────────────────────────────────────
+// Sales Quotas & Field Force Targets
+// ─────────────────────────────────────────────
+
+model TerritoryTarget {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  territory      String
+  mioName        String
+  targetAmount   Float
+  achievedAmount Float    @default(0.00)
+  fiscalYear     String   @default("Fiscal Year 2026")
+  status         String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
