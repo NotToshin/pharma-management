@@ -4,6 +4,7 @@ import { AppError } from "../errors";
 import config from "../config";
 import prisma from "../utils/prisma";
 import { generateAccessToken } from "../middlewares/token";
+import { auditLogService } from "./auditLogService";
 
 
 export const ALL_SYSTEM_MODULES = [
@@ -288,6 +289,18 @@ export const rbacService = {
       },
     });
 
+    await auditLogService.recordAuditEvent({
+      module: "RBAC Security",
+      actionType: "Permission Changed",
+      severity: "Security Warning",
+      entityTarget: `Role: ${sysRole.name} (${sysRole.code})`,
+      entityType: "SystemRole",
+      entityId: sysRole.id,
+      changeSummary: `Security access matrix updated for role '${sysRole.name}' across ${permissions.length} modules.`,
+      newPayload: permissions,
+      reasonForChange: "System security policy revision and user privilege re-allocation.",
+    });
+
     return { message: "Role permissions saved successfully" };
   },
 
@@ -390,12 +403,8 @@ export const rbacService = {
     }
     if (data.email) {
       const cleanEmail = data.email.trim().toLowerCase();
-      if (cleanEmail !== user.email) {
-        const existing = await prisma.systemUser.findUnique({ where: { email: cleanEmail } });
-        if (existing) {
-          throw new AppError("An operator with this email is already provisioned.", 400);
-        }
-        updateData.email = cleanEmail;
+      if (cleanEmail !== user.email.toLowerCase()) {
+        throw new AppError("Operator email address cannot be modified.", 400);
       }
     }
 

@@ -4,6 +4,8 @@ import { AppError } from "../errors";
 import { verifyAccessToken } from "./token";
 import prisma from "../utils/prisma";
 
+import { requestContextStorage } from "../utils/requestContext";
+
 /**
  * Authentication & Authorization Middleware
  *
@@ -97,6 +99,15 @@ export const requireAuth = (...allowedRoles: string[]) => {
 
       // Attach authenticated user to request object
       req.user = user;
+
+      // Update ambient async context
+      const currentStore = requestContextStorage.getStore();
+      if (currentStore) {
+        currentStore.userId = user.id;
+        currentStore.name = user.name;
+        currentStore.email = user.email.toLowerCase();
+        currentStore.role = user.role?.name || user.role?.code || currentStore.role;
+      }
 
       return next();
     } catch (error) {

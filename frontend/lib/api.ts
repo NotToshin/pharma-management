@@ -122,6 +122,7 @@ function handleSessionExpiry() {
 export async function apiFetch(input: string | URL | Request, init: RequestInit = {}): Promise<Response> {
   const targetUrl = typeof input === "string" && !input.startsWith("http") ? getEndpoint(input) : input;
   const token = typeof window !== "undefined" ? getAccessToken() : null;
+  const storedUser = typeof window !== "undefined" ? getStoredUser() : null;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -130,6 +131,19 @@ export async function apiFetch(input: string | URL | Request, init: RequestInit 
 
   if (token && !headers["Authorization"]) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  if (storedUser) {
+    if (storedUser.email && !headers["x-user-email"]) {
+      headers["x-user-email"] = storedUser.email;
+    }
+    if (storedUser.name && !headers["x-user-name"]) {
+      headers["x-user-name"] = storedUser.name;
+    }
+    const userRole = storedUser.role || (storedUser as any).roleCode || (storedUser as any).roleName;
+    if (userRole && !headers["x-user-role"]) {
+      headers["x-user-role"] = userRole;
+    }
   }
 
   const requestInit: RequestInit = {
