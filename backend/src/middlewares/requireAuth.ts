@@ -4,6 +4,8 @@ import { AppError } from "../errors";
 import { verifyAccessToken } from "./token";
 import prisma from "../utils/prisma";
 
+import { requestContextStorage } from "../utils/requestContext";
+
 /**
  * Authentication & Authorization Middleware
  *
@@ -77,13 +79,35 @@ export const requireAuth = (...allowedRoles: string[]) => {
           );
         });
 
-        if (!hasAllowedRole) {
+        // Check if user has explicit permission for the module if they don't have the role
+        let hasModulePermission = false;
+        if (!hasAllowedRole && allowedRoles.some((r) => r.toUpperCase().includes("SUPERADMIN") || r.toUpperCase().includes("SUPER_ADMIN"))) {
+          const permissions = user.role?.permissions || [];
+          const rbacPerm = permissions.find((p: any) => {
+            const mod = (p.module || "").toLowerCase();
+            return mod.includes("role permission") || mod.includes("rbac");
+          });
+          if (rbacPerm && (rbacPerm.read || rbacPerm.create || rbacPerm.edit)) {
+            hasModulePermission = true;
+          }
+        }
+
+        if (!hasAllowedRole && !hasModulePermission) {
           throw new AppError("Forbidden: Insufficient permissions for this resource.", 403);
         }
       }
 
       // Attach authenticated user to request object
       req.user = user;
+
+      // Update ambient async context
+      const currentStore = requestContextStorage.getStore();
+      if (currentStore) {
+        currentStore.userId = user.id;
+        currentStore.name = user.name;
+        currentStore.email = user.email.toLowerCase();
+        currentStore.role = user.role?.name || user.role?.code || currentStore.role;
+      }
 
       return next();
     } catch (error) {

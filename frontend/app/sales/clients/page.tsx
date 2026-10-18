@@ -163,8 +163,16 @@ function parseClientRow(row: any): ParsedClientRow {
   const address = getCol("Address", "Location", "Market Address", "Chamber Address") || "N/A"
   const territory = getCol("Territory", "Area", "Zone", "Region") || "Dhaka North"
   const assignedMio = getCol("Assigned MIO", "MIO", "Representative", "Field Officer") || "Unassigned"
-  const rawCredit = getCol("Credit Limit (BDT)", "Credit Limit", "Limit", "Credit")
-  const creditLimitBDT = parseFloat(rawCredit) || 150000
+  const rawCredit = getCol(
+    "Credit Facility (BDT)",
+    "Credit Facility",
+    "Credit Limit (BDT)",
+    "Credit Limit",
+    "Limit",
+    "Credit"
+  )
+  const creditLimitBDT =
+    rawCredit !== "" && !isNaN(parseFloat(rawCredit)) ? parseFloat(rawCredit) : 0
   const rawBalance = getCol("Outstanding Balance (BDT)", "Outstanding Balance", "Balance", "Due")
   const outstandingBalanceBDT = parseFloat(rawBalance) || 0
   const rawTerms = getCol("Credit Terms (Days)", "Credit Terms", "Terms (Days)", "Terms")
@@ -237,7 +245,7 @@ export default function ClientsDirectoryPage() {
     address: "",
     territory: "Dhaka North",
     assignedMio: "Unassigned",
-    creditLimitBDT: 150000,
+    creditLimitBDT: 0,
     outstandingBalanceBDT: 0,
     creditTermDays: 30,
     status: "Active / Healthy",
@@ -322,7 +330,10 @@ export default function ClientsDirectoryPage() {
           address: item.address || "N/A",
           territory: item.territory || "Dhaka North",
           assignedMio: item.assignedMio || "Unassigned",
-          creditLimitBDT: Number(item.creditLimitBDT) || 150000,
+          creditLimitBDT:
+            item.creditLimitBDT !== undefined && item.creditLimitBDT !== null
+              ? Number(item.creditLimitBDT)
+              : 0,
           outstandingBalanceBDT: Number(item.outstandingBalanceBDT) || 0,
           creditTermDays: Number(item.creditTermDays) || 30,
           status: item.status || "Active / Healthy",
@@ -404,7 +415,7 @@ export default function ClientsDirectoryPage() {
       address: "",
       territory: "Dhaka North",
       assignedMio: "Unassigned",
-      creditLimitBDT: 150000,
+      creditLimitBDT: 0,
       outstandingBalanceBDT: 0,
       creditTermDays: 30,
       status: "Active / Healthy",
@@ -430,7 +441,10 @@ export default function ClientsDirectoryPage() {
       address: client.address,
       territory: client.territory,
       assignedMio: client.assignedMio,
-      creditLimitBDT: client.creditLimitBDT,
+      creditLimitBDT:
+        client.creditLimitBDT !== undefined && client.creditLimitBDT !== null
+          ? Number(client.creditLimitBDT)
+          : 0,
       outstandingBalanceBDT: client.outstandingBalanceBDT,
       creditTermDays: client.creditTermDays,
       status: client.status,
@@ -546,7 +560,10 @@ export default function ClientsDirectoryPage() {
           address: item.address || "N/A",
           territory: item.territory || "Dhaka North",
           assignedMio: item.assignedMio || "Unassigned",
-          creditLimitBDT: Number(item.creditLimitBDT) || 150000,
+          creditLimitBDT:
+            item.creditLimitBDT !== undefined && item.creditLimitBDT !== null
+              ? Number(item.creditLimitBDT)
+              : 0,
           outstandingBalanceBDT: Number(item.outstandingBalanceBDT) || 0,
           creditTermDays: Number(item.creditTermDays) || 30,
           status: item.status || "Active / Healthy",
@@ -564,7 +581,7 @@ export default function ClientsDirectoryPage() {
         Address: c.address,
         Territory: c.territory,
         "Assigned MIO": c.assignedMio,
-        "Credit Limit (BDT)": c.creditLimitBDT,
+        "Credit Facility (BDT)": c.creditLimitBDT,
         "Outstanding Balance (BDT)": c.outstandingBalanceBDT,
         "Available Credit (BDT)": Math.max(0, c.creditLimitBDT - c.outstandingBalanceBDT),
         "Credit Terms (Days)": c.creditTermDays,
@@ -1567,23 +1584,35 @@ export default function ClientsDirectoryPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
-                  Credit Limit (BDT) *
+                  Credit Facility (BDT) *
                 </Label>
                 <Input
                   type="number"
-                  value={formData.creditLimitBDT}
-                  onChange={(e) => setFormData({ ...formData, creditLimitBDT: Number(e.target.value) })}
+                  value={
+                    formData.creditLimitBDT === undefined || formData.creditLimitBDT === null
+                      ? ""
+                      : formData.creditLimitBDT
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setFormData({
+                      ...formData,
+                      creditLimitBDT: val === "" ? ("" as unknown as number) : Number(val),
+                    })
+                  }}
+                  min={0}
+                  placeholder="0"
                   className="h-8 font-mono text-xs"
                 />
                 <div className="flex gap-1 pt-1">
-                  {[50000, 150000, 300000, 500000].map((amt) => (
+                  {[0, 50000, 150000, 300000, 500000].map((amt) => (
                     <button
                       key={amt}
                       type="button"
                       onClick={() => setFormData({ ...formData, creditLimitBDT: amt })}
                       className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-medium text-slate-600 hover:bg-slate-100"
                     >
-                      ৳{(amt / 1000)}k
+                      {amt === 0 ? "৳0" : `৳${amt / 1000}k`}
                     </button>
                   ))}
                 </div>
@@ -1694,9 +1723,9 @@ export default function ClientsDirectoryPage() {
 
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div>
-                      <span className="text-[11px] text-slate-500">Credit Limit:</span>
+                      <span className="text-[11px] text-slate-500">Credit Facility:</span>
                       <p className="font-mono text-sm font-bold text-slate-900">
-                        ৳{activeClient.creditLimitBDT.toLocaleString()}
+                        ৳{(activeClient.creditLimitBDT ?? 0).toLocaleString()}
                       </p>
                     </div>
                     <div>

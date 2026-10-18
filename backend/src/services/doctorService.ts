@@ -1,6 +1,7 @@
 import { Prisma, Doctor } from "@prisma/client";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
+import { auditLogService } from "./auditLogService";
 import {
   paginationHelper,
   IPaginationOptions,
@@ -162,7 +163,7 @@ export const doctorService = {
       );
     }
 
-    return prisma.doctor.create({
+    const created = await prisma.doctor.create({
       data: {
         doctorName: data.doctorName,
         phone: data.phone,
@@ -175,6 +176,20 @@ export const doctorService = {
         patientVolumeDaily: data.patientVolumeDaily,
       },
     });
+
+    await auditLogService.recordAuditEvent({
+      module: "Clinical Registry",
+      actionType: "Doctor Registered",
+      severity: "Routine",
+      entityTarget: `Dr. ${created.doctorName} (BMDC: ${created.bmdcRegNumber})`,
+      entityType: "Doctor",
+      entityId: created.id,
+      changeSummary: `Registered clinical practitioner Dr. ${created.doctorName} with BMDC #${created.bmdcRegNumber} (Tier ${created.tier}).`,
+      newPayload: created,
+      reasonForChange: "Clinical registry doctor credentialing verification.",
+    });
+
+    return created;
   },
 
   async updateDoctor(
@@ -191,29 +206,63 @@ export const doctorService = {
       patientVolumeDaily?: number;
     }
   ) {
-    await this.getDoctorById(id);
+    const existing = await this.getDoctorById(id);
 
     if (data.bmdcRegNumber) {
-      const existing = await prisma.doctor.findUnique({
+      const existingDuplicate = await prisma.doctor.findUnique({
         where: { bmdcRegNumber: data.bmdcRegNumber },
       });
-      if (existing && existing.id !== id) {
+      if (existingDuplicate && existingDuplicate.id !== id) {
         throw new AppError(
-          `Doctor with BMDC Reg # '${data.bmdcRegNumber}' already exists (${existing.doctorName})`,
+          `Doctor with BMDC Reg # '${data.bmdcRegNumber}' already exists (${existingDuplicate.doctorName})`,
           400
         );
       }
     }
 
-    return prisma.doctor.update({
+    const updated = await prisma.doctor.update({
       where: { id },
       data,
     });
+
+    const isTierChanged = data.tier && data.tier !== existing.tier;
+    await auditLogService.recordAuditEvent({
+      module: "Clinical Registry",
+      actionType: isTierChanged ? "Tier Re-ranked" : "Clinical Registry Updated",
+      severity: isTierChanged ? "Statutory Notice" : "Routine",
+      entityTarget: `Practitioner BMDC: ${updated.bmdcRegNumber} (${updated.doctorName})`,
+      entityType: "Doctor",
+      entityId: id,
+      changeSummary: isTierChanged
+        ? `Prescriber category modified from Tier ${existing.tier} to Tier ${updated.tier} based on clinical evaluation.`
+        : `Updated clinical profile details for Dr. ${updated.doctorName}.`,
+      priorPayload: existing,
+      newPayload: updated,
+      reasonForChange: isTierChanged
+        ? "Periodic clinical prescription quota review and territory tier re-evaluation."
+        : "Practitioner information update.",
+    });
+
+    return updated;
   },
 
   async deleteDoctor(id: string) {
-    await this.getDoctorById(id);
-    return prisma.doctor.delete({ where: { id } });
+    const existing = await this.getDoctorById(id);
+    const deleted = await prisma.doctor.delete({ where: { id } });
+
+    await auditLogService.recordAuditEvent({
+      module: "Clinical Registry",
+      actionType: "Doctor Deregistered",
+      severity: "Critical",
+      entityTarget: `Dr. ${existing.doctorName} (BMDC: ${existing.bmdcRegNumber})`,
+      entityType: "Doctor",
+      entityId: id,
+      changeSummary: `Deregistered clinical practitioner Dr. ${existing.doctorName} from active registry.`,
+      priorPayload: existing,
+      reasonForChange: "Practitioner deregistration / statutory registry archive.",
+    });
+
+    return deleted;
   },
 
   async bulkImportDoctors(data: {

@@ -162,7 +162,7 @@ model Client {
   address               String?
   territory             String?
   assignedMio           String?
-  creditLimitBDT        Float    @default(150000)
+  creditLimitBDT        Float    @default(0)
   outstandingBalanceBDT Float    @default(0.00)
   creditTermDays        Int      @default(30)
   status                String   @default("Active / Healthy")
@@ -349,6 +349,47 @@ model SystemUser {
   role         SystemRole @relation(fields: [roleId], references: [id])
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+
+  auditLogs    AuditLog[]
+}
+
+// ─────────────────────────────────────────────
+// 21 CFR Part 11 Statutory Audit Trail
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  auditRef          String      @unique
+  timestamp         DateTime    @default(now())
+  actorId           String?     @db.ObjectId
+  actor             SystemUser? @relation(fields: [actorId], references: [id])
+  actorName         String
+  actorEmail        String
+  actorRole         String
+  ipAddress         String
+  userAgent         String?
+  module            String      // e.g. "FEFO Warehouse", "Clinical Registry", "Finance & Accounts", "Workforce & HR", "RBAC Security"
+  actionType        String      // e.g. "Batch Quarantined", "Price Override", "Appointment Issued", "Tier Re-ranked", "Permission Changed", "Voucher Approved"
+  severity          String      @default("Routine") // "Critical", "Security Warning", "Statutory Notice", "Routine"
+  entityTarget      String      // e.g. "Batch # BX-2025-119 (Clavroc 625mg)"
+  entityType        String?     // "InventoryBatch", "Doctor", "Order", "Staff", "StockAdjustment", etc.
+  entityId          String?
+  changeSummary     String
+  priorPayload      String?     // Serialized JSON of pre-mutation record state
+  newPayload        String?     // Serialized JSON of post-mutation record state
+  reasonForChange   String?     // 21 CFR Part 11 required operator justification note
+  sha256Hash        String      // Cryptographic SHA-256 block hash
+  previousHash      String?     // Previous block hash for tamper-evident hash chaining
+  verifiedSignature Boolean     @default(true)
+  signerName        String?
+  signatureMeaning  String?     // "Authorship", "Approval", "Review", "Verification", "Responsibility"
+  signedAt          DateTime?
+  createdAt         DateTime    @default(now())
+
+  @@index([timestamp])
+  @@index([module])
+  @@index([severity])
+  @@index([actorEmail])
 }
 
 // ─────────────────────────────────────────────

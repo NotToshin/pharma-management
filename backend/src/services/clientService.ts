@@ -197,7 +197,10 @@ export const clientService = {
         address: data.address?.trim() || "N/A",
         territory: data.territory?.trim() || "Dhaka North",
         assignedMio: data.assignedMio?.trim() || "Unassigned",
-        creditLimitBDT: Number(data.creditLimitBDT) || 150000,
+        creditLimitBDT:
+          data.creditLimitBDT !== undefined && data.creditLimitBDT !== null
+            ? Number(data.creditLimitBDT)
+            : 0,
         outstandingBalanceBDT: Number(data.outstandingBalanceBDT) || 0,
         creditTermDays: Number(data.creditTermDays) || 30,
         status: data.status || "Active / Healthy",
@@ -307,7 +310,10 @@ export const clientService = {
       const address = item.address?.trim() || "N/A";
       const territory = item.territory?.trim() || "Dhaka North";
       const assignedMio = item.assignedMio?.trim() || "Unassigned";
-      const creditLimitBDT = Number(item.creditLimitBDT) || 150000;
+      const creditLimitBDT =
+        item.creditLimitBDT !== undefined && item.creditLimitBDT !== null
+          ? Number(item.creditLimitBDT)
+          : 0;
       const outstandingBalanceBDT = Number(item.outstandingBalanceBDT) || 0;
       const creditTermDays = Number(item.creditTermDays) || 30;
       const status = item.status?.trim() || "Active / Healthy";

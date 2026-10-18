@@ -9,38 +9,7 @@ export const getAllOrders = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const createOrder = catchAsync(async (req: Request, res: Response) => {
-  const {
-    orderNumber,
-    orderDate,
-    pharmacyName,
-    territory,
-    assignedMio,
-    itemsSummary,
-    itemsDetail,
-    totalBoxes,
-    orderValue,
-    deliveryMethod,
-    status,
-    challanNumber,
-    invoiceNumber,
-  } = req.body;
-
-  const result = await orderService.createOrder({
-    orderNumber,
-    orderDate,
-    pharmacyName,
-    territory,
-    assignedMio,
-    itemsSummary,
-    itemsDetail: Array.isArray(itemsDetail) ? itemsDetail : [],
-    totalBoxes: totalBoxes ? Number(totalBoxes) : undefined,
-    orderValue: orderValue ? Number(orderValue) : undefined,
-    deliveryMethod,
-    status,
-    challanNumber,
-    invoiceNumber,
-  });
-
+  const result = await orderService.createOrder(req.body);
   sendResponse(res, 201, "Order created successfully", result);
 });
 

@@ -570,11 +570,16 @@ function LogisticsOrdersContent() {
 
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!pharmacyInput.trim()) {
+      toast.error("Please specify a pharmacy or chemist name.")
+      return
+    }
     if (validLineItems.length === 0) {
-      alert("Please specify at least one product description.")
+      toast.error("Please specify at least one product description.")
       return
     }
 
+    const toastId = toast.loading("Submitting sales order to warehouse...")
     try {
       const isHold = clientCreditNotice?.status === "Credit Hold"
 
@@ -585,7 +590,7 @@ function LogisticsOrdersContent() {
           month: "short",
           year: "numeric",
         }),
-        pharmacyName: pharmacyInput,
+        pharmacyName: pharmacyInput.trim(),
         territory,
         assignedMio: assignedMio || "General MIO",
         itemsSummary: itemsSummaryString,
@@ -606,8 +611,12 @@ function LogisticsOrdersContent() {
         body: JSON.stringify(payload),
       })
 
-      if (!res.ok) throw new Error("Failed to submit sales order")
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}))
+        throw new Error(errJson.message || "Failed to submit sales order")
+      }
 
+      toast.success("Sales order submitted successfully!", { id: toastId })
       setIsNewOrderOpen(false)
       setPharmacyInput("")
       setLineItems([
@@ -617,9 +626,9 @@ function LogisticsOrdersContent() {
       setOrderComments("")
       setClientCreditNotice(null)
       fetchBackendData()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating sales order:", error)
-      alert("Failed to submit order to warehouse.")
+      toast.error(error.message || "Failed to submit order to warehouse.", { id: toastId })
     }
   }
 
@@ -627,6 +636,7 @@ function LogisticsOrdersContent() {
     id: string,
     newStatus: SalesOrder["status"]
   ) => {
+    const toastId = toast.loading(`Updating order status to ${newStatus}...`)
     try {
       const res = await fetch(`${API_URL}/orders/${id}`, {
         method: "PUT",
@@ -634,10 +644,16 @@ function LogisticsOrdersContent() {
         body: JSON.stringify({ status: newStatus }),
       })
 
-      if (!res.ok) throw new Error("Failed to update status")
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}))
+        throw new Error(errJson.message || "Failed to update status")
+      }
+
+      toast.success(`Order status updated to ${newStatus}`, { id: toastId })
       fetchBackendData()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating order status:", error)
+      toast.error(error.message || "Failed to update order status.", { id: toastId })
     }
   }
 

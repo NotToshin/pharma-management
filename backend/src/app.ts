@@ -16,6 +16,8 @@ import rbacRoutes from "./routes/rbacRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
 import { globalErrorHandler, notFoundHandler } from "./errors";
 
+import { actorContextMiddleware } from "./middlewares/actorContextMiddleware";
+
 const app: Application = express();
 
 // --- Core Middlewares ---
@@ -23,13 +25,21 @@ app.use(
   cors({
     origin: (origin, callback) => callback(null, origin || true),
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "x-user-email",
+      "x-user-name",
+      "x-user-role",
+    ],
     credentials: true,
   })
 );
 app.options("*", cors({ origin: (origin, callback) => callback(null, origin || true), credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
+app.use(actorContextMiddleware);
 
 // --- Vercel Serverless URL Normalizer ---
 app.use((req, res, next) => {
@@ -74,7 +84,10 @@ import zoneAllocationRoutes from "./routes/zoneAllocationRoutes";
 
 import stockAdjustmentRoutes from "./routes/stockAdjustmentRoutes";
 
+import auditLogRoutes from "./routes/auditLogRoutes";
+
 // Core Modules
+app.use("/api/audit-logs", auditLogRoutes);
 app.use("/api/zone-allocations", zoneAllocationRoutes);
 app.use("/api/stock-adjustments", stockAdjustmentRoutes);
 app.use("/api/clients", clientRoutes);

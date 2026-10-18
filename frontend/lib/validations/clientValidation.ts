@@ -11,8 +11,9 @@ export const clientFormSchema = z.object({
   territory: z.string().min(1, "Territory is required"),
   assignedMio: z.string().optional().or(z.literal("")),
   creditLimitBDT: z.coerce
-    .number({ message: "Credit limit must be a number" })
-    .min(0, "Credit limit cannot be negative"),
+    .number({ message: "Credit facility must be a number" })
+    .min(0, "Credit facility cannot be negative")
+    .default(0),
   outstandingBalanceBDT: z.coerce
     .number({ message: "Outstanding balance must be a number" })
     .min(0, "Outstanding balance cannot be negative")

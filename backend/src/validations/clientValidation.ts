@@ -10,7 +10,7 @@ export const clientFormSchema = z.object({
   address: z.string().optional().or(z.literal("")),
   territory: z.string().optional().or(z.literal("")),
   assignedMio: z.string().optional().or(z.literal("")),
-  creditLimitBDT: z.coerce.number().min(0, "Credit limit cannot be negative").optional().default(150000),
+  creditLimitBDT: z.coerce.number().min(0, "Credit limit cannot be negative").optional().default(0),
   outstandingBalanceBDT: z.coerce.number().min(0, "Outstanding balance cannot be negative").optional().default(0),
   creditTermDays: z.coerce.number().int().min(0, "Credit term days must be positive").optional().default(30),
   status: z.string().optional().default("Active / Healthy"),
@@ -21,8 +21,25 @@ export const createClientSchema = z.object({
   body: clientFormSchema,
 });
 
+export const updateClientBodySchema = z.object({
+  clientCode: z.string().optional(),
+  pharmacyName: z.string().min(1, "Pharmacy name is required").optional(),
+  proprietor: z.string().optional().or(z.literal("")),
+  phone: z.string().min(1, "Phone number is required").optional(),
+  drugLicenseNo: z.string().optional().or(z.literal("")),
+  tradeLicenseNo: z.string().optional().or(z.literal("")),
+  address: z.string().optional().or(z.literal("")),
+  territory: z.string().optional().or(z.literal("")),
+  assignedMio: z.string().optional().or(z.literal("")),
+  creditLimitBDT: z.coerce.number().min(0, "Credit limit cannot be negative").optional(),
+  outstandingBalanceBDT: z.coerce.number().min(0, "Outstanding balance cannot be negative").optional(),
+  creditTermDays: z.coerce.number().int().min(0, "Credit term days must be positive").optional(),
+  status: z.string().optional(),
+  lastBilledDate: z.string().optional().or(z.literal("")),
+});
+
 export const updateClientSchema = z.object({
-  body: clientFormSchema.partial(),
+  body: updateClientBodySchema,
   params: z.object({
     id: z.string().min(1, "Client ID is required"),
   }),
@@ -70,7 +87,7 @@ export const bulkImportClientSchema = z.object({
           address: z.string().optional().default("N/A"),
           territory: z.string().optional().default("Dhaka North"),
           assignedMio: z.string().optional().default("Unassigned"),
-          creditLimitBDT: z.coerce.number().optional().default(150000),
+          creditLimitBDT: z.coerce.number().optional().default(0),
           outstandingBalanceBDT: z.coerce.number().optional().default(0),
           creditTermDays: z.coerce.number().optional().default(30),
           status: z.string().optional().default("Active / Healthy"),

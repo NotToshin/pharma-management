@@ -1,6 +1,7 @@
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { CreateStockAdjustmentInput, UpdateStockAdjustmentInput } from "../validations/stockAdjustmentValidation";
+import { auditLogService } from "./auditLogService";
 
 function formatCurrentDate(): string {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -248,6 +249,26 @@ export const stockAdjustmentService = {
       await this.applyBatchStockSync(data.batchNumber.trim(), data.skuCode.trim(), quantity);
     }
 
+    await auditLogService.recordAuditEvent({
+      module: "FEFO Warehouse",
+      actionType: adjustment.type.includes("Quarantine")
+        ? "Batch Quarantined"
+        : adjustment.type.includes("Write-off")
+        ? "Stock Write-off"
+        : "Stock Adjusted",
+      severity:
+        adjustment.type.includes("Quarantine") || adjustment.type.includes("Write-off")
+          ? "Critical"
+          : "Routine",
+      entityTarget: `SKU: ${adjustment.skuCode} | Batch # ${adjustment.batchNumber}`,
+      entityType: "StockAdjustment",
+      entityId: adjustment.id,
+      changeSummary: `Stock adjustment ${adjustment.adjustmentRef} (${adjustment.type}) recorded for ${adjustment.quantity} units (${adjustment.formulationName}). Total financial impact: BDT ${adjustment.totalImpactBDT}.`,
+      newPayload: adjustment,
+      reasonForChange: adjustment.reasonCode,
+      actorName: adjustment.authorizedBy,
+    });
+
     return adjustment;
   },
 
@@ -288,6 +309,20 @@ export const stockAdjustmentService = {
       data: updateData,
     });
 
+    await auditLogService.recordAuditEvent({
+      module: "FEFO Warehouse",
+      actionType: "Stock Adjustment Modified",
+      severity: "Security Warning",
+      entityTarget: `Adjustment # ${updated.adjustmentRef} (${updated.formulationName})`,
+      entityType: "StockAdjustment",
+      entityId: id,
+      changeSummary: `Stock adjustment ${updated.adjustmentRef} was updated in warehouse registry.`,
+      priorPayload: existing,
+      newPayload: updated,
+      reasonForChange: data.reasonCode || existing.reasonCode,
+      actorName: updated.authorizedBy,
+    });
+
     return updated;
   },
 
@@ -303,6 +338,19 @@ export const stockAdjustmentService = {
       data: { approvalStatus },
     });
 
+    await auditLogService.recordAuditEvent({
+      module: "FEFO Warehouse",
+      actionType: "Stock Adjustment Signoff",
+      severity: approvalStatus === "Approved & Adjusted" ? "Statutory Notice" : "Security Warning",
+      entityTarget: `Adjustment # ${existing.adjustmentRef} (${existing.formulationName})`,
+      entityType: "StockAdjustment",
+      entityId: id,
+      changeSummary: `Stock adjustment ${existing.adjustmentRef} status modified from '${existing.approvalStatus}' to '${approvalStatus}'.`,
+      priorPayload: { approvalStatus: existing.approvalStatus },
+      newPayload: { approvalStatus },
+      reasonForChange: "GMP warehouse regulatory authorization workflow.",
+    });
+
     return updated;
   },
 
@@ -311,9 +359,23 @@ export const stockAdjustmentService = {
     if (existing.approvalStatus === "Approved & Adjusted") {
       await this.applyBatchStockSync(existing.batchNumber, existing.skuCode, -existing.quantity);
     }
-    return prisma.stockAdjustment.delete({
+    const deleted = await prisma.stockAdjustment.delete({
       where: { id },
     });
+
+    await auditLogService.recordAuditEvent({
+      module: "FEFO Warehouse",
+      actionType: "Stock Adjustment Revoked",
+      severity: "Critical",
+      entityTarget: `Adjustment # ${existing.adjustmentRef} (${existing.formulationName})`,
+      entityType: "StockAdjustment",
+      entityId: id,
+      changeSummary: `Stock adjustment ${existing.adjustmentRef} was deleted from ledger.`,
+      priorPayload: existing,
+      reasonForChange: "Administrative statutory rollback.",
+    });
+
+    return deleted;
   },
 
   async applyBatchStockSync(batchNumber: string, skuCode: string, quantity: number): Promise<void> {

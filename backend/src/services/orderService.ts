@@ -3,8 +3,18 @@ import { AppError } from "../errors";
 
 const prisma = new PrismaClient();
 
-const generateOrderNumber = () => `SO-2026-${Math.floor(4500 + Math.random() * 500)}`;
-const generateChallanNumber = () => `DC-2026-${Math.floor(1100 + Math.random() * 100)}`;
+const generateUniqueOrderNumber = async (tx: any): Promise<string> => {
+  const count = await tx.order.count();
+  let candidate = `SO-2026-${String(count + 1).padStart(4, "0")}`;
+  let exists = await tx.order.findUnique({ where: { orderNumber: candidate } });
+  while (exists) {
+    candidate = `SO-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    exists = await tx.order.findUnique({ where: { orderNumber: candidate } });
+  }
+  return candidate;
+};
+
+const generateChallanNumber = () => `DC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
 
 const formatDate = (date?: string) => {
   if (!date) return new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -12,8 +22,11 @@ const formatDate = (date?: string) => {
 };
 
 interface LineItem {
+  no?: number;
   description: string;
   quantity: number;
+  unitCost?: number;
+  total?: number;
 }
 
 export const orderService = {
@@ -29,10 +42,14 @@ export const orderService = {
     pharmacyName: string;
     territory?: string;
     assignedMio?: string;
-    itemsSummary: string;
-    itemsDetail: LineItem[];
+    itemsSummary?: string;
+    itemsDetail?: LineItem[];
     totalBoxes?: number;
     orderValue?: number;
+    discount?: number;
+    discountAmount?: number;
+    discountPercent?: number;
+    comments?: string;
     deliveryMethod?: string;
     status?: string;
     challanNumber?: string;
@@ -43,53 +60,89 @@ export const orderService = {
     }
 
     return prisma.$transaction(async (tx) => {
+      let finalOrderNumber = data.orderNumber?.trim();
+      if (finalOrderNumber) {
+        const existing = await tx.order.findUnique({ where: { orderNumber: finalOrderNumber } });
+        if (existing) {
+          finalOrderNumber = await generateUniqueOrderNumber(tx);
+        }
+      } else {
+        finalOrderNumber = await generateUniqueOrderNumber(tx);
+      }
+
+      const formattedItems = Array.isArray(data.itemsDetail)
+        ? data.itemsDetail.map((item, idx) => ({
+            no: Number(item.no) || idx + 1,
+            description: String(item.description || "").trim(),
+            quantity: Number(item.quantity) || 1,
+            unitCost: Number(item.unitCost) || 0,
+            total: Number(item.total) || 0,
+          }))
+        : [];
+
       const newOrder = await tx.order.create({
         data: {
-          orderNumber: data.orderNumber || generateOrderNumber(),
+          orderNumber: finalOrderNumber,
           orderDate: formatDate(data.orderDate),
-          pharmacyName: data.pharmacyName,
-          territory: data.territory || "Dhaka North",
-          assignedMio: data.assignedMio || "General MIO",
-          itemsSummary: data.itemsSummary || "Pharmaceutical Products",
-          totalBoxes: Number(data.totalBoxes) || 1,
-          orderValue: Number(data.orderValue) || 0,
+          pharmacyName: data.pharmacyName.trim(),
+          territory: data.territory?.trim() || "Dhaka North",
+          assignedMio: data.assignedMio?.trim() || "General MIO",
+          itemsSummary:
+            data.itemsSummary?.trim() ||
+            (formattedItems.map((i) => `${i.description} (${i.quantity})`).join(", ") ||
+              "General Formulations"),
+          itemsDetail: formattedItems,
+          totalBoxes:
+            Number(data.totalBoxes) ||
+            formattedItems.reduce((acc, i) => acc + i.quantity, 0) ||
+            1,
+          orderValue:
+            Number(data.orderValue) ||
+            formattedItems.reduce((acc, i) => acc + i.total, 0) ||
+            0,
+          discount: Number(data.discountAmount ?? data.discount ?? 0),
+          comments: data.comments?.trim() || "",
           deliveryMethod: data.deliveryMethod || "Sales Representative",
           status: data.status || "FEFO Allocated",
           challanNumber: data.challanNumber || generateChallanNumber(),
-          invoiceNumber: data.invoiceNumber,
+          invoiceNumber: data.invoiceNumber || `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`,
         },
       });
 
-      if (Array.isArray(data.itemsDetail) && data.itemsDetail.length > 0) {
-        for (const lineItem of data.itemsDetail) {
-          const medicineName = (lineItem.description || "").trim();
-          let qtyNeeded = Number(lineItem.quantity) || 0;
+      if (formattedItems.length > 0) {
+        for (const lineItem of formattedItems) {
+          const medicineName = lineItem.description.trim();
+          let qtyNeeded = lineItem.quantity;
 
           if (!medicineName || qtyNeeded <= 0) continue;
 
-          const availableBatches = await tx.inventoryBatch.findMany({
-            where: {
-              OR: [
-                { brandName: { equals: medicineName, mode: "insensitive" } },
-                { brandName: { contains: medicineName, mode: "insensitive" } },
-              ],
-              availableUnits: { gt: 0 },
-            },
-            orderBy: { expiryDate: "asc" },
-          });
-
-          for (const batch of availableBatches) {
-            if (qtyNeeded <= 0) break;
-
-            const deductUnits = Math.min(batch.availableUnits, qtyNeeded);
-            const remainingUnits = batch.availableUnits - deductUnits;
-
-            await tx.inventoryBatch.update({
-              where: { id: batch.id },
-              data: { availableUnits: remainingUnits },
+          try {
+            const availableBatches = await tx.inventoryBatch.findMany({
+              where: {
+                OR: [
+                  { brandName: { equals: medicineName, mode: "insensitive" } },
+                  { brandName: { contains: medicineName, mode: "insensitive" } },
+                ],
+                availableUnits: { gt: 0 },
+              },
+              orderBy: { expiryDate: "asc" },
             });
 
-            qtyNeeded -= deductUnits;
+            for (const batch of availableBatches) {
+              if (qtyNeeded <= 0) break;
+
+              const deductUnits = Math.min(batch.availableUnits, qtyNeeded);
+              const remainingUnits = batch.availableUnits - deductUnits;
+
+              await tx.inventoryBatch.update({
+                where: { id: batch.id },
+                data: { availableUnits: remainingUnits },
+              });
+
+              qtyNeeded -= deductUnits;
+            }
+          } catch (batchErr) {
+            console.error("Batch inventory allocation notice:", batchErr);
           }
         }
       }

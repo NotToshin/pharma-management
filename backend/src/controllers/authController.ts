@@ -19,6 +19,8 @@ export const login = catchAsync(async (req: Request, res: Response) => {
 
   sendResponse(res, 200, "Login successful", {
     user: result.user,
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
   });
 });
 
@@ -33,6 +35,8 @@ export const refreshToken = catchAsync(async (req: Request, res: Response) => {
 
   sendResponse(res, 200, "Token refreshed successfully", {
     user: result.user,
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
   });
 });
 
