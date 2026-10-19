@@ -72,15 +72,24 @@ import {
   Filter,
   CheckCircle2,
   Loader2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  User,
+  SlidersHorizontal,
 } from "lucide-react"
 import { getEndpoint, apiFetch } from "@/lib/api"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 
-export interface TerritoryItem {
+export interface MioTargetItem {
   id: string
   territory: string
   mio: string
+  empId?: string | null
+  phone?: string | null
+  division?: string | null
+  zone?: string | null
   targetRaw: number
   achievedRaw: number
   target: string
@@ -94,7 +103,7 @@ export interface TerritoryItem {
   updatedAt?: string
 }
 
-export interface TerritorySummary {
+export interface TargetSummary {
   totalTarget: number
   totalAchieved: number
   overallRate: number
@@ -108,6 +117,7 @@ export interface MioOption {
   name: string
   empId?: string
   territory?: string
+  phone?: string
 }
 
 export interface TargetOptions {
@@ -116,9 +126,12 @@ export interface TargetOptions {
   territoryMioMap: Record<string, string>
 }
 
+type SortField = "territory" | "mio" | "targetRaw" | "achievedRaw" | "rate"
+type SortDirection = "asc" | "desc"
+
 export default function TargetVsAchievementPage() {
-  const [territories, setTerritories] = React.useState<TerritoryItem[]>([])
-  const [summary, setSummary] = React.useState<TerritorySummary>({
+  const [targets, setTargets] = React.useState<MioTargetItem[]>([])
+  const [summary, setSummary] = React.useState<TargetSummary>({
     totalTarget: 0,
     totalAchieved: 0,
     overallRate: 0,
@@ -135,9 +148,12 @@ export default function TargetVsAchievementPage() {
   const [isLoading, setIsLoading] = React.useState(true)
   const [isRefreshing, setIsRefreshing] = React.useState(false)
 
-  // Filters & Search
+  // Filters, Search & Sorting
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [selectedTerritory, setSelectedTerritory] = React.useState<string>("all")
   const [statusFilter, setStatusFilter] = React.useState<string>("all")
+  const [sortField, setSortField] = React.useState<SortField>("territory")
+  const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc")
 
   // Create Modal State
   const [isAddOpen, setIsAddOpen] = React.useState(false)
@@ -156,7 +172,7 @@ export default function TargetVsAchievementPage() {
 
   // Edit Modal State
   const [isEditOpen, setIsEditOpen] = React.useState(false)
-  const [editingTarget, setEditingTarget] = React.useState<TerritoryItem | null>(null)
+  const [editingTarget, setEditingTarget] = React.useState<MioTargetItem | null>(null)
   const [editTerritory, setEditTerritory] = React.useState("")
   const [editMio, setEditMio] = React.useState("")
   const [editTargetAmount, setEditTargetAmount] = React.useState("")
@@ -168,12 +184,12 @@ export default function TargetVsAchievementPage() {
   const [deleteModal, setDeleteModal] = React.useState<{
     isOpen: boolean
     targetId: string | null
-    territoryName: string | null
+    itemName: string | null
     isDeleting: boolean
   }>({
     isOpen: false,
     targetId: null,
-    territoryName: null,
+    itemName: null,
     isDeleting: false,
   })
 
@@ -192,15 +208,15 @@ export default function TargetVsAchievementPage() {
         const json = await targetsRes.json()
         const payload = json.data || json
         if (payload.targets && Array.isArray(payload.targets)) {
-          setTerritories(payload.targets)
+          setTargets(payload.targets)
           if (payload.summary) {
             setSummary(payload.summary)
           }
         } else if (Array.isArray(payload)) {
-          setTerritories(payload)
+          setTargets(payload)
         }
       } else {
-        toast.error("Failed to fetch targets from database.")
+        toast.error("Failed to fetch MIO targets from database.")
       }
 
       if (optionsRes.ok) {
@@ -225,7 +241,7 @@ export default function TargetVsAchievementPage() {
     fetchData()
   }, [fetchData])
 
-  // Handle Territory selection change in Add Modal
+  // Handle Territory selection in Add Modal
   const handleTerritorySelection = (val: string) => {
     if (val === "CUSTOM_ENTRY") {
       setIsCustomTerritory(true)
@@ -233,7 +249,6 @@ export default function TargetVsAchievementPage() {
     } else {
       setIsCustomTerritory(false)
       setNewTerritory(val)
-      // Auto-assign matching MIO from database if available
       const suggestedMio = options.territoryMioMap[val]
       if (suggestedMio) {
         setIsCustomMio(false)
@@ -242,7 +257,7 @@ export default function TargetVsAchievementPage() {
     }
   }
 
-  // Handle MIO selection change in Add Modal
+  // Handle MIO selection in Add Modal
   const handleMioSelection = (val: string) => {
     if (val === "CUSTOM_MIO_ENTRY") {
       setIsCustomMio(true)
@@ -250,7 +265,6 @@ export default function TargetVsAchievementPage() {
     } else {
       setIsCustomMio(false)
       setNewMio(val)
-      // If territory is not yet picked, check if this MIO has a mapped territory
       if (!newTerritory && !isCustomTerritory) {
         const foundMio = options.mios.find((m) => m.name === val)
         if (foundMio && foundMio.territory) {
@@ -260,8 +274,25 @@ export default function TargetVsAchievementPage() {
     }
   }
 
+  // Toggle Sorting column
+  const handleSortToggle = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
+  }
+
+  // Handle preset sort selection from dropdown
+  const handleSortDropdownChange = (value: string) => {
+    const [field, dir] = value.split(":") as [SortField, SortDirection]
+    setSortField(field)
+    setSortDirection(dir)
+  }
+
   // Handle Create Target Form Submission
-  const handleAddTerritory = async (e: React.FormEvent) => {
+  const handleAddTarget = async (e: React.FormEvent) => {
     e.preventDefault()
 
     const targetTerritoryName = isCustomTerritory ? customTerritory.trim() : newTerritory.trim()
@@ -269,13 +300,13 @@ export default function TargetVsAchievementPage() {
     const targetNum = parseFloat(newTarget) || 0
     const achievedNum = parseFloat(newAchieved) || 0
 
-    if (!targetTerritoryName) {
-      toast.error("Please select or enter a Territory Name.")
+    if (!targetMioName) {
+      toast.error("Please select or enter an Assigned MIO.")
       return
     }
 
-    if (!targetMioName) {
-      toast.error("Please select or enter an Assigned MIO.")
+    if (!targetTerritoryName) {
+      toast.error("Please select or enter a Territory Name.")
       return
     }
 
@@ -284,7 +315,7 @@ export default function TargetVsAchievementPage() {
       return
     }
 
-    const toastId = toast.loading("Saving new territory quota to database...")
+    const toastId = toast.loading(`Saving quota target for MIO ${targetMioName}...`)
     setIsSubmitting(true)
 
     try {
@@ -303,7 +334,7 @@ export default function TargetVsAchievementPage() {
       const json = await res.json()
 
       if (res.ok && json.success) {
-        toast.success(`Territory quota for "${targetTerritoryName}" saved successfully!`, {
+        toast.success(`Quota for MIO "${targetMioName}" in ${targetTerritoryName} saved successfully!`, {
           id: toastId,
         })
         setIsAddOpen(false)
@@ -318,12 +349,12 @@ export default function TargetVsAchievementPage() {
         setNewNotes("")
         await fetchData(true)
       } else {
-        toast.error(json.message || "Failed to save territory quota.", {
+        toast.error(json.message || "Failed to save target quota.", {
           id: toastId,
         })
       }
     } catch (err: any) {
-      console.error("Error creating territory target:", err)
+      console.error("Error creating target:", err)
       toast.error(err.message || "Server error while creating quota target.", {
         id: toastId,
       })
@@ -333,7 +364,7 @@ export default function TargetVsAchievementPage() {
   }
 
   // Open Edit Modal
-  const openEditModal = (target: TerritoryItem) => {
+  const openEditModal = (target: MioTargetItem) => {
     setEditingTarget(target)
     setEditTerritory(target.territory)
     setEditMio(target.mio)
@@ -351,20 +382,20 @@ export default function TargetVsAchievementPage() {
     const targetNum = parseFloat(editTargetAmount) || 0
     const achievedNum = parseFloat(editAchievedAmount) || 0
 
+    if (!editMio.trim()) {
+      toast.error("MIO Name is required.")
+      return
+    }
     if (!editTerritory.trim()) {
       toast.error("Territory Name is required.")
       return
     }
-    if (!editMio.trim()) {
-      toast.error("Assigned MIO is required.")
-      return
-    }
     if (targetNum <= 0) {
-      toast.error("Target must be greater than 0.")
+      toast.error("Target Quota must be greater than 0.")
       return
     }
 
-    const toastId = toast.loading(`Updating quota for ${editTerritory}...`)
+    const toastId = toast.loading(`Updating quota for MIO ${editMio}...`)
     setIsUpdating(true)
 
     try {
@@ -382,7 +413,7 @@ export default function TargetVsAchievementPage() {
       const json = await res.json()
 
       if (res.ok && json.success) {
-        toast.success(`Quota for ${editTerritory} updated successfully!`, {
+        toast.success(`Quota for MIO ${editMio} updated successfully!`, {
           id: toastId,
         })
         setIsEditOpen(false)
@@ -404,11 +435,11 @@ export default function TargetVsAchievementPage() {
   }
 
   // Open Delete Confirmation Modal
-  const openDeleteModal = (target: TerritoryItem) => {
+  const openDeleteModal = (target: MioTargetItem) => {
     setDeleteModal({
       isOpen: true,
       targetId: target.id,
-      territoryName: `${target.territory} (${target.mio})`,
+      itemName: `${target.mio} — ${target.territory} Quota`,
       isDeleting: false,
     })
   }
@@ -418,7 +449,7 @@ export default function TargetVsAchievementPage() {
     if (!deleteModal.targetId) return
 
     setDeleteModal((prev) => ({ ...prev, isDeleting: true }))
-    const toastId = toast.loading(`Deleting quota for ${deleteModal.territoryName}...`)
+    const toastId = toast.loading(`Deleting quota for ${deleteModal.itemName}...`)
 
     try {
       const res = await apiFetch(getEndpoint(`/targets/${deleteModal.targetId}`), {
@@ -428,13 +459,13 @@ export default function TargetVsAchievementPage() {
       const json = await res.json()
 
       if (res.ok && json.success) {
-        toast.success(`Quota record for ${deleteModal.territoryName} deleted successfully!`, {
+        toast.success(`Quota record for ${deleteModal.itemName} deleted successfully!`, {
           id: toastId,
         })
         setDeleteModal({
           isOpen: false,
           targetId: null,
-          territoryName: null,
+          itemName: null,
           isDeleting: false,
         })
         await fetchData(true)
@@ -453,49 +484,99 @@ export default function TargetVsAchievementPage() {
     }
   }
 
-  // Filtered territories based on search and status filter
-  const filteredTerritories = React.useMemo(() => {
-    return territories.filter((item) => {
+  // Filter and Sort targets
+  const processedTargets = React.useMemo(() => {
+    const filtered = targets.filter((item) => {
+      const q = searchQuery.trim().toLowerCase()
       const matchesSearch =
-        searchQuery.trim() === "" ||
-        item.territory.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.mio.toLowerCase().includes(searchQuery.toLowerCase())
+        q === "" ||
+        item.mio.toLowerCase().includes(q) ||
+        item.territory.toLowerCase().includes(q) ||
+        (item.empId && item.empId.toLowerCase().includes(q)) ||
+        (item.phone && item.phone.toLowerCase().includes(q))
+
+      const matchesTerritory =
+        selectedTerritory === "all" ||
+        item.territory.toLowerCase() === selectedTerritory.toLowerCase()
 
       const matchesStatus =
         statusFilter === "all" || item.status === statusFilter
 
-      return matchesSearch && matchesStatus
+      return matchesSearch && matchesTerritory && matchesStatus
     })
-  }, [territories, searchQuery, statusFilter])
 
-  // Aggregated totals computed dynamically from current territories list
-  const totalTarget = territories.reduce((acc, curr) => acc + curr.targetRaw, 0)
-  const totalAchieved = territories.reduce(
-    (acc, curr) => acc + curr.achievedRaw,
+    // Sort according to active sortField and sortDirection
+    return filtered.sort((a, b) => {
+      let comparison = 0
+      if (sortField === "territory") {
+        comparison = a.territory.localeCompare(b.territory)
+      } else if (sortField === "mio") {
+        comparison = a.mio.localeCompare(b.mio)
+      } else if (sortField === "targetRaw") {
+        comparison = a.targetRaw - b.targetRaw
+      } else if (sortField === "achievedRaw") {
+        comparison = a.achievedRaw - b.achievedRaw
+      } else if (sortField === "rate") {
+        comparison = a.rate - b.rate
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison
+    })
+  }, [targets, searchQuery, selectedTerritory, statusFilter, sortField, sortDirection])
+
+  const isFiltered =
+    selectedTerritory !== "all" ||
+    searchQuery.trim() !== "" ||
+    statusFilter !== "all"
+
+  const activeList = isFiltered ? processedTargets : targets
+
+  // Aggregated totals computed dynamically from current database targets
+  const totalTarget = activeList.reduce((acc, curr) => acc + curr.targetRaw, 0)
+  const totalAchieved = activeList.reduce((acc, curr) => acc + curr.achievedRaw, 0)
+  const totalMatchingOrders = activeList.reduce(
+    (sum, t) => sum + (t.matchingOrdersCount || 0),
     0
   )
   const overallRate =
     totalTarget > 0 ? Math.round((totalAchieved / totalTarget) * 100) : 0
 
   const topPerforming =
-    territories.length > 0
-      ? territories.reduce((max, t) => (t.rate > max.rate ? t : max), territories[0])
+    activeList.length > 0
+      ? activeList.reduce((max, t) => (t.rate > max.rate ? t : max), activeList[0])
       : null
 
-  const underperformingCount = territories.filter((t) => t.status === "Behind").length
+  const underperformingCount = activeList.filter((t) => t.status === "Behind").length
+  const onTrackCount = activeList.filter(
+    (t) => t.status === "On Track" || t.status === "Surpassed"
+  ).length
 
-  // Chart data formatted from territories in Lakhs
-  const dynamicChartData = filteredTerritories.map((item) => ({
-    name: item.territory.split(" ")[0],
-    fullName: item.territory,
-    Target: Number((item.targetRaw / 100000).toFixed(1)),
-    Achieved: Number((item.achievedRaw / 100000).toFixed(1)),
+  // Chart data formatted from targets per MIO (in Lakhs)
+  const dynamicChartData = processedTargets.map((item) => ({
+    name: item.mio.split(" ")[0],
+    fullName: item.mio,
+    territory: item.territory,
+    Target: Number((item.targetRaw / 100000).toFixed(2)),
+    Achieved: Number((item.achievedRaw / 100000).toFixed(2)),
     rate: item.rate,
+    ordersCount: item.matchingOrdersCount || 0,
   }))
+
+  // Distinct territories in database for filtering dropdown
+  const uniqueTerritories = React.useMemo(() => {
+    const terrSet = new Set<string>()
+    targets.forEach((t) => {
+      if (t.territory?.trim()) terrSet.add(t.territory.trim())
+    })
+    options.territories.forEach((t) => {
+      if (t?.trim()) terrSet.add(t.trim())
+    })
+    return Array.from(terrSet).sort((a, b) => a.localeCompare(b))
+  }, [targets, options.territories])
 
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-12">
-      {/* 1. Page Header with Refresh and "Add Target" Button */}
+      {/* 1. Page Header with Refresh and "Add MIO Target" Button */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -504,13 +585,14 @@ export default function TargetVsAchievementPage() {
             </h1>
             <Badge
               variant="outline"
-              className="border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-[#0090FF]"
+              className="border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
             >
-              Real-time DB Sync
+              <CheckCircle2 className="mr-1 inline h-3 w-3 text-emerald-600" />
+              Live Database Orders Synced
             </Badge>
           </div>
           <p className="mt-0.5 text-xs text-slate-500">
-            Live territory sales quotas, designated field force metrics, and audited invoice fulfillment.
+            Field Force sales quotas, territory assignments, and verified invoiced order fulfillment per MIO.
           </p>
         </div>
 
@@ -530,11 +612,15 @@ export default function TargetVsAchievementPage() {
             disabled={isRefreshing || isLoading}
             className="h-9 gap-1.5 rounded-lg border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-[#0090FF]" : "text-slate-500"}`} />
-            Refresh
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${
+                isRefreshing ? "animate-spin text-[#0090FF]" : "text-slate-500"
+              }`}
+            />
+            Sync Live
           </Button>
 
-          {/* Add Target Modal */}
+          {/* Add MIO Target Modal */}
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
               <Button
@@ -542,23 +628,90 @@ export default function TargetVsAchievementPage() {
                 className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0080e5] transition-all"
               >
                 <Plus className="h-4 w-4" />
-                Add Territory Target
+                Add MIO Target
               </Button>
             </DialogTrigger>
-            <DialogContent className="rounded-2xl border border-slate-200 bg-white sm:max-w-[460px] shadow-xl">
+            <DialogContent className="rounded-2xl border border-slate-200 bg-white sm:max-w-[480px] shadow-xl">
               <DialogHeader>
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#0090FF]">
                   <Target className="h-5 w-5" />
                 </div>
                 <DialogTitle className="text-base font-bold text-slate-900 mt-2">
-                  Add Territory Target
+                  Assign MIO Sales Quota
                 </DialogTitle>
                 <DialogDescription className="text-xs text-slate-500">
-                  Select a territory and assigned MIO officer directly from the database to allocate sales quotas.
+                  Select a registered MIO officer and territory directly from the database to allocate sales quotas.
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleAddTerritory} className="space-y-4 py-2">
+              <form onSubmit={handleAddTarget} className="space-y-4 py-2">
+                {/* MIO Select (From DB) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label
+                      htmlFor="mio-select"
+                      className="text-xs font-semibold text-slate-700"
+                    >
+                      Assigned MIO Officer *
+                    </Label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomMio(!isCustomMio)}
+                      className="text-[11px] font-semibold text-[#0090FF] hover:underline"
+                    >
+                      {isCustomMio ? "Pick from DB List" : "+ Enter Custom"}
+                    </button>
+                  </div>
+
+                  {isCustomMio ? (
+                    <Input
+                      id="custom-mio"
+                      placeholder="e.g. Md. Kabir Hossain"
+                      value={customMio}
+                      onChange={(e) => setCustomMio(e.target.value)}
+                      required
+                      className="h-9 text-xs"
+                    />
+                  ) : (
+                    <Select value={newMio} onValueChange={handleMioSelection}>
+                      <SelectTrigger id="mio-select" className="h-9 text-xs bg-white">
+                        <SelectValue placeholder="Select MIO from Database..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-56 text-xs">
+                        {options.mios.map((mio) => (
+                          <SelectItem key={mio.name} value={mio.name}>
+                            <div className="flex items-center gap-1.5">
+                              <UserCheck className="h-3.5 w-3.5 text-slate-400" />
+                              <span className="font-semibold text-slate-900">
+                                {mio.name}
+                              </span>
+                              {mio.empId && (
+                                <Badge
+                                  variant="outline"
+                                  className="border-slate-200 bg-slate-50 px-1.5 py-0 text-[10px] text-slate-600 font-mono"
+                                >
+                                  {mio.empId}
+                                </Badge>
+                              )}
+                              {mio.territory && (
+                                <span className="text-[10px] text-[#0090FF]">
+                                  • {mio.territory}
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                        <SelectItem
+                          value="CUSTOM_MIO_ENTRY"
+                          className="font-semibold text-[#0090FF]"
+                        >
+                          + Other (Type Custom MIO Name)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
                 {/* Territory Select (From DB) */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
@@ -566,7 +719,7 @@ export default function TargetVsAchievementPage() {
                       htmlFor="territory-select"
                       className="text-xs font-semibold text-slate-700"
                     >
-                      Territory Name *
+                      Assigned Territory *
                     </Label>
                     <button
                       type="button"
@@ -608,7 +761,10 @@ export default function TargetVsAchievementPage() {
                             </div>
                           </SelectItem>
                         ))}
-                        <SelectItem value="CUSTOM_ENTRY" className="font-semibold text-[#0090FF]">
+                        <SelectItem
+                          value="CUSTOM_ENTRY"
+                          className="font-semibold text-[#0090FF]"
+                        >
                           + Other (Type Custom Territory)
                         </SelectItem>
                       </SelectContent>
@@ -616,69 +772,7 @@ export default function TargetVsAchievementPage() {
                   )}
                 </div>
 
-                {/* Assigned MIO Select (From DB) */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label
-                      htmlFor="mio-select"
-                      className="text-xs font-semibold text-slate-700"
-                    >
-                      Assigned MIO Officer *
-                    </Label>
-                    <button
-                      type="button"
-                      onClick={() => setIsCustomMio(!isCustomMio)}
-                      className="text-[11px] font-semibold text-[#0090FF] hover:underline"
-                    >
-                      {isCustomMio ? "Pick from DB List" : "+ Enter Custom"}
-                    </button>
-                  </div>
-
-                  {isCustomMio ? (
-                    <Input
-                      id="custom-mio"
-                      placeholder="e.g. Arif Hossain"
-                      value={customMio}
-                      onChange={(e) => setCustomMio(e.target.value)}
-                      required
-                      className="h-9 text-xs"
-                    />
-                  ) : (
-                    <Select
-                      value={newMio}
-                      onValueChange={handleMioSelection}
-                    >
-                      <SelectTrigger id="mio-select" className="h-9 text-xs bg-white">
-                        <SelectValue placeholder="Select MIO from DB Staff..." />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-56 text-xs">
-                        {options.mios.map((mio) => (
-                          <SelectItem key={mio.name} value={mio.name}>
-                            <div className="flex items-center gap-1.5">
-                              <UserCheck className="h-3.5 w-3.5 text-slate-400" />
-                              <span className="font-medium text-slate-900">{mio.name}</span>
-                              {mio.empId && (
-                                <span className="text-[10px] text-slate-400">
-                                  ({mio.empId})
-                                </span>
-                              )}
-                              {mio.territory && (
-                                <span className="text-[10px] text-[#0090FF]">
-                                  • {mio.territory}
-                                </span>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="CUSTOM_MIO_ENTRY" className="font-semibold text-[#0090FF]">
-                          + Other (Type Custom MIO)
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-
-                {/* Quota Target & Achieved So Far */}
+                {/* Quota Target & Baseline Achieved */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label
@@ -702,7 +796,7 @@ export default function TargetVsAchievementPage() {
                       htmlFor="achieved"
                       className="text-xs font-semibold text-slate-700"
                     >
-                      Achieved So Far (৳)
+                      Realized Baseline (৳)
                     </Label>
                     <Input
                       id="achieved"
@@ -725,7 +819,7 @@ export default function TargetVsAchievementPage() {
                   </Label>
                   <Input
                     id="notes"
-                    placeholder="e.g. Special Q4 push for antimicrobial portfolio"
+                    placeholder="e.g. Q4 growth target for hospital distribution"
                     value={newNotes}
                     onChange={(e) => setNewNotes(e.target.value)}
                     className="h-8 text-xs"
@@ -753,7 +847,7 @@ export default function TargetVsAchievementPage() {
                         Saving to DB...
                       </>
                     ) : (
-                      "Save Target"
+                      "Save MIO Quota"
                     )}
                   </Button>
                 </DialogFooter>
@@ -763,8 +857,9 @@ export default function TargetVsAchievementPage() {
         </div>
       </div>
 
-      {/* 2. Dynamic KPI Cards */}
+      {/* 2. Dynamic Real Database KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {/* Card 1: Gross Quota Target */}
         <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
@@ -778,14 +873,17 @@ export default function TargetVsAchievementPage() {
             ৳{totalTarget.toLocaleString("en-IN")}
           </div>
           <p className="mt-3 text-[11px] text-slate-400">
-            Across {territories.length} Active Database Zones
+            {isFiltered
+              ? `Filtered (${activeList.length} of ${targets.length} MIO Quotas)`
+              : `Across ${targets.length} Active MIO Field Quotas`}
           </p>
         </Card>
 
+        {/* Card 2: Total Realized Achieved */}
         <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
-              Total Achieved
+              Total Realized Achieved
             </span>
             <Badge
               variant="outline"
@@ -805,55 +903,61 @@ export default function TargetVsAchievementPage() {
             ৳{totalAchieved.toLocaleString("en-IN")}
           </div>
           <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-slate-800">
-            <span>Aggregated Field Fulfillment</span>
+            <span>{totalMatchingOrders} Verified Invoiced Orders</span>
             <ArrowUpRight className="h-3.5 w-3.5 text-slate-600" />
           </div>
         </Card>
 
+        {/* Card 3: Top Performing MIO */}
         <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
-              Top Performing Hub
+              Top Performing MIO
             </span>
             <div className="rounded-lg bg-emerald-50 p-1.5 text-emerald-600">
               <Trophy className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-3 truncate text-[22px] leading-none font-bold tracking-tight text-slate-900">
-            {topPerforming?.territory || "N/A"}
+          <div className="mt-3 truncate text-[20px] leading-none font-bold tracking-tight text-slate-900">
+            {topPerforming ? topPerforming.mio : "N/A"}
           </div>
-          <p className="mt-3 text-[11px] text-slate-400">
-            {topPerforming ? `${topPerforming.rate}% quota achieved (${topPerforming.mio})` : "Surpassed assigned baseline"}
+          <p className="mt-3 text-[11px] text-slate-500">
+            {topPerforming
+              ? `${topPerforming.rate}% achieved • ${topPerforming.territory}`
+              : "No quota allocations yet"}
           </p>
         </Card>
 
+        {/* Card 4: Behind Quota Target */}
         <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
-              Underperforming Zones
+              Behind Quota Target
             </span>
             <div className="rounded-lg bg-amber-50 p-1.5 text-amber-600">
               <AlertCircle className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3 text-[26px] leading-none font-bold tracking-tight text-slate-900">
-            {underperformingCount} Zones
+            {underperformingCount} Officers
           </div>
           <p className="mt-3 text-[11px] font-medium text-amber-600">
-            Tracking below 90% threshold
+            {underperformingCount === 0
+              ? "All active officers meeting quota threshold"
+              : `${onTrackCount} on track • ${underperformingCount} tracking below 90%`}
           </p>
         </Card>
       </div>
 
-      {/* 3. Bar Chart based on current real database territories */}
+      {/* 3. Bar Chart based on current real database MIO targets */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
         <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
-              Territory Variance (in Lakh ৳)
+              MIO Quota vs. Achievement Variance (in Lakh ৳)
             </h2>
             <p className="mt-0.5 text-xs text-slate-400">
-              Visual comparison between assigned quota and audited field deliveries
+              Audited comparison between assigned sales quota and delivered orders per MIO
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs font-semibold text-slate-600">
@@ -872,11 +976,11 @@ export default function TargetVsAchievementPage() {
           {isLoading ? (
             <div className="flex h-full items-center justify-center text-xs text-slate-400">
               <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#0090FF]" />
-              Loading territory analytics from database...
+              Loading MIO performance analytics from database...
             </div>
           ) : dynamicChartData.length === 0 ? (
             <div className="flex h-full items-center justify-center text-xs text-slate-400">
-              No territory quotas registered in database yet.
+              No MIO quotas registered in database yet.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -908,16 +1012,32 @@ export default function TargetVsAchievementPage() {
                       const data = payload[0].payload
                       return (
                         <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-md">
-                          <p className="text-xs font-bold text-slate-900">{data.fullName}</p>
+                          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
+                            <span className="text-xs font-bold text-slate-900">
+                              {data.fullName}
+                            </span>
+                            <span className="text-[10px] font-medium text-[#0090FF]">
+                              {data.territory}
+                            </span>
+                          </div>
                           <div className="mt-1.5 space-y-1 text-[11px]">
                             <p className="text-slate-500">
-                              Target: <span className="font-semibold text-slate-900">৳{data.Target} Lakh</span>
+                              Target Quota:{" "}
+                              <span className="font-semibold text-slate-900">
+                                ৳{data.Target} Lakh
+                              </span>
                             </p>
                             <p className="text-blue-600">
-                              Achieved: <span className="font-semibold">৳{data.Achieved} Lakh</span>
+                              Realized Invoiced:{" "}
+                              <span className="font-semibold">
+                                ৳{data.Achieved} Lakh
+                              </span>
                             </p>
                             <p className="font-semibold text-slate-800">
-                              Fulfillment Rate: {data.rate}%
+                              Achievement Rate: {data.rate}%
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              Matching Orders: {data.ordersCount} fulfilled
                             </p>
                           </div>
                         </div>
@@ -944,29 +1064,75 @@ export default function TargetVsAchievementPage() {
         </div>
       </Card>
 
-      {/* 4. Territory Quota Breakdown Table with Search & Filtering */}
+      {/* 4. MIO Performance Ledger with Territory Sorting, Filtering & Search */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-              Territory Performance Ledger
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold tracking-tight text-slate-900 uppercase">
+                MIO Performance Ledger
+              </h3>
+              <Badge
+                variant="outline"
+                className="border-slate-200 bg-slate-50 text-[10px] font-semibold text-slate-700"
+              >
+                Target vs. Achievement
+              </Badge>
+            </div>
             <span className="text-xs text-slate-400">
-              Showing {filteredTerritories.length} of {territories.length} Registered Zones from Database
+              Showing {processedTargets.length} of {targets.length} Designated MIO Field Quotas from Database
             </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Search Input */}
-            <div className="relative w-48 sm:w-64">
+            <div className="relative w-44 sm:w-56">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <Input
-                placeholder="Search territory or MIO..."
+                placeholder="Search MIO or Territory..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-8 pl-8 text-xs bg-slate-50/50"
               />
             </div>
+
+            {/* Filter by Territory */}
+            <Select value={selectedTerritory} onValueChange={setSelectedTerritory}>
+              <SelectTrigger className="h-8 text-xs w-[145px] bg-white">
+                <MapPin className="mr-1 h-3 w-3 text-slate-400" />
+                <SelectValue placeholder="All Territories" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60 text-xs">
+                <SelectItem value="all">All Territories</SelectItem>
+                {uniqueTerritories.map((terr) => (
+                  <SelectItem key={terr} value={terr}>
+                    {terr}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Sort Dropdown */}
+            <Select
+              value={`${sortField}:${sortDirection}`}
+              onValueChange={handleSortDropdownChange}
+            >
+              <SelectTrigger className="h-8 text-xs w-[165px] bg-white">
+                <SlidersHorizontal className="mr-1 h-3 w-3 text-slate-400" />
+                <SelectValue placeholder="Sort By" />
+              </SelectTrigger>
+              <SelectContent className="text-xs">
+                <SelectItem value="territory:asc">Territory: A → Z</SelectItem>
+                <SelectItem value="territory:desc">Territory: Z → A</SelectItem>
+                <SelectItem value="mio:asc">MIO Name: A → Z</SelectItem>
+                <SelectItem value="mio:desc">MIO Name: Z → A</SelectItem>
+                <SelectItem value="rate:desc">Achievement: High → Low</SelectItem>
+                <SelectItem value="rate:asc">Achievement: Low → High</SelectItem>
+                <SelectItem value="targetRaw:desc">Target: High → Low</SelectItem>
+                <SelectItem value="targetRaw:asc">Target: Low → High</SelectItem>
+                <SelectItem value="achievedRaw:desc">Achieved: High → Low</SelectItem>
+              </SelectContent>
+            </Select>
 
             {/* Status Filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -987,24 +1153,108 @@ export default function TargetVsAchievementPage() {
           <Table>
             <TableHeader>
               <TableRow className="border-b border-slate-100 text-xs text-slate-600 hover:bg-transparent">
-                <TableHead className="pl-0 text-xs font-semibold text-slate-600">
-                  Territory
+                {/* 1. MIO Column */}
+                <TableHead
+                  onClick={() => handleSortToggle("mio")}
+                  className="pl-0 text-xs font-semibold text-slate-700 cursor-pointer select-none hover:text-[#0090FF] transition-colors"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Medical Information Officer (MIO)</span>
+                    {sortField === "mio" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-[#0090FF]" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-[#0090FF]" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                    )}
+                  </div>
                 </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-600">
-                  Assigned MIO
+
+                {/* 2. Territory Column (User highlighted sorting by territory!) */}
+                <TableHead
+                  onClick={() => handleSortToggle("territory")}
+                  className="text-xs font-semibold text-slate-700 cursor-pointer select-none hover:text-[#0090FF] transition-colors"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                    <span>Territory</span>
+                    {sortField === "territory" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-[#0090FF]" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-[#0090FF]" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                    )}
+                  </div>
                 </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-600">
-                  Quota Target
+
+                {/* 3. Quota Target */}
+                <TableHead
+                  onClick={() => handleSortToggle("targetRaw")}
+                  className="text-xs font-semibold text-slate-700 cursor-pointer select-none hover:text-[#0090FF] transition-colors"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Quota Target</span>
+                    {sortField === "targetRaw" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-[#0090FF]" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-[#0090FF]" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                    )}
+                  </div>
                 </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-600">
-                  Actual Realized
+
+                {/* 4. Actual Realized */}
+                <TableHead
+                  onClick={() => handleSortToggle("achievedRaw")}
+                  className="text-xs font-semibold text-slate-700 cursor-pointer select-none hover:text-[#0090FF] transition-colors"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Actual Realized</span>
+                    {sortField === "achievedRaw" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-[#0090FF]" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-[#0090FF]" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                    )}
+                  </div>
                 </TableHead>
-                <TableHead className="w-[180px] text-xs font-semibold text-slate-600">
-                  Achievement %
+
+                {/* 5. Target vs Achievement Rate % */}
+                <TableHead
+                  onClick={() => handleSortToggle("rate")}
+                  className="w-[190px] text-xs font-semibold text-slate-700 cursor-pointer select-none hover:text-[#0090FF] transition-colors"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Target vs. Achievement</span>
+                    {sortField === "rate" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-[#0090FF]" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-[#0090FF]" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                    )}
+                  </div>
                 </TableHead>
+
+                {/* 6. Status */}
                 <TableHead className="text-center text-xs font-semibold text-slate-600">
                   Status
                 </TableHead>
+
+                {/* 7. Actions */}
                 <TableHead className="pr-0 text-right text-xs font-semibold text-slate-600">
                   Actions
                 </TableHead>
@@ -1013,52 +1263,121 @@ export default function TargetVsAchievementPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center text-xs text-slate-400">
+                  <TableCell
+                    colSpan={7}
+                    className="h-32 text-center text-xs text-slate-400"
+                  >
                     <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-[#0090FF]" />
-                    Loading territory targets from database...
+                    Loading MIO performance ledger from database...
                   </TableCell>
                 </TableRow>
-              ) : filteredTerritories.length === 0 ? (
+              ) : processedTargets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center text-xs text-slate-400">
-                    No matching territory targets found in database.
+                  <TableCell
+                    colSpan={7}
+                    className="h-32 text-center text-xs text-slate-400"
+                  >
+                    No matching MIO quota records found in database.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredTerritories.map((row) => (
+                processedTargets.map((row) => (
                   <TableRow
                     key={row.id}
                     className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors"
                   >
-                    <TableCell className="py-3 pl-0 text-xs font-semibold text-slate-900">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="h-3.5 w-3.5 text-[#0090FF]" />
-                        <span>{row.territory}</span>
+                    {/* MIO Info */}
+                    <TableCell className="py-3 pl-0 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 font-bold text-[#0090FF] text-[11px]">
+                          {row.mio
+                            .split(" ")
+                            .map((p) => p[0])
+                            .slice(0, 2)
+                            .join("")}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-slate-900">
+                            {row.mio}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                            {row.empId ? (
+                              <span className="font-mono text-slate-500 font-medium">
+                                {row.empId}
+                              </span>
+                            ) : (
+                              <span>Field Force</span>
+                            )}
+                            {row.phone && (
+                              <span>• {row.phone}</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 text-xs text-slate-700">
+
+                    {/* Territory */}
+                    <TableCell className="py-3 text-xs text-slate-800">
                       <div className="flex items-center gap-1.5">
-                        <UserCheck className="h-3.5 w-3.5 text-slate-400" />
-                        <span className="font-medium">{row.mio}</span>
+                        <MapPin className="h-3.5 w-3.5 text-[#0090FF] shrink-0" />
+                        <div>
+                          <span className="font-medium text-slate-900">
+                            {row.territory}
+                          </span>
+                          {row.zone && (
+                            <div className="text-[10px] text-slate-400 truncate max-w-[150px]">
+                              {row.zone}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 font-mono text-xs text-slate-600">
+
+                    {/* Quota Target */}
+                    <TableCell className="py-3 font-mono text-xs text-slate-700">
                       {row.target}
                     </TableCell>
+
+                    {/* Actual Realized */}
                     <TableCell className="py-3 font-mono text-xs font-semibold text-slate-900">
-                      {row.achieved}
+                      <div>
+                        {row.achieved}
+                        <div className="text-[10px] font-sans font-normal text-slate-400">
+                          {row.matchingOrdersCount && row.matchingOrdersCount > 0
+                            ? `${row.matchingOrdersCount} invoiced order${row.matchingOrdersCount > 1 ? "s" : ""}`
+                            : "No live orders"}
+                        </div>
+                      </div>
                     </TableCell>
+
+                    {/* Achievement Progress */}
                     <TableCell className="py-3 text-xs">
                       <div className="flex items-center gap-2.5">
                         <Progress
                           value={row.rate > 100 ? 100 : row.rate}
-                          className="h-1.5 flex-1 bg-slate-100 [&>div]:bg-[#0090FF]"
+                          className={`h-1.5 flex-1 bg-slate-100 ${
+                            row.rate >= 100
+                              ? "[&>div]:bg-emerald-500"
+                              : row.rate >= 90
+                              ? "[&>div]:bg-[#0090FF]"
+                              : "[&>div]:bg-amber-500"
+                          }`}
                         />
-                        <span className="w-9 text-right text-[11px] font-bold text-slate-800">
+                        <span
+                          className={`w-10 text-right text-[11px] font-bold ${
+                            row.rate >= 100
+                              ? "text-emerald-700"
+                              : row.rate >= 90
+                              ? "text-blue-700"
+                              : "text-amber-700"
+                          }`}
+                        >
                           {row.rate}%
                         </span>
                       </div>
                     </TableCell>
+
+                    {/* Status */}
                     <TableCell className="py-3 text-center text-xs">
                       <Badge
                         variant="outline"
@@ -1066,13 +1385,15 @@ export default function TargetVsAchievementPage() {
                           row.status === "Surpassed"
                             ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                             : row.status === "On Track"
-                              ? "border-slate-200 bg-slate-50 text-slate-700"
-                              : "border-amber-200 bg-amber-50 text-amber-700"
+                            ? "border-blue-200 bg-blue-50 text-blue-700"
+                            : "border-amber-200 bg-amber-50 text-amber-700"
                         }`}
                       >
                         {row.status}
                       </Badge>
                     </TableCell>
+
+                    {/* Actions */}
                     <TableCell className="py-3 pr-0 text-right text-xs">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -1122,27 +1443,14 @@ export default function TargetVsAchievementPage() {
               <Pencil className="h-5 w-5" />
             </div>
             <DialogTitle className="text-base font-bold text-slate-900 mt-2">
-              Edit Territory Target
+              Edit MIO Quota Target
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Modify the assigned sales quota target or designated MIO for this territory.
+              Modify the sales quota target or designated territory for this MIO officer.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleUpdateTarget} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-territory" className="text-xs font-semibold text-slate-700">
-                Territory Name *
-              </Label>
-              <Input
-                id="edit-territory"
-                value={editTerritory}
-                onChange={(e) => setEditTerritory(e.target.value)}
-                required
-                className="h-9 text-xs"
-              />
-            </div>
-
             <div className="space-y-1.5">
               <Label htmlFor="edit-mio" className="text-xs font-semibold text-slate-700">
                 Assigned MIO Officer *
@@ -1151,6 +1459,19 @@ export default function TargetVsAchievementPage() {
                 id="edit-mio"
                 value={editMio}
                 onChange={(e) => setEditMio(e.target.value)}
+                required
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-territory" className="text-xs font-semibold text-slate-700">
+                Territory Name *
+              </Label>
+              <Input
+                id="edit-territory"
+                value={editTerritory}
+                onChange={(e) => setEditTerritory(e.target.value)}
                 required
                 className="h-9 text-xs"
               />
@@ -1172,7 +1493,7 @@ export default function TargetVsAchievementPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="edit-achieved" className="text-xs font-semibold text-slate-700">
-                  Achieved Baseline (৳)
+                  Realized Baseline (৳)
                 </Label>
                 <Input
                   id="edit-achieved"
@@ -1218,7 +1539,7 @@ export default function TargetVsAchievementPage() {
                     Updating...
                   </>
                 ) : (
-                  "Update Target"
+                  "Update Quota"
                 )}
               </Button>
             </DialogFooter>
@@ -1235,9 +1556,9 @@ export default function TargetVsAchievementPage() {
           }
         }}
         onConfirm={confirmDeleteTarget}
-        title="Delete Territory Quota"
-        description="Are you sure you want to delete this territory quota? This action will permanently remove the record from the database and log a 21 CFR Part 11 audit trail event."
-        itemName={deleteModal.territoryName || undefined}
+        title="Delete MIO Quota Target"
+        description="Are you sure you want to delete this sales quota target? This action will permanently remove the record from the database and log a 21 CFR Part 11 audit trail event."
+        itemName={deleteModal.itemName || undefined}
         confirmText="Confirm Deletion"
         isDeleting={deleteModal.isDeleting}
       />
