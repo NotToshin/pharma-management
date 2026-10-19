@@ -1785,7 +1785,7 @@ export default function SalaryManagementPage() {
 
       {/* DISBURSE TO TREASURY MODAL */}
       <Dialog open={isPayOpen} onOpenChange={setIsPayOpen}>
-        <DialogContent className="rounded-2xl bg-white sm:max-w-[480px]">
+        <DialogContent className="overflow-hidden rounded-2xl bg-white sm:max-w-[480px]">
           <DialogHeader>
             <div className="flex items-center gap-2">
               <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
@@ -1803,17 +1803,17 @@ export default function SalaryManagementPage() {
           </DialogHeader>
 
           {payingRecord && (
-            <form onSubmit={handleDisburseToTreasury} className="space-y-4 py-2">
+            <form onSubmit={handleDisburseToTreasury} className="min-w-0 space-y-4 pt-1">
               <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3.5">
-                <div>
-                  <span className="block text-xs font-bold text-slate-900">
+                <div className="min-w-0 pr-3">
+                  <span className="block truncate text-xs font-bold text-slate-900">
                     {payingRecord.fullName}
                   </span>
                   <span className="text-[11px] text-slate-400">
                     {payingRecord.empId} • {payingRecord.payPeriod}
                   </span>
                 </div>
-                <div className="text-right">
+                <div className="shrink-0 text-right">
                   <span className="block text-[11px] text-slate-400">Net Payable Amount</span>
                   <span className="font-mono text-base font-black text-emerald-600">
                     ৳{getNet(payingRecord).toLocaleString("en-IN")}
@@ -1828,21 +1828,26 @@ export default function SalaryManagementPage() {
                   onValueChange={setSelectedTreasuryAccountId}
                   required
                 >
-                  <SelectTrigger className="h-9 bg-white text-xs">
+                  <SelectTrigger className="h-9 w-full min-w-0 bg-white text-xs">
                     <SelectValue placeholder="Choose bank account or cash vault..." />
                   </SelectTrigger>
-                  <SelectContent className="text-xs">
+                  <SelectContent className="max-w-[440px] text-xs">
                     {treasuryAccounts.length === 0 ? (
                       <SelectItem value="none" disabled>
                         No bank accounts registered in Treasury
                       </SelectItem>
                     ) : (
-                      treasuryAccounts.map((acc) => (
-                        <SelectItem key={acc.id} value={acc.id}>
-                          {acc.accountTitle} ({acc.institution}) — Balance: ৳
-                          {Number(acc.balance || 0).toLocaleString("en-IN")}
-                        </SelectItem>
-                      ))
+                      treasuryAccounts.map((acc) => {
+                        const bal = Number(acc.balance || 0);
+                        const formattedBal = bal < 0 
+                          ? `-৳${Math.abs(bal).toLocaleString("en-IN")}`
+                          : `৳${bal.toLocaleString("en-IN")}`;
+                        return (
+                          <SelectItem key={acc.id} value={acc.id}>
+                            {acc.accountTitle} ({acc.institution}) — Balance: {formattedBal}
+                          </SelectItem>
+                        );
+                      })
                     )}
                   </SelectContent>
                 </Select>
@@ -1851,7 +1856,7 @@ export default function SalaryManagementPage() {
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-slate-700">Disbursement Method</Label>
                 <Select value={disbursementMethod} onValueChange={setDisbursementMethod}>
-                  <SelectTrigger className="h-9 bg-white text-xs">
+                  <SelectTrigger className="h-9 w-full min-w-0 bg-white text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="text-xs">
@@ -1863,8 +1868,9 @@ export default function SalaryManagementPage() {
                 </Select>
               </div>
 
-              <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-[11px] leading-relaxed text-blue-900">
-                Disbursement Account on File: <strong>{payingRecord.bankName}</strong> (<code>{payingRecord.bankAccount}</code>)
+              <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-[11px] leading-relaxed text-blue-900 break-words">
+                Disbursement Account on File: <strong>{payingRecord.bankName}</strong>{" "}
+                (<code>{payingRecord.bankAccount}</code>)
               </div>
 
               <DialogFooter className="pt-2">

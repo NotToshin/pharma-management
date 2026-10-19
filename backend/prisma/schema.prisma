@@ -19,6 +19,20 @@ type OrderItem {
   total       Float
 }
 
+type PurchaseOrderItem {
+  no                 Int
+  skuCode            String?
+  drugName           String
+  genericName        String?
+  packSize           String?
+  quantityOrdered    Int
+  quantityReceived   Int      @default(0)
+  unitCostBDT        Float
+  totalCostBDT       Float
+  storageRequirement String?  @default("Controlled Ambient (<25°C)")
+}
+
+
 // ─────────────────────────────────────────────
 // Enums
 // ─────────────────────────────────────────────
@@ -299,6 +313,68 @@ model StockAdjustment {
   updatedAt         DateTime @updatedAt
 }
 
+// ─────────────────────────────────────────────
+// Wholesaler Procurement & Purchase Orders
+// ─────────────────────────────────────────────
+
+model PurchaseOrder {
+  id                   String              @id @default(auto()) @map("_id") @db.ObjectId
+  poNumber             String              @unique
+  poDate               String
+  expectedDeliveryDate String?
+  wholesalerName       String
+  wholesalerCode       String?
+  contactPerson        String?
+  phone                String?
+  email                String?
+  wholesalerAddress    String?
+  deliveryWarehouse    String              @default("Main Distribution Bay - Tejgaon Central")
+  paymentTerms         String              @default("Net 30 Days")
+  items                PurchaseOrderItem[]
+  totalUnits           Int                 @default(0)
+  subtotalBDT          Float               @default(0.0)
+  discountBDT          Float               @default(0.0)
+  taxBDT               Float               @default(0.0)
+  totalAmountBDT       Float               @default(0.0)
+  status               String              @default("Draft") // "Draft" | "Submitted" | "Approved" | "Partially Received" | "Received" | "Cancelled"
+  approvalStage        String?             @default("Procurement Officer Review") // "Procurement Officer Review" | "Lead Pharmacist" | "Finance Clearance" | "Final Approved"
+  priority             String              @default("Routine") // "Routine" | "Urgent / Stockout Risk" | "Emergency Cold-Chain"
+  requisitionRef       String?
+  shippingTerms        String?             @default("FOB Central Depot")
+  notes                String?
+  createdBy            String?
+  approvedBy           String?
+  approvedAt           DateTime?
+  receivedAt           DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([status])
+  @@index([wholesalerName])
+  @@index([priority])
+}
+
+model Wholesaler {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  wholesalerCode     String   @unique
+  name               String   @unique
+  contactPerson      String
+  phone              String
+  email              String?
+  drugLicenseNo      String
+  tradeLicense       String?
+  address            String
+  territory          String   @default("Dhaka Metro")
+  paymentTerms       String   @default("Net 30 Days")
+  rating             Float    @default(5.0)
+  status             String   @default("Active") // "Active" | "Under Review" | "Blacklisted"
+  leadTimeDays       Int      @default(3)
+  suppliedCategories String[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+
 
 // ─────────────────────────────────────────────
 // System access control
@@ -412,3 +488,19 @@ model MioZoneAllocation {
   updatedAt     DateTime @updatedAt
 }
 
+// ─────────────────────────────────────────────
+// Sales Quotas & Field Force Targets
+// ─────────────────────────────────────────────
+
+model TerritoryTarget {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  territory      String
+  mioName        String
+  targetAmount   Float
+  achievedAmount Float    @default(0.00)
+  fiscalYear     String   @default("Fiscal Year 2026")
+  status         String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

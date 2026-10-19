@@ -205,8 +205,8 @@ const navSections: NavSection[] = [
         icon: Truck,
         defaultOpen: true,
         subItems: [
-          { title: "Purchase Orders", href: "/logistics/orders" },
-          { title: "Receive Stock Batch Log", href: "/logistics/batch-log" },
+          { title: "Sales Orders", href: "/logistics/orders" },
+          { title: "Receive Stock Delivery Log", href: "/logistics/batch-log" },
         ],
       },
       {
@@ -551,25 +551,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         >
                           <div className="flex items-center gap-2.5">
                             <item.icon className="h-4 w-4 shrink-0 text-slate-600" />
-                          <span className="group-data-[collapsible=icon]:hidden">
-                            {item.title}
-                          </span>
-                        </div>
-                        {item.title === "Pharmacy Clients" ? (
-                          <span className="pr-1 text-xs font-medium text-blue-500/90 group-data-[collapsible=icon]:hidden">
-                            {totalClientsCount}
-                          </span>
-                        ) : (item as any).badge ? (
-                          <span className="pr-1 text-xs font-medium text-slate-400 group-data-[collapsible=icon]:hidden">
-                            {(item as any).badge}
-                          </span>
-                        ) : null}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
+                            <span className="group-data-[collapsible=icon]:hidden">
+                              {item.title}
+                            </span>
+                          </div>
+                          {item.title === "Pharmacy Clients" ? (
+                            <span className="pr-1 text-xs font-medium text-blue-500/90 group-data-[collapsible=icon]:hidden">
+                              {totalClientsCount}
+                            </span>
+                          ) : (item as any).badge ? (
+                            <span className="pr-1 text-xs font-medium text-slate-400 group-data-[collapsible=icon]:hidden">
+                              {(item as any).badge}
+                            </span>
+                          ) : null}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
             </SidebarGroup>
           )
         })}
