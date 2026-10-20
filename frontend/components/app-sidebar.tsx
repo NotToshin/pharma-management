@@ -168,7 +168,7 @@ const navSections: NavSection[] = [
         icon: BarChart3,
         defaultOpen: true,
         subItems: [
-          { title: "Active Inventory Ledger", href: "/inventory/ledger" },
+          { title: "Stock Inventory", href: "/inventory/ledger" },
           // { title: "Expiry Watchlist", href: "/inventory/expiry" },
         ],
       },

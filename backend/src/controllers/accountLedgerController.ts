@@ -8,6 +8,11 @@ export const getAccounts = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, 200, "Financial accounts retrieved successfully", accounts);
 });
 
+export const getLedgerMetrics = catchAsync(async (req: Request, res: Response) => {
+  const metrics = await accountLedgerService.getLedgerMetrics();
+  sendResponse(res, 200, "Central treasury ledger metrics calculated", metrics);
+});
+
 export const createAccount = catchAsync(async (req: Request, res: Response) => {
   const {
     accountTitle,
@@ -68,8 +73,18 @@ export const deleteAccount = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const getTransactions = catchAsync(async (req: Request, res: Response) => {
-  const list = await accountLedgerService.getTransactions();
-  sendResponse(res, 200, "Transactions retrieved successfully", list);
+  const result = await accountLedgerService.getTransactions(req.query as any);
+  if (result && typeof result === "object" && "meta" in result) {
+    sendResponse(
+      res,
+      200,
+      "Transactions retrieved successfully",
+      (result as any).transactions,
+      (result as any).meta
+    );
+  } else {
+    sendResponse(res, 200, "Transactions retrieved successfully", result);
+  }
 });
 
 export const createTransaction = catchAsync(async (req: Request, res: Response) => {
@@ -98,6 +113,29 @@ export const createTransaction = catchAsync(async (req: Request, res: Response) 
   });
 
   sendResponse(res, 201, "Transaction created successfully", tx);
+});
+
+export const updateTransaction = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { particulars, fundingEntity, method, entryDate, reconciliationStatus } = req.body;
+
+  const updated = await accountLedgerService.updateTransaction(id, {
+    particulars,
+    fundingEntity,
+    method,
+    entryDate,
+    reconciliationStatus,
+  });
+
+  sendResponse(res, 200, "Transaction updated successfully", updated);
+});
+
+export const reconcileTransaction = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { reconciliationStatus } = req.body;
+
+  const updated = await accountLedgerService.reconcileTransaction(id, reconciliationStatus);
+  sendResponse(res, 200, `Transaction marked as ${reconciliationStatus}`, updated);
 });
 
 export const deleteTransaction = catchAsync(async (req: Request, res: Response) => {

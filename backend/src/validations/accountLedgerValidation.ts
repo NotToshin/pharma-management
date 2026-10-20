@@ -58,6 +58,42 @@ export const transactionIdParamSchema = z.object({
   }),
 });
 
+export const queryTransactionSchema = z.object({
+  query: z.object({
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    search: z.string().optional(),
+    flowType: z.string().optional(),
+    accountId: z.string().optional(),
+    reconciliationStatus: z.string().optional(),
+  }).optional(),
+});
+
+export const updateTransactionSchema = z.object({
+  body: z.object({
+    particulars: z.string().min(1).optional(),
+    fundingEntity: z.string().optional().or(z.literal("")),
+    method: z.string().optional(),
+    entryDate: z.string().optional(),
+    reconciliationStatus: z.enum(["Reconciled", "In Transit", "Unreconciled"]).optional(),
+  }),
+  params: z.object({
+    id: z.string().min(1, "Transaction ID is required"),
+  }),
+});
+
+export const reconcileTransactionSchema = z.object({
+  body: z.object({
+    reconciliationStatus: z.enum(["Reconciled", "In Transit", "Unreconciled"]),
+  }),
+  params: z.object({
+    id: z.string().min(1, "Transaction ID is required"),
+  }),
+});
+
 export type CreateAccountInput = z.infer<typeof createAccountSchema>["body"];
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>["body"];
 export type CreateTransactionInput = z.infer<typeof createTransactionSchema>["body"];
+export type QueryTransactionInput = z.infer<typeof queryTransactionSchema>["query"];
+export type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>["body"];
+export type ReconcileTransactionInput = z.infer<typeof reconcileTransactionSchema>["body"];
