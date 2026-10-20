@@ -46,6 +46,7 @@ router.post("/", validateBody(createPurchaseOrderSchema), createPurchaseOrder);
 router.put("/:id", validateParams(purchaseOrderIdParamSchema), validateBody(updatePurchaseOrderSchema), updatePurchaseOrder);
 router.patch("/:id/status", validateParams(purchaseOrderIdParamSchema), validateBody(updatePurchaseOrderStatusSchema), updateOrderStatus);
 router.post("/:id/receive", validateParams(purchaseOrderIdParamSchema), validateBody(receiveStockSchema), receiveStock);
+router.patch("/:id/receive", validateParams(purchaseOrderIdParamSchema), validateBody(receiveStockSchema), receiveStock);
 router.delete("/:id", validateParams(purchaseOrderIdParamSchema), deletePurchaseOrder);
 
 export default router;

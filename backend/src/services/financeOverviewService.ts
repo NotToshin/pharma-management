@@ -14,16 +14,14 @@ function parseRecordDate(dateVal?: string | Date | null): { month: number; year:
   }
 
   const str = String(dateVal).trim();
-  const parsed = new Date(str);
-  if (!isNaN(parsed.getTime())) {
-    return { month: parsed.getMonth(), year: parsed.getFullYear() };
-  }
 
+  // 1. Check DD/MM/YYYY or DD-MM-YYYY first to avoid browser US MM/DD/YYYY mismatch
   const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
   if (dmyMatch) {
     return { month: parseInt(dmyMatch[2], 10) - 1, year: parseInt(dmyMatch[3], 10) };
   }
 
+  // 2. Check month name substring like "20 Oct 2026"
   for (let i = 0; i < MONTH_NAMES.length; i++) {
     const mPrefix = MONTH_NAMES[i].toLowerCase();
     if (str.toLowerCase().includes(mPrefix)) {
@@ -31,6 +29,12 @@ function parseRecordDate(dateVal?: string | Date | null): { month: number; year:
       const year = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
       return { month: i, year };
     }
+  }
+
+  // 3. Fallback standard Date parse
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    return { month: parsed.getMonth(), year: parsed.getFullYear() };
   }
 
   return null;
@@ -43,10 +47,10 @@ interface OverviewParams {
 
 export const financeOverviewService = {
   async getFinancialOverview(params: OverviewParams = {}) {
-    const yearParam = params.year || 2026;
+    const yearParam = params.year || new Date().getFullYear();
     const monthParam = params.month !== undefined ? params.month : new Date().getMonth();
 
-    const [orders, expenses, batches, journalTxs] = await Promise.all([
+    const [orders, expenses, batches, journalTxs, collections] = await Promise.all([
       prisma.order.findMany({ where: { status: { not: "Cancelled" } }, orderBy: { createdAt: "desc" } }),
       prisma.expenseVoucher.findMany({ orderBy: { createdAt: "desc" } }).catch(() => []),
       prisma.inventoryBatch.findMany().catch(() => []),
@@ -54,6 +58,7 @@ export const financeOverviewService = {
         include: { sourceAccount: true, destinationAccount: true },
         orderBy: { createdAt: "desc" },
       }).catch(() => []),
+      prisma.deliveryCollection.findMany({ orderBy: { createdAt: "desc" } }).catch(() => []),
     ]);
 
     const batchCostMap = new Map<string, number>();
@@ -69,9 +74,17 @@ export const financeOverviewService = {
       });
 
       const revenueBDT = mOrders.reduce((sum, o: any) => sum + Number(o.orderValue || 0), 0);
-      const collectionsBDT = mOrders
+      
+      const mCollections = (collections as any[]).filter((c: any) => {
+        if (c.status !== "Cleared & Deposited") return false;
+        const d = parseRecordDate(c.collectionDate) || parseRecordDate(c.createdAt);
+        return d ? d.month === idx && d.year === yearParam : false;
+      });
+      const directCollectionsBDT = mCollections.reduce((sum, c: any) => sum + Number(c.amountCollected || 0), 0);
+      const orderCollectionsBDT = mOrders
         .filter((o: any) => o.status === "Delivered & Invoiced" || o.status === "Settled")
         .reduce((sum, o: any) => sum + Number(o.orderValue || 0), 0);
+      const collectionsBDT = Math.max(orderCollectionsBDT, directCollectionsBDT);
 
       const mExpenses = (expenses as any[]).filter((e: any) => {
         const d = parseRecordDate(e.paymentDate) || parseRecordDate(e.createdAt);
@@ -176,15 +189,32 @@ export const financeOverviewService = {
         id: `exp-${e.id}`,
         trxCode: e.voucherNo,
         partyName: `${e.payeeName} (${e.category})`,
-        type: "TA/DA Disbursement",
-        territory: e.fundingSource || "Field Force",
+        type: e.category?.includes("Wholesaler") ? "Wholesaler Settlement" : "Expense Disbursement",
+        territory: e.sourceDetail || e.fundingSource || "Field Force",
         amount: Number(e.amount),
         date: e.paymentDate,
         status: "Settled",
       });
     });
 
-    transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    (collections as any[]).forEach((c: any) => {
+      transactions.push({
+        id: `col-${c.id}`,
+        trxCode: c.receiptNo,
+        partyName: `${c.chemistName} (${c.paymentMethod})`,
+        type: "Sales Collection Deposit",
+        territory: c.destinationName || c.territory || "Cash Safe",
+        amount: Number(c.amountCollected),
+        date: c.collectionDate,
+        status: c.status === "Cleared & Deposited" ? "Settled" : "Pending Clearance",
+      });
+    });
+
+    transactions.sort((a, b) => {
+      const timeA = new Date(a.date).getTime() || 0;
+      const timeB = new Date(b.date).getTime() || 0;
+      return timeB - timeA;
+    });
 
     return {
       selectedYear: yearParam,

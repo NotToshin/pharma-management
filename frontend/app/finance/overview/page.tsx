@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { API_URL } from "@/lib/api"
+import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -93,8 +93,8 @@ const MONTH_NAMES = [
 
 export default function FinanceOverviewPage() {
   const [loading, setLoading] = React.useState(true)
-  const [selectedYear, setSelectedYear] = React.useState<number>(2026)
-  const [selectedMonth, setSelectedMonth] = React.useState<number>(8) // September (0-indexed: 8)
+  const [selectedYear, setSelectedYear] = React.useState<number>(new Date().getFullYear())
+  const [selectedMonth, setSelectedMonth] = React.useState<number>(new Date().getMonth())
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
   const [isStatementOpen, setIsStatementOpen] = React.useState(false)
   const [filterType, setFilterType] = React.useState("all")
@@ -133,20 +133,54 @@ export default function FinanceOverviewPage() {
     try {
       setLoading(true)
 
+      // Primary: Single source of truth from backend finance overview service
+      const overviewRes = await apiFetch(`/finance-overview/metrics?year=${selectedYear}&month=${selectedMonth}`).catch(() => null)
+      if (overviewRes && overviewRes.ok) {
+        const json = await overviewRes.json()
+        const data = json.data
+        if (data) {
+          setMetrics(data.metrics || {
+            currentEarnBDT: 0,
+            currentCollectionsBDT: 0,
+            currentBurnBDT: 0,
+            currentArBDT: 0,
+            currentNetProfitBDT: 0,
+          })
+          setMarginBreakdown(data.marginBreakdown || {
+            cogsAmount: 0,
+            cogsPercent: 0,
+            tadaAmount: 0,
+            tadaPercent: 0,
+            profitAmount: 0,
+            netMarginPercent: 0,
+          })
+          setAnnualMetrics(data.annualMetrics || {
+            annualEarnBDT: 0,
+            annualCollectionsBDT: 0,
+            annualBurnBDT: 0,
+            annualNetProfitBDT: 0,
+          })
+          setMonthlyTrend(data.monthlyTrend || [])
+          setTransactions(data.transactions || [])
+          setLoading(false)
+          return
+        }
+      }
+
       const [ordRes, expRes, voucherRes, batchRes] = await Promise.all([
-        fetch(`${API_URL}/orders`).catch(() => ({
+        apiFetch("/orders").catch(() => ({
           ok: false,
           json: async () => [],
         })),
-        fetch(`${API_URL}/expenses`).catch(() => ({
+        apiFetch("/payments").catch(() => ({
           ok: false,
           json: async () => [],
         })),
-        fetch(`${API_URL}/expense-vouchers`).catch(() => ({
+        apiFetch("/expense-vouchers").catch(() => ({
           ok: false,
           json: async () => [],
         })),
-        fetch(`${API_URL}/inventory`).catch(() => ({
+        apiFetch("/inventory").catch(() => ({
           ok: false,
           json: async () => [],
         })),
@@ -159,7 +193,9 @@ export default function FinanceOverviewPage() {
       const standardExpenses: any[] = Array.isArray(expJson) ? expJson : expJson?.data || []
 
       const voucherJson = voucherRes.ok ? await voucherRes.json() : []
-      const voucherExpenses: any[] = Array.isArray(voucherJson) ? voucherJson : voucherJson?.data || []
+      const voucherExpenses: any[] = Array.isArray(voucherJson)
+        ? voucherJson
+        : voucherJson?.data?.vouchers || voucherJson?.data || []
 
       const batchJson = batchRes.ok ? await batchRes.json() : []
       const inventoryBatches: any[] = Array.isArray(batchJson) ? batchJson : batchJson?.data || []

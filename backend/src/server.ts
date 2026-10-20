@@ -13,6 +13,16 @@ function startServer(): http.Server {
     console.log(`🩺 Health check: http://localhost:${PORT}/health`);
   });
 
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`\n❌ Port ${PORT} is already in use by another process.`);
+      console.error(`💡 Solution: Stop any existing dev servers running on port ${PORT} or kill the process.\n`);
+    } else {
+      console.error("❌ Server error:", err);
+    }
+    process.exit(1);
+  });
+
   return server;
 }
 

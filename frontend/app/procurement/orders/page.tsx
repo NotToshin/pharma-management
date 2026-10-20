@@ -160,6 +160,16 @@ export interface InventoryBatchOption {
   storageCondition: string
 }
 
+export interface FinancialAccount {
+  id: string
+  accountTitle: string
+  category: "BANK" | "CASH"
+  institution: string
+  accountNumber: string
+  branch: string
+  balance: number
+}
+
 const DEFAULT_WAREHOUSES = [
   "Main Distribution Bay - Tejgaon Central",
   "Central Cold Storage - Tongi HQ",
@@ -339,22 +349,44 @@ export default function WholesalerPurchaseOrdersPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [isDeleting, setIsDeleting] = React.useState(false)
 
+  // Direct Finance & Treasury Payment Disbursement State
+  const [financialAccounts, setFinancialAccounts] = React.useState<FinancialAccount[]>([])
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = React.useState(false)
+  const [payingOrder, setPayingOrder] = React.useState<PurchaseOrder | null>(null)
+  const [isDisbursingPayment, setIsDisbursingPayment] = React.useState(false)
+  const [paymentForm, setPaymentForm] = React.useState({
+    fundingSource: "Bank Account" as "Bank Account" | "Cash Safe",
+    financialAccountId: "",
+    sourceDetail: "",
+    paymentMethod: "BEFTN / RTGS",
+    chequeNumber: "",
+    amount: 0,
+    paymentDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    notes: "",
+  })
+
   // Fetch all data
   const loadData = React.useCallback(async (showToast = false) => {
     try {
       if (showToast) setRefreshing(true)
       else setLoading(true)
 
-      const [ordersRes, metricsRes, wholesalersRes, inventoryRes] = await Promise.all([
+      const [ordersRes, metricsRes, wholesalersRes, inventoryRes, accRes] = await Promise.all([
         apiFetch("/procurement/orders"),
         apiFetch("/procurement/orders/metrics"),
         apiFetch("/wholesalers"),
         apiFetch("/inventory").catch(() => null),
+        apiFetch("/account-ledger/accounts").catch(() => null),
       ])
 
       if (ordersRes.ok) {
         const json = await ordersRes.json()
         setOrders(json.data || [])
+      }
+
+      if (accRes && accRes.ok) {
+        const json = await accRes.json()
+        setFinancialAccounts(json.data || [])
       }
 
       if (metricsRes.ok) {
@@ -823,27 +855,33 @@ export default function WholesalerPurchaseOrdersPage() {
     setIsReceivingStock(true)
 
     try {
+      const formattedItems = receiveFormItems
+        .filter((it) => Number(it.quantityToReceive) > 0)
+        .map((it) => ({
+          drugName: it.drugName,
+          skuCode: it.skuCode,
+          quantityToReceive: Number(it.quantityToReceive),
+          quantityReceived: Number(it.quantityToReceive),
+          batchNumber: it.batchNumber || `BX-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+          mfgDate: it.mfgDate,
+          expiryDate: it.expiryDate,
+          warehouseBin: it.warehouseBin,
+          storageCondition: it.storageCondition,
+          unitPrice: Number(it.unitPrice) || 0,
+        }))
+
       const payload = {
+        challanNumber: receiveChallan,
         deliveryChallan: receiveChallan,
         notes: receiveNotes,
+        updateInventoryBatches: true,
         syncWithInventory: true,
-        items: receiveFormItems
-          .filter((it) => Number(it.quantityToReceive) > 0)
-          .map((it) => ({
-            drugName: it.drugName,
-            skuCode: it.skuCode,
-            quantityReceived: Number(it.quantityToReceive),
-            batchNumber: it.batchNumber || `BATCH-${Math.floor(1000 + Math.random() * 9000)}`,
-            mfgDate: it.mfgDate,
-            expiryDate: it.expiryDate,
-            warehouseBin: it.warehouseBin,
-            storageCondition: it.storageCondition,
-            unitPrice: it.unitPrice,
-          })),
+        receivedItems: formattedItems,
+        items: formattedItems,
       }
 
       const res = await apiFetch(`/procurement/orders/${receivingOrder.id}/receive`, {
-        method: "PATCH",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
@@ -864,6 +902,81 @@ export default function WholesalerPurchaseOrdersPage() {
       toast.error(err.message || "Failed to process stock intake", { id: toastId })
     } finally {
       setIsReceivingStock(false)
+    }
+  }
+
+  // Open Direct Payment Disbursement Modal
+  const handleOpenPaymentModal = (order: PurchaseOrder) => {
+    setPayingOrder(order)
+    const defaultBank = financialAccounts.find((a) => a.category === "BANK") || financialAccounts[0]
+    setPaymentForm({
+      fundingSource: defaultBank?.category === "CASH" ? "Cash Safe" : "Bank Account",
+      financialAccountId: defaultBank?.id || "",
+      sourceDetail: defaultBank?.accountTitle || "Eastern Bank PLC - Operations",
+      paymentMethod: defaultBank?.category === "CASH" ? "Cash" : "BEFTN / RTGS",
+      chequeNumber: "",
+      amount: order.totalAmountBDT,
+      paymentDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+      notes: `Wholesaler consignment settlement for PO #${order.poNumber} (${order.wholesalerName})`,
+    })
+    setIsPaymentModalOpen(true)
+  }
+
+  // Submit Payment Disbursement to Finance & Treasury
+  const handleSubmitPayment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!payingOrder) return
+    const numAmt = Number(paymentForm.amount)
+    if (!numAmt || numAmt <= 0) {
+      toast.warning("Please specify a valid payment amount")
+      return
+    }
+
+    const toastId = toast.loading(`Disbursing payment for PO ${payingOrder.poNumber}...`)
+    setIsDisbursingPayment(true)
+
+    try {
+      const selectedAcc = financialAccounts.find((a) => a.id === paymentForm.financialAccountId)
+      const payload = {
+        payeeName: payingOrder.wholesalerName,
+        payeeType: "Wholesaler / Vendor",
+        wholesalerId: payingOrder.wholesalerCode || null,
+        poNumber: payingOrder.poNumber,
+        category: "Wholesaler Settlement",
+        fundingSource: paymentForm.fundingSource,
+        sourceDetail: selectedAcc?.accountTitle || paymentForm.sourceDetail || "Eastern Bank PLC - Operations",
+        financialAccountId: paymentForm.financialAccountId || null,
+        paymentMethod: paymentForm.paymentMethod,
+        chequeNumber: paymentForm.chequeNumber ? paymentForm.chequeNumber.trim() : null,
+        grossAmount: numAmt,
+        amount: numAmt,
+        paymentDate: paymentForm.paymentDate,
+        status: "Disbursed",
+        notes: paymentForm.notes || `Direct settlement for PO #${payingOrder.poNumber}`,
+      }
+
+      const res = await apiFetch("/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.message || "Failed to disburse payment")
+      }
+
+      toast.success(
+        `Payment voucher ${json.data?.voucherNo || ""} disbursed! ৳${numAmt.toLocaleString("en-IN")} deducted from ${payload.sourceDetail} in Finance & Treasury.`,
+        { id: toastId }
+      )
+      setIsPaymentModalOpen(false)
+      loadData()
+    } catch (err: any) {
+      console.error("Payment disburse error:", err)
+      toast.error(err.message || "Failed to disburse payment", { id: toastId })
+    } finally {
+      setIsDisbursingPayment(false)
     }
   }
 
@@ -1139,6 +1252,7 @@ export default function WholesalerPurchaseOrdersPage() {
       Phone: o.phone || "N/A",
       "Delivery Warehouse": o.deliveryWarehouse,
       "Payment Terms": o.paymentTerms,
+      "Product Names": o.items?.map((i) => i.drugName).join(", ") || "N/A",
       "Total Line Items": o.items?.length || 0,
       "Total Units": o.totalUnits,
       "Subtotal (BDT)": o.subtotalBDT,
@@ -1415,7 +1529,7 @@ export default function WholesalerPurchaseOrdersPage() {
             <TableRow className="border-b border-slate-100 text-xs text-slate-600 hover:bg-transparent">
               <TableHead className="pl-0 text-xs font-medium text-slate-600">PO Ref & Date</TableHead>
               <TableHead className="text-xs font-medium text-slate-600">Wholesaler / Supplier</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Items / Formulations</TableHead>
+              <TableHead className="text-xs font-medium text-slate-600">Product Name</TableHead>
               <TableHead className="text-xs font-medium text-slate-600">Delivery Warehouse</TableHead>
               <TableHead className="text-center text-xs font-medium text-slate-600">Total Units</TableHead>
               <TableHead className="text-right text-xs font-medium text-slate-600">Order Value</TableHead>
@@ -1466,13 +1580,28 @@ export default function WholesalerPurchaseOrdersPage() {
                     </div>
                   </TableCell>
 
-                  <TableCell className="max-w-[210px] truncate py-3 text-xs text-slate-600">
-                    <span className="block font-medium text-slate-800">
-                      {ord.items?.length || 0} formulation{(ord.items?.length || 0) === 1 ? "" : "s"}
-                    </span>
-                    <span className="text-[10px] text-slate-400 truncate block">
-                      {ord.items?.map((i) => i.drugName).join(", ") || "General Formulations"}
-                    </span>
+                  <TableCell className="max-w-[240px] py-3 text-xs text-slate-700">
+                    {ord.items && ord.items.length > 0 ? (
+                      <div className="flex flex-col">
+                        <span className="block font-semibold text-slate-900 truncate" title={ord.items[0].drugName}>
+                          {ord.items[0].drugName}
+                        </span>
+                        {ord.items.length > 1 ? (
+                          <span
+                            className="text-[10px] text-[#0090FF] font-medium truncate mt-0.5"
+                            title={ord.items.slice(1).map((i) => i.drugName).join(", ")}
+                          >
+                            +{ord.items.length - 1} more: {ord.items.slice(1).map((i) => i.drugName).join(", ")}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 truncate mt-0.5">
+                            {ord.items[0].genericName ? `${ord.items[0].genericName} • ` : ""}{ord.items[0].packSize || `${ord.items[0].quantityOrdered} units`}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">No products</span>
+                    )}
                   </TableCell>
 
                   <TableCell className="py-3 text-xs text-slate-700">
@@ -1601,6 +1730,16 @@ export default function WholesalerPurchaseOrdersPage() {
                           </DropdownMenuItem>
                         )}
 
+                        {ord.status !== "Cancelled" && (
+                          <DropdownMenuItem
+                            onClick={() => handleOpenPaymentModal(ord)}
+                            className="cursor-pointer text-xs font-semibold text-blue-700"
+                          >
+                            <CreditCard className="mr-2 h-3.5 w-3.5 text-blue-600" />
+                            Disburse Payment (Finance)
+                          </DropdownMenuItem>
+                        )}
+
                         <DropdownMenuItem
                           onClick={() => handleDuplicateOrder(ord)}
                           className="cursor-pointer text-xs text-slate-700"
@@ -1650,14 +1789,21 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 1: Create / Edit Purchase Order Dialog
       ───────────────────────────────────────────── */}
       <Dialog open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 sm:max-w-[850px]">
+        <DialogContent className="w-full sm:max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              {editingOrder ? `Edit Purchase Order (${editingOrder.poNumber})` : "Book New Purchase Order & Intake"}
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Select licensed wholesaler, specify formulations from catalog, and dispatch sequential purchase order.
-            </DialogDescription>
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-[#0090FF]">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  {editingOrder ? `Edit Purchase Order (${editingOrder.poNumber})` : "Book New Purchase Order & Intake"}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Select licensed wholesaler, specify formulations from catalog, and dispatch sequential purchase order.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           <form onSubmit={handleSubmitOrder} className="space-y-4 pt-2">
@@ -1765,9 +1911,9 @@ export default function WholesalerPurchaseOrdersPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <Label className="text-xs font-bold text-slate-800">
-                    Line Items & Pharmaceutical Formulations
+                    Line Items & Ordered Products
                   </Label>
-                  <p className="text-[10px] text-slate-400">Specify ordered dosages, quantities, and storage parameters.</p>
+                  <p className="text-[10px] text-slate-400">Specify ordered product names, pack sizes, quantities, and storage parameters.</p>
                 </div>
                 <Button
                   type="button"
@@ -1777,16 +1923,16 @@ export default function WholesalerPurchaseOrdersPage() {
                   className="h-7 gap-1 border-slate-200 bg-white text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   <Plus className="h-3.5 w-3.5 text-[#0090FF]" />
-                  Add Formulation Row
+                  Add Product Row
                 </Button>
               </div>
 
-              <div className="overflow-hidden rounded-lg border border-slate-200">
-                <table className="w-full text-xs">
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full min-w-[700px] text-xs">
                   <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
                     <tr>
                       <th className="w-8 py-2 text-center text-[10px] font-bold">#</th>
-                      <th className="py-2 text-left text-[10px] font-bold">Formulation / Brand *</th>
+                      <th className="py-2 text-left text-[10px] font-bold">Product Name (e.g. Napa) *</th>
                       <th className="w-28 py-2 text-left text-[10px] font-bold">Pack Size</th>
                       <th className="w-32 py-2 text-left text-[10px] font-bold">Storage Temp</th>
                       <th className="w-20 py-2 text-right text-[10px] font-bold">Quantity *</th>
@@ -1803,7 +1949,7 @@ export default function WholesalerPurchaseOrdersPage() {
                         </td>
                         <td className="p-1.5">
                           <Input
-                            placeholder="Drug formulation name..."
+                            placeholder="Product name (e.g. Napa 500mg, Seclo 20mg)..."
                             value={item.drugName}
                             onChange={(e) => handleItemChange(idx, "drugName", e.target.value)}
                             className="h-7 border-slate-200 bg-white text-xs font-semibold"
@@ -1958,7 +2104,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 2: Multi-Tier Approval Dialog
       ───────────────────────────────────────────── */}
       <Dialog open={isApprovalModalOpen} onOpenChange={setIsApprovalModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl bg-white p-6">
+        <DialogContent className="w-full sm:max-w-md rounded-2xl bg-white p-6 shadow-2xl">
           <DialogHeader>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
               <ShieldCheck className="h-5 w-5" />
@@ -2042,7 +2188,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 3: Stock Dock Intake & Receiving Dialog
       ───────────────────────────────────────────── */}
       <Dialog open={isReceiveModalOpen} onOpenChange={setIsReceiveModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6">
+        <DialogContent className="w-full sm:max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
               <PackageCheck className="h-5 w-5 text-emerald-600" />
@@ -2105,11 +2251,11 @@ export default function WholesalerPurchaseOrdersPage() {
                     Auto-Fill Remaining Balances
                   </Button>
                 </div>
-                <div className="rounded-xl border border-slate-200 overflow-hidden">
-                  <Table>
+                <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                  <Table className="min-w-[720px]">
                     <TableHeader className="bg-slate-50">
                       <TableRow className="border-b border-slate-200">
-                        <TableHead className="text-xs font-bold">Formulation</TableHead>
+                        <TableHead className="text-xs font-bold">Product Name</TableHead>
                         <TableHead className="w-20 text-center text-xs font-bold">Ordered</TableHead>
                         <TableHead className="w-20 text-center text-xs font-bold">Rec'd</TableHead>
                         <TableHead className="w-24 text-right text-xs font-bold">Intake Units</TableHead>
@@ -2209,7 +2355,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 4: Official Printable Purchase Order Voucher
       ───────────────────────────────────────────── */}
       <Dialog open={isVoucherModalOpen} onOpenChange={setIsVoucherModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 print:p-0">
+        <DialogContent className="w-full sm:max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 print:p-0 shadow-2xl">
           <DialogHeader className="print:hidden">
             <div className="flex items-center justify-between">
               <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -2281,12 +2427,12 @@ export default function WholesalerPurchaseOrdersPage() {
               </div>
 
               {/* Itemized Table */}
-              <div className="border border-slate-300 rounded-lg overflow-hidden">
-                <table className="w-full text-xs">
+              <div className="border border-slate-300 rounded-lg overflow-x-auto print:overflow-visible">
+                <table className="w-full min-w-[650px] print:min-w-full text-xs">
                   <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
                     <tr>
                       <th className="py-2 px-2 text-center w-10">S/N</th>
-                      <th className="py-2 px-3 text-left">Drug Formulation & Generic</th>
+                      <th className="py-2 px-3 text-left">Product Name & Generic</th>
                       <th className="py-2 px-2 text-left">Pack Size</th>
                       <th className="py-2 px-2 text-left">Storage</th>
                       <th className="py-2 px-2 text-right">Qty</th>
@@ -2397,7 +2543,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 5: Wholesalers Directory Modal
       ───────────────────────────────────────────── */}
       <Dialog open={isWholesalersModalOpen} onOpenChange={setIsWholesalersModalOpen}>
-        <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6">
+        <DialogContent className="w-full sm:max-w-6xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
           <DialogHeader>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
@@ -2693,8 +2839,8 @@ export default function WholesalerPurchaseOrdersPage() {
           </div>
 
           {/* Wholesalers Table */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden">
-            <Table>
+          <div className="rounded-xl border border-slate-200 overflow-x-auto">
+            <Table className="min-w-[900px]">
               <TableHeader className="bg-slate-50">
                 <TableRow className="border-b border-slate-200">
                   <TableHead className="w-28 text-xs font-bold text-slate-700">Code</TableHead>
@@ -2867,7 +3013,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 8: Interactive Purchase Order Inspector
       ───────────────────────────────────────────── */}
       <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6">
+        <DialogContent className="w-full sm:max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
           {detailsOrder && (
             <div className="space-y-5">
               {/* Header Banner */}
@@ -3073,19 +3219,19 @@ export default function WholesalerPurchaseOrdersPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    Line Items & Fulfillment Status ({detailsOrder.items?.length || 0} Formulations)
+                    Line Items & Fulfillment Status ({detailsOrder.items?.length || 0} Products)
                   </h4>
                   <span className="font-mono text-xs text-slate-500">
                     Total: {detailsOrder.totalUnits.toLocaleString()} Units
                   </span>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 overflow-hidden">
-                  <Table>
+                <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                  <Table className="min-w-[780px]">
                     <TableHeader className="bg-slate-50">
                       <TableRow className="border-b border-slate-200">
                         <TableHead className="w-10 text-center text-xs font-bold">#</TableHead>
-                        <TableHead className="text-xs font-bold">Drug Formulation</TableHead>
+                        <TableHead className="text-xs font-bold">Product Name</TableHead>
                         <TableHead className="w-28 text-xs font-bold">Pack Size</TableHead>
                         <TableHead className="w-32 text-xs font-bold">Storage Temp</TableHead>
                         <TableHead className="w-40 text-center text-xs font-bold">Fulfillment Progress</TableHead>
@@ -3244,7 +3390,7 @@ export default function WholesalerPurchaseOrdersPage() {
 
               {/* Modal Footer Actions */}
               <DialogFooter className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -3273,7 +3419,7 @@ export default function WholesalerPurchaseOrdersPage() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {detailsOrder.status === "Draft" && (
                     <Button
                       type="button"
@@ -3286,7 +3432,7 @@ export default function WholesalerPurchaseOrdersPage() {
                     </Button>
                   )}
 
-                  {(detailsOrder.status === "Submitted" || detailsOrder.status === "Draft") && (
+                  {detailsOrder.status === "Submitted" && (
                     <Button
                       type="button"
                       size="sm"
@@ -3316,19 +3462,36 @@ export default function WholesalerPurchaseOrdersPage() {
                     </Button>
                   )}
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setIsDetailsModalOpen(false)
-                      handleOpenEditModal(detailsOrder)
-                    }}
-                    className="h-8 gap-1.5 text-xs"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit
-                  </Button>
+                  {detailsOrder.status !== "Cancelled" && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        setIsDetailsModalOpen(false)
+                        handleOpenPaymentModal(detailsOrder)
+                      }}
+                      className="h-8 gap-1.5 bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white"
+                    >
+                      <CreditCard className="h-3.5 w-3.5" />
+                      Disburse Payment
+                    </Button>
+                  )}
+
+                  {detailsOrder.status !== "Cancelled" && detailsOrder.status !== "Received" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsDetailsModalOpen(false)
+                        handleOpenEditModal(detailsOrder)
+                      }}
+                      className="h-8 gap-1.5 text-xs"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                  )}
 
                   <Button
                     type="button"
@@ -3350,7 +3513,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 9: Cancel Purchase Order Modal
       ───────────────────────────────────────────── */}
       <Dialog open={isCancelModalOpen} onOpenChange={setIsCancelModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl bg-white p-6">
+        <DialogContent className="w-full sm:max-w-md rounded-2xl bg-white p-6 shadow-2xl">
           <DialogHeader>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
               <XCircle className="h-5 w-5" />
@@ -3404,6 +3567,189 @@ export default function WholesalerPurchaseOrdersPage() {
               {isCancelling ? "Cancelling..." : "Confirm Cancellation"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─────────────────────────────────────────────
+          MODAL 10: Disburse Payment (Finance & Treasury)
+      ───────────────────────────────────────────── */}
+      <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
+        <DialogContent className="w-full sm:max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+          <DialogHeader>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <CreditCard className="h-5 w-5" />
+            </div>
+            <DialogTitle className="text-base font-bold text-slate-900 pt-1">
+              Disburse Payment to Wholesaler
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Post an official disbursement voucher. Financial account balances and journal outflow will be synchronized immediately in Finance & Treasury.
+            </DialogDescription>
+          </DialogHeader>
+
+          {payingOrder && (
+            <form onSubmit={handleSubmitPayment} className="space-y-4 pt-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Purchase Order:</span>
+                  <span className="font-mono font-bold text-slate-900">{payingOrder.poNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Wholesaler:</span>
+                  <span className="font-semibold text-slate-900">{payingOrder.wholesalerName}</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200 pt-1">
+                  <span className="text-slate-500">Total Valuation:</span>
+                  <span className="font-bold text-blue-700">৳{payingOrder.totalAmountBDT.toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">Funding Source</Label>
+                  <Select
+                    value={paymentForm.fundingSource}
+                    onValueChange={(val: "Bank Account" | "Cash Safe") => {
+                      const matched = financialAccounts.find((a) =>
+                        val === "Cash Safe" ? a.category === "CASH" : a.category === "BANK"
+                      )
+                      setPaymentForm({
+                        ...paymentForm,
+                        fundingSource: val,
+                        financialAccountId: matched?.id || "",
+                        sourceDetail: matched?.accountTitle || "",
+                        paymentMethod: val === "Cash Safe" ? "Cash" : "BEFTN / RTGS",
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select funding source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Bank Account">Bank Account</SelectItem>
+                      <SelectItem value="Cash Safe">Cash Safe / Counter</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">Treasury Account</Label>
+                  <Select
+                    value={paymentForm.financialAccountId}
+                    onValueChange={(val) => {
+                      const acc = financialAccounts.find((a) => a.id === val)
+                      setPaymentForm({
+                        ...paymentForm,
+                        financialAccountId: val,
+                        sourceDetail: acc?.accountTitle || "",
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {financialAccounts
+                        .filter((a) =>
+                          paymentForm.fundingSource === "Cash Safe"
+                            ? a.category === "CASH"
+                            : a.category === "BANK"
+                        )
+                        .map((acc) => (
+                          <SelectItem key={acc.id} value={acc.id}>
+                            {acc.accountTitle} (৳{acc.balance.toLocaleString("en-IN")})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">Payment Method</Label>
+                  <Select
+                    value={paymentForm.paymentMethod}
+                    onValueChange={(val) => setPaymentForm({ ...paymentForm, paymentMethod: val })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BEFTN / RTGS">BEFTN / RTGS</SelectItem>
+                      <SelectItem value="Cheque">Cheque</SelectItem>
+                      <SelectItem value="Cash">Cash Handover</SelectItem>
+                      <SelectItem value="Pay Order">Bank Pay Order</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">Cheque / Trx No.</Label>
+                  <Input
+                    value={paymentForm.chequeNumber}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, chequeNumber: e.target.value })}
+                    placeholder="e.g. EBL-FT-99120"
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">Payment Amount (BDT)</Label>
+                  <Input
+                    type="number"
+                    value={paymentForm.amount}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, amount: Number(e.target.value) })}
+                    className="h-8 text-xs font-bold text-slate-900"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">Payment Date</Label>
+                  <Input
+                    value={paymentForm.paymentDate}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
+                    className="h-8 text-xs"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold text-slate-700">Disbursement Notes</Label>
+                <Input
+                  value={paymentForm.notes}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                  placeholder="Optional notes or consignment voucher memo"
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsPaymentModalOpen(false)}
+                  className="h-8 text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isDisbursingPayment || !paymentForm.amount}
+                  className="h-8 gap-1.5 bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white"
+                >
+                  <CreditCard className="h-3.5 w-3.5" />
+                  {isDisbursingPayment ? "Disbursing..." : `Confirm Payment (৳${Number(paymentForm.amount).toLocaleString("en-IN")})`}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

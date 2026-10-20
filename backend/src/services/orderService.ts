@@ -111,17 +111,21 @@ export const orderService = {
 
       if (formattedItems.length > 0) {
         for (const lineItem of formattedItems) {
-          const medicineName = lineItem.description.trim();
+          const rawDesc = lineItem.description.trim();
+          const cleanDesc = rawDesc.replace(/\s*\(\d+\)$/, "").trim();
           let qtyNeeded = lineItem.quantity;
 
-          if (!medicineName || qtyNeeded <= 0) continue;
+          if (!cleanDesc || qtyNeeded <= 0) continue;
 
           try {
             const availableBatches = await tx.inventoryBatch.findMany({
               where: {
                 OR: [
-                  { brandName: { equals: medicineName, mode: "insensitive" } },
-                  { brandName: { contains: medicineName, mode: "insensitive" } },
+                  { brandName: { equals: cleanDesc, mode: "insensitive" } },
+                  { brandName: { contains: cleanDesc, mode: "insensitive" } },
+                  { genericName: { equals: cleanDesc, mode: "insensitive" } },
+                  { genericName: { contains: cleanDesc, mode: "insensitive" } },
+                  { skuCode: { equals: cleanDesc, mode: "insensitive" } },
                 ],
                 availableUnits: { gt: 0 },
               },
@@ -147,6 +151,17 @@ export const orderService = {
         }
       }
 
+      // Sync Client Account Receivables (outstandingBalanceBDT)
+      if (data.pharmacyName) {
+        await tx.client.updateMany({
+          where: { pharmacyName: { equals: data.pharmacyName.trim(), mode: "insensitive" } },
+          data: {
+            outstandingBalanceBDT: { increment: Number(newOrder.orderValue) || 0 },
+            lastBilledDate: newOrder.orderDate,
+          },
+        }).catch(() => null);
+      }
+
       return newOrder;
     });
   },
@@ -159,6 +174,39 @@ export const orderService = {
 
     const isDelivered = status === "Delivered & Invoiced";
     const invoiceNum = isDelivered ? `INV-2026-${Math.floor(9020 + Math.random() * 80)}` : undefined;
+
+    // If order was cancelled, restore allocated units to inventory and adjust client dues
+    if (status === "Cancelled" && existing.status !== "Cancelled") {
+      const items = Array.isArray(existing.itemsDetail) ? existing.itemsDetail : [];
+      for (const item of items) {
+        const desc = (item.description || "").replace(/\s*\(\d+\)$/, "").trim();
+        const qty = Number(item.quantity) || 0;
+        if (!desc || qty <= 0) continue;
+
+        const batch = await prisma.inventoryBatch.findFirst({
+          where: {
+            OR: [
+              { brandName: { contains: desc, mode: "insensitive" } },
+              { genericName: { contains: desc, mode: "insensitive" } },
+            ],
+          },
+        });
+
+        if (batch) {
+          await prisma.inventoryBatch.update({
+            where: { id: batch.id },
+            data: { availableUnits: { increment: qty } },
+          }).catch(() => null);
+        }
+      }
+
+      if (existing.pharmacyName) {
+        await prisma.client.updateMany({
+          where: { pharmacyName: { equals: existing.pharmacyName.trim(), mode: "insensitive" } },
+          data: { outstandingBalanceBDT: { decrement: Number(existing.orderValue) || 0 } },
+        }).catch(() => null);
+      }
+    }
 
     return prisma.order.update({
       where: { id },
@@ -174,6 +222,40 @@ export const orderService = {
     if (!existing) {
       throw new AppError("Order not found", 404);
     }
+
+    // Restore stock if deleting an active order
+    if (existing.status !== "Cancelled") {
+      const items = Array.isArray(existing.itemsDetail) ? existing.itemsDetail : [];
+      for (const item of items) {
+        const desc = (item.description || "").replace(/\s*\(\d+\)$/, "").trim();
+        const qty = Number(item.quantity) || 0;
+        if (!desc || qty <= 0) continue;
+
+        const batch = await prisma.inventoryBatch.findFirst({
+          where: {
+            OR: [
+              { brandName: { contains: desc, mode: "insensitive" } },
+              { genericName: { contains: desc, mode: "insensitive" } },
+            ],
+          },
+        });
+
+        if (batch) {
+          await prisma.inventoryBatch.update({
+            where: { id: batch.id },
+            data: { availableUnits: { increment: qty } },
+          }).catch(() => null);
+        }
+      }
+
+      if (existing.pharmacyName) {
+        await prisma.client.updateMany({
+          where: { pharmacyName: { equals: existing.pharmacyName.trim(), mode: "insensitive" } },
+          data: { outstandingBalanceBDT: { decrement: Number(existing.orderValue) || 0 } },
+        }).catch(() => null);
+      }
+    }
+
     return prisma.order.delete({ where: { id } });
   },
 };
