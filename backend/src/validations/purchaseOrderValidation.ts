@@ -91,25 +91,42 @@ export const receivedItemDetailSchema = z.object({
   no: z.coerce.number().optional(),
   skuCode: z.string().optional().nullable(),
   drugName: z.string().min(1, "Drug name is required"),
-  quantityToReceive: z.coerce.number().min(1, "Quantity to receive must be at least 1"),
+  quantityToReceive: z.coerce.number().optional(),
+  quantityReceived: z.coerce.number().optional(),
   batchNumber: z.string().min(1, "Batch number is required for receiving inventory"),
   mfgDate: z.string().optional(),
   expiryDate: z.string().optional(),
   warehouseBin: z.string().optional().default("Receiving Bay Dock 1"),
   storageCondition: z.string().optional().default("Controlled Ambient (<25°C)"),
   unitPrice: z.coerce.number().optional(),
-});
+  unitCostBDT: z.coerce.number().optional(),
+}).transform((data) => ({
+  ...data,
+  quantityToReceive: data.quantityToReceive ?? data.quantityReceived ?? 1,
+}));
 
 export const receiveStockSchema = z.object({
   params: z.object({
     id: z.string().min(1, "Purchase order ID is required"),
   }),
   body: z.object({
-    receivedItems: z.array(receivedItemDetailSchema).min(1, "At least one item must be received"),
+    receivedItems: z.array(receivedItemDetailSchema).optional(),
+    items: z.array(receivedItemDetailSchema).optional(),
     challanNumber: z.string().optional().nullable(),
+    deliveryChallan: z.string().optional().nullable(),
     receivedBy: z.string().optional(),
     notes: z.string().optional(),
-    updateInventoryBatches: z.boolean().optional().default(true),
+    updateInventoryBatches: z.boolean().optional(),
+    syncWithInventory: z.boolean().optional(),
+  }).transform((data) => ({
+    receivedItems: data.receivedItems || data.items || [],
+    challanNumber: data.challanNumber || data.deliveryChallan || null,
+    receivedBy: data.receivedBy || "Dock Receiving Officer",
+    notes: data.notes || "",
+    updateInventoryBatches: data.updateInventoryBatches ?? data.syncWithInventory ?? true,
+  })).refine((data) => data.receivedItems.length > 0, {
+    message: "At least one received item is required",
+    path: ["receivedItems"],
   }),
 });
 

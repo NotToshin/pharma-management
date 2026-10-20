@@ -160,6 +160,16 @@ export interface InventoryBatchOption {
   storageCondition: string
 }
 
+export interface FinancialAccount {
+  id: string
+  accountTitle: string
+  category: "BANK" | "CASH"
+  institution: string
+  accountNumber: string
+  branch: string
+  balance: number
+}
+
 const DEFAULT_WAREHOUSES = [
   "Main Distribution Bay - Tejgaon Central",
   "Central Cold Storage - Tongi HQ",
@@ -339,22 +349,44 @@ export default function WholesalerPurchaseOrdersPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [isDeleting, setIsDeleting] = React.useState(false)
 
+  // Direct Finance & Treasury Payment Disbursement State
+  const [financialAccounts, setFinancialAccounts] = React.useState<FinancialAccount[]>([])
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = React.useState(false)
+  const [payingOrder, setPayingOrder] = React.useState<PurchaseOrder | null>(null)
+  const [isDisbursingPayment, setIsDisbursingPayment] = React.useState(false)
+  const [paymentForm, setPaymentForm] = React.useState({
+    fundingSource: "Bank Account" as "Bank Account" | "Cash Safe",
+    financialAccountId: "",
+    sourceDetail: "",
+    paymentMethod: "BEFTN / RTGS",
+    chequeNumber: "",
+    amount: 0,
+    paymentDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    notes: "",
+  })
+
   // Fetch all data
   const loadData = React.useCallback(async (showToast = false) => {
     try {
       if (showToast) setRefreshing(true)
       else setLoading(true)
 
-      const [ordersRes, metricsRes, wholesalersRes, inventoryRes] = await Promise.all([
+      const [ordersRes, metricsRes, wholesalersRes, inventoryRes, accRes] = await Promise.all([
         apiFetch("/procurement/orders"),
         apiFetch("/procurement/orders/metrics"),
         apiFetch("/wholesalers"),
         apiFetch("/inventory").catch(() => null),
+        apiFetch("/account-ledger/accounts").catch(() => null),
       ])
 
       if (ordersRes.ok) {
         const json = await ordersRes.json()
         setOrders(json.data || [])
+      }
+
+      if (accRes && accRes.ok) {
+        const json = await accRes.json()
+        setFinancialAccounts(json.data || [])
       }
 
       if (metricsRes.ok) {
@@ -823,27 +855,33 @@ export default function WholesalerPurchaseOrdersPage() {
     setIsReceivingStock(true)
 
     try {
+      const formattedItems = receiveFormItems
+        .filter((it) => Number(it.quantityToReceive) > 0)
+        .map((it) => ({
+          drugName: it.drugName,
+          skuCode: it.skuCode,
+          quantityToReceive: Number(it.quantityToReceive),
+          quantityReceived: Number(it.quantityToReceive),
+          batchNumber: it.batchNumber || `BX-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+          mfgDate: it.mfgDate,
+          expiryDate: it.expiryDate,
+          warehouseBin: it.warehouseBin,
+          storageCondition: it.storageCondition,
+          unitPrice: Number(it.unitPrice) || 0,
+        }))
+
       const payload = {
+        challanNumber: receiveChallan,
         deliveryChallan: receiveChallan,
         notes: receiveNotes,
+        updateInventoryBatches: true,
         syncWithInventory: true,
-        items: receiveFormItems
-          .filter((it) => Number(it.quantityToReceive) > 0)
-          .map((it) => ({
-            drugName: it.drugName,
-            skuCode: it.skuCode,
-            quantityReceived: Number(it.quantityToReceive),
-            batchNumber: it.batchNumber || `BATCH-${Math.floor(1000 + Math.random() * 9000)}`,
-            mfgDate: it.mfgDate,
-            expiryDate: it.expiryDate,
-            warehouseBin: it.warehouseBin,
-            storageCondition: it.storageCondition,
-            unitPrice: it.unitPrice,
-          })),
+        receivedItems: formattedItems,
+        items: formattedItems,
       }
 
       const res = await apiFetch(`/procurement/orders/${receivingOrder.id}/receive`, {
-        method: "PATCH",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
@@ -864,6 +902,81 @@ export default function WholesalerPurchaseOrdersPage() {
       toast.error(err.message || "Failed to process stock intake", { id: toastId })
     } finally {
       setIsReceivingStock(false)
+    }
+  }
+
+  // Open Direct Payment Disbursement Modal
+  const handleOpenPaymentModal = (order: PurchaseOrder) => {
+    setPayingOrder(order)
+    const defaultBank = financialAccounts.find((a) => a.category === "BANK") || financialAccounts[0]
+    setPaymentForm({
+      fundingSource: defaultBank?.category === "CASH" ? "Cash Safe" : "Bank Account",
+      financialAccountId: defaultBank?.id || "",
+      sourceDetail: defaultBank?.accountTitle || "Eastern Bank PLC - Operations",
+      paymentMethod: defaultBank?.category === "CASH" ? "Cash" : "BEFTN / RTGS",
+      chequeNumber: "",
+      amount: order.totalAmountBDT,
+      paymentDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+      notes: `Wholesaler consignment settlement for PO #${order.poNumber} (${order.wholesalerName})`,
+    })
+    setIsPaymentModalOpen(true)
+  }
+
+  // Submit Payment Disbursement to Finance & Treasury
+  const handleSubmitPayment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!payingOrder) return
+    const numAmt = Number(paymentForm.amount)
+    if (!numAmt || numAmt <= 0) {
+      toast.warning("Please specify a valid payment amount")
+      return
+    }
+
+    const toastId = toast.loading(`Disbursing payment for PO ${payingOrder.poNumber}...`)
+    setIsDisbursingPayment(true)
+
+    try {
+      const selectedAcc = financialAccounts.find((a) => a.id === paymentForm.financialAccountId)
+      const payload = {
+        payeeName: payingOrder.wholesalerName,
+        payeeType: "Wholesaler / Vendor",
+        wholesalerId: payingOrder.wholesalerCode || null,
+        poNumber: payingOrder.poNumber,
+        category: "Wholesaler Settlement",
+        fundingSource: paymentForm.fundingSource,
+        sourceDetail: selectedAcc?.accountTitle || paymentForm.sourceDetail || "Eastern Bank PLC - Operations",
+        financialAccountId: paymentForm.financialAccountId || null,
+        paymentMethod: paymentForm.paymentMethod,
+        chequeNumber: paymentForm.chequeNumber ? paymentForm.chequeNumber.trim() : null,
+        grossAmount: numAmt,
+        amount: numAmt,
+        paymentDate: paymentForm.paymentDate,
+        status: "Disbursed",
+        notes: paymentForm.notes || `Direct settlement for PO #${payingOrder.poNumber}`,
+      }
+
+      const res = await apiFetch("/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.message || "Failed to disburse payment")
+      }
+
+      toast.success(
+        `Payment voucher ${json.data?.voucherNo || ""} disbursed! ৳${numAmt.toLocaleString("en-IN")} deducted from ${payload.sourceDetail} in Finance & Treasury.`,
+        { id: toastId }
+      )
+      setIsPaymentModalOpen(false)
+      loadData()
+    } catch (err: any) {
+      console.error("Payment disburse error:", err)
+      toast.error(err.message || "Failed to disburse payment", { id: toastId })
+    } finally {
+      setIsDisbursingPayment(false)
     }
   }
 
@@ -1598,6 +1711,16 @@ export default function WholesalerPurchaseOrdersPage() {
                           >
                             <PackageCheck className="mr-2 h-3.5 w-3.5 text-emerald-600" />
                             Dock Intake & Receive
+                          </DropdownMenuItem>
+                        )}
+
+                        {ord.status !== "Cancelled" && (
+                          <DropdownMenuItem
+                            onClick={() => handleOpenPaymentModal(ord)}
+                            className="cursor-pointer text-xs font-semibold text-blue-700"
+                          >
+                            <CreditCard className="mr-2 h-3.5 w-3.5 text-blue-600" />
+                            Disburse Payment (Finance)
                           </DropdownMenuItem>
                         )}
 
@@ -3316,6 +3439,21 @@ export default function WholesalerPurchaseOrdersPage() {
                     </Button>
                   )}
 
+                  {detailsOrder.status !== "Cancelled" && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        setIsDetailsModalOpen(false)
+                        handleOpenPaymentModal(detailsOrder)
+                      }}
+                      className="h-8 gap-1.5 bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white"
+                    >
+                      <CreditCard className="h-3.5 w-3.5" />
+                      Disburse Payment
+                    </Button>
+                  )}
+
                   <Button
                     type="button"
                     variant="outline"
@@ -3404,6 +3542,189 @@ export default function WholesalerPurchaseOrdersPage() {
               {isCancelling ? "Cancelling..." : "Confirm Cancellation"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─────────────────────────────────────────────
+          MODAL 10: Disburse Payment (Finance & Treasury)
+      ───────────────────────────────────────────── */}
+      <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
+        <DialogContent className="max-w-lg rounded-2xl bg-white p-6">
+          <DialogHeader>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <CreditCard className="h-5 w-5" />
+            </div>
+            <DialogTitle className="text-base font-bold text-slate-900 pt-1">
+              Disburse Payment to Wholesaler
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Post an official disbursement voucher. Financial account balances and journal outflow will be synchronized immediately in Finance & Treasury.
+            </DialogDescription>
+          </DialogHeader>
+
+          {payingOrder && (
+            <form onSubmit={handleSubmitPayment} className="space-y-4 pt-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Purchase Order:</span>
+                  <span className="font-mono font-bold text-slate-900">{payingOrder.poNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Wholesaler:</span>
+                  <span className="font-semibold text-slate-900">{payingOrder.wholesalerName}</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200 pt-1">
+                  <span className="text-slate-500">Total Valuation:</span>
+                  <span className="font-bold text-blue-700">৳{payingOrder.totalAmountBDT.toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">Funding Source</Label>
+                  <Select
+                    value={paymentForm.fundingSource}
+                    onValueChange={(val: "Bank Account" | "Cash Safe") => {
+                      const matched = financialAccounts.find((a) =>
+                        val === "Cash Safe" ? a.category === "CASH" : a.category === "BANK"
+                      )
+                      setPaymentForm({
+                        ...paymentForm,
+                        fundingSource: val,
+                        financialAccountId: matched?.id || "",
+                        sourceDetail: matched?.accountTitle || "",
+                        paymentMethod: val === "Cash Safe" ? "Cash" : "BEFTN / RTGS",
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select funding source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Bank Account">Bank Account</SelectItem>
+                      <SelectItem value="Cash Safe">Cash Safe / Counter</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">Treasury Account</Label>
+                  <Select
+                    value={paymentForm.financialAccountId}
+                    onValueChange={(val) => {
+                      const acc = financialAccounts.find((a) => a.id === val)
+                      setPaymentForm({
+                        ...paymentForm,
+                        financialAccountId: val,
+                        sourceDetail: acc?.accountTitle || "",
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {financialAccounts
+                        .filter((a) =>
+                          paymentForm.fundingSource === "Cash Safe"
+                            ? a.category === "CASH"
+                            : a.category === "BANK"
+                        )
+                        .map((acc) => (
+                          <SelectItem key={acc.id} value={acc.id}>
+                            {acc.accountTitle} (৳{acc.balance.toLocaleString("en-IN")})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">Payment Method</Label>
+                  <Select
+                    value={paymentForm.paymentMethod}
+                    onValueChange={(val) => setPaymentForm({ ...paymentForm, paymentMethod: val })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BEFTN / RTGS">BEFTN / RTGS</SelectItem>
+                      <SelectItem value="Cheque">Cheque</SelectItem>
+                      <SelectItem value="Cash">Cash Handover</SelectItem>
+                      <SelectItem value="Pay Order">Bank Pay Order</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">Cheque / Trx No.</Label>
+                  <Input
+                    value={paymentForm.chequeNumber}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, chequeNumber: e.target.value })}
+                    placeholder="e.g. EBL-FT-99120"
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">Payment Amount (BDT)</Label>
+                  <Input
+                    type="number"
+                    value={paymentForm.amount}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, amount: Number(e.target.value) })}
+                    className="h-8 text-xs font-bold text-slate-900"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">Payment Date</Label>
+                  <Input
+                    value={paymentForm.paymentDate}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
+                    className="h-8 text-xs"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold text-slate-700">Disbursement Notes</Label>
+                <Input
+                  value={paymentForm.notes}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                  placeholder="Optional notes or consignment voucher memo"
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsPaymentModalOpen(false)}
+                  className="h-8 text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isDisbursingPayment || !paymentForm.amount}
+                  className="h-8 gap-1.5 bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white"
+                >
+                  <CreditCard className="h-3.5 w-3.5" />
+                  {isDisbursingPayment ? "Disbursing..." : `Confirm Payment (৳${Number(paymentForm.amount).toLocaleString("en-IN")})`}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

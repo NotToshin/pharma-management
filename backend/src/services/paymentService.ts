@@ -525,7 +525,9 @@ export const paymentService = {
               entryDate: paymentDateFormatted,
               refCode: jrnRef,
               flowType: "OUTFLOW",
-              particulars: `Voucher #${finalVoucherNo} - ${data.payeeName} (${data.category})`,
+              particulars: data.poNumber
+                ? `Voucher #${finalVoucherNo} [PO: ${data.poNumber}] - ${data.payeeName} (${data.category})`
+                : `Voucher #${finalVoucherNo} - ${data.payeeName} (${data.category})`,
               fundingEntity: data.payeeName,
               method: data.paymentMethod || (data.fundingSource === "Cash Safe" ? "Cash Handover" : "BEFTN / RTGS"),
               amount: taxCalc.finalAmount,
@@ -763,7 +765,9 @@ export const paymentService = {
                 entryDate: formatDate(existing.paymentDate),
                 refCode: jrnRef,
                 flowType: "OUTFLOW",
-                particulars: `Settlement Disbursement: Voucher #${existing.voucherNo} - ${existing.payeeName}`,
+                particulars: existing.poNumber
+                  ? `Settlement Disbursement: Voucher #${existing.voucherNo} [PO: ${existing.poNumber}] - ${existing.payeeName}`
+                  : `Settlement Disbursement: Voucher #${existing.voucherNo} - ${existing.payeeName}`,
                 fundingEntity: existing.payeeName,
                 method: options?.paymentMethod || existing.paymentMethod || "Bank Transfer",
                 amount: existing.amount,

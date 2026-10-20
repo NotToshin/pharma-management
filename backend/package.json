@@ -7,7 +7,8 @@
     "postinstall": "chmod +x ./node_modules/.bin/* || true && npx prisma generate",
     "build": "tsc",
     "start": "node dist/server.js",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "test:e2e": "tsx scripts/test-e2e-flow.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
