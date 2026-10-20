@@ -14,6 +14,7 @@ import financeOverviewRoutes from "./routes/financeOverviewRoutes";
 import dashboardRoutes from "./routes/dashboardRoutes";
 import rbacRoutes from "./routes/rbacRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
+import collectionRoutes from "./routes/collectionRoutes";
 import { globalErrorHandler, notFoundHandler } from "./errors";
 
 import { actorContextMiddleware } from "./middlewares/actorContextMiddleware";
@@ -116,6 +117,9 @@ app.use("/api/roles", roleRoutes);
 app.use("/api/salary", salaryRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/expense-vouchers", paymentRoutes);
+app.use("/api/collections", collectionRoutes);
+app.use("/api/delivery-collections", collectionRoutes);
+app.use("/api/finance/collections", collectionRoutes);
 
 // Dedicated Health Check Endpoint (Both with and without /api prefix)
 app.get(["/api/health", "/health"], (req: Request, res: Response) => {

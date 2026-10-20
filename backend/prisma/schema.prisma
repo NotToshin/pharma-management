@@ -221,18 +221,73 @@ model TreasuryDeposit {
   createdAt       DateTime @default(now())
 }
 
+model DeliveryCollection {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  receiptNo          String    @unique
+  invoiceNo          String
+  orderId            String?
+  clientCode         String?
+  chemistName        String
+  territory          String
+  salesRepName       String
+  totalInvoiceAmount Float
+  amountCollected    Float
+  dueAmountRemaining Float     @default(0.0)
+  collectionDate     String
+  paymentMethod      String    @default("Cash") // "Cash", "Cheque", "BEFTN / RTGS", "bKash / Nagad"
+  chequeNumber       String?
+  status             String    @default("Pending Vault Clearance") // "Pending Vault Clearance" | "Cleared & Deposited" | "Bounced / Rejected"
+  destinationType    String?   // "Cash Drawer" | "Bank Account"
+  destinationName    String?   // e.g. "Head Office Cash Safe" or "Eastern Bank PLC"
+  financialAccountId String?
+  clearedBy          String?
+  clearedAt          DateTime?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status])
+  @@index([territory])
+  @@index([chemistName])
+  @@index([invoiceNo])
+}
+
 model ExpenseVoucher {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  voucherNo     String   @unique
-  payeeName     String
-  category      String
-  fundingSource String   // "Cash Safe" or "Bank Account"
-  sourceDetail  String   // e.g. "Head Office Cash Safe" or "Eastern Bank PLC"
-  amount        Float  
-  paymentDate   String
-  notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  voucherNo          String    @unique
+  payeeName          String
+  payeeType          String?   @default("General / Other") // "Wholesaler / Vendor", "Doctor / Clinical", "Staff TA/DA", "Facility & Utilities", "Regulatory & DGDA", "General / Other"
+  wholesalerId       String?
+  poNumber           String?
+  category           String
+  fundingSource      String    // "Cash Safe" or "Bank Account"
+  sourceDetail       String    // e.g. "Head Office Cash Safe" or "Eastern Bank PLC"
+  financialAccountId String?
+  paymentMethod      String?   @default("Cash") // "Cash", "Cheque", "BEFTN / RTGS", "Pay Order"
+  chequeNumber       String?
+  grossAmount        Float?
+  tdsRate            Float?    @default(0.0)
+  tdsAmount          Float?    @default(0.0)
+  vdsRate            Float?    @default(0.0)
+  vdsAmount          Float?    @default(0.0)
+  netAmount          Float?
+  amount             Float     // Net disbursed amount
+  paymentDate        String
+  notes              String?
+  status             String    @default("Disbursed") // "Draft" | "Pending Approval" | "Approved" | "Disbursed" | "Rejected"
+  rejectionReason    String?
+  preparedBy         String?
+  approvedBy         String?
+  approvedAt         DateTime?
+  disbursedBy        String?
+  disbursedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status])
+  @@index([category])
+  @@index([payeeType])
+  @@index([payeeName])
 }
 
 model FinancialAccount {
