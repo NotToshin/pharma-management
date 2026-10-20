@@ -1252,6 +1252,7 @@ export default function WholesalerPurchaseOrdersPage() {
       Phone: o.phone || "N/A",
       "Delivery Warehouse": o.deliveryWarehouse,
       "Payment Terms": o.paymentTerms,
+      "Product Names": o.items?.map((i) => i.drugName).join(", ") || "N/A",
       "Total Line Items": o.items?.length || 0,
       "Total Units": o.totalUnits,
       "Subtotal (BDT)": o.subtotalBDT,
@@ -1528,7 +1529,7 @@ export default function WholesalerPurchaseOrdersPage() {
             <TableRow className="border-b border-slate-100 text-xs text-slate-600 hover:bg-transparent">
               <TableHead className="pl-0 text-xs font-medium text-slate-600">PO Ref & Date</TableHead>
               <TableHead className="text-xs font-medium text-slate-600">Wholesaler / Supplier</TableHead>
-              <TableHead className="text-xs font-medium text-slate-600">Items / Formulations</TableHead>
+              <TableHead className="text-xs font-medium text-slate-600">Product Name</TableHead>
               <TableHead className="text-xs font-medium text-slate-600">Delivery Warehouse</TableHead>
               <TableHead className="text-center text-xs font-medium text-slate-600">Total Units</TableHead>
               <TableHead className="text-right text-xs font-medium text-slate-600">Order Value</TableHead>
@@ -1579,13 +1580,28 @@ export default function WholesalerPurchaseOrdersPage() {
                     </div>
                   </TableCell>
 
-                  <TableCell className="max-w-[210px] truncate py-3 text-xs text-slate-600">
-                    <span className="block font-medium text-slate-800">
-                      {ord.items?.length || 0} formulation{(ord.items?.length || 0) === 1 ? "" : "s"}
-                    </span>
-                    <span className="text-[10px] text-slate-400 truncate block">
-                      {ord.items?.map((i) => i.drugName).join(", ") || "General Formulations"}
-                    </span>
+                  <TableCell className="max-w-[240px] py-3 text-xs text-slate-700">
+                    {ord.items && ord.items.length > 0 ? (
+                      <div className="flex flex-col">
+                        <span className="block font-semibold text-slate-900 truncate" title={ord.items[0].drugName}>
+                          {ord.items[0].drugName}
+                        </span>
+                        {ord.items.length > 1 ? (
+                          <span
+                            className="text-[10px] text-[#0090FF] font-medium truncate mt-0.5"
+                            title={ord.items.slice(1).map((i) => i.drugName).join(", ")}
+                          >
+                            +{ord.items.length - 1} more: {ord.items.slice(1).map((i) => i.drugName).join(", ")}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 truncate mt-0.5">
+                            {ord.items[0].genericName ? `${ord.items[0].genericName} • ` : ""}{ord.items[0].packSize || `${ord.items[0].quantityOrdered} units`}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">No products</span>
+                    )}
                   </TableCell>
 
                   <TableCell className="py-3 text-xs text-slate-700">
@@ -1773,14 +1789,21 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 1: Create / Edit Purchase Order Dialog
       ───────────────────────────────────────────── */}
       <Dialog open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 sm:max-w-[850px]">
+        <DialogContent className="w-full sm:max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              {editingOrder ? `Edit Purchase Order (${editingOrder.poNumber})` : "Book New Purchase Order & Intake"}
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Select licensed wholesaler, specify formulations from catalog, and dispatch sequential purchase order.
-            </DialogDescription>
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-[#0090FF]">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  {editingOrder ? `Edit Purchase Order (${editingOrder.poNumber})` : "Book New Purchase Order & Intake"}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Select licensed wholesaler, specify formulations from catalog, and dispatch sequential purchase order.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           <form onSubmit={handleSubmitOrder} className="space-y-4 pt-2">
@@ -1888,9 +1911,9 @@ export default function WholesalerPurchaseOrdersPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <Label className="text-xs font-bold text-slate-800">
-                    Line Items & Pharmaceutical Formulations
+                    Line Items & Ordered Products
                   </Label>
-                  <p className="text-[10px] text-slate-400">Specify ordered dosages, quantities, and storage parameters.</p>
+                  <p className="text-[10px] text-slate-400">Specify ordered product names, pack sizes, quantities, and storage parameters.</p>
                 </div>
                 <Button
                   type="button"
@@ -1900,16 +1923,16 @@ export default function WholesalerPurchaseOrdersPage() {
                   className="h-7 gap-1 border-slate-200 bg-white text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   <Plus className="h-3.5 w-3.5 text-[#0090FF]" />
-                  Add Formulation Row
+                  Add Product Row
                 </Button>
               </div>
 
-              <div className="overflow-hidden rounded-lg border border-slate-200">
-                <table className="w-full text-xs">
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full min-w-[700px] text-xs">
                   <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
                     <tr>
                       <th className="w-8 py-2 text-center text-[10px] font-bold">#</th>
-                      <th className="py-2 text-left text-[10px] font-bold">Formulation / Brand *</th>
+                      <th className="py-2 text-left text-[10px] font-bold">Product Name (e.g. Napa) *</th>
                       <th className="w-28 py-2 text-left text-[10px] font-bold">Pack Size</th>
                       <th className="w-32 py-2 text-left text-[10px] font-bold">Storage Temp</th>
                       <th className="w-20 py-2 text-right text-[10px] font-bold">Quantity *</th>
@@ -1926,7 +1949,7 @@ export default function WholesalerPurchaseOrdersPage() {
                         </td>
                         <td className="p-1.5">
                           <Input
-                            placeholder="Drug formulation name..."
+                            placeholder="Product name (e.g. Napa 500mg, Seclo 20mg)..."
                             value={item.drugName}
                             onChange={(e) => handleItemChange(idx, "drugName", e.target.value)}
                             className="h-7 border-slate-200 bg-white text-xs font-semibold"
@@ -2081,7 +2104,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 2: Multi-Tier Approval Dialog
       ───────────────────────────────────────────── */}
       <Dialog open={isApprovalModalOpen} onOpenChange={setIsApprovalModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl bg-white p-6">
+        <DialogContent className="w-full sm:max-w-md rounded-2xl bg-white p-6 shadow-2xl">
           <DialogHeader>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
               <ShieldCheck className="h-5 w-5" />
@@ -2165,7 +2188,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 3: Stock Dock Intake & Receiving Dialog
       ───────────────────────────────────────────── */}
       <Dialog open={isReceiveModalOpen} onOpenChange={setIsReceiveModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6">
+        <DialogContent className="w-full sm:max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
               <PackageCheck className="h-5 w-5 text-emerald-600" />
@@ -2228,11 +2251,11 @@ export default function WholesalerPurchaseOrdersPage() {
                     Auto-Fill Remaining Balances
                   </Button>
                 </div>
-                <div className="rounded-xl border border-slate-200 overflow-hidden">
-                  <Table>
+                <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                  <Table className="min-w-[720px]">
                     <TableHeader className="bg-slate-50">
                       <TableRow className="border-b border-slate-200">
-                        <TableHead className="text-xs font-bold">Formulation</TableHead>
+                        <TableHead className="text-xs font-bold">Product Name</TableHead>
                         <TableHead className="w-20 text-center text-xs font-bold">Ordered</TableHead>
                         <TableHead className="w-20 text-center text-xs font-bold">Rec'd</TableHead>
                         <TableHead className="w-24 text-right text-xs font-bold">Intake Units</TableHead>
@@ -2332,7 +2355,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 4: Official Printable Purchase Order Voucher
       ───────────────────────────────────────────── */}
       <Dialog open={isVoucherModalOpen} onOpenChange={setIsVoucherModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 print:p-0">
+        <DialogContent className="w-full sm:max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 print:p-0 shadow-2xl">
           <DialogHeader className="print:hidden">
             <div className="flex items-center justify-between">
               <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -2404,12 +2427,12 @@ export default function WholesalerPurchaseOrdersPage() {
               </div>
 
               {/* Itemized Table */}
-              <div className="border border-slate-300 rounded-lg overflow-hidden">
-                <table className="w-full text-xs">
+              <div className="border border-slate-300 rounded-lg overflow-x-auto print:overflow-visible">
+                <table className="w-full min-w-[650px] print:min-w-full text-xs">
                   <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
                     <tr>
                       <th className="py-2 px-2 text-center w-10">S/N</th>
-                      <th className="py-2 px-3 text-left">Drug Formulation & Generic</th>
+                      <th className="py-2 px-3 text-left">Product Name & Generic</th>
                       <th className="py-2 px-2 text-left">Pack Size</th>
                       <th className="py-2 px-2 text-left">Storage</th>
                       <th className="py-2 px-2 text-right">Qty</th>
@@ -2520,7 +2543,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 5: Wholesalers Directory Modal
       ───────────────────────────────────────────── */}
       <Dialog open={isWholesalersModalOpen} onOpenChange={setIsWholesalersModalOpen}>
-        <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6">
+        <DialogContent className="w-full sm:max-w-6xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
           <DialogHeader>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
@@ -2816,8 +2839,8 @@ export default function WholesalerPurchaseOrdersPage() {
           </div>
 
           {/* Wholesalers Table */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden">
-            <Table>
+          <div className="rounded-xl border border-slate-200 overflow-x-auto">
+            <Table className="min-w-[900px]">
               <TableHeader className="bg-slate-50">
                 <TableRow className="border-b border-slate-200">
                   <TableHead className="w-28 text-xs font-bold text-slate-700">Code</TableHead>
@@ -2990,7 +3013,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 8: Interactive Purchase Order Inspector
       ───────────────────────────────────────────── */}
       <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6">
+        <DialogContent className="w-full sm:max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
           {detailsOrder && (
             <div className="space-y-5">
               {/* Header Banner */}
@@ -3196,19 +3219,19 @@ export default function WholesalerPurchaseOrdersPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    Line Items & Fulfillment Status ({detailsOrder.items?.length || 0} Formulations)
+                    Line Items & Fulfillment Status ({detailsOrder.items?.length || 0} Products)
                   </h4>
                   <span className="font-mono text-xs text-slate-500">
                     Total: {detailsOrder.totalUnits.toLocaleString()} Units
                   </span>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 overflow-hidden">
-                  <Table>
+                <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                  <Table className="min-w-[780px]">
                     <TableHeader className="bg-slate-50">
                       <TableRow className="border-b border-slate-200">
                         <TableHead className="w-10 text-center text-xs font-bold">#</TableHead>
-                        <TableHead className="text-xs font-bold">Drug Formulation</TableHead>
+                        <TableHead className="text-xs font-bold">Product Name</TableHead>
                         <TableHead className="w-28 text-xs font-bold">Pack Size</TableHead>
                         <TableHead className="w-32 text-xs font-bold">Storage Temp</TableHead>
                         <TableHead className="w-40 text-center text-xs font-bold">Fulfillment Progress</TableHead>
@@ -3367,7 +3390,7 @@ export default function WholesalerPurchaseOrdersPage() {
 
               {/* Modal Footer Actions */}
               <DialogFooter className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -3396,7 +3419,7 @@ export default function WholesalerPurchaseOrdersPage() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {detailsOrder.status === "Draft" && (
                     <Button
                       type="button"
@@ -3409,7 +3432,7 @@ export default function WholesalerPurchaseOrdersPage() {
                     </Button>
                   )}
 
-                  {(detailsOrder.status === "Submitted" || detailsOrder.status === "Draft") && (
+                  {detailsOrder.status === "Submitted" && (
                     <Button
                       type="button"
                       size="sm"
@@ -3454,19 +3477,21 @@ export default function WholesalerPurchaseOrdersPage() {
                     </Button>
                   )}
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setIsDetailsModalOpen(false)
-                      handleOpenEditModal(detailsOrder)
-                    }}
-                    className="h-8 gap-1.5 text-xs"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit
-                  </Button>
+                  {detailsOrder.status !== "Cancelled" && detailsOrder.status !== "Received" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsDetailsModalOpen(false)
+                        handleOpenEditModal(detailsOrder)
+                      }}
+                      className="h-8 gap-1.5 text-xs"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                  )}
 
                   <Button
                     type="button"
@@ -3488,7 +3513,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 9: Cancel Purchase Order Modal
       ───────────────────────────────────────────── */}
       <Dialog open={isCancelModalOpen} onOpenChange={setIsCancelModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl bg-white p-6">
+        <DialogContent className="w-full sm:max-w-md rounded-2xl bg-white p-6 shadow-2xl">
           <DialogHeader>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
               <XCircle className="h-5 w-5" />
@@ -3549,7 +3574,7 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 10: Disburse Payment (Finance & Treasury)
       ───────────────────────────────────────────── */}
       <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-        <DialogContent className="max-w-lg rounded-2xl bg-white p-6">
+        <DialogContent className="w-full sm:max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
           <DialogHeader>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
               <CreditCard className="h-5 w-5" />
