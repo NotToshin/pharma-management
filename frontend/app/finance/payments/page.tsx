@@ -652,8 +652,8 @@ export default function GeneralPaymentsPage() {
       paymentMethod: defaultAcc?.category === "CASH" ? "Cash" : "BEFTN / RTGS",
       chequeNumber: "",
       grossAmount: 0,
-      tdsRate: 5,
-      vdsRate: 7.5,
+      tdsRate: 0,
+      vdsRate: 0,
       amount: 0,
       paymentDate: new Date().toLocaleDateString("en-GB", {
         day: "2-digit",
@@ -1098,11 +1098,11 @@ export default function GeneralPaymentsPage() {
           <div className="mt-2 flex flex-col gap-1 text-[11px] font-semibold text-slate-700">
             <span className="inline-flex items-center gap-1.5 text-blue-700">
               <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-              Corporate Banks: Active
+              Corporate Banks: {accounts.filter((a) => a.category === "BANK").length} Registered
             </span>
             <span className="inline-flex items-center gap-1.5 text-emerald-700">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              HQ Cash Safes: Ready
+              Cash Safes: {accounts.filter((a) => a.category === "CASH").length} Active
             </span>
           </div>
         </Card>
@@ -1718,7 +1718,7 @@ export default function GeneralPaymentsPage() {
                 </div>
               ) : (
                 <Input
-                  placeholder="e.g. Dr. Ahmed Hossain / Beximco Logistics / Officer Name"
+                  placeholder="e.g. Enter payee, vendor, or clinician name"
                   value={formData.payeeName}
                   onChange={(e) =>
                     setFormData({ ...formData, payeeName: e.target.value })
@@ -1957,7 +1957,7 @@ export default function GeneralPaymentsPage() {
                     Cheque # / Bank Advice Reference
                   </Label>
                   <Input
-                    placeholder="e.g. CQ-99214 or RTGS-EBL-88192"
+                    placeholder="e.g. CQ-10021 or RTGS Ref"
                     value={formData.chequeNumber}
                     onChange={(e) =>
                       setFormData({ ...formData, chequeNumber: e.target.value })
