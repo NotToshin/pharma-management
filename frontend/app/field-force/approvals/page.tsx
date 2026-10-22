@@ -48,80 +48,7 @@ interface PendingTP {
   status: "Pending" | "Approved" | "Rejected"
 }
 
-const initialQueue: PendingTP[] = [
-  {
-    id: "1",
-    tpCode: "TP-2026-091",
-    mioName: "Kamrul Hasan",
-    territory: "Chittagong Central",
-    submissionDate: "16 Sep 2026",
-    scheduledDate: "19 Sep 2026",
-    doctorsCount: 10,
-    pharmaciesCount: 5,
-    routeSummary: "GEC Circle → Agrabad C/A → Halishahar",
-    doctorList: [
-      "Dr. Anwarul Azim (Cardiology)",
-      "Dr. Farhana Yasmin (Gynecology)",
-      "Dr. S. K. Roy (Internal Medicine)",
-      "Dr. Mehedi Hasan (Pediatrics)",
-    ],
-    notes: "Prioritizing new sample distribution for Ciprocin launch.",
-    status: "Pending",
-  },
-  {
-    id: "2",
-    tpCode: "TP-2026-092",
-    mioName: "Enamul Haque",
-    territory: "Sylhet Sadar",
-    submissionDate: "16 Sep 2026",
-    scheduledDate: "19 Sep 2026",
-    doctorsCount: 9,
-    pharmaciesCount: 4,
-    routeSummary: "Zindabazar → Amberkhana → Subidbazar",
-    doctorList: [
-      "Dr. Mustafizur Rahman (Orthopedics)",
-      "Dr. Nadia Islam (General Physician)",
-      "Dr. Tareq Mahmud (Dermatology)",
-    ],
-    notes: "Follow-up visit regarding quarterly prescription potential.",
-    status: "Pending",
-  },
-  {
-    id: "3",
-    tpCode: "TP-2026-095",
-    mioName: "Arif Hossain",
-    territory: "Mymensingh Sadar",
-    submissionDate: "17 Sep 2026",
-    scheduledDate: "20 Sep 2026",
-    doctorsCount: 11,
-    pharmaciesCount: 6,
-    routeSummary: "Chorpara Medical Road → Town Hall → Notun Bazar",
-    doctorList: [
-      "Dr. K. M. Saifullah (Medicine)",
-      "Dr. Nusrat Jahan (Obstetrics)",
-      "Dr. Abu Sayeed (Neurology)",
-    ],
-    notes: "Targeting high prescription specialists in Medical College circle.",
-    status: "Pending",
-  },
-  {
-    id: "4",
-    tpCode: "TP-2026-096",
-    mioName: "Farhan Kabir",
-    territory: "Bogura Hub",
-    submissionDate: "17 Sep 2026",
-    scheduledDate: "21 Sep 2026",
-    doctorsCount: 8,
-    pharmaciesCount: 4,
-    routeSummary: "Satmatha → Thanthania → Sherpur Road",
-    doctorList: [
-      "Dr. Aminul Islam (Pediatrics)",
-      "Dr. Shamim Ara (Gynecology)",
-    ],
-    notes: "Recovery route to improve quota realization in lagging territory.",
-    status: "Pending",
-  },
-]
+const initialQueue: PendingTP[] = []
 
 export default function PendingApprovalsPage() {
   const [queue, setQueue] = React.useState<PendingTP[]>(initialQueue)
@@ -270,7 +197,17 @@ export default function PendingApprovalsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {queue.map((item) => (
+            {queue.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={7}
+                  className="py-12 text-center text-xs text-slate-400"
+                >
+                  No tour plans awaiting review or authorization.
+                </TableCell>
+              </TableRow>
+            ) : (
+              queue.map((item) => (
               <TableRow
                 key={item.id}
                 className="border-b border-slate-50 hover:bg-slate-50/50"
@@ -348,7 +285,7 @@ export default function PendingApprovalsPage() {
                   )}
                 </TableCell>
               </TableRow>
-            ))}
+            )))}
           </TableBody>
         </Table>
       </Card>

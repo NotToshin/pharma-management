@@ -35,69 +35,14 @@ interface CreateAccountInput {
   initialBalance?: number;
 }
 
-const DEFAULT_TREASURY_ACCOUNTS = [
-  {
-    accountTitle: "Eastern Bank PLC - Operations",
-    category: AccountCategory.BANK,
-    institution: "Eastern Bank PLC",
-    accountNumber: "104-102-482910",
-    branch: "Principal Branch, Dhaka",
-    accountClass: "Current",
-    balance: 2450000,
-  },
-  {
-    accountTitle: "Dutch-Bangla Bank PLC - Clearing",
-    category: AccountCategory.BANK,
-    institution: "Dutch-Bangla Bank PLC",
-    accountNumber: "116-120-847291",
-    branch: "Motijheel Corporate",
-    accountClass: "Current",
-    balance: 1850000,
-  },
-  {
-    accountTitle: "Head Office Central Cash Safe",
-    category: AccountCategory.CASH,
-    institution: "Head Office Cash Safe",
-    accountNumber: "SAFE-HQ-01",
-    branch: "Gulshan Corporate HQ",
-    accountClass: "Petty Cash",
-    balance: 450000,
-  },
-  {
-    accountTitle: "Mirpur Depot Petty Safe",
-    category: AccountCategory.CASH,
-    institution: "Mirpur Depot Petty Safe",
-    accountNumber: "SAFE-DEP-02",
-    branch: "Mirpur Depot",
-    accountClass: "Cash Safe",
-    balance: 150000,
-  },
-];
-
 export const accountLedgerService = {
-  async autoSeedIfEmpty() {
-    const count = await prisma.financialAccount.count();
-    if (count <= 1) {
-      for (const acc of DEFAULT_TREASURY_ACCOUNTS) {
-        const exists = await prisma.financialAccount.findUnique({
-          where: { accountTitle: acc.accountTitle },
-        });
-        if (!exists) {
-          await prisma.financialAccount.create({ data: acc });
-        }
-      }
-    }
-  },
-
   async getAccounts() {
-    await this.autoSeedIfEmpty();
     return prisma.financialAccount.findMany({
       orderBy: [{ category: "desc" }, { balance: "desc" }],
     });
   },
 
   async getLedgerMetrics() {
-    await this.autoSeedIfEmpty();
     const [accounts, transactions] = await Promise.all([
       prisma.financialAccount.findMany(),
       prisma.journalTransaction.findMany(),

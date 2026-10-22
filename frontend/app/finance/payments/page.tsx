@@ -241,7 +241,7 @@ export default function GeneralPaymentsPage() {
     poNumber: "",
     category: "General Operating Expense",
     fundingSource: "Bank Account" as "Cash Safe" | "Bank Account",
-    sourceDetail: "Eastern Bank PLC (Corporate Ops)",
+    sourceDetail: "",
     financialAccountId: "",
     paymentMethod: "BEFTN / RTGS",
     chequeNumber: "",
@@ -647,7 +647,7 @@ export default function GeneralPaymentsPage() {
       poNumber: "",
       category: "Wholesaler Settlement",
       fundingSource: defaultAcc?.category === "CASH" ? "Cash Safe" : "Bank Account",
-      sourceDetail: defaultAcc?.institution || "Eastern Bank PLC (Corporate Ops)",
+      sourceDetail: defaultAcc?.institution || defaultAcc?.accountTitle || "",
       financialAccountId: defaultAcc?.id || "",
       paymentMethod: defaultAcc?.category === "CASH" ? "Cash" : "BEFTN / RTGS",
       chequeNumber: "",
@@ -1867,8 +1867,8 @@ export default function GeneralPaymentsPage() {
                         sourceDetail: matchingAccount
                           ? `${matchingAccount.institution} (${matchingAccount.branch})`
                           : val === "Cash Safe"
-                          ? "Head Office Cash Safe"
-                          : "Eastern Bank PLC",
+                          ? "Cash Safe"
+                          : "Bank Account",
                         paymentMethod: val === "Cash Safe" ? "Cash" : "BEFTN / RTGS",
                       }))
                     }}

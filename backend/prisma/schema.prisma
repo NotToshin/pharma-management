@@ -334,7 +334,7 @@ model JournalTransaction {
 
 model InventoryBatch {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  skuCode          String   @unique
+  skuCode          String
   brandName        String
   genericName      String
   category         String

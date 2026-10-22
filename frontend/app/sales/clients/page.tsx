@@ -356,14 +356,6 @@ export default function ClientsDirectoryPage() {
             territory: s.territory,
           }))
         )
-      } else if (staffList.length === 0) {
-        setStaffList([
-          { id: "1", name: "Rafiqul Islam", territory: "Dhaka North" },
-          { id: "2", name: "Tanvir Ahmed", territory: "Chittagong Central" },
-          { id: "3", name: "Kamrul Hasan", territory: "Dhanmondi" },
-          { id: "4", name: "Enamul Haque", territory: "Gulshan" },
-          { id: "5", name: "Sabbir Hossain", territory: "Sylhet" },
-        ])
       }
     } catch (err) {
       console.error("Error loading clients from backend:", err)

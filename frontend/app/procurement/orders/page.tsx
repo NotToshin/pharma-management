@@ -912,7 +912,7 @@ export default function WholesalerPurchaseOrdersPage() {
     setPaymentForm({
       fundingSource: defaultBank?.category === "CASH" ? "Cash Safe" : "Bank Account",
       financialAccountId: defaultBank?.id || "",
-      sourceDetail: defaultBank?.accountTitle || "Eastern Bank PLC - Operations",
+      sourceDetail: defaultBank?.accountTitle || "",
       paymentMethod: defaultBank?.category === "CASH" ? "Cash" : "BEFTN / RTGS",
       chequeNumber: "",
       amount: order.totalAmountBDT,
@@ -944,7 +944,7 @@ export default function WholesalerPurchaseOrdersPage() {
         poNumber: payingOrder.poNumber,
         category: "Wholesaler Settlement",
         fundingSource: paymentForm.fundingSource,
-        sourceDetail: selectedAcc?.accountTitle || paymentForm.sourceDetail || "Eastern Bank PLC - Operations",
+        sourceDetail: selectedAcc?.accountTitle || paymentForm.sourceDetail || "",
         financialAccountId: paymentForm.financialAccountId || null,
         paymentMethod: paymentForm.paymentMethod,
         chequeNumber: paymentForm.chequeNumber ? paymentForm.chequeNumber.trim() : null,

@@ -4,18 +4,6 @@ import { ALL_SYSTEM_MODULES, generateCode } from "./rbacService";
 
 const prisma = new PrismaClient();
 
-const DEFAULT_ROLES = [
-  "Medical Information Officer",
-  "Sales Representative",
-  "Accountant",
-  "Human Resource",
-  "Area Manager",
-  "Product Executive",
-  "Regional Sales Manager",
-  "Warehouse Officer",
-  "Super Administrator",
-];
-
 export const roleService = {
   async getAllRoles() {
     let roles = await prisma.role.findMany({
@@ -24,23 +12,6 @@ export const roleService = {
       },
       orderBy: { createdAt: "asc" },
     });
-
-    if (roles.length === 0) {
-      for (const name of DEFAULT_ROLES) {
-        await prisma.role.create({
-          data: {
-            name,
-            permissions: ["VIEW_DASHBOARD"],
-          },
-        });
-      }
-      roles = await prisma.role.findMany({
-        include: {
-          _count: { select: { staff: true } },
-        },
-        orderBy: { createdAt: "asc" },
-      });
-    }
 
     return roles;
   },
