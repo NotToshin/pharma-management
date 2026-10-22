@@ -50,90 +50,9 @@ export const collectionService = {
   },
 
   /**
-   * Seeds realistic delivery cash collections based on delivered orders if empty
-   */
-  async ensureSeedData() {
-    try {
-      const count = await prisma.deliveryCollection.count();
-      if (count > 0) return;
-
-      const orders = await prisma.order.findMany({
-        where: { status: { not: "Cancelled" } },
-        take: 12,
-      });
-
-      const sampleTerritories = ["Dhaka North", "Dhaka South", "Chittagong Central", "Sylhet Metro", "Rajshahi"];
-      const sampleMios = ["Tanvir Ahmed", "Mahmudul Hasan", "Kamrul Islam", "Zahidul Karim", "Farhan Kabir"];
-      const samplePharmacies = [
-        "Labaid Pharmacy (Gulshan)",
-        "Popular Medicine Corner (Dhanmondi)",
-        "Green Life Drug House (Panthapath)",
-        "Al-Madina Chemist (Uttara)",
-        "Square Health Pharmacy (Mirpur)",
-        "Ibn Sina Drug Point (Badda)",
-        "Medix Care Chemist (Mohakhali)",
-        "Central City Pharmacy (Motijheel)",
-      ];
-
-      const recordsToSeed: any[] = [];
-      const currentYear = new Date().getFullYear();
-
-      // Seed 8-10 realistic collections
-      for (let i = 0; i < 8; i++) {
-        const order = orders[i];
-        const invoiceNo = order?.invoiceNumber || `INV-${currentYear}-${String(i + 1).padStart(4, "0")}`;
-        const chemistName = order?.pharmacyName || samplePharmacies[i % samplePharmacies.length];
-        const territory = order?.territory || sampleTerritories[i % sampleTerritories.length];
-        const salesRepName = order?.assignedMio || sampleMios[i % sampleMios.length];
-        const totalInvoice = Number(order?.orderValue) || (35000 + i * 14500);
-
-        // Mix of realized and pending collections
-        const isSettled = i < 4;
-        const amountCollected = isSettled ? totalInvoice : Math.round(totalInvoice * 0.85);
-        const dueAmountRemaining = Math.max(0, totalInvoice - amountCollected);
-
-        const method = i % 3 === 0 ? "Cash" : i % 3 === 1 ? "Cheque" : "BEFTN / RTGS";
-        const chequeNo = method === "Cheque" ? `CQ-IBBL-${78120 + i}` : method === "BEFTN / RTGS" ? `EBL-FT-${9910 + i}` : null;
-
-        recordsToSeed.push({
-          receiptNo: `AKP-COL-${currentYear}-${String(i + 1).padStart(4, "0")}`,
-          invoiceNo,
-          orderId: order?.id || null,
-          clientCode: `CHM-${1000 + i}`,
-          chemistName,
-          territory,
-          salesRepName,
-          totalInvoiceAmount: totalInvoice,
-          amountCollected,
-          dueAmountRemaining,
-          collectionDate: `${12 + i} Oct ${currentYear}`,
-          paymentMethod: method,
-          chequeNumber: chequeNo,
-          status: isSettled ? "Cleared & Deposited" : "Pending Vault Clearance",
-          destinationType: i % 2 === 0 ? "Cash Drawer" : "Bank Account",
-          destinationName: i % 2 === 0 ? "Head Office Cash Safe" : "Eastern Bank PLC (Corporate Ops)",
-          clearedBy: isSettled ? "Cashier & Vault Officer" : null,
-          clearedAt: isSettled ? new Date(`2026-10-${12 + i}T16:00:00Z`) : null,
-          notes: isSettled
-            ? "MIO cash handover reconciled and deposited into vault."
-            : "Chemist delivery realized by field MIO. Awaiting vault/bank clearance.",
-        });
-      }
-
-      for (const rec of recordsToSeed) {
-        await prisma.deliveryCollection.create({ data: rec });
-      }
-    } catch (err) {
-      console.warn("Could not seed initial delivery collections:", err);
-    }
-  },
-
-  /**
    * Retrieves all collections with query filters and pagination
    */
   async getAllCollections(filters?: QueryCollectionInput) {
-    await this.ensureSeedData();
-
     const where: Record<string, any> = {};
 
     if (filters?.search?.trim()) {
@@ -210,8 +129,6 @@ export const collectionService = {
    * Aggregated KPI metrics for delivery cash collections & vault clearance
    */
   async getCollectionMetrics() {
-    await this.ensureSeedData();
-
     const all = await prisma.deliveryCollection.findMany();
 
     let totalRealizedBDT = 0;

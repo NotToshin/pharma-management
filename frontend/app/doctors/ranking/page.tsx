@@ -43,6 +43,8 @@ import {
   ChevronRight,
 } from "lucide-react"
 
+import { getEndpoint } from "@/lib/api"
+
 interface RankedDoctor {
   id: string
   rank: number
@@ -58,119 +60,88 @@ interface RankedDoctor {
   visitCycle: string
 }
 
-const initialRankedDoctors: RankedDoctor[] = [
-  {
-    id: "1",
-    rank: 1,
-    name: "Dr. Anwarul Azim",
-    specialty: "Cardiology",
-    institute: "NICVD & Popular Dhanmondi",
-    territory: "Dhaka North",
-    assignedMio: "Rafiqul Islam",
-    tier: "A+",
-    patientVolume: 45,
-    adherenceScore: 94,
-    estMonthlyRx: "৳2,40,000",
-    visitCycle: "Bi-Weekly",
-  },
-  {
-    id: "2",
-    rank: 2,
-    name: "Dr. Farhana Yasmin",
-    specialty: "Gynecology & Obstetrics",
-    institute: "DMCH & Labaid Uttara",
-    territory: "Dhaka North",
-    assignedMio: "Rafiqul Islam",
-    tier: "A+",
-    patientVolume: 40,
-    adherenceScore: 91,
-    estMonthlyRx: "৳1,95,000",
-    visitCycle: "Bi-Weekly",
-  },
-  {
-    id: "3",
-    rank: 3,
-    name: "Dr. S. K. Roy",
-    specialty: "Internal Medicine",
-    institute: "SSMC & Medinova Mirpur",
-    territory: "Dhaka South",
-    assignedMio: "Tanvir Ahmed",
-    tier: "A",
-    patientVolume: 35,
-    adherenceScore: 86,
-    estMonthlyRx: "৳1,60,000",
-    visitCycle: "Monthly",
-  },
-  {
-    id: "4",
-    rank: 4,
-    name: "Dr. Mehedi Hasan",
-    specialty: "Pediatrics",
-    institute: "CMC & Chevron Chittagong",
-    territory: "Chittagong Central",
-    assignedMio: "Kamrul Hasan",
-    tier: "A",
-    patientVolume: 30,
-    adherenceScore: 82,
-    estMonthlyRx: "৳1,25,000",
-    visitCycle: "Monthly",
-  },
-  {
-    id: "5",
-    rank: 5,
-    name: "Dr. Mustafizur Rahman",
-    specialty: "Orthopedic Surgery",
-    institute: "SOMC & Ibn Sina Sylhet",
-    territory: "Sylhet Sadar",
-    assignedMio: "Enamul Haque",
-    tier: "B",
-    patientVolume: 25,
-    adherenceScore: 74,
-    estMonthlyRx: "৳90,000",
-    visitCycle: "Monthly",
-  },
-  {
-    id: "6",
-    rank: 6,
-    name: "Dr. Nadia Islam",
-    specialty: "General Physician",
-    institute: "RMCH & Apollo Rajshahi",
-    territory: "Rajshahi Metro",
-    assignedMio: "Sabbir Hossain",
-    tier: "B",
-    patientVolume: 20,
-    adherenceScore: 68,
-    estMonthlyRx: "৳75,000",
-    visitCycle: "Bi-Monthly",
-  },
-  {
-    id: "7",
-    rank: 7,
-    name: "Dr. Tareq Mahmud",
-    specialty: "Dermatology",
-    institute: "KMC & Care Point Khulna",
-    territory: "Khulna Zone",
-    assignedMio: "Mahmudul Hasan",
-    tier: "C",
-    patientVolume: 18,
-    adherenceScore: 58,
-    estMonthlyRx: "৳50,000",
-    visitCycle: "Quarterly",
-  },
-]
-
-const tierVolumeChart = [
-  { tier: "Cat A+", doctors: 2, share: 46 },
-  { tier: "Cat A", doctors: 2, share: 30 },
-  { tier: "Cat B", doctors: 2, share: 16 },
-  { tier: "Cat C", doctors: 1, share: 8 },
-]
-
 export default function CategoryRankingPage() {
-  const [doctors, setDoctors] =
-    React.useState<RankedDoctor[]>(initialRankedDoctors)
+  const [doctors, setDoctors] = React.useState<RankedDoctor[]>([])
+  const [loading, setLoading] = React.useState(true)
   const [tierFilter, setTierFilter] = React.useState("all")
   const [searchQuery, setSearchQuery] = React.useState("")
+
+  React.useEffect(() => {
+    async function fetchRankedDoctors() {
+      try {
+        const res = await fetch(getEndpoint("/doctors?limit=100"))
+        if (res.ok) {
+          const json = await res.json()
+          const rawList = Array.isArray(json) ? json : json.data || []
+          const mapped: RankedDoctor[] = rawList.map((d: any, idx: number) => {
+            const rawSpecInst = d.specialtyAndInstitute || ""
+            const specialty = rawSpecInst.includes("(")
+              ? rawSpecInst.split("(")[0].trim()
+              : d.specialty || rawSpecInst || "General Physician"
+            const institute =
+              rawSpecInst.includes("(") && rawSpecInst.includes(")")
+                ? rawSpecInst
+                    .substring(
+                      rawSpecInst.indexOf("(") + 1,
+                      rawSpecInst.lastIndexOf(")")
+                    )
+                    .trim()
+                : d.institute || "General Hospital"
+            const territory = d.territoryAndMio
+              ? d.territoryAndMio.split("/")[0].trim()
+              : d.territory || "Central Zone"
+            const mio = d.territoryAndMio?.includes("MIO:")
+              ? d.territoryAndMio.split("MIO:")[1].trim()
+              : d.assignedMio || "Unassigned"
+            const tier: RankedDoctor["tier"] =
+              d.tier?.includes("Tier 1") || d.tier === "A+"
+                ? "A+"
+                : d.tier?.includes("Tier 2") || d.tier === "A"
+                  ? "A"
+                  : d.tier?.includes("Tier 3") || d.tier === "B"
+                    ? "B"
+                    : "C"
+            const patientVolume = d.patientVolumeDaily || 20
+            return {
+              id: d.id || String(idx + 1),
+              rank: idx + 1,
+              name: d.doctorName || d.name,
+              specialty,
+              institute,
+              territory,
+              assignedMio: mio,
+              tier,
+              patientVolume,
+              adherenceScore: Math.min(95, 50 + patientVolume),
+              estMonthlyRx: `৳${(patientVolume * 4500).toLocaleString("en-BD")}`,
+              visitCycle:
+                tier === "A+" ? "Bi-Weekly" : tier === "A" ? "Monthly" : "Bi-Monthly",
+            }
+          })
+          setDoctors(mapped)
+        }
+      } catch {
+        // ignore network error
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchRankedDoctors()
+  }, [])
+
+  const tierVolumeChart = React.useMemo(() => {
+    const total = doctors.length || 1
+    const aPlus = doctors.filter((d) => d.tier === "A+").length
+    const a = doctors.filter((d) => d.tier === "A").length
+    const b = doctors.filter((d) => d.tier === "B").length
+    const c = doctors.filter((d) => d.tier === "C").length
+    return [
+      { tier: "Cat A+", doctors: aPlus, share: Math.round((aPlus / total) * 100) },
+      { tier: "Cat A", doctors: a, share: Math.round((a / total) * 100) },
+      { tier: "Cat B", doctors: b, share: Math.round((b / total) * 100) },
+      { tier: "Cat C", doctors: c, share: Math.round((c / total) * 100) },
+    ]
+  }, [doctors])
 
   const handleUpdateTier = (id: string, newTier: RankedDoctor["tier"]) => {
     setDoctors((prev) =>
@@ -427,7 +398,19 @@ export default function CategoryRankingPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredDoctors.map((doc, idx) => (
+            {filteredDoctors.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={8}
+                  className="py-12 text-center text-xs text-slate-400"
+                >
+                  {loading
+                    ? "Loading prescribers..."
+                    : "No prescribers found. Add prescribers in the Doctor Registry."}
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredDoctors.map((doc, idx) => (
               <TableRow
                 key={doc.id}
                 className="border-b border-slate-50 hover:bg-slate-50/50"
@@ -529,7 +512,7 @@ export default function CategoryRankingPage() {
                   </Select>
                 </TableCell>
               </TableRow>
-            ))}
+            )))}
           </TableBody>
         </Table>
       </Card>

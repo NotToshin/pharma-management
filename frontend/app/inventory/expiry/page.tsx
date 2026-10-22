@@ -80,104 +80,66 @@ interface ExpiryWatchItem {
     | "Destruction Protocol"
 }
 
-const initialExpiryItems: ExpiryWatchItem[] = [
-  {
-    id: "1",
-    skuCode: "SKU-CP-500",
-    brandName: "Ciprocin 500mg",
-    genericName: "Ciprofloxacin USP",
-    batchNumber: "BX-2025-412",
-    warehouseBin: "Bay 01 - Shelf A",
-    expiryDate: "10 Oct 2026",
-    daysRemaining: 23,
-    availableUnits: 1850,
-    unitPrice: 14.5,
-    valueAtRisk: 26825,
-    riskTier: "Critical (<30d)",
-    dispositionPlan: "Push to Top Retailers",
-  },
-  {
-    id: "2",
-    skuCode: "SKU-CF-200",
-    brandName: "Cef-3 200mg/5ml Susp",
-    genericName: "Cefixime Trihydrate",
-    batchNumber: "BX-2026-039",
-    warehouseBin: "Cold Room A - Bin 03",
-    expiryDate: "10 Nov 2026",
-    daysRemaining: 54,
-    availableUnits: 980,
-    unitPrice: 185.0,
-    valueAtRisk: 181300,
-    riskTier: "High Risk (31-60d)",
-    dispositionPlan: "Discount Liquidation",
-  },
-  {
-    id: "3",
-    skuCode: "SKU-FZ-CAP",
-    brandName: "Fefol-Z Capsule",
-    genericName: "Carbonyl Iron + Folic Acid + Zinc",
-    batchNumber: "BX-2025-911",
-    warehouseBin: "Bay 05 - Shelf D",
-    expiryDate: "10 Dec 2026",
-    daysRemaining: 84,
-    availableUnits: 3400,
-    unitPrice: 5.2,
-    valueAtRisk: 17680,
-    riskTier: "Attention (61-90d)",
-    dispositionPlan: "Push to Top Retailers",
-  },
-  {
-    id: "4",
-    skuCode: "SKU-AZ-500",
-    brandName: "Azithromycin 500mg",
-    genericName: "Azithromycin Dihydrate",
-    batchNumber: "BX-2025-308",
-    warehouseBin: "Bay 02 - Shelf B",
-    expiryDate: "05 Oct 2026",
-    daysRemaining: 18,
-    availableUnits: 620,
-    unitPrice: 35.0,
-    valueAtRisk: 21700,
-    riskTier: "Critical (<30d)",
-    dispositionPlan: "Discount Liquidation",
-  },
-  {
-    id: "5",
-    skuCode: "SKU-CV-625",
-    brandName: "Clavroc 625mg Tab",
-    genericName: "Amoxicillin + Clavulanic Acid",
-    batchNumber: "BX-2025-119",
-    warehouseBin: "Quarantine Bay Q-01",
-    expiryDate: "28 Sep 2026",
-    daysRemaining: 11,
-    availableUnits: 450,
-    unitPrice: 42.0,
-    valueAtRisk: 18900,
-    riskTier: "Quarantined",
-    dispositionPlan: "Destruction Protocol",
-  },
-  {
-    id: "6",
-    skuCode: "SKU-OM-20",
-    brandName: "Omeprazole 20mg Cap",
-    genericName: "Omeprazole USP",
-    batchNumber: "BX-2025-782",
-    warehouseBin: "Bay 03 - Shelf F",
-    expiryDate: "02 Dec 2026",
-    daysRemaining: 76,
-    availableUnits: 5100,
-    unitPrice: 4.0,
-    valueAtRisk: 20400,
-    riskTier: "Attention (61-90d)",
-    dispositionPlan: "Manufacturer Return",
-  },
-]
-
 export default function ExpiryWatchlistPage() {
-  const [items, setItems] =
-    React.useState<ExpiryWatchItem[]>(initialExpiryItems)
+  const [items, setItems] = React.useState<ExpiryWatchItem[]>([])
   const [searchQuery, setSearchQuery] = React.useState("")
   const [tierFilter, setTierFilter] = React.useState("all")
+
+  React.useEffect(() => {
+    async function loadBatches() {
+      try {
+        const res = await fetch("/api/inventory/batches")
+        if (res.ok) {
+          const json = await res.json()
+          const batchList = Array.isArray(json) ? json : json.data || []
+          const now = Date.now()
+          const mapped: ExpiryWatchItem[] = batchList
+            .map((b: any) => {
+              const parsedTime = Date.parse(b.expiryDate)
+              const targetDate = isNaN(parsedTime) ? now : parsedTime
+              const daysRemaining = Math.max(0, Math.ceil((targetDate - now) / (1000 * 60 * 60 * 24)))
+              const isQuarantined = (b.warehouseBin || "").toLowerCase().includes("quarantine")
+              let riskTier: ExpiryWatchItem["riskTier"] = "Healthy / Monitored" as any
+              if (isQuarantined) {
+                riskTier = "Quarantined"
+              } else if (daysRemaining <= 30) {
+                riskTier = "Critical (<30d)"
+              } else if (daysRemaining <= 60) {
+                riskTier = "High Risk (31-60d)"
+              } else if (daysRemaining <= 90) {
+                riskTier = "Attention (61-90d)"
+              }
+              const availableUnits = Number(b.availableUnits) || 0
+              const unitPrice = Number(b.unitPrice) || 0
+              return {
+                id: b.id,
+                skuCode: b.skuCode || `SKU-${b.id?.slice(-6)}`,
+                brandName: b.brandName || "Unknown",
+                genericName: b.genericName || "Unknown",
+                batchNumber: b.batchNumber || "N/A",
+                warehouseBin: b.warehouseBin || "General Bay",
+                expiryDate: b.expiryDate || "",
+                daysRemaining,
+                availableUnits,
+                unitPrice,
+                valueAtRisk: Math.round(availableUnits * unitPrice * 100) / 100,
+                riskTier,
+                dispositionPlan: isQuarantined
+                  ? "Destruction Protocol"
+                  : daysRemaining <= 30
+                  ? "Push to Top Retailers"
+                  : "Discount Liquidation",
+              }
+            })
+            .filter((i: ExpiryWatchItem) => i.daysRemaining <= 90 || i.riskTier === "Quarantined")
+          setItems(mapped)
+        }
+      } catch (err) {
+        console.error("Failed to load expiry batches:", err)
+      }
+    }
+    loadBatches()
+  }, [])
 
   // Quarantine Modal State
   const [isQuarantineOpen, setIsQuarantineOpen] = React.useState(false)

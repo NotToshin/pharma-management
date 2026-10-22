@@ -54,77 +54,8 @@ interface TourPlan {
   status: "Approved" | "Pending" | "Completed" | "Rejected"
 }
 
-const initialTourPlans: TourPlan[] = [
-  {
-    id: "1",
-    tpCode: "TP-2026-089",
-    mioName: "Rafiqul Islam",
-    territory: "Dhaka North",
-    visitDate: "18 Sep 2026",
-    targetDoctors: 12,
-    coveredPharmacies: 6,
-    plannedRoute: "Uttara Sector 3 → Azampur → Airport Road",
-    status: "Approved",
-  },
-  {
-    id: "2",
-    tpCode: "TP-2026-090",
-    mioName: "Tanvir Ahmed",
-    territory: "Dhaka South",
-    visitDate: "18 Sep 2026",
-    targetDoctors: 14,
-    coveredPharmacies: 8,
-    plannedRoute: "Dhanmondi 27 → Green Road → Panthapath",
-    status: "Completed",
-  },
-  {
-    id: "3",
-    tpCode: "TP-2026-091",
-    mioName: "Kamrul Hasan",
-    territory: "Chittagong Central",
-    visitDate: "19 Sep 2026",
-    targetDoctors: 10,
-    coveredPharmacies: 5,
-    plannedRoute: "GEC Circle → Agrabad C/A → Halishahar",
-    status: "Pending",
-  },
-  {
-    id: "4",
-    tpCode: "TP-2026-092",
-    mioName: "Enamul Haque",
-    territory: "Sylhet Sadar",
-    visitDate: "19 Sep 2026",
-    targetDoctors: 9,
-    coveredPharmacies: 4,
-    plannedRoute: "Zindabazar → Amberkhana → Subidbazar",
-    status: "Pending",
-  },
-  {
-    id: "5",
-    tpCode: "TP-2026-093",
-    mioName: "Sabbir Hossain",
-    territory: "Rajshahi Metro",
-    visitDate: "20 Sep 2026",
-    targetDoctors: 11,
-    coveredPharmacies: 7,
-    plannedRoute: "Shaheb Bazar → Kazihata → Laxmipur",
-    status: "Approved",
-  },
-  {
-    id: "6",
-    tpCode: "TP-2026-094",
-    mioName: "Mahmudul Hasan",
-    territory: "Khulna Zone",
-    visitDate: "20 Sep 2026",
-    targetDoctors: 8,
-    coveredPharmacies: 5,
-    plannedRoute: "Shibbari More → Daulatpur → Boyra",
-    status: "Approved",
-  },
-]
-
 export default function AllTourPlansPage() {
-  const [plans, setPlans] = React.useState<TourPlan[]>(initialTourPlans)
+  const [plans, setPlans] = React.useState<TourPlan[]>([])
   const [statusFilter, setStatusFilter] = React.useState("all")
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
 

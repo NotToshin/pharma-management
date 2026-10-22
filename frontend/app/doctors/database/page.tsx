@@ -406,18 +406,14 @@ export default function DoctorMasterDatabasePage() {
 
       if (staffRes && staffRes.ok) {
         const staffData = await staffRes.json()
+        const rawStaff = Array.isArray(staffData) ? staffData : staffData.data || []
         setStaffList(
-          Array.isArray(staffData) ? staffData : staffData.data || []
+          rawStaff.map((s: any) => ({
+            id: s.id,
+            name: s.fullName || s.name,
+            territory: s.territory,
+          }))
         )
-      } else if (staffList.length === 0) {
-        // Fallback default staff list if API isn't built yet
-        setStaffList([
-          { id: "1", name: "Rafiqul Islam" },
-          { id: "2", name: "Tanvir Ahmed" },
-          { id: "3", name: "Kamrul Hasan" },
-          { id: "4", name: "Enamul Haque" },
-          { id: "5", name: "Sabbir Hossain" },
-        ])
       }
     } catch (err) {
       console.error("Failed to fetch data from backend server:", err)

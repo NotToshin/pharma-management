@@ -15,120 +15,12 @@ const mapStaffStatus = (status?: StaffStatus | string): string => {
   return "Active";
 };
 
-// Seed initial default allocations and matching staff if database has none
-const seedDefaultAllocationsIfEmpty = async () => {
-  const count = await prisma.mioZoneAllocation.count();
-  if (count > 0) return;
-
-  const defaultSeedData = [
-    {
-      mioName: "Rafiqul Islam",
-      empId: "EMP-2041",
-      phone: "+880 1711-234567",
-      division: "Dhaka Division",
-      territory: "Dhaka North",
-      allocatedZone: "Sector 3, 7, 9 & Azampur Hub",
-      effectiveDate: "01 Jan 2026",
-      status: StaffStatus.ACTIVE,
-    },
-    {
-      mioName: "Tanvir Ahmed",
-      empId: "EMP-2042",
-      phone: "+880 1812-345678",
-      division: "Dhaka Division",
-      territory: "Dhaka South",
-      allocatedZone: "Dhanmondi, Green Road & Panthapath",
-      effectiveDate: "15 Jan 2026",
-      status: StaffStatus.ACTIVE,
-    },
-    {
-      mioName: "Kamrul Hasan",
-      empId: "EMP-2045",
-      phone: "+880 1913-456789",
-      division: "Chittagong Division",
-      territory: "Chittagong Central",
-      allocatedZone: "GEC Circle, Nasirabad & Agrabad C/A",
-      effectiveDate: "01 Feb 2026",
-      status: StaffStatus.ACTIVE,
-    },
-    {
-      mioName: "Enamul Haque",
-      empId: "EMP-2051",
-      phone: "+880 1614-567890",
-      division: "Sylhet Division",
-      territory: "Sylhet Sadar",
-      allocatedZone: "Zindabazar, Amberkhana & Subidbazar",
-      effectiveDate: "10 Mar 2026",
-      status: StaffStatus.PROBATION,
-    },
-    {
-      mioName: "Sabbir Hossain",
-      empId: "EMP-2058",
-      phone: "+880 1515-678901",
-      division: "Rajshahi Division",
-      territory: "Rajshahi Metro",
-      allocatedZone: "Shaheb Bazar, Laxmipur & Medical College",
-      effectiveDate: "01 Feb 2026",
-      status: StaffStatus.ACTIVE,
-    },
-    {
-      mioName: "Mahmudul Hasan",
-      empId: "EMP-2063",
-      phone: "+880 1716-789012",
-      division: "Khulna Division",
-      territory: "Khulna Zone",
-      allocatedZone: "Shibbari More, Daulatpur & Boyra",
-      effectiveDate: "01 Apr 2026",
-      status: StaffStatus.ACTIVE,
-    },
-  ];
-
-  for (const item of defaultSeedData) {
-    let staff = await prisma.staff.findFirst({
-      where: {
-        OR: [
-          { empId: item.empId },
-          { fullName: { equals: item.mioName, mode: "insensitive" } },
-        ],
-      },
-    });
-
-    if (!staff) {
-      staff = await prisma.staff.create({
-        data: {
-          empId: item.empId,
-          fullName: item.mioName,
-          phone: item.phone,
-          department: "Field Force",
-          territory: item.territory,
-          status: item.status,
-          joiningDate: new Date(),
-        },
-      });
-    }
-
-    await prisma.mioZoneAllocation.create({
-      data: {
-        staffId: staff.id,
-        mioName: item.mioName,
-        employeeId: item.empId,
-        phone: item.phone,
-        division: item.division,
-        territory: item.territory,
-        allocatedZone: item.allocatedZone,
-        effectiveDate: item.effectiveDate,
-      },
-    });
-  }
-};
-
 export const zoneAllocationService = {
   async getAllAllocations(filters?: {
     searchTerm?: string;
     division?: string;
     status?: string;
   }) {
-    await seedDefaultAllocationsIfEmpty();
 
     const [allocations, staffMembers, allDoctors, allClients] = await Promise.all([
       prisma.mioZoneAllocation.findMany({

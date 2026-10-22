@@ -1,72 +1,30 @@
 /// <reference types="node" />
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { ALL_SYSTEM_MODULES } from "../src/services/rbacService";
 
 const prisma = new PrismaClient();
-
-const SUPERADMIN_ROLE = {
-  name: "Super Administrator",
-  code: "SUPERADMIN",
-  description: "Initial master operational role with unrestricted privileges across statutory audits, financial releases, and system settings.",
-  isSystemDefault: true,
-  permissions: [
-    {
-      module: "Doctor Registry",
-      category: "Clinical",
-      read: true,
-      create: true,
-      edit: true,
-      delete: true,
-      specialAction: "Re-rank Category Tiers",
-      specialGranted: true,
-    },
-    {
-      module: "FEFO Stock Control",
-      category: "Warehouse",
-      read: true,
-      create: true,
-      edit: true,
-      delete: true,
-      specialAction: "Quarantine / Write-off Batch",
-      specialGranted: true,
-    },
-    {
-      module: "Sales & Dispatch",
-      category: "Logistics",
-      read: true,
-      create: true,
-      edit: true,
-      delete: true,
-      specialAction: "Override Credit Hold",
-      specialGranted: true,
-    },
-    {
-      module: "Accounts & Collections",
-      category: "Finance",
-      read: true,
-      create: true,
-      edit: true,
-      delete: true,
-      specialAction: "Authorize Bank Release",
-      specialGranted: true,
-    },
-    {
-      module: "Staff & Payroll",
-      category: "Human Resources",
-      read: true,
-      create: true,
-      edit: true,
-      delete: true,
-      specialAction: "Issue Appointment Letters",
-      specialGranted: true,
-    },
-  ],
-};
 
 async function seed() {
   console.log("🌱 Starting Database Seed for Superadmin Role & User...");
 
-  // 1. Find or create the initial SUPERADMIN role
+  // 1. Ensure corporate Role exists in prisma.role for Super Administrator
+  let corpSuperRole = await prisma.role.findFirst({
+    where: { name: { equals: "Super Administrator", mode: "insensitive" } },
+  });
+
+  if (!corpSuperRole) {
+    console.log("Creating corporate Role: Super Administrator...");
+    corpSuperRole = await prisma.role.create({
+      data: {
+        name: "Super Administrator",
+        permissions: ["ALL_ACCESS", "VIEW_DASHBOARD"],
+      },
+    });
+    console.log(`✅ Corporate Role created with ID: ${corpSuperRole.id}`);
+  }
+
+  // 2. Find or create the initial SUPERADMIN system role in prisma.systemRole
   let superadminRole = await prisma.systemRole.findFirst({
     where: {
       OR: [{ code: "SUPERADMIN" }, { code: "SUPER_ADMIN" }],
@@ -77,21 +35,58 @@ async function seed() {
     console.log("Creating initial SUPERADMIN system role...");
     superadminRole = await prisma.systemRole.create({
       data: {
-        name: SUPERADMIN_ROLE.name,
-        code: SUPERADMIN_ROLE.code,
-        description: SUPERADMIN_ROLE.description,
-        isSystemDefault: SUPERADMIN_ROLE.isSystemDefault,
-        permissions: {
-          create: SUPERADMIN_ROLE.permissions,
-        },
+        name: "Super Administrator",
+        code: "SUPERADMIN",
+        description: "Initial master operational role with unrestricted privileges across statutory audits, financial releases, and system settings.",
+        isSystemDefault: true,
       },
     });
-    console.log(`✅ SUPERADMIN role created with ID: ${superadminRole.id}`);
+    console.log(`✅ SUPERADMIN system role created with ID: ${superadminRole.id}`);
   } else {
     console.log(`ℹ️ SUPERADMIN role already exists (code: ${superadminRole.code}, id: ${superadminRole.id})`);
   }
 
-  // 2. Find or create the root SUPERADMIN user
+  // 3. Grant full permissions for ALL 28 system modules
+  console.log("Syncing master permissions for all modules...");
+  for (const mod of ALL_SYSTEM_MODULES) {
+    const existingPerm = await prisma.rolePermission.findFirst({
+      where: {
+        roleId: superadminRole.id,
+        module: mod.module,
+      },
+    });
+
+    if (!existingPerm) {
+      await prisma.rolePermission.create({
+        data: {
+          roleId: superadminRole.id,
+          module: mod.module,
+          category: mod.category,
+          read: true,
+          create: true,
+          edit: true,
+          delete: true,
+          specialAction: mod.specialAction,
+          specialGranted: true,
+        },
+      });
+    } else {
+      await prisma.rolePermission.update({
+        where: { id: existingPerm.id },
+        data: {
+          category: mod.category,
+          read: true,
+          create: true,
+          edit: true,
+          delete: true,
+          specialAction: mod.specialAction,
+          specialGranted: true,
+        },
+      });
+    }
+  }
+
+  // 4. Find or create the root SUPERADMIN user
   const adminEmail = process.env.SUPERADMIN_EMAIL || "superadmin@pharma.com";
   const defaultPassword = process.env.SUPERADMIN_PASSWORD || "admin123456";
 
@@ -124,6 +119,7 @@ async function seed() {
   console.log(`   Email:    ${adminEmail}`);
   console.log(`   Password: ${defaultPassword}`);
   console.log(`   Role:     ${superadminRole.code}`);
+  console.log(`   Modules:  ${ALL_SYSTEM_MODULES.length} fully granted`);
   console.log("========================================================\n");
 }
 

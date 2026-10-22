@@ -30,6 +30,8 @@ import {
   TrendingUp,
 } from "lucide-react"
 
+import { getEndpoint } from "@/lib/api"
+
 interface TimelineEvent {
   id: string
   doctorName: string
@@ -53,121 +55,53 @@ interface TimelineEvent {
   nextScheduledFollowUp: string
 }
 
-const initialTimelineEvents: TimelineEvent[] = [
-  {
-    id: "evt-1",
-    doctorName: "Dr. Anwarul Azim",
-    specialty: "Cardiology",
-    chamber: "Popular Diagnostic Center, Dhanmondi (Room 402)",
-    tier: "A+",
-    mioName: "Rafiqul Islam",
-    territory: "Dhaka North",
-    date: "16 Sep 2026",
-    time: "10:30 AM",
-    callType: "New Drug Detailing",
-    promotedProducts: ["Rosuvastatin 10mg", "Cardiloc 5mg"],
-    samplesGiven: "4 Starter Strips + Clinical Monograph",
-    feedbackSentiment: "High Potential",
-    physicianFeedback:
-      "Agreed to trial Rosuvastatin on newly diagnosed hyperlipidemia patients. Requested stock availability check at nearby Popular Pharmacy.",
-    nextScheduledFollowUp: "30 Sep 2026",
-  },
-  {
-    id: "evt-2",
-    doctorName: "Dr. Farhana Yasmin",
-    specialty: "Gynecology & Obstetrics",
-    chamber: "Labaid Specialized Hospital, Sector 4, Uttara",
-    tier: "A+",
-    mioName: "Rafiqul Islam",
-    territory: "Dhaka North",
-    date: "16 Sep 2026",
-    time: "12:15 PM",
-    callType: "Gift Handover",
-    promotedProducts: ["Fefol-Z Capsules", "Calcium D3 Tablets"],
-    samplesGiven: "6 Strips + Executive Desk Calendar",
-    feedbackSentiment: "Positive",
-    physicianFeedback:
-      "Consistent satisfaction with Fefol-Z tolerability in antenatal care. Expressed interest in pediatric iron drops launch.",
-    nextScheduledFollowUp: "02 Oct 2026",
-  },
-  {
-    id: "evt-3",
-    doctorName: "Dr. S. K. Roy",
-    specialty: "Internal Medicine",
-    chamber: "Medinova Medical Services, Mirpur 10",
-    tier: "A",
-    mioName: "Tanvir Ahmed",
-    territory: "Dhaka South",
-    date: "15 Sep 2026",
-    time: "01:30 PM",
-    callType: "Scheduled Routine",
-    promotedProducts: ["Azithromycin 500mg", "Omeprazole 20mg"],
-    samplesGiven: "2 Patient Trial Packs",
-    feedbackSentiment: "High Potential",
-    physicianFeedback:
-      "Emphasized prescribing compliance. Recommended our formulation over competitor generics for elderly outpatients.",
-    nextScheduledFollowUp: "29 Sep 2026",
-  },
-  {
-    id: "evt-4",
-    doctorName: "Dr. Mehedi Hasan",
-    specialty: "Pediatrics",
-    chamber: "Chevron Clinical Lab, GEC Circle, Chittagong",
-    tier: "A",
-    mioName: "Kamrul Hasan",
-    territory: "Chittagong Central",
-    date: "14 Sep 2026",
-    time: "03:45 PM",
-    callType: "Post-Campaign Follow-up",
-    promotedProducts: ["Cef-3 Pediatric Suspension", "Zinc Drops"],
-    samplesGiven: "5 Trial Vials",
-    feedbackSentiment: "Neutral",
-    physicianFeedback:
-      "Reported that local chemists were briefly stocked out of 50ml suspension bottles last weekend. Area distributor alerted.",
-    nextScheduledFollowUp: "28 Sep 2026",
-  },
-  {
-    id: "evt-5",
-    doctorName: "Dr. Mustafizur Rahman",
-    specialty: "Orthopedic Surgery",
-    chamber: "Ibn Sina Hospital, Subidbazar, Sylhet",
-    tier: "B",
-    mioName: "Enamul Haque",
-    territory: "Sylhet Sadar",
-    date: "12 Sep 2026",
-    time: "05:10 PM",
-    callType: "Scheduled Routine",
-    promotedProducts: ["Aceclofenac 100mg", "Diacerein 50mg"],
-    samplesGiven: "3 Strips",
-    feedbackSentiment: "Follow-up Required",
-    physicianFeedback:
-      "Requested comparative gastric safety trial studies before switching from current brand standard.",
-    nextScheduledFollowUp: "26 Sep 2026",
-  },
-  {
-    id: "evt-6",
-    doctorName: "Dr. Nadia Islam",
-    specialty: "General Physician",
-    chamber: "Apollo Clinic, Shaheb Bazar, Rajshahi",
-    tier: "B",
-    mioName: "Sabbir Hossain",
-    territory: "Rajshahi Metro",
-    date: "10 Sep 2026",
-    time: "06:30 PM",
-    callType: "Scheduled Routine",
-    promotedProducts: ["Pantoprazole 20mg", "Multivitamin Capsules"],
-    samplesGiven: "4 Strips",
-    feedbackSentiment: "Positive",
-    physicianFeedback:
-      "Noted prompt recovery responses in acid peptic disease cases. Will maintain regular prescription support.",
-    nextScheduledFollowUp: "10 Oct 2026",
-  },
-]
-
 export default function VisitHistoryTimelinePage() {
-  const [events, setEvents] = React.useState<TimelineEvent[]>(
-    initialTimelineEvents
-  )
+  const [events, setEvents] = React.useState<TimelineEvent[]>([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    async function fetchVisitLogs() {
+      try {
+        const res = await fetch(getEndpoint("/doctor-visit-logs"))
+        if (res.ok) {
+          const json = await res.json()
+          const rawLogs = Array.isArray(json) ? json : json.data || []
+          const mapped: TimelineEvent[] = rawLogs.map((log: any, idx: number) => ({
+            id: log.id || `evt-${idx + 1}`,
+            doctorName: log.doctorName || "Dr. Medical Practitioner",
+            specialty: log.specialty || "General Medicine",
+            chamber: log.chamber || "Central Chamber",
+            tier: "A",
+            mioName: log.mioName || "Field Representative",
+            territory: log.territory || "Territory Hub",
+            date:
+              log.visitDate ||
+              new Date(log.createdAt || Date.now()).toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              }),
+            time: log.visitTime || "10:30 AM",
+            promotedProducts: log.promotedDrugs
+              ? log.promotedDrugs.split(",").map((s: string) => s.trim())
+              : ["Prescription Detailing"],
+            samplesGiven: log.samplesGiven || "Standard Detailing Pack",
+            callType: "Scheduled Routine",
+            feedbackSentiment: "Positive",
+            physicianFeedback:
+              log.feedback || "Detailing conducted and product features communicated.",
+            nextScheduledFollowUp: "Pending Cycle Schedule",
+          }))
+          setEvents(mapped)
+        }
+      } catch {
+        // ignore network error
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchVisitLogs()
+  }, [])
   const [searchQuery, setSearchQuery] = React.useState("")
   const [territoryFilter, setTerritoryFilter] = React.useState("all")
   const [sentimentFilter, setSentimentFilter] = React.useState("all")
@@ -360,10 +294,24 @@ export default function VisitHistoryTimelinePage() {
         </div>
 
         <div className="relative space-y-8 pl-6 sm:pl-8">
-          {/* Vertical Connecting Guide Line */}
-          <div className="absolute top-3 bottom-3 left-[15px] w-[2px] bg-slate-200 sm:left-[19px]" />
+          {filteredEvents.length === 0 ? (
+            <div className="py-16 text-center text-xs text-slate-400">
+              <AlertCircle className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+              <p className="font-medium text-slate-600">
+                {loading
+                  ? "Loading detailing chronology..."
+                  : "No physician visit timeline events found."}
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Visit interactions logged by medical representatives will be displayed here in chronological order.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Vertical Connecting Guide Line */}
+              <div className="absolute top-3 bottom-3 left-[15px] w-[2px] bg-slate-200 sm:left-[19px]" />
 
-          {filteredEvents.map((evt) => (
+              {filteredEvents.map((evt) => (
             <div
               key={evt.id}
               className="relative flex flex-col items-start gap-4 sm:flex-row sm:gap-6"
@@ -521,7 +469,9 @@ export default function VisitHistoryTimelinePage() {
               </div>
             </div>
           ))}
-        </div>
+        </>
+      )}
+    </div>
       </Card>
     </div>
   )
