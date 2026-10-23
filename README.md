@@ -1,341 +1,98 @@
 # AK Pharma Management System
 
-A full-stack pharmaceutical management application with Next.js frontend and Express/TypeScript backend.
-
-## Tech Stack
-
-### Frontend
-- **Framework**: Next.js 16 (App Router)
-- **UI Library**: React 19, TypeScript
-- **Styling**: Tailwind CSS
-- **State Management**: React Context / Server Components
-- **Forms**: React Hook Form with Zod validation
-- **Charts**: Recharts / Chart.js
-
-### Backend
-- **Runtime**: Node.js 20+ with TypeScript
-- **Framework**: Express.js
-- **Database ORM**: Prisma ORM
-- **Database**: PostgreSQL
-- **Authentication**: JWT (jsonwebtoken) with bcryptjs password hashing
-- **Validation**: Zod (schema validation)
-- **Architecture**: Layered architecture (Controller → Service → Prisma)
-
-### Development & Deployment
-- **Package Manager**: npm
-- **Type Checking**: TypeScript 5.3+
-- **Dev Server**: tsx (TypeScript execution)
-- **Process Manager**: PM2 (production)
-- **Deployment**: Vercel (Frontend), Vercel/Render/Railway (Backend)
-
-### Key Libraries
-| Category | Libraries |
-|----------|-----------|
-| HTTP & Routing | express, cors |
-| Database | @prisma/client, prisma |
-| Auth | jsonwebtoken, bcryptjs |
-| Validation | zod |
-| Environment | dotenv |
-| Dev Tools | tsx, typescript, @types/* |
+An enterprise-grade Pharmaceutical ERP and Field Force Automation platform designed for pharmaceutical manufacturers, distributors, and field operations.
 
 ---
 
-## Prerequisites
+## 🚀 Key Modules & Capabilities
 
-- Node.js 20+
-- PostgreSQL 14+
-- npm or yarn
-
----
-
-## Quick Start
-
-### 1. Clone & Install Dependencies
-
-```bash
-# Backend
-cd backend
-npm install
-
-# Frontend
-cd ../frontend
-npm install
-```
-
-### 2. Configure Environment Variables
-
-#### Backend (`backend/.env`)
-```env
-DATABASE_URL="postgresql://username:password@localhost:5432/pharma_management?schema=public"
-JWT_SECRET="your-super-secret-jwt-key-change-in-production"
-PORT=5000
-NODE_ENV=development
-```
-
-#### Frontend (`frontend/.env.local`)
-```env
-NEXT_PUBLIC_API_URL="http://localhost:5000/api"
-```
-
-### 3. Setup Database
-
-```bash
-cd backend
-
-# Generate Prisma client
-npx prisma generate
-
-# Run migrations
-npx prisma migrate dev --name init
-
-# (Optional) Seed default roles & admin user
-npx prisma db seed
-```
-
-### 4. Start Development Servers
-
-```bash
-# Terminal 1 - Backend (port 5000)
-cd backend
-npm run dev
-
-# Terminal 2 - Frontend (port 3000)
-cd frontend
-npm run dev
-```
-
-### 5. Access the Application
-
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:5000/api
-- **Health Check**: http://localhost:5000/health
+- **📦 Inventory & Warehouse**: Batch-level inventory management with First-Expired, First-Out (FEFO) tracking, automated expiry warnings, and stock adjustments.
+- **🩺 Doctor Registry & Field Force (MIO)**: Territory mapping, Medical Information Officer (MIO) visit logging, doctor profiling, and target analytics.
+- **💼 Sales & Procurement**: Complete lifecycle management for purchase orders, client invoicing, sales orders, and logistics delivery.
+- **💳 Finance & Treasury**: Double-entry accounting ledger, bank and cash account monitoring, treasury deposits, and expense vouchers.
+- **👥 HR & Payroll**: Staff onboarding, employee records, attendance, and automated salary processing.
+- **🛡️ RBAC & Audit Trails**: Granular role-based access control across 28+ system modules with audit logging and JWT authentication.
 
 ---
 
-## Default Login Credentials
+## 🛠️ Tech Stack
 
-After seeding, a default super admin is created:
-
-- **Email**: `toshin@admin.com`
-- **Password**: `admin123456`
+| Domain | Technologies |
+|---|---|
+| **Frontend** | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Radix UI, Recharts, Sonner |
+| **Backend** | Node.js 20+, Express.js, TypeScript, Prisma ORM, MongoDB |
+| **Authentication** | JWT (JSON Web Tokens), bcryptjs |
+| **Validation** | Zod (schema-driven validation) |
 
 ---
 
-## Project Structure
+## 📁 Architecture Overview
+
+The backend is built on a clean **layered architecture**:
+
+```
+Request → Route → Validation (Zod) → Controller (catchAsync) → Service → Prisma → MongoDB
+                                              ↓
+                               Response (sendResponse utility)
+```
 
 ```
 pharma-management/
-├── backend/
-│   ├── api/                    # Vercel serverless deployment entry point (index.ts)
-│   ├── prisma/
-│   │   ├── migrations/         # PostgreSQL database migration scripts
-│   │   └── schema.prisma       # Prisma ORM data models & relations
-│   ├── src/
-│   │   ├── controllers/        # HTTP route controllers (request parsing & response handling)
-│   │   │   ├── accountLedgerController.ts
-│   │   │   ├── clientController.ts
-│   │   │   ├── dashboardController.ts
-│   │   │   ├── doctorController.ts
-│   │   │   ├── financeOverviewController.ts
-│   │   │   ├── inventoryController.ts
-│   │   │   ├── orderController.ts
-│   │   │   ├── paymentController.ts
-│   │   │   ├── rbacController.ts
-│   │   │   ├── salaryController.ts
-│   │   │   ├── staffController.ts
-│   │   │   └── treasuryController.ts
-│   │   ├── errors/             # Operational error handling & middleware
-│   │   │   ├── AppError.ts              # Custom operational error class (statusCode, isOperational)
-│   │   │   ├── globalErrorHandler.ts    # Centralized Express error handling middleware
-│   │   │   ├── handlePrismaError.ts     # Prisma client error mapper
-│   │   │   ├── handleZodError.ts        # Zod validation error mapper
-│   │   │   └── index.ts
-│   │   ├── routes/             # Express route definitions & endpoint mappings
-│   │   │   ├── accountLedgerRoutes.ts
-│   │   │   ├── clientRoutes.ts
-│   │   │   ├── dashboardRoutes.ts
-│   │   │   ├── doctorRoutes.ts
-│   │   │   ├── financeOverviewRoutes.ts
-│   │   │   ├── inventoryRoutes.ts
-│   │   │   ├── orderRoutes.ts
-│   │   │   ├── paymentRoutes.ts
-│   │   │   ├── rbacRoutes.ts
-│   │   │   ├── salaryRoutes.ts
-│   │   │   ├── staffRoutes.ts
-│   │   │   └── treasuryRoutes.ts
-│   │   ├── services/           # Core business logic layer & Prisma database access
-│   │   │   ├── accountLedgerService.ts
-│   │   │   ├── clientService.ts
-│   │   │   ├── dashboardService.ts
-│   │   │   ├── doctorService.ts
-│   │   │   ├── financeOverviewService.ts
-│   │   │   ├── inventoryService.ts
-│   │   │   ├── orderService.ts
-│   │   │   ├── paymentService.ts
-│   │   │   ├── rbacService.ts
-│   │   │   ├── salaryService.ts
-│   │   │   ├── staffService.ts
-│   │   │   └── treasuryService.ts
-│   │   ├── utils/              # Shared helper functions
-│   │   │   ├── catchAsync.ts   # Async error wrapper for controllers
-│   │   │   ├── response.ts     # Standardized JSON API response helper (`sendResponse`)
-│   │   │   └── validate.ts     # Zod request validation middleware
-│   │   ├── validations/        # Zod validation schemas for request payloads
-│   │   │   ├── accountLedgerValidation.ts
-│   │   │   ├── clientValidation.ts
-│   │   │   ├── doctorValidation.ts
-│   │   │   ├── inventoryValidation.ts
-│   │   │   ├── orderValidation.ts
-│   │   │   ├── paymentValidation.ts
-│   │   │   ├── rbacValidation.ts
-│   │   │   ├── salaryValidation.ts
-│   │   │   ├── staffValidation.ts
-│   │   │   └── treasuryValidation.ts
-│   │   └── server.ts           # Express server setup, CORS, middleware & route registration
-│   ├── .env                    # Environment variables configuration
-│   ├── package.json            # Dependencies and npm scripts
-│   ├── tsconfig.json           # TypeScript configuration
-│   └── vercel.json             # Vercel deployment configuration
-├── frontend/
-│   ├── app/                    # Next.js App Router pages
-│   ├── components/             # React components
-│   ├── lib/                    # Utilities & API helpers
-│   └── package.json
-└── README.md
-```
-
-## Backend Architecture
-
-The backend follows a **layered architecture** pattern:
-
-```
-Request → Route → Validation → Controller → Service → Prisma → Database
-                      ↓
-                  Response (via sendResponse utility)
-```
-
-### Layers
-
-| Layer | Responsibility | Location |
-|-------|---------------|----------|
-| **Routes** | Define API endpoints, mount controllers & validation middleware | `src/routes/*.ts` |
-| **Validations** | Request body, query, and param validation schemas (Zod) | `src/validations/*.ts` |
-| **Controllers** | Handle HTTP request parsing, call services, return responses | `src/controllers/*.ts` |
-| **Services** | Core business logic, data calculations, Prisma database queries | `src/services/*.ts` |
-| **Errors** | Custom `AppError` class, Zod/Prisma error mappers & global error handler | `src/errors/*.ts` |
-| **Utils** | Shared helpers (`catchAsync`, `sendResponse`, `validate`) | `src/utils/*.ts` |
-
-### Key Utilities
-
-- **`catchAsync`** - Wrapper to catch async errors and pass to Express error handler
-- **`sendResponse`** - Standardized API response format
-
-```typescript
-// Example usage in controller
-export const getAllDoctors = catchAsync(async (req: Request, res: Response) => {
-  const doctors = await doctorService.getAllDoctors();
-  sendResponse(res, 200, "Doctors retrieved successfully", doctors);
-});
-```
-
-### Response Format
-
-All API responses follow a consistent structure:
-
-```json
-{
-  "success": true,
-  "statusCode": 200,
-  "message": "Operation successful",
-  "data": { ... },
-  "meta": { ... }
-}
+├── backend/       # Express REST API, Prisma schema, services & controllers
+└── frontend/      # Next.js 16 App Router interface & UI components
 ```
 
 ---
 
-## Available Scripts
+## ⚡ Quick Start
 
-### Backend
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start dev server with hot reload |
-| `npm run build` | Compile TypeScript |
-| `npm start` | Run production build |
-| `npx prisma studio` | Open Prisma DB GUI |
-| `npx prisma migrate dev` | Run migrations in dev |
+### 1. Prerequisites
+- **Node.js**: v20 or higher
+- **MongoDB**: MongoDB Atlas cluster or local instance
 
-### Frontend
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start Next.js dev server |
-| `npm run build` | Build for production |
-| `npm start` | Run production build |
-| `npm run lint` | Run ESLint |
-| `npm run typecheck` | TypeScript type checking |
+### 2. Backend Setup
+```bash
+cd backend
+npm install
 
----
+# Configure backend/.env with DATABASE_URL & JWT_SECRET
+# Example:
+# DATABASE_URL="mongodb+srv://<user>:<password>@cluster0.mongodb.net/pharma_management?retryWrites=true&w=majority"
+# JWT_SECRET="your-secret-key"
 
-## API Endpoints
+# Generate Prisma client, sync schema & seed initial admin
+npx prisma generate
+npx prisma db push
+npm run seed
 
-| Module | Base Path |
-|--------|-----------|
-| Authentication | `/api/auth`, `/api/rbac` |
-| Doctors | `/api/doctors` |
-| Staff & Payroll | `/api/staff`, `/api/salary` |
-| Clients | `/api/clients` |
-| Orders & Logistics | `/api/orders` |
-| Inventory | `/api/inventory` |
-| Finance | `/api/account-ledger`, `/api/payments`, `/api/expense-vouchers` |
-| Treasury | `/api/treasury` |
-| Dashboard | `/api/dashboard`, `/api/finance-overview` |
+# Start API server (http://localhost:5000)
+npm run dev
+```
 
----
+### 3. Frontend Setup
+```bash
+cd frontend
+npm install
 
-## Deployment
+# Configure frontend/.env.local:
+# NEXT_PUBLIC_API_URL="http://localhost:5000/api"
 
-### Backend (Vercel/Render/Railway)
-1. Set `NODE_ENV=production`
-2. Set `DATABASE_URL` to production PostgreSQL
-3. Set strong `JWT_SECRET`
-4. Run `npm run build` then `npm start`
-
-### Frontend (Vercel)
-1. Set `NEXT_PUBLIC_API_URL` to production backend URL
-2. Deploy via Vercel CLI or Git integration
+# Start Next.js client (http://localhost:3000)
+npm run dev
+```
 
 ---
 
-## Database Schema Overview
+## 🔐 Default Credentials
 
-Key models:
-- **SystemUser/Role/Permission** - RBAC authentication
-- **Doctor** - Doctor registry with territory management
-- **Staff/Salary** - HR and payroll
-- **Client/Order** - Sales and client management
-- **InventoryBatch** - FEFO stock control
-- **FinancialAccount/JournalTransaction** - Double-entry accounting
-- **TreasuryDeposit/ExpenseVoucher** - Cash management
+After seeding the database (`npm run seed` in `backend`):
+
+| Role | Email | Password |
+|---|---|---|
+| **Super Administrator** | `superadmin@pharma.com` | `admin123456` |
 
 ---
 
-## Troubleshooting
+## 📄 License
 
-### Database Connection Issues
-- Verify PostgreSQL is running
-- Check `DATABASE_URL` format: `postgresql://user:pass@host:port/db?schema=public`
-- Ensure database exists: `createdb pharma_management`
-
-### Port Conflicts
-- Backend default: 5000 → change `PORT` in `.env`
-- Frontend default: 3000 → Next.js auto-increments if busy
-
-### CORS Errors
-- Backend allows all origins in development (`origin: true`)
-- For production, configure specific origins in `server.ts`
-
----
-
-## License
-
-Private project - AK Pharma Management System
+Proprietary — AK Pharma Management System. All rights reserved.
