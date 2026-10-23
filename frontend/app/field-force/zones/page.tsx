@@ -1247,7 +1247,7 @@ export default function MioZoneAllocationsPage() {
                 </Label>
                 <Input
                   id="edit-zone"
-                  value={editingItem.allocatedZone}
+                  value={editingItem.allocatedZone || ""}
                   onChange={(e) =>
                     setEditingItem({
                       ...editingItem,
@@ -1267,7 +1267,7 @@ export default function MioZoneAllocationsPage() {
                   </Label>
                   <Input
                     id="edit-date"
-                    value={editingItem.effectiveDate}
+                    value={editingItem.effectiveDate || ""}
                     onChange={(e) =>
                       setEditingItem({
                         ...editingItem,
