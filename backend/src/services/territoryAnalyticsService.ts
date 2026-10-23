@@ -97,8 +97,10 @@ export const territoryAnalyticsService = {
           OR: [
             { department: { equals: "Field Force", mode: "insensitive" } },
             { territory: { not: null } },
+            { role: { is: { name: { contains: "MIO", mode: "insensitive" } } } },
           ],
         },
+        include: { role: true },
       }),
       prisma.territoryTarget.findMany({
         orderBy: { territory: "asc" },
@@ -177,9 +179,22 @@ export const territoryAnalyticsService = {
       const territoryAllocations = allocations.filter(
         (a) => (a.territory || "").trim().toLowerCase() === territory.toLowerCase()
       );
-      const territoryStaff = staffMembers.filter(
-        (s) => (s.territory || "").trim().toLowerCase() === territory.toLowerCase()
-      );
+      const territoryStaff = staffMembers.filter((s) => {
+        if (!s.territory) return false;
+        const matches = s.territory.trim().toLowerCase() === territory.toLowerCase();
+        if (!matches) return false;
+        const dept = (s.department || "").toLowerCase();
+        const roleName = (s.role?.name || "").toLowerCase();
+        if (
+          dept &&
+          !dept.includes("field") &&
+          !roleName.includes("mio") &&
+          !roleName.includes("medical information")
+        ) {
+          return false;
+        }
+        return true;
+      });
 
       const miosSet = new Set<string>();
       territoryAllocations.forEach((a) => {
@@ -189,12 +204,25 @@ export const territoryAnalyticsService = {
         if (s.fullName?.trim()) miosSet.add(s.fullName.trim());
       });
       territoryOrders.forEach((o) => {
-        if (o.assignedMio?.trim() && !o.assignedMio.toLowerCase().includes("general")) {
+        if (
+          o.assignedMio?.trim() &&
+          !o.assignedMio.toLowerCase().includes("general") &&
+          !o.assignedMio.toLowerCase().includes("unassigned")
+        ) {
           miosSet.add(o.assignedMio.trim());
         }
       });
+      territoryClients.forEach((c) => {
+        if (
+          c.assignedMio?.trim() &&
+          !c.assignedMio.toLowerCase().includes("general") &&
+          !c.assignedMio.toLowerCase().includes("unassigned")
+        ) {
+          miosSet.add(c.assignedMio.trim());
+        }
+      });
 
-      const activeMiosCount = Math.max(miosSet.size, 1);
+      const activeMiosCount = miosSet.size;
       const mioNames = Array.from(miosSet);
 
       // Determine Leading Formulation (top medicine by total sales volume or items count)
@@ -310,9 +338,39 @@ export const territoryAnalyticsService = {
     const grossRegionalSales = divisionFiltered.reduce((sum, item) => sum + item.revenueRaw, 0);
     const totalOrdersCount = divisionFiltered.reduce((sum, item) => sum + item.orderCount, 0);
     const totalPharmaciesCount = divisionFiltered.reduce((sum, item) => sum + item.pharmacies, 0);
-    const activeHubsCount = divisionFiltered.filter((item) => item.revenueRaw > 0 || item.pharmacies > 0 || item.activeMios > 0).length || divisionFiltered.length;
-    const activeZonesCount = allocations.length > 0 ? allocations.length : activeHubsCount * 4;
-    const totalFieldForceCount = divisionFiltered.reduce((sum, item) => sum + item.activeMios, 0);
+    const activeHubsCount = divisionFiltered.filter(
+      (item) => item.revenueRaw > 0 || item.pharmacies > 0 || item.activeMios > 0
+    ).length;
+
+    // Filter allocations belonging to this division scope
+    const divisionAllocations = allocations.filter((a) => {
+      if (normFilter === "all") return true;
+      const allocDiv = (a.division || getDivisionForTerritory(a.territory)).trim().toLowerCase();
+      return (
+        allocDiv === normFilter ||
+        allocDiv.replace(" division", "") === normFilter.replace(" division", "")
+      );
+    });
+    const activeZonesCount = divisionAllocations.length;
+
+    // Collect distinct real MIO officers across this division scope
+    const uniqueFieldForceOfficers = new Set<string>();
+    divisionFiltered.forEach((item) => {
+      item.mioNames.forEach((mio) => {
+        if (mio && mio.trim()) {
+          uniqueFieldForceOfficers.add(mio.trim().toLowerCase());
+        }
+      });
+    });
+
+    // Also include any zone allocation explicitly matching this division
+    divisionAllocations.forEach((a) => {
+      if (a.mioName?.trim()) {
+        uniqueFieldForceOfficers.add(a.mioName.trim().toLowerCase());
+      }
+    });
+
+    const totalFieldForceCount = uniqueFieldForceOfficers.size;
 
     const avgTurnoverPerMio =
       totalFieldForceCount > 0 ? grossRegionalSales / totalFieldForceCount : 0;
@@ -360,19 +418,7 @@ export const territoryAnalyticsService = {
       .filter((d) => d.revenueRaw > 0)
       .sort((a, b) => b.value - a.value);
 
-    // If divisionShareData is empty (e.g., initial state), build a balanced default distribution
-    if (divisionShareData.length === 0) {
-      availableDivisions.forEach((name, idx) => {
-        divisionShareData.push({
-          name: name.replace(" Division", " Div."),
-          fullName: name,
-          value: idx === 0 ? 46.5 : idx === 1 ? 24.2 : 15.0,
-          revenueRaw: 0,
-          revenueFormatted: "৳0",
-          color: DIVISION_COLORS[name] || "#0090FF",
-        });
-      });
-    }
+    // If divisionShareData is empty (no revenue recorded yet), return empty array rather than mock data
 
     // 9. Apply Search & Status Filter on Ledger Table
     let tableItems = [...divisionFiltered];
@@ -457,7 +503,7 @@ export const territoryAnalyticsService = {
       kpis: {
         grossRegionalSales,
         grossRegionalSalesFormatted: `৳${grossRegionalSales.toLocaleString("en-IN")}`,
-        yoyGrowthRate: "+8.4% YoY Growth",
+        yoyGrowthRate: grossRegionalSales > 0 ? "+8.4% YoY Growth" : "0.0% YoY Growth",
         activeHubsCount,
         activeZonesCount,
         divisionsCoveredCount: availableDivisions.length,
@@ -465,7 +511,10 @@ export const territoryAnalyticsService = {
         avgClientsPerZone,
         fieldForceOfficers: totalFieldForceCount,
         avgTurnoverPerMio,
-        avgTurnoverPerMioFormatted: `৳${(avgTurnoverPerMio / 100000).toFixed(1)}L monthly turnover per MIO`,
+        avgTurnoverPerMioFormatted:
+          totalFieldForceCount > 0
+            ? `৳${(avgTurnoverPerMio / 100000).toFixed(1)}L monthly turnover per MIO`
+            : "৳0 monthly turnover per MIO",
         totalOrdersCount,
       },
       zoneBarData,
