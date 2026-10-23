@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { AlertCircle, CheckCircle2, Loader2, Lock } from "lucide-react"
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, Lock } from "lucide-react"
+import { toast } from "sonner"
 import { setAuthSession } from "@/lib/auth"
 import { API_URL, getApiUrl } from "@/lib/api"
 
@@ -17,8 +18,9 @@ function LoginForm() {
   const fromUrl = searchParams.get("from")
   const isExpired = searchParams.get("expired") === "1"
 
-  const [email, setEmail] = React.useState("superadmin@pharma.com")
-  const [password, setPassword] = React.useState("admin123456")
+  const [email, setEmail] = React.useState()
+  const [password, setPassword] = React.useState()
+  const [showPassword, setShowPassword] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
   const [successMessage, setSuccessMessage] = React.useState<string | null>(
@@ -172,7 +174,7 @@ function LoginForm() {
               <button
                 type="button"
                 onClick={() =>
-                  alert(
+                  toast.info(
                     "Please contact your System Administrator to reset your security credentials."
                   )
                 }
@@ -181,16 +183,33 @@ function LoginForm() {
                 Forgot password?
               </button>
             </div>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={loading}
-              autoComplete="current-password"
-              className="h-10 rounded-lg border-slate-200 text-xs focus-visible:ring-1 focus-visible:ring-slate-950"
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+                autoComplete="current-password"
+                className="h-10 rounded-lg border-slate-200 pr-10 text-xs focus-visible:ring-1 focus-visible:ring-slate-950"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                disabled={loading}
+                className="absolute right-0 top-0 flex h-10 w-10 items-center justify-center text-slate-400 transition-colors hover:text-slate-700 focus:outline-hidden disabled:pointer-events-none"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           <Button

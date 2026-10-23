@@ -522,7 +522,7 @@ export default function TerritorySalesBreakdownPage() {
               <Skeleton className="h-8 w-28" />
             ) : (
               <div className="text-[28px] font-bold tracking-tight text-slate-900">
-                {data?.kpis?.fieldForceOfficers || 0} Officers
+                {data?.kpis?.fieldForceOfficers ?? 0} Officer{(data?.kpis?.fieldForceOfficers ?? 0) === 1 ? "" : "s"}
               </div>
             )}
           </div>
@@ -954,7 +954,7 @@ export default function TerritorySalesBreakdownPage() {
                         className="inline-flex items-center justify-center rounded-full bg-slate-100 h-6 px-2 text-[11px]"
                         title={item.mioNames?.join(", ") || "No MIO"}
                       >
-                        {item.activeMios} MIO{item.activeMios > 1 ? "s" : ""}
+                        {item.activeMios} MIO{item.activeMios === 1 ? "" : "s"}
                       </span>
                     </TableCell>
                     <TableCell className="py-3.5 text-xs text-slate-700 font-medium text-center">
@@ -1204,7 +1204,7 @@ export default function TerritorySalesBreakdownPage() {
                     Assigned Field Force (MIOs)
                   </span>
                   <span className="text-[11px] text-slate-400">
-                    {activeTerritory.mioNames?.length || 0} Officers
+                    {activeTerritory.mioNames?.length || 0} Officer{activeTerritory.mioNames?.length === 1 ? "" : "s"}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
