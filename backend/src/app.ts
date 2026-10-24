@@ -88,11 +88,13 @@ import stockAdjustmentRoutes from "./routes/stockAdjustmentRoutes";
 import auditLogRoutes from "./routes/auditLogRoutes";
 import territoryTargetRoutes from "./routes/territoryTargetRoutes";
 import territoryAnalyticsRoutes from "./routes/territoryAnalyticsRoutes";
+import territoryRoutes from "./routes/territoryRoutes";
 import purchaseOrderRoutes from "./routes/purchaseOrderRoutes";
 import wholesalerRoutes from "./routes/wholesalerRoutes";
 
 // Core Modules
 app.use("/api/audit-logs", auditLogRoutes);
+app.use("/api/territories", territoryRoutes);
 app.use("/api/zone-allocations", zoneAllocationRoutes);
 app.use("/api/targets", territoryTargetRoutes);
 app.use("/api/territory-targets", territoryTargetRoutes);

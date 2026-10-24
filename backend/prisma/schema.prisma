@@ -75,6 +75,7 @@ model Doctor {
   bmdcRegNumber         String   @unique
   specialtyAndInstitute String
   chamber               String
+  territory             String?
   territoryAndMio       String
   email                 String
   tier                  String
@@ -558,4 +559,17 @@ model TerritoryTarget {
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Master Territories
+// ─────────────────────────────────────────────
+
+model Territory {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  division  String?
+  status    String   @default("Active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

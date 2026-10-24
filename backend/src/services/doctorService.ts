@@ -15,6 +15,7 @@ export interface IDoctorFilterOptions {
   bmdcRegNumber?: string;
   specialtyAndInstitute?: string;
   chamber?: string;
+  territory?: string;
   territoryAndMio?: string;
   email?: string;
   tier?: string;
@@ -27,6 +28,7 @@ export const doctorSearchableFields = [
   "bmdcRegNumber",
   "specialtyAndInstitute",
   "chamber",
+  "territory",
   "territoryAndMio",
   "email",
   "tier",
@@ -39,6 +41,7 @@ export const doctorFilterableFields = [
   "bmdcRegNumber",
   "specialtyAndInstitute",
   "chamber",
+  "territory",
   "territoryAndMio",
   "email",
   "tier",
@@ -148,7 +151,8 @@ export const doctorService = {
     bmdcRegNumber: string;
     specialtyAndInstitute: string;
     chamber: string;
-    territoryAndMio: string;
+    territory?: string;
+    territoryAndMio?: string;
     email: string;
     tier: string;
     patientVolumeDaily: number;
@@ -163,6 +167,11 @@ export const doctorService = {
       );
     }
 
+    const territoryVal = data.territory?.trim() || null;
+    const territoryAndMio =
+      data.territoryAndMio ||
+      (territoryVal ? `${territoryVal}` : "Unassigned");
+
     const created = await prisma.doctor.create({
       data: {
         doctorName: data.doctorName,
@@ -170,7 +179,8 @@ export const doctorService = {
         bmdcRegNumber: data.bmdcRegNumber,
         specialtyAndInstitute: data.specialtyAndInstitute,
         chamber: data.chamber,
-        territoryAndMio: data.territoryAndMio,
+        territory: territoryVal,
+        territoryAndMio,
         email: data.email,
         tier: data.tier,
         patientVolumeDaily: data.patientVolumeDaily,
@@ -200,6 +210,7 @@ export const doctorService = {
       bmdcRegNumber?: string;
       specialtyAndInstitute?: string;
       chamber?: string;
+      territory?: string;
       territoryAndMio?: string;
       email?: string;
       tier?: string;
@@ -272,6 +283,7 @@ export const doctorService = {
       bmdcRegNumber: string;
       specialtyAndInstitute?: string;
       chamber?: string;
+      territory?: string;
       territoryAndMio?: string;
       email?: string;
       tier?: string;
@@ -301,7 +313,8 @@ export const doctorService = {
       const phone = item.phone?.trim() || "+880 1700-000000";
       const specialtyAndInstitute = item.specialtyAndInstitute?.trim() || "General Medicine";
       const chamber = item.chamber?.trim() || "Central Chamber";
-      const territoryAndMio = item.territoryAndMio?.trim() || "Dhaka / Unassigned";
+      const territory = item.territory?.trim() || (item.territoryAndMio ? item.territoryAndMio.split("/")[0].trim() : null);
+      const territoryAndMio = item.territoryAndMio?.trim() || (territory ? `${territory} / Unassigned` : "Dhaka / Unassigned");
       const email = item.email?.trim() || "doctor@akpharma.com";
       const tier = item.tier?.trim() || "Tier 1 (High Prescriber)";
       const patientVolumeDaily = Number(item.patientVolumeDaily) || 20;
@@ -319,6 +332,7 @@ export const doctorService = {
               phone,
               specialtyAndInstitute,
               chamber,
+              territory,
               territoryAndMio,
               email,
               tier,
@@ -338,6 +352,7 @@ export const doctorService = {
             bmdcRegNumber: bmdc,
             specialtyAndInstitute,
             chamber,
+            territory,
             territoryAndMio,
             email,
             tier,
