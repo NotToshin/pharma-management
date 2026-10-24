@@ -32,6 +32,13 @@ type PurchaseOrderItem {
   storageRequirement String?  @default("Controlled Ambient (<25°C)")
 }
 
+type ExpenseVoucherLineItem {
+  itemName     String
+  quantity     Int
+  unitCostBDT  Float?
+  lineTotalBDT Float?
+}
+
 
 // ─────────────────────────────────────────────
 // Enums
@@ -275,6 +282,7 @@ model ExpenseVoucher {
   amount             Float     // Net disbursed amount
   paymentDate        String
   notes              String?
+  lineItems          ExpenseVoucherLineItem[]
   status             String    @default("Disbursed") // "Draft" | "Pending Approval" | "Approved" | "Disbursed" | "Rejected"
   rejectionReason    String?
   preparedBy         String?

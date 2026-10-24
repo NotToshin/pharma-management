@@ -953,6 +953,12 @@ export default function WholesalerPurchaseOrdersPage() {
         paymentDate: paymentForm.paymentDate,
         status: "Disbursed",
         notes: paymentForm.notes || `Direct settlement for PO #${payingOrder.poNumber}`,
+        lineItems: (payingOrder.items || []).map((it) => ({
+          itemName: it.drugName,
+          quantity: it.quantityOrdered,
+          unitCostBDT: it.unitCostBDT,
+          lineTotalBDT: it.totalCostBDT,
+        })),
       }
 
       const res = await apiFetch("/payments", {
