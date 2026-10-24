@@ -8,17 +8,10 @@
 
 /**
  * Normalizes and returns the backend API base URL from process.env.NEXT_PUBLIC_API_URL.
- * 
- * @throws {Error} if NEXT_PUBLIC_API_URL environment variable is missing or empty.
+ * Safely falls back to "http://localhost:5000/api" when unset to prevent build-time evaluation crashes.
  */
 export function getApiUrl(): string {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
-
-  if (!envUrl) {
-    throw new Error(
-      "NEXT_PUBLIC_API_URL environment variable is missing. Please add NEXT_PUBLIC_API_URL=http://localhost:5000/api to your .env.local file and restart the dev server."
-    );
-  }
+  const envUrl = process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:5000/api";
 
   // Strip trailing slashes
   let cleanUrl = envUrl.replace(/\/+$/, "");
