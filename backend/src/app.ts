@@ -15,6 +15,7 @@ import dashboardRoutes from "./routes/dashboardRoutes";
 import rbacRoutes from "./routes/rbacRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
 import collectionRoutes from "./routes/collectionRoutes";
+import settlementRoutes from "./routes/settlementRoutes";
 import { globalErrorHandler, notFoundHandler } from "./errors";
 
 import { actorContextMiddleware } from "./middlewares/actorContextMiddleware";
@@ -88,11 +89,13 @@ import stockAdjustmentRoutes from "./routes/stockAdjustmentRoutes";
 import auditLogRoutes from "./routes/auditLogRoutes";
 import territoryTargetRoutes from "./routes/territoryTargetRoutes";
 import territoryAnalyticsRoutes from "./routes/territoryAnalyticsRoutes";
+import territoryRoutes from "./routes/territoryRoutes";
 import purchaseOrderRoutes from "./routes/purchaseOrderRoutes";
 import wholesalerRoutes from "./routes/wholesalerRoutes";
 
 // Core Modules
 app.use("/api/audit-logs", auditLogRoutes);
+app.use("/api/territories", territoryRoutes);
 app.use("/api/zone-allocations", zoneAllocationRoutes);
 app.use("/api/targets", territoryTargetRoutes);
 app.use("/api/territory-targets", territoryTargetRoutes);
@@ -117,6 +120,7 @@ app.use("/api/roles", roleRoutes);
 app.use("/api/salary", salaryRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/expense-vouchers", paymentRoutes);
+app.use("/api/settlements", settlementRoutes);
 app.use("/api/collections", collectionRoutes);
 app.use("/api/delivery-collections", collectionRoutes);
 app.use("/api/finance/collections", collectionRoutes);

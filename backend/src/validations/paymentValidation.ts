@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+const expenseVoucherLineItemSchema = z.object({
+  itemName: z.string().min(1),
+  quantity: z.coerce.number().int().positive(),
+  unitCostBDT: z.coerce.number().optional().nullable(),
+  lineTotalBDT: z.coerce.number().optional().nullable(),
+});
+
 export const createVoucherSchema = z.object({
   body: z.object({
     voucherNo: z.string().optional(),
@@ -22,6 +29,7 @@ export const createVoucherSchema = z.object({
     amount: z.coerce.number().positive("Amount must be positive"),
     paymentDate: z.string().min(1, "Payment date is required"),
     notes: z.string().optional().or(z.literal("")),
+    lineItems: z.array(expenseVoucherLineItemSchema).optional().default([]),
     status: z.enum(["Draft", "Pending Approval", "Approved", "Disbursed", "Rejected"]).optional().default("Disbursed"),
     preparedBy: z.string().optional().nullable(),
   }),
@@ -49,6 +57,7 @@ export const updateVoucherSchema = z.object({
     amount: z.coerce.number().positive().optional(),
     paymentDate: z.string().min(1).optional(),
     notes: z.string().optional().or(z.literal("")),
+    lineItems: z.array(expenseVoucherLineItemSchema).optional(),
     status: z.enum(["Draft", "Pending Approval", "Approved", "Disbursed", "Rejected"]).optional(),
     preparedBy: z.string().optional().nullable(),
     approvedBy: z.string().optional().nullable(),

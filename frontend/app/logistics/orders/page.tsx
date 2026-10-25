@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
@@ -59,6 +61,7 @@ import {
   Trash2,
   UserCheck,
   PackageCheck,
+  Wallet,
 } from "lucide-react"
 
 interface InvoiceItem {
@@ -80,6 +83,8 @@ interface SalesOrder {
   itemsDetail: InvoiceItem[]
   totalBoxes: number
   orderValue: number
+  paidAmount?: number
+  paymentStatus?: string
   discountPercent: number
   discountAmount: number
   comments: string
@@ -181,6 +186,7 @@ function parseSummaryToRows(
 
 function LogisticsOrdersContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
 
   const [orders, setOrders] = React.useState<SalesOrder[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -344,6 +350,8 @@ function LogisticsOrdersContent() {
               orderValue:
                 Number(item.orderValue) ||
                 Math.max(0, computedSubtotal - monetaryDiscount),
+              paidAmount: Number(item.paidAmount) || 0,
+              paymentStatus: item.paymentStatus || "UNPAID",
               discountPercent: pct,
               discountAmount: monetaryDiscount,
               comments: item.comments || "",
@@ -866,6 +874,18 @@ function LogisticsOrdersContent() {
           >
             <Download className="h-3.5 w-3.5 text-emerald-600" />
             Export Order Roster
+          </Button>
+
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
+          >
+            <Link href="/finance/buyer-payments">
+              <Wallet className="h-3.5 w-3.5 text-emerald-600" />
+              Buyer Payments
+            </Link>
           </Button>
 
           <Dialog open={isNewOrderOpen} onOpenChange={setIsNewOrderOpen}>
@@ -1543,6 +1563,11 @@ function LogisticsOrdersContent() {
                   <TableCell className="py-3 text-right font-mono text-xs font-bold text-slate-900">
                     <div>
                       <span>৳{ord.orderValue.toLocaleString("en-IN")}</span>
+                      {ord.paymentStatus && ord.paymentStatus !== "UNPAID" && (
+                        <span className="block text-[10px] font-normal text-slate-400">
+                          {ord.paymentStatus.replace("_", " ")} · ৳{(ord.paidAmount || 0).toLocaleString("en-IN")}
+                        </span>
+                      )}
                       {ord.discountPercent > 0 && (
                         <span className="block text-[10px] font-normal text-emerald-600">
                           {ord.discountPercent}% OFF
@@ -1602,6 +1627,16 @@ function LogisticsOrdersContent() {
                           View / Print Invoice
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
+
+                        {ord.status !== "Cancelled" && (
+                          <DropdownMenuItem
+                            onClick={() => router.push(`/finance/buyer-payments?orderId=${ord.id}`)}
+                            className="cursor-pointer text-xs font-semibold text-emerald-700"
+                          >
+                            <Wallet className="mr-2 h-3.5 w-3.5 text-emerald-600" />
+                            Collect Buyer Payment
+                          </DropdownMenuItem>
+                        )}
 
                         {ord.status === "Pending Credit Check" && (
                           <DropdownMenuItem

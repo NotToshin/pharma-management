@@ -76,6 +76,8 @@ const routeTitleMap: Record<string, string> = {
   "/finance/bank-ledger": "Bank Accounts Ledger",
   "/finance/collections": "Delivery Cash Collections",
   "/finance/payments": "Expense & Vendor Payments",
+  "/finance/supplier-payments": "Supplier Payments",
+  "/finance/buyer-payments": "Buyer Payments",
   "/hr/staff-directory": "Staff Directory & Roles",
   "/hr/salary": "Payroll & Salary",
   "/settings/rbac": "Role Permissions (RBAC)",
@@ -197,7 +199,9 @@ export default function RootLayout({
       if (pathname.startsWith("/finance/overview") && modTitle.includes("treasury")) return true
       if (pathname.startsWith("/finance/bank-ledger") && modTitle.includes("bank accounts")) return true
       if (pathname.startsWith("/finance/collections") && modTitle.includes("cash collections")) return true
-      if (pathname.startsWith("/finance/payments") && modTitle.includes("payments")) return true
+      if (pathname.startsWith("/finance/payments") && modTitle.includes("payments") && !modTitle.includes("supplier") && !modTitle.includes("buyer")) return true
+      if (pathname.startsWith("/finance/supplier-payments") && modTitle.includes("supplier payment")) return true
+      if (pathname.startsWith("/finance/buyer-payments") && modTitle.includes("buyer payment")) return true
       if (pathname.startsWith("/hr/staff-directory") && modTitle.includes("staff directory")) return true
       if (pathname.startsWith("/hr/salary") && modTitle.includes("salary")) return true
       if (pathname.startsWith("/settings/audit-logs") && modTitle.includes("audit logs")) return true

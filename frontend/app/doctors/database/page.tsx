@@ -79,6 +79,8 @@ import {
   AlertCircle,
   ArrowUpDown,
   Loader2,
+  ChevronDown,
+  X,
 } from "lucide-react"
 
 import {
@@ -225,9 +227,172 @@ interface StaffMember {
   territory?: string
 }
 
+interface TerritoryItem {
+  id: string
+  name: string
+  division?: string
+}
+
+function TerritorySearchSelect({
+  value,
+  onChange,
+  territories,
+  placeholder = "Search or select territory...",
+  id = "territory-search-select",
+}: {
+  value: string
+  onChange: (value: string) => void
+  territories: TerritoryItem[]
+  placeholder?: string
+  id?: string
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [searchTerm, setSearchTerm] = React.useState("")
+  const dropdownRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (!open) {
+      setSearchTerm(value)
+    }
+  }, [value, open])
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const filtered = React.useMemo(() => {
+    const q = (searchTerm || "").toLowerCase().trim()
+    if (!q) return territories
+    return territories.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        (t.division && t.division.toLowerCase().includes(q))
+    )
+  }, [territories, searchTerm])
+
+  const handleSelect = (name: string) => {
+    onChange(name)
+    setSearchTerm(name)
+    setOpen(false)
+  }
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onChange("")
+    setSearchTerm("")
+  }
+
+  return (
+    <div ref={dropdownRef} className="relative w-full">
+      <div className="relative">
+        <Input
+          id={id}
+          value={open ? searchTerm : value}
+          onChange={(e) => {
+            setSearchTerm(e.target.value)
+            onChange(e.target.value)
+            if (!open) setOpen(true)
+          }}
+          onFocus={() => {
+            setSearchTerm(value)
+            setOpen(true)
+          }}
+          placeholder={placeholder}
+          autoComplete="off"
+          className="h-8 pr-14 text-xs bg-white"
+        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {value && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition"
+              title="Clear territory"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition"
+          >
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 text-xs shadow-lg animate-in fade-in-0 zoom-in-95">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2.5 text-center text-[11px] text-slate-400">
+              {searchTerm ? (
+                <div>
+                  <p>No matching territories found.</p>
+                  <button
+                    type="button"
+                    className="mt-1 text-blue-600 font-medium hover:underline cursor-pointer"
+                    onClick={() => handleSelect(searchTerm)}
+                  >
+                    Use "{searchTerm}" as custom territory
+                  </button>
+                </div>
+              ) : (
+                "No territories available in database."
+              )}
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {filtered.map((t) => {
+                const isSelected = value === t.name
+                return (
+                  <button
+                    key={t.id || t.name}
+                    type="button"
+                    onClick={() => handleSelect(t.name)}
+                    className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition ${
+                      isSelected
+                        ? "bg-blue-50 font-semibold text-[#0090FF]"
+                        : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 truncate">
+                      <MapPin
+                        className={`h-3 w-3 shrink-0 ${
+                          isSelected ? "text-[#0090FF]" : "text-slate-400"
+                        }`}
+                      />
+                      <span className="truncate">{t.name}</span>
+                    </div>
+                    {t.division && (
+                      <span className="ml-2 shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-normal text-slate-500">
+                        {t.division.replace(" Division", "")}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DoctorMasterDatabasePage() {
   const [doctors, setDoctors] = React.useState<DoctorRecord[]>([])
   const [staffList, setStaffList] = React.useState<StaffMember[]>([])
+  const [territoryList, setTerritoryList] = React.useState<TerritoryItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [isSearching, setIsSearching] = React.useState(false)
 
@@ -256,7 +421,7 @@ export default function DoctorMasterDatabasePage() {
   const [designation, setDesignation] = React.useState("")
   const [institute, setInstitute] = React.useState("")
   const [chamberAddress, setChamberAddress] = React.useState("")
-  const [territory, setTerritory] = React.useState("Dhaka North")
+  const [territory, setTerritory] = React.useState("")
   const [contactNumber, setContactNumber] = React.useState("")
   const [potentialCategory, setPotentialCategory] =
     React.useState<DoctorRecord["potentialCategory"]>("A")
@@ -328,9 +493,13 @@ export default function DoctorMasterDatabasePage() {
       institute: extractedInstitute,
       chamberAddress:
         doc.chamber || doc.chamberAddress || "General Chamber",
-      territory: doc.territoryAndMio
-        ? doc.territoryAndMio.split("/")[0].trim()
-        : doc.territory || "Central Hub",
+      territory: doc.territory || (doc.territoryAndMio
+        ? doc.territoryAndMio.includes(" / MIO:")
+          ? doc.territoryAndMio.split(" / MIO:")[0].trim() || ""
+          : doc.territoryAndMio.startsWith("MIO:")
+            ? ""
+            : doc.territoryAndMio.trim()
+        : ""),
       contactNumber: doc.phone || doc.contactNumber || "+880 1700-000000",
       potentialCategory: doc.tier?.includes("Tier 1")
         ? "A+"
@@ -381,9 +550,10 @@ export default function DoctorMasterDatabasePage() {
         params.set("tier", tierMapping[categoryFilter] || categoryFilter)
       }
 
-      const [docRes, staffRes] = await Promise.all([
+      const [docRes, staffRes, territoryRes] = await Promise.all([
         fetch(getEndpoint(`/doctors?${params.toString()}`)).catch(() => null),
         staffList.length === 0 ? fetch(getEndpoint("/staff")).catch(() => null) : null,
+        territoryList.length === 0 ? fetch(getEndpoint("/territories")).catch(() => null) : null,
       ])
 
       if (docRes && docRes.ok) {
@@ -412,6 +582,18 @@ export default function DoctorMasterDatabasePage() {
             id: s.id,
             name: s.fullName || s.name,
             territory: s.territory,
+          }))
+        )
+      }
+
+      if (territoryRes && territoryRes.ok) {
+        const tResult = await territoryRes.json()
+        const rawTerritories = Array.isArray(tResult) ? tResult : tResult.data || []
+        setTerritoryList(
+          rawTerritories.map((t: any) => ({
+            id: t.id || t.name,
+            name: t.name,
+            division: t.division || "",
           }))
         )
       }
@@ -650,7 +832,10 @@ export default function DoctorMasterDatabasePage() {
     setFormErrors({})
 
     const specialtyAndInstitute = institute ? `${specialty} (${institute})` : specialty
-    const territoryAndMio = assignedMio ? `${territory} / MIO: ${assignedMio}` : territory
+    const cleanTerritory = territory.trim()
+    const territoryAndMio = cleanTerritory
+      ? (assignedMio ? `${cleanTerritory} / MIO: ${assignedMio}` : cleanTerritory)
+      : (assignedMio ? `MIO: ${assignedMio}` : "Unassigned")
     const tier = potentialCategory === "A+" ? "Tier 1 (High Prescriber)" : "Tier 2 (Moderate)"
 
     const newDocPayload = {
@@ -659,6 +844,7 @@ export default function DoctorMasterDatabasePage() {
       bmdcRegNumber: bmdcReg,
       specialtyAndInstitute,
       chamber: chamberAddress,
+      territory: cleanTerritory || undefined,
       territoryAndMio,
       email,
       tier,
@@ -695,6 +881,7 @@ export default function DoctorMasterDatabasePage() {
         setChamberAddress("")
         setContactNumber("")
         setEmail("")
+        setTerritory("")
         setPatientVolumeDaily("")
         setAssignedMio("")
         setFormErrors({})
@@ -727,13 +914,18 @@ export default function DoctorMasterDatabasePage() {
       ? `${cleanSpecialty} (${cleanInstitute})`
       : cleanSpecialty
 
+    const cleanTerritory = editingDoctor.territory?.trim() || ""
+
     const updatedPayload = {
       doctorName: editingDoctor.name,
       phone: editingDoctor.contactNumber,
       bmdcRegNumber: editingDoctor.bmdcReg,
       specialtyAndInstitute,
       chamber: editingDoctor.chamberAddress,
-      territoryAndMio: `${editingDoctor.territory} / MIO: ${editingDoctor.assignedMio}`,
+      territory: cleanTerritory || undefined,
+      territoryAndMio: editingDoctor.territory?.trim()
+        ? (editingDoctor.assignedMio ? `${editingDoctor.territory.trim()} / MIO: ${editingDoctor.assignedMio}` : editingDoctor.territory.trim())
+        : (editingDoctor.assignedMio ? `MIO: ${editingDoctor.assignedMio}` : "Unassigned"),
       tier:
         editingDoctor.potentialCategory === "A+"
           ? "Tier 1 (High Prescriber)"
@@ -960,17 +1152,31 @@ export default function DoctorMasterDatabasePage() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Affiliated Hospital / Medical College
-                  </Label>
-                  <Input
-                    placeholder="e.g. Dhaka Medical College Hospital"
-                    value={institute}
-                    onChange={(e) => setInstitute(e.target.value)}
-                    required
-                    className="h-8 text-xs"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Affiliated Hospital / Medical College
+                    </Label>
+                    <Input
+                      placeholder="e.g. Dhaka Medical College Hospital"
+                      value={institute}
+                      onChange={(e) => setInstitute(e.target.value)}
+                      required
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-slate-700">
+                      Territory <span className="font-normal text-slate-400">(Optional)</span>
+                    </Label>
+                    <TerritorySearchSelect
+                      value={territory}
+                      onChange={setTerritory}
+                      territories={territoryList}
+                      placeholder="Search or select territory..."
+                      id="add-doctor-territory"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -986,7 +1192,7 @@ export default function DoctorMasterDatabasePage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-slate-700">
                       Phone Number *
@@ -1008,18 +1214,6 @@ export default function DoctorMasterDatabasePage() {
                       placeholder="e.g. doctor@akpharma.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      required
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium text-slate-700">
-                      Territory Hub *
-                    </Label>
-                    <Input
-                      placeholder="e.g. Dhaka North"
-                      value={territory}
-                      onChange={(e) => setTerritory(e.target.value)}
                       required
                       className="h-8 text-xs"
                     />
@@ -2131,26 +2325,45 @@ export default function DoctorMasterDatabasePage() {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-slate-700">
-                  Affiliated Hospital
-                </Label>
-                <Input
-                  value={editingDoctor.institute}
-                  onChange={(e) =>
-                    setEditingDoctor({
-                      ...editingDoctor,
-                      institute: e.target.value,
-                    })
-                  }
-                  required
-                  className="h-8 text-xs"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-slate-700">
+                    Affiliated Hospital / Medical College
+                  </Label>
+                  <Input
+                    value={editingDoctor.institute}
+                    onChange={(e) =>
+                      setEditingDoctor({
+                        ...editingDoctor,
+                        institute: e.target.value,
+                      })
+                    }
+                    required
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-slate-700">
+                    Territory <span className="font-normal text-slate-400">(Optional)</span>
+                  </Label>
+                  <TerritorySearchSelect
+                    value={editingDoctor.territory || ""}
+                    onChange={(val) =>
+                      setEditingDoctor({
+                        ...editingDoctor,
+                        territory: val,
+                      })
+                    }
+                    territories={territoryList}
+                    placeholder="Search or select territory..."
+                    id="edit-doctor-territory"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-slate-700">
-                  Chamber Address
+                  Primary Chamber Address
                 </Label>
                 <Input
                   value={editingDoctor.chamberAddress}
@@ -2184,17 +2397,17 @@ export default function DoctorMasterDatabasePage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
-                    Territory Hub
+                    Email Address
                   </Label>
                   <Input
-                    value={editingDoctor.territory}
+                    type="email"
+                    value={editingDoctor.email || ""}
                     onChange={(e) =>
                       setEditingDoctor({
                         ...editingDoctor,
-                        territory: e.target.value,
+                        email: e.target.value,
                       })
                     }
-                    required
                     className="h-8 text-xs"
                   />
                 </div>

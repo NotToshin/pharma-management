@@ -32,6 +32,25 @@ type PurchaseOrderItem {
   storageRequirement String?  @default("Controlled Ambient (<25°C)")
 }
 
+type ExpenseVoucherLineItem {
+  itemName     String
+  quantity     Int
+  unitCostBDT  Float?
+  lineTotalBDT Float?
+}
+
+type SettlementAllocation {
+  documentType    String
+  documentId      String
+  documentNumber  String
+  allocatedAmount Float
+}
+
+type AdvanceDraw {
+  paymentId String
+  amount    Float
+}
+
 
 // ─────────────────────────────────────────────
 // Enums
@@ -75,6 +94,7 @@ model Doctor {
   bmdcRegNumber         String   @unique
   specialtyAndInstitute String
   chamber               String
+  territory             String?
   territoryAndMio       String
   email                 String
   tier                  String
@@ -200,6 +220,8 @@ model Order {
   comments       String?
   deliveryMethod String
   status         String
+  paidAmount     Float       @default(0)
+  paymentStatus  String      @default("UNPAID") // UNPAID | PARTIALLY_PAID | PAID
   challanNumber  String?
   invoiceNumber  String?
   createdAt      DateTime    @default(now())
@@ -274,6 +296,7 @@ model ExpenseVoucher {
   amount             Float     // Net disbursed amount
   paymentDate        String
   notes              String?
+  lineItems          ExpenseVoucherLineItem[]
   status             String    @default("Disbursed") // "Draft" | "Pending Approval" | "Approved" | "Disbursed" | "Rejected"
   rejectionReason    String?
   preparedBy         String?
@@ -392,6 +415,8 @@ model PurchaseOrder {
   taxBDT               Float               @default(0.0)
   totalAmountBDT       Float               @default(0.0)
   status               String              @default("Draft") // "Draft" | "Submitted" | "Approved" | "Partially Received" | "Received" | "Cancelled"
+  paidAmountBDT        Float               @default(0)
+  paymentStatus        String              @default("UNPAID") // UNPAID | PARTIALLY_PAID | PAID
   approvalStage        String?             @default("Procurement Officer Review") // "Procurement Officer Review" | "Lead Pharmacist" | "Finance Clearance" | "Final Approved"
   priority             String              @default("Routine") // "Routine" | "Urgent / Stockout Risk" | "Emergency Cold-Chain"
   requisitionRef       String?
@@ -407,6 +432,32 @@ model PurchaseOrder {
   @@index([status])
   @@index([wholesalerName])
   @@index([priority])
+}
+
+model PartySettlement {
+  id                 String                 @id @default(auto()) @map("_id") @db.ObjectId
+  paymentNumber      String                 @unique
+  direction          String                 // OUTGOING (supplier) | INCOMING (buyer)
+  partyName          String
+  partyCode          String?
+  amount             Float
+  unallocatedAmount  Float                  @default(0)
+  paymentMethod      String
+  paymentDate        String
+  transactionRef     String?
+  financialAccountId String?
+  accountTitle       String?
+  status             String                 @default("COMPLETED") // COMPLETED | REVERSED
+  notes              String?
+  allocations        SettlementAllocation[]
+  advanceDraws       AdvanceDraw[]
+  createdBy          String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@index([direction])
+  @@index([partyName])
+  @@index([status])
 }
 
 model Wholesaler {
@@ -558,4 +609,17 @@ model TerritoryTarget {
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Master Territories
+// ─────────────────────────────────────────────
+
+model Territory {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  division  String?
+  status    String   @default("Active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

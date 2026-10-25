@@ -227,6 +227,8 @@ const navSections: NavSection[] = [
         subItems: [
           { title: "Treasury Overview", href: "/finance/overview" },
           { title: "Bank Accounts Ledger", href: "/finance/bank-ledger" },
+          { title: "Supplier Payments", href: "/finance/supplier-payments" },
+          { title: "Buyer Payments", href: "/finance/buyer-payments" },
         ],
       },
       {
@@ -349,7 +351,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         if (href.startsWith("/finance/overview") && modTitle.includes("treasury")) return true
         if (href.startsWith("/finance/bank-ledger") && modTitle.includes("bank accounts")) return true
         if (href.startsWith("/finance/collections") && modTitle.includes("cash collections")) return true
-        if (href.startsWith("/finance/payments") && modTitle.includes("payments")) return true
+        if (href.startsWith("/finance/payments") && modTitle.includes("payments") && !modTitle.includes("supplier") && !modTitle.includes("buyer")) return true
+        if (href.startsWith("/finance/supplier-payments") && modTitle.includes("supplier payment")) return true
+        if (href.startsWith("/finance/buyer-payments") && modTitle.includes("buyer payment")) return true
         if (href.startsWith("/hr/staff-directory") && modTitle.includes("staff directory")) return true
         if (href.startsWith("/hr/salary") && modTitle.includes("salary")) return true
         if (href.startsWith("/settings/audit-logs") && modTitle.includes("audit logs")) return true

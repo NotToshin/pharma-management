@@ -50,12 +50,30 @@ export const purchaseOrderService = {
       where.wholesalerName = { contains: filters.wholesaler.trim(), mode: "insensitive" };
     }
 
-    const orders = await prisma.purchaseOrder.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-    });
+    const [orders, vouchers] = await Promise.all([
+      prisma.purchaseOrder.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.expenseVoucher.findMany({
+        where: { status: "Disbursed" },
+        select: { poNumber: true, amount: true },
+      }),
+    ]);
 
-    return orders;
+    const voucherPaid = new Map<string, number>();
+    for (const voucher of vouchers) {
+      const key = voucher.poNumber?.trim();
+      if (!key) continue;
+      voucherPaid.set(key, (voucherPaid.get(key) || 0) + (Number(voucher.amount) || 0));
+    }
+
+    return orders.map((order) => {
+      const total = Number(order.totalAmountBDT) || 0;
+      const paid = Math.min(total, (Number(order.paidAmountBDT) || 0) + (voucherPaid.get(order.poNumber) || 0));
+      const paymentStatus = paid <= 0.009 ? "UNPAID" : paid + 0.009 >= total ? "PAID" : "PARTIALLY_PAID";
+      return { ...order, paidAmountBDT: paid, paymentStatus };
+    });
   },
 
   async getProcurementMetrics() {
@@ -469,6 +487,13 @@ export const purchaseOrderService = {
 
   async deletePurchaseOrder(id: string) {
     const existing = await this.getPurchaseOrderById(id);
+    const alreadyPaid = Number((existing as { paidAmountBDT?: number }).paidAmountBDT) || 0;
+    if (alreadyPaid > 0.009) {
+      throw new AppError(
+        "This purchase order has supplier payments. Reverse those payments before deleting it.",
+        400
+      );
+    }
 
     const deleted = await prisma.purchaseOrder.delete({
       where: { id },

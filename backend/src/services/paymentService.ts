@@ -327,6 +327,12 @@ export const paymentService = {
           amount: taxCalc.finalAmount,
           paymentDate: paymentDateFormatted,
           notes: data.notes || "",
+          lineItems: (data.lineItems || []).map((item) => ({
+            itemName: item.itemName.trim(),
+            quantity: Number(item.quantity),
+            unitCostBDT: item.unitCostBDT != null ? Number(item.unitCostBDT) : null,
+            lineTotalBDT: item.lineTotalBDT != null ? Number(item.lineTotalBDT) : null,
+          })),
           status,
           preparedBy: data.preparedBy || actorName || "Finance Controller",
           approvedBy: status === "Disbursed" || status === "Approved" ? (actorName || "Finance Director") : null,
@@ -378,6 +384,14 @@ export const paymentService = {
     if (data.chequeNumber !== undefined) updateData.chequeNumber = data.chequeNumber ? data.chequeNumber.trim() : null;
     if (data.paymentDate !== undefined) updateData.paymentDate = formatDate(data.paymentDate);
     if (data.notes !== undefined) updateData.notes = data.notes;
+    if (data.lineItems !== undefined) {
+      updateData.lineItems = data.lineItems.map((item) => ({
+        itemName: item.itemName.trim(),
+        quantity: Number(item.quantity),
+        unitCostBDT: item.unitCostBDT != null ? Number(item.unitCostBDT) : null,
+        lineTotalBDT: item.lineTotalBDT != null ? Number(item.lineTotalBDT) : null,
+      }));
+    }
     if (data.status !== undefined) updateData.status = data.status;
     if (data.rejectionReason !== undefined) updateData.rejectionReason = data.rejectionReason;
 

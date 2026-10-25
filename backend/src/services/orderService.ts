@@ -21,6 +21,12 @@ const formatDate = (date?: string) => {
   return date;
 };
 
+const remainingOrderDue = (order: { orderValue?: number | null; paidAmount?: number | null }) => {
+  const total = Number(order.orderValue) || 0;
+  const paid = Number(order.paidAmount) || 0;
+  return Math.max(0, Math.round((total - paid) * 100) / 100);
+};
+
 interface LineItem {
   no?: number;
   description: string;
@@ -31,8 +37,30 @@ interface LineItem {
 
 export const orderService = {
   async getAllOrders() {
-    return prisma.order.findMany({
-      orderBy: { createdAt: "desc" },
+    const [orders, collections] = await Promise.all([
+      prisma.order.findMany({
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.deliveryCollection.findMany({
+        where: { status: { not: "Bounced / Rejected" }, orderId: { not: null } },
+        select: { orderId: true, amountCollected: true },
+      }),
+    ]);
+
+    const collected = new Map<string, number>();
+    for (const collection of collections) {
+      if (!collection.orderId) continue;
+      collected.set(
+        collection.orderId,
+        (collected.get(collection.orderId) || 0) + (Number(collection.amountCollected) || 0)
+      );
+    }
+
+    return orders.map((order) => {
+      const total = Number(order.orderValue) || 0;
+      const paid = Math.min(total, (Number(order.paidAmount) || 0) + (collected.get(order.id) || 0));
+      const paymentStatus = paid <= 0.009 ? "UNPAID" : paid + 0.009 >= total ? "PAID" : "PARTIALLY_PAID";
+      return { ...order, paidAmount: paid, paymentStatus };
     });
   },
 
@@ -203,7 +231,7 @@ export const orderService = {
       if (existing.pharmacyName) {
         await prisma.client.updateMany({
           where: { pharmacyName: { equals: existing.pharmacyName.trim(), mode: "insensitive" } },
-          data: { outstandingBalanceBDT: { decrement: Number(existing.orderValue) || 0 } },
+          data: { outstandingBalanceBDT: { decrement: remainingOrderDue(existing) } },
         }).catch(() => null);
       }
     }
@@ -221,6 +249,14 @@ export const orderService = {
     const existing = await prisma.order.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError("Order not found", 404);
+    }
+
+    const alreadyPaid = Number(existing.paidAmount) || 0;
+    if (alreadyPaid > 0.009) {
+      throw new AppError(
+        "This sales order has buyer payments. Reverse those payments before deleting it.",
+        400
+      );
     }
 
     // Restore stock if deleting an active order
@@ -251,7 +287,7 @@ export const orderService = {
       if (existing.pharmacyName) {
         await prisma.client.updateMany({
           where: { pharmacyName: { equals: existing.pharmacyName.trim(), mode: "insensitive" } },
-          data: { outstandingBalanceBDT: { decrement: Number(existing.orderValue) || 0 } },
+          data: { outstandingBalanceBDT: { decrement: remainingOrderDue(existing) } },
         }).catch(() => null);
       }
     }

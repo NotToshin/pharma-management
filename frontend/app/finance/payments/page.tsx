@@ -90,6 +90,7 @@ export interface ExpenseVoucher {
   amount: number
   paymentDate: string
   notes?: string | null
+  lineItems?: ExpenseVoucherLineItem[]
   status: "Draft" | "Pending Approval" | "Approved" | "Disbursed" | "Rejected"
   rejectionReason?: string | null
   preparedBy?: string | null
@@ -99,6 +100,65 @@ export interface ExpenseVoucher {
   disbursedAt?: string | null
   createdAt?: string
   updatedAt?: string
+}
+
+export interface ExpenseVoucherLineItem {
+  itemName: string
+  quantity: number
+  unitCostBDT?: number | null
+  lineTotalBDT?: number | null
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+function formatParticularsSummary(lineItems: ExpenseVoucherLineItem[]): string {
+  return lineItems.map((i) => `${i.itemName} × ${i.quantity}`).join(", ")
+}
+
+function buildParticularsTableRows(
+  record: ExpenseVoucher,
+  lineItems: ExpenseVoucherLineItem[],
+  gross: number
+): string {
+  if (lineItems.length > 0) {
+    return lineItems
+      .map((item) => {
+        const lineAmt =
+          item.lineTotalBDT != null
+            ? item.lineTotalBDT
+            : item.unitCostBDT != null
+              ? item.unitCostBDT * item.quantity
+              : null
+        return `
+                <tr>
+                  <td>
+                    <strong>${escapeHtml(item.itemName)}</strong>
+                    <div style="color: #475569; margin-top: 4px;">Quantity: ${item.quantity}</div>
+                  </td>
+                  <td style="text-align: right; font-family: monospace; font-weight: 600;">
+                    ${lineAmt != null ? `৳${lineAmt.toLocaleString("en-IN")}` : "—"}
+                  </td>
+                </tr>`
+      })
+      .join("")
+  }
+
+  return `
+                <tr>
+                  <td>
+                    <strong>Disbursement to ${escapeHtml(record.payeeName)}</strong>
+                    <div style="color: #475569; margin-top: 4px;">General operating expenditure</div>
+                  </td>
+                  <td style="text-align: right; font-family: monospace; font-weight: 700; font-size: 13px;">
+                    ৳${gross.toLocaleString("en-IN")}/-
+                  </td>
+                </tr>`
 }
 
 export interface FinancialAccount {
@@ -270,6 +330,7 @@ export default function GeneralPaymentsPage() {
 
   // Print Preview Modal State
   const [printTarget, setPrintTarget] = React.useState<ExpenseVoucher | null>(null)
+  const [printParticulars, setPrintParticulars] = React.useState<ExpenseVoucherLineItem[]>([])
   const [isPrintOpen, setIsPrintOpen] = React.useState(false)
 
   // Global Delete Modal State
@@ -322,6 +383,63 @@ export default function GeneralPaymentsPage() {
     loadData()
   }, [loadData])
 
+  const resolveExpenditureParticulars = React.useCallback(
+    async (record: ExpenseVoucher): Promise<ExpenseVoucherLineItem[]> => {
+      if (record.lineItems && record.lineItems.length > 0) {
+        return record.lineItems
+      }
+
+      const poRef = record.poNumber?.trim()
+      if (!poRef) return []
+
+      try {
+        const res = await apiFetch(
+          `/procurement/orders?search=${encodeURIComponent(poRef)}`
+        )
+        if (!res.ok) return []
+        const json = await res.json()
+        const orders: Array<{
+          poNumber?: string
+          items?: Array<{
+            drugName: string
+            quantityOrdered: number
+            unitCostBDT?: number
+            totalCostBDT?: number
+          }>
+        }> = json.data || []
+        const po =
+          orders.find((o) => o.poNumber === poRef) || orders[0]
+        if (!po?.items?.length) return []
+
+        return po.items.map((it) => ({
+          itemName: it.drugName,
+          quantity: it.quantityOrdered,
+          unitCostBDT: it.unitCostBDT,
+          lineTotalBDT: it.totalCostBDT,
+        }))
+      } catch {
+        return []
+      }
+    },
+    []
+  )
+
+  React.useEffect(() => {
+    if (!isPrintOpen || !printTarget) {
+      setPrintParticulars([])
+      return
+    }
+
+    let cancelled = false
+    resolveExpenditureParticulars(printTarget).then((items) => {
+      if (!cancelled) setPrintParticulars(items)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isPrintOpen, printTarget, resolveExpenditureParticulars])
+
   // Recalculate TDS, VDS and Net Amount dynamically in Form
   const handleTaxCalculation = (
     gross: number,
@@ -343,7 +461,13 @@ export default function GeneralPaymentsPage() {
   }
 
   // Hidden print iframe trigger
-  const handlePrint = (record: ExpenseVoucher) => {
+  const handlePrint = async (
+    record: ExpenseVoucher,
+    particularsOverride?: ExpenseVoucherLineItem[]
+  ) => {
+    const lineItems =
+      particularsOverride ?? (await resolveExpenditureParticulars(record))
+
     const printFrame = document.createElement("iframe")
     printFrame.style.position = "fixed"
     printFrame.style.right = "0"
@@ -545,22 +669,34 @@ export default function GeneralPaymentsPage() {
             <table class="particulars-table">
               <thead>
                 <tr>
-                  <th>Particulars / Description of Expenditure</th>
+                  <th>Item / Product Purchased</th>
+                  ${lineItems.length > 0 ? `<th style="width: 90px; text-align: center;">Qty</th>` : ""}
                   <th style="width: 160px; text-align: right;">Amount (BDT)</th>
                 </tr>
               </thead>
               <tbody>
+                ${
+                  lineItems.length > 0
+                    ? lineItems
+                        .map((item) => {
+                          const lineAmt =
+                            item.lineTotalBDT != null
+                              ? item.lineTotalBDT
+                              : item.unitCostBDT != null
+                                ? item.unitCostBDT * item.quantity
+                                : null
+                          return `
                 <tr>
-                  <td>
-                    <strong>Disbursement to ${record.payeeName}</strong>
-                    <div style="color: #475569; font-style: italic; margin-top: 4px;">
-                      "${record.notes || "Official pharmaceutical business disbursement voucher."}"
-                    </div>
+                  <td><strong>${escapeHtml(item.itemName)}</strong></td>
+                  <td style="text-align: center; font-family: monospace; font-weight: 600;">${item.quantity}</td>
+                  <td style="text-align: right; font-family: monospace; font-weight: 600;">
+                    ${lineAmt != null ? `৳${lineAmt.toLocaleString("en-IN")}` : "—"}
                   </td>
-                  <td style="text-align: right; font-family: monospace; font-weight: 700; font-size: 13px;">
-                    ৳${gross.toLocaleString("en-IN")}/-
-                  </td>
-                </tr>
+                </tr>`
+                        })
+                        .join("")
+                    : buildParticularsTableRows(record, lineItems, gross)
+                }
               </tbody>
             </table>
 
@@ -694,8 +830,8 @@ export default function GeneralPaymentsPage() {
     setIsFormOpen(true)
   }
 
-  const handleSelectWholesaler = (name: string) => {
-    const found = wholesalers.find((w) => w.name === name)
+  const handleSelectWholesaler = (wholesalerId: string) => {
+    const found = wholesalers.find((w) => w.id === wholesalerId)
     if (found) {
       setFormData((prev) => ({
         ...prev,
@@ -704,14 +840,13 @@ export default function GeneralPaymentsPage() {
         category: "Wholesaler Settlement",
         notes: `Procurement clearance for ${found.name} (${found.wholesalerCode}).`,
       }))
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        payeeName: name,
-        wholesalerId: "",
-      }))
     }
   }
+
+  const selectedWholesalerSelectValue =
+    formData.wholesalerId ||
+    wholesalers.find((w) => w.name === formData.payeeName)?.id ||
+    ""
 
   const handleSelectFinancialAccount = (accountId: string) => {
     const acc = accounts.find((a) => a.id === accountId)
@@ -1346,8 +1481,12 @@ export default function GeneralPaymentsPage() {
                             PO: {v.poNumber}
                           </span>
                         )}
-                        <p className="mt-1 line-clamp-1 text-[11px] text-slate-500 italic">
-                          "{v.notes || "Official business operational expense."}"
+                        <p className="mt-1 line-clamp-2 text-[11px] text-slate-600">
+                          {v.lineItems?.length
+                            ? formatParticularsSummary(v.lineItems)
+                            : v.poNumber
+                              ? `PO ${v.poNumber} — see memo for purchased items`
+                              : v.notes || "General operating expense."}
                         </p>
                       </TableCell>
 
@@ -1453,7 +1592,7 @@ export default function GeneralPaymentsPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handlePrint(v)}
+                            onClick={() => void handlePrint(v)}
                             className="h-7 px-2 text-[11px] text-slate-700 hover:bg-slate-50"
                           >
                             <Printer className="mr-1 h-3 w-3 text-slate-500" /> Print
@@ -1691,7 +1830,7 @@ export default function GeneralPaymentsPage() {
               {formData.payeeType === "Wholesaler / Vendor" && wholesalers.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2">
                   <Select
-                    value={formData.payeeName}
+                    value={selectedWholesalerSelectValue}
                     onValueChange={handleSelectWholesaler}
                   >
                     <SelectTrigger className="h-8 bg-white text-xs">
@@ -1699,7 +1838,7 @@ export default function GeneralPaymentsPage() {
                     </SelectTrigger>
                     <SelectContent className="text-xs">
                       {wholesalers.map((w) => (
-                        <SelectItem key={w.id} value={w.name}>
+                        <SelectItem key={w.id} value={w.id}>
                           {w.name} ({w.wholesalerCode})
                         </SelectItem>
                       ))}
@@ -2283,14 +2422,45 @@ export default function GeneralPaymentsPage() {
                   <p className="border-b border-slate-100 pb-2 font-bold text-slate-900">
                     Expenditure Particulars
                   </p>
-                  <div className="flex justify-between py-1">
-                    <span className="text-slate-600 italic">
-                      "{printTarget.notes || "Official business disbursement."}"
-                    </span>
-                    <span className="font-mono text-sm font-bold text-slate-900">
-                      ৳{(printTarget.grossAmount || printTarget.amount).toLocaleString("en-IN")}
-                    </span>
-                  </div>
+                  {printParticulars.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-left text-[10px] uppercase text-slate-500">
+                            <th className="pb-2 font-semibold">Item / Product</th>
+                            <th className="pb-2 font-semibold text-center w-16">Qty</th>
+                            <th className="pb-2 font-semibold text-right w-28">Amount (BDT)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {printParticulars.map((item, idx) => {
+                            const lineAmt =
+                              item.lineTotalBDT != null
+                                ? item.lineTotalBDT
+                                : item.unitCostBDT != null
+                                  ? item.unitCostBDT * item.quantity
+                                  : null
+                            return (
+                              <tr key={`particular-${idx}`} className="border-b border-slate-50">
+                                <td className="py-1.5 font-medium text-slate-800">{item.itemName}</td>
+                                <td className="py-1.5 text-center font-mono text-slate-700">{item.quantity}</td>
+                                <td className="py-1.5 text-right font-mono font-semibold text-slate-900">
+                                  {lineAmt != null ? `৳${lineAmt.toLocaleString("en-IN")}` : "—"}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between py-1 text-slate-600">
+                      <span>General disbursement to {printTarget.payeeName}</span>
+                      <span className="font-mono text-sm font-bold text-slate-900">
+                        ৳{(printTarget.grossAmount || printTarget.amount).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  )}
 
                   <div className="border-t border-slate-100 pt-2 flex justify-between text-[11px] text-slate-500">
                     <span>TDS Withholding: -৳{(printTarget.tdsAmount || 0).toLocaleString("en-IN")}</span>
@@ -2342,7 +2512,7 @@ export default function GeneralPaymentsPage() {
                   Close
                 </Button>
                 <Button
-                  onClick={() => handlePrint(printTarget)}
+                  onClick={() => void handlePrint(printTarget, printParticulars)}
                   className="gap-1.5 bg-[#0090FF] text-xs font-semibold text-white hover:bg-[#0080e5]"
                 >
                   <Printer className="h-4 w-4" /> Print Voucher

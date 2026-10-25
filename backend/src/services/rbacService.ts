@@ -44,6 +44,8 @@ export const ALL_SYSTEM_MODULES = [
   { module: "Bank Accounts Ledger", route: "/finance/bank-ledger", category: "Finance & Treasury", specialAction: "Electronic Fund Transfer" },
   { module: "Delivery Cash Collections", route: "/finance/collections", category: "Finance & Treasury", specialAction: "Force Cash Vault Clearance" },
   { module: "Expense & Vendor Payments", route: "/finance/payments", category: "Finance & Treasury", specialAction: "Authorize Cheque Sign-off" },
+  { module: "Supplier Payments", route: "/finance/supplier-payments", category: "Finance & Treasury", specialAction: "Disburse Supplier Settlement" },
+  { module: "Buyer Payments", route: "/finance/buyer-payments", category: "Finance & Treasury", specialAction: "Collect Buyer Receipt" },
 
   // 7. HR & System Control
   { module: "Staff Directory & Roles", route: "/hr/staff-directory", category: "HR & System Control", specialAction: "Issue Appointment Letters" },
