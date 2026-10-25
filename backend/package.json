@@ -4,7 +4,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "postinstall": "chmod +x ./node_modules/.bin/* || true && npx prisma generate",
+    "postinstall": "npx prisma generate",
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "tsx prisma/seed.ts",

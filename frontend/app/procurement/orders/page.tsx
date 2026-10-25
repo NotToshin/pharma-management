@@ -564,6 +564,20 @@ export default function WholesalerPurchaseOrdersPage() {
         }
       }
 
+      if (field === "drugName") {
+        const linked = inventoryItems.find((inv) => inv.skuCode && inv.skuCode === current.skuCode)
+        const typed = String(value).trim().toLowerCase()
+        if (linked && linked.brandName.trim().toLowerCase() !== typed) {
+          current.skuCode = ""
+          if (
+            (current.genericName || "").trim().toLowerCase() ===
+            (linked.genericName || "").trim().toLowerCase()
+          ) {
+            current.genericName = ""
+          }
+        }
+      }
+
       const qty = Number(current.quantityOrdered) || 0
       const cost = Number(current.unitCostBDT) || 0
       current.totalCostBDT = Math.round(qty * cost * 100) / 100
@@ -642,15 +656,15 @@ export default function WholesalerPurchaseOrdersPage() {
       items: [
         {
           no: 1,
-          skuCode: inventoryItems[0]?.skuCode || "",
-          drugName: inventoryItems[0]?.brandName || "Cef-3 200mg/5ml Susp",
-          genericName: inventoryItems[0]?.genericName || "Cefixime Trihydrate",
-          packSize: "Bottle of 70ml",
-          quantityOrdered: 500,
+          skuCode: "",
+          drugName: "",
+          genericName: "",
+          packSize: "",
+          quantityOrdered: 100,
           quantityReceived: 0,
-          unitCostBDT: inventoryItems[0]?.unitPrice || 185,
-          totalCostBDT: (inventoryItems[0]?.unitPrice || 185) * 500,
-          storageRequirement: inventoryItems[0]?.storageCondition || "Cold Chain (2-8°C)",
+          unitCostBDT: 0,
+          totalCostBDT: 0,
+          storageRequirement: "Controlled Ambient (<25°C)",
         },
       ],
     })

@@ -1,6 +1,7 @@
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
+import { ensureMasterProduct, mirrorBatchQuantity } from "./productBatchService";
 import {
   CreateInventoryBatchInput,
   UpdateInventoryBatchInput,
@@ -43,11 +44,6 @@ export function calculateFefoMeta(expiryDateStr: string, warehouseBin = ""): FEF
     totalValuation: 0,
   };
 }
-
-const generateSKU = (brandName?: string) => {
-  const clean = (brandName || "MD").replace(/[^a-zA-Z]/g, "").slice(0, 2).toUpperCase() || "MD";
-  return `SKU-${clean}-${Math.floor(100 + Math.random() * 900)}`;
-};
 
 const generateBatchNumber = () => {
   const year = new Date().getFullYear();
@@ -282,24 +278,50 @@ export const inventoryService = {
       );
     }
 
-    const skuCode = data.skuCode?.trim() || generateSKU(data.brandName);
     const availableUnits = Math.max(0, parseInt(String(data.availableUnits), 10) || 0);
     const unitPrice = Math.max(0, Number(data.unitPrice) || 0);
 
-    const created = await prisma.inventoryBatch.create({
-      data: {
-        skuCode,
-        brandName: data.brandName.trim(),
-        genericName: data.genericName.trim(),
-        category: data.category.trim(),
-        batchNumber: batchCode,
-        mfgDate: data.mfgDate.trim(),
-        expiryDate: data.expiryDate.trim(),
-        availableUnits,
-        unitPrice,
-        warehouseBin: data.warehouseBin.trim(),
-        storageCondition: data.storageCondition || "Controlled Ambient (<25°C)",
-      },
+    const created = await prisma.$transaction(async (tx) => {
+      const product = await ensureMasterProduct(tx, {
+        brandName: data.brandName,
+        genericName: data.genericName,
+        skuCode: data.skuCode,
+        category: data.category,
+        storageCondition: data.storageCondition,
+      });
+
+      const lot = await tx.inventoryBatch.create({
+        data: {
+          productId: product.id,
+          skuCode: product.skuCode,
+          brandName: product.brandName,
+          genericName: product.genericName,
+          category: data.category.trim() || product.category,
+          batchNumber: batchCode,
+          mfgDate: data.mfgDate.trim(),
+          expiryDate: data.expiryDate.trim(),
+          availableUnits,
+          unitPrice,
+          warehouseBin: data.warehouseBin.trim(),
+          storageCondition: data.storageCondition || product.storageCondition,
+        },
+      });
+
+      await tx.productBatch.create({
+        data: {
+          productId: product.id,
+          batchNumber: batchCode,
+          purchasePrice: unitPrice,
+          mfgDate: data.mfgDate.trim(),
+          expiryDate: data.expiryDate.trim(),
+          quantity: availableUnits,
+          warehouseBin: data.warehouseBin.trim(),
+          storageCondition: data.storageCondition || product.storageCondition,
+          inventoryBatchId: lot.id,
+        },
+      });
+
+      return lot;
     });
 
     // 21 CFR Part 11 Audit Trail
@@ -464,6 +486,7 @@ export const inventoryService = {
       where: { id },
       data: { availableUnits: newStock },
     });
+    await mirrorBatchQuantity(prisma, updated.id, updated.availableUnits);
 
     // Create a synchronized StockAdjustment log in database
     const year = new Date().getFullYear();
@@ -666,6 +689,7 @@ export const inventoryService = {
       throw new AppError("Inventory batch record not found", 404);
     }
 
+    await prisma.productBatch.deleteMany({ where: { inventoryBatchId: existing.id } });
     const deleted = await prisma.inventoryBatch.delete({
       where: { id },
     });
@@ -709,9 +733,11 @@ export const inventoryService = {
     const remainingUnits = batch.availableUnits - deductUnits;
     if (remainingUnits < 0) throw new AppError("Insufficient stock in batch", 400);
 
-    return prisma.inventoryBatch.update({
+    const updated = await prisma.inventoryBatch.update({
       where: { id: batchId },
       data: { availableUnits: remainingUnits },
     });
+    await mirrorBatchQuantity(prisma, updated.id, updated.availableUnits);
+    return updated;
   },
 };

@@ -40,6 +40,17 @@ export const updatePurchaseOrder = catchAsync(async (req: Request, res: Response
   sendResponse(res, 200, "Purchase order updated successfully", updatedOrder);
 });
 
+export const approvePurchaseOrder = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { approvedBy, approvalNote, notes } = req.body;
+  const updatedOrder = await purchaseOrderService.approvePurchaseOrder(
+    id,
+    approvedBy,
+    approvalNote || notes
+  );
+  sendResponse(res, 200, "Purchase order authorized successfully", updatedOrder);
+});
+
 export const updateOrderStatus = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { status, approvalStage, notes, approvedBy } = req.body;

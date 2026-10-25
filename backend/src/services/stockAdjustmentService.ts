@@ -1,5 +1,6 @@
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
+import { mirrorBatchQuantity } from "./productBatchService";
 import { CreateStockAdjustmentInput, UpdateStockAdjustmentInput } from "../validations/stockAdjustmentValidation";
 import { auditLogService } from "./auditLogService";
 
@@ -301,6 +302,7 @@ export const stockAdjustmentService = {
           where: { id: batch.id },
           data: { availableUnits: newAvailable },
         });
+        await mirrorBatchQuantity(prisma, batch.id, newAvailable);
       }
     } catch (err) {
       console.warn("Could not sync stock with inventory batch:", err);

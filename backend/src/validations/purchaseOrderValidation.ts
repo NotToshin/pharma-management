@@ -73,6 +73,17 @@ export const updatePurchaseOrderSchema = z.object({
   }),
 });
 
+export const approvePurchaseOrderSchema = z.object({
+  params: z.object({
+    id: z.string().min(1, "Purchase order ID is required"),
+  }),
+  body: z.object({
+    approvedBy: z.string().optional(),
+    approvalNote: z.string().optional(),
+    notes: z.string().optional(),
+  }),
+});
+
 export const updatePurchaseOrderStatusSchema = z.object({
   params: z.object({
     id: z.string().min(1, "Purchase order ID is required"),
