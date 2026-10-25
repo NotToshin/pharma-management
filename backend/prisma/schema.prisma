@@ -39,6 +39,18 @@ type ExpenseVoucherLineItem {
   lineTotalBDT Float?
 }
 
+type SettlementAllocation {
+  documentType    String
+  documentId      String
+  documentNumber  String
+  allocatedAmount Float
+}
+
+type AdvanceDraw {
+  paymentId String
+  amount    Float
+}
+
 
 // ─────────────────────────────────────────────
 // Enums
@@ -208,6 +220,8 @@ model Order {
   comments       String?
   deliveryMethod String
   status         String
+  paidAmount     Float       @default(0)
+  paymentStatus  String      @default("UNPAID") // UNPAID | PARTIALLY_PAID | PAID
   challanNumber  String?
   invoiceNumber  String?
   createdAt      DateTime    @default(now())
@@ -401,6 +415,8 @@ model PurchaseOrder {
   taxBDT               Float               @default(0.0)
   totalAmountBDT       Float               @default(0.0)
   status               String              @default("Draft") // "Draft" | "Submitted" | "Approved" | "Partially Received" | "Received" | "Cancelled"
+  paidAmountBDT        Float               @default(0)
+  paymentStatus        String              @default("UNPAID") // UNPAID | PARTIALLY_PAID | PAID
   approvalStage        String?             @default("Procurement Officer Review") // "Procurement Officer Review" | "Lead Pharmacist" | "Finance Clearance" | "Final Approved"
   priority             String              @default("Routine") // "Routine" | "Urgent / Stockout Risk" | "Emergency Cold-Chain"
   requisitionRef       String?
@@ -416,6 +432,32 @@ model PurchaseOrder {
   @@index([status])
   @@index([wholesalerName])
   @@index([priority])
+}
+
+model PartySettlement {
+  id                 String                 @id @default(auto()) @map("_id") @db.ObjectId
+  paymentNumber      String                 @unique
+  direction          String                 // OUTGOING (supplier) | INCOMING (buyer)
+  partyName          String
+  partyCode          String?
+  amount             Float
+  unallocatedAmount  Float                  @default(0)
+  paymentMethod      String
+  paymentDate        String
+  transactionRef     String?
+  financialAccountId String?
+  accountTitle       String?
+  status             String                 @default("COMPLETED") // COMPLETED | REVERSED
+  notes              String?
+  allocations        SettlementAllocation[]
+  advanceDraws       AdvanceDraw[]
+  createdBy          String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@index([direction])
+  @@index([partyName])
+  @@index([status])
 }
 
 model Wholesaler {

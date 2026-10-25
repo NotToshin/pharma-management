@@ -830,8 +830,8 @@ export default function GeneralPaymentsPage() {
     setIsFormOpen(true)
   }
 
-  const handleSelectWholesaler = (name: string) => {
-    const found = wholesalers.find((w) => w.name === name)
+  const handleSelectWholesaler = (wholesalerId: string) => {
+    const found = wholesalers.find((w) => w.id === wholesalerId)
     if (found) {
       setFormData((prev) => ({
         ...prev,
@@ -840,14 +840,13 @@ export default function GeneralPaymentsPage() {
         category: "Wholesaler Settlement",
         notes: `Procurement clearance for ${found.name} (${found.wholesalerCode}).`,
       }))
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        payeeName: name,
-        wholesalerId: "",
-      }))
     }
   }
+
+  const selectedWholesalerSelectValue =
+    formData.wholesalerId ||
+    wholesalers.find((w) => w.name === formData.payeeName)?.id ||
+    ""
 
   const handleSelectFinancialAccount = (accountId: string) => {
     const acc = accounts.find((a) => a.id === accountId)
@@ -1831,7 +1830,7 @@ export default function GeneralPaymentsPage() {
               {formData.payeeType === "Wholesaler / Vendor" && wholesalers.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2">
                   <Select
-                    value={formData.payeeName}
+                    value={selectedWholesalerSelectValue}
                     onValueChange={handleSelectWholesaler}
                   >
                     <SelectTrigger className="h-8 bg-white text-xs">
@@ -1839,7 +1838,7 @@ export default function GeneralPaymentsPage() {
                     </SelectTrigger>
                     <SelectContent className="text-xs">
                       {wholesalers.map((w) => (
-                        <SelectItem key={w.id} value={w.name}>
+                        <SelectItem key={w.id} value={w.id}>
                           {w.name} ({w.wholesalerCode})
                         </SelectItem>
                       ))}
@@ -2442,7 +2441,7 @@ export default function GeneralPaymentsPage() {
                                   ? item.unitCostBDT * item.quantity
                                   : null
                             return (
-                              <tr key={`${item.itemName}-${idx}`} className="border-b border-slate-50">
+                              <tr key={`particular-${idx}`} className="border-b border-slate-50">
                                 <td className="py-1.5 font-medium text-slate-800">{item.itemName}</td>
                                 <td className="py-1.5 text-center font-mono text-slate-700">{item.quantity}</td>
                                 <td className="py-1.5 text-right font-mono font-semibold text-slate-900">

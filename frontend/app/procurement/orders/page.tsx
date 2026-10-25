@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
 import { apiFetch } from "@/lib/api"
@@ -104,6 +106,8 @@ export interface PurchaseOrder {
   discountBDT: number
   taxBDT: number
   totalAmountBDT: number
+  paidAmountBDT?: number
+  paymentStatus?: string
   status: "Draft" | "Submitted" | "Approved" | "Partially Received" | "Received" | "Cancelled"
   approvalStage?: string | null
   priority: "Routine" | "Urgent / Stockout Risk" | "Emergency Cold-Chain"
@@ -186,6 +190,7 @@ const PAYMENT_TERMS_OPTIONS = [
 ]
 
 export default function WholesalerPurchaseOrdersPage() {
+  const router = useRouter()
   const [orders, setOrders] = React.useState<PurchaseOrder[]>([])
   const [wholesalers, setWholesalers] = React.useState<Wholesaler[]>([])
   const [inventoryItems, setInventoryItems] = React.useState<InventoryBatchOption[]>([])
@@ -459,13 +464,16 @@ export default function WholesalerPurchaseOrdersPage() {
       }
 
       // Wholesaler
-      if (wholesalerFilter !== "all" && order.wholesalerName !== wholesalerFilter) {
-        return false
+      if (wholesalerFilter !== "all") {
+        const selectedWholesaler = wholesalers.find((w) => w.id === wholesalerFilter)
+        if (selectedWholesaler && order.wholesalerName !== selectedWholesaler.name) {
+          return false
+        }
       }
 
       return true
     })
-  }, [orders, searchQuery, statusFilter, priorityFilter, wholesalerFilter])
+  }, [orders, searchQuery, statusFilter, priorityFilter, wholesalerFilter, wholesalers])
 
   // Status counts for filters
   const statusCounts = React.useMemo(() => {
@@ -509,26 +517,32 @@ export default function WholesalerPurchaseOrdersPage() {
   }, [wholesalers, wholesalerSearchQuery, wholesalerStatusFilter])
 
   // Wholesaler change in Create/Edit Form
-  const handleWholesalerSelect = (wholesalerName: string) => {
-    const found = wholesalers.find((w) => w.name === wholesalerName)
-    if (found) {
-      setFormData((prev) => ({
-        ...prev,
-        wholesalerName: found.name,
-        wholesalerCode: found.wholesalerCode,
-        contactPerson: found.contactPerson,
-        phone: found.phone,
-        email: found.email || "",
-        wholesalerAddress: found.address,
-        paymentTerms: found.paymentTerms || prev.paymentTerms,
-      }))
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        wholesalerName,
-      }))
-    }
+  const handleWholesalerSelect = (wholesalerId: string) => {
+    const found = wholesalers.find((w) => w.id === wholesalerId)
+    if (!found) return
+
+    setFormData((prev) => ({
+      ...prev,
+      wholesalerName: found.name,
+      wholesalerCode: found.wholesalerCode,
+      contactPerson: found.contactPerson,
+      phone: found.phone,
+      email: found.email || "",
+      wholesalerAddress: found.address,
+      paymentTerms: found.paymentTerms || prev.paymentTerms,
+    }))
   }
+
+  const selectedOrderWholesalerId = React.useMemo(() => {
+    if (!formData.wholesalerName) return ""
+    const exact = wholesalers.find(
+      (w) =>
+        w.name === formData.wholesalerName &&
+        formData.wholesalerCode &&
+        w.wholesalerCode === formData.wholesalerCode
+    )
+    return exact?.id || wholesalers.find((w) => w.name === formData.wholesalerName)?.id || ""
+  }, [formData.wholesalerName, formData.wholesalerCode, wholesalers])
 
   // Item row change in Create/Edit Form
   const handleItemChange = (
@@ -1362,6 +1376,18 @@ export default function WholesalerPurchaseOrdersPage() {
           </Button>
 
           <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
+          >
+            <Link href="/finance/supplier-payments">
+              <CreditCard className="h-3.5 w-3.5 text-blue-600" />
+              Supplier Payments
+            </Link>
+          </Button>
+
+          <Button
             size="sm"
             onClick={handleOpenCreateModal}
             className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
@@ -1505,8 +1531,9 @@ export default function WholesalerPurchaseOrdersPage() {
             <SelectContent className="text-xs max-h-56">
               <SelectItem value="all">All Wholesalers</SelectItem>
               {wholesalers.map((w) => (
-                <SelectItem key={w.id} value={w.name}>
+                <SelectItem key={w.id} value={w.id}>
                   {w.name}
+                  {w.wholesalerCode ? ` (${w.wholesalerCode})` : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1631,7 +1658,9 @@ export default function WholesalerPurchaseOrdersPage() {
                     <div>
                       <span>৳{ord.totalAmountBDT.toLocaleString("en-IN")}</span>
                       <span className="block text-[10px] font-normal text-slate-400">
-                        {ord.paymentTerms || "Net 30"}
+                        {ord.paymentStatus && ord.paymentStatus !== "UNPAID"
+                          ? `${ord.paymentStatus.replace("_", " ")} · ৳${(ord.paidAmountBDT || 0).toLocaleString("en-IN")}`
+                          : ord.paymentTerms || "Net 30"}
                       </span>
                     </div>
                   </TableCell>
@@ -1736,13 +1765,13 @@ export default function WholesalerPurchaseOrdersPage() {
                           </DropdownMenuItem>
                         )}
 
-                        {ord.status !== "Cancelled" && (
+                        {ord.status !== "Cancelled" && ord.status !== "Draft" && (
                           <DropdownMenuItem
-                            onClick={() => handleOpenPaymentModal(ord)}
+                            onClick={() => router.push(`/finance/supplier-payments?poId=${ord.id}`)}
                             className="cursor-pointer text-xs font-semibold text-blue-700"
                           >
                             <CreditCard className="mr-2 h-3.5 w-3.5 text-blue-600" />
-                            Disburse Payment (Finance)
+                            Pay Supplier
                           </DropdownMenuItem>
                         )}
 
@@ -1817,13 +1846,13 @@ export default function WholesalerPurchaseOrdersPage() {
               {/* Wholesaler Select */}
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">Wholesaler / Distributor *</Label>
-                <Select value={formData.wholesalerName} onValueChange={handleWholesalerSelect}>
+                <Select value={selectedOrderWholesalerId} onValueChange={handleWholesalerSelect}>
                   <SelectTrigger className="h-8 border-slate-200 bg-white text-xs">
                     <SelectValue placeholder="Select licensed wholesaler" />
                   </SelectTrigger>
                   <SelectContent className="text-xs max-h-56">
                     {wholesalers.map((w) => (
-                      <SelectItem key={w.id} value={w.name}>
+                      <SelectItem key={w.id} value={w.id}>
                         {w.name} ({w.wholesalerCode})
                       </SelectItem>
                     ))}
@@ -3468,18 +3497,18 @@ export default function WholesalerPurchaseOrdersPage() {
                     </Button>
                   )}
 
-                  {detailsOrder.status !== "Cancelled" && (
+                  {detailsOrder.status !== "Cancelled" && detailsOrder.status !== "Draft" && (
                     <Button
                       type="button"
                       size="sm"
                       onClick={() => {
                         setIsDetailsModalOpen(false)
-                        handleOpenPaymentModal(detailsOrder)
+                        router.push(`/finance/supplier-payments?poId=${detailsOrder.id}`)
                       }}
                       className="h-8 gap-1.5 bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white"
                     >
                       <CreditCard className="h-3.5 w-3.5" />
-                      Disburse Payment
+                      Pay Supplier
                     </Button>
                   )}
 

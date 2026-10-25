@@ -15,6 +15,7 @@ import dashboardRoutes from "./routes/dashboardRoutes";
 import rbacRoutes from "./routes/rbacRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
 import collectionRoutes from "./routes/collectionRoutes";
+import settlementRoutes from "./routes/settlementRoutes";
 import { globalErrorHandler, notFoundHandler } from "./errors";
 
 import { actorContextMiddleware } from "./middlewares/actorContextMiddleware";
@@ -119,6 +120,7 @@ app.use("/api/roles", roleRoutes);
 app.use("/api/salary", salaryRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/expense-vouchers", paymentRoutes);
+app.use("/api/settlements", settlementRoutes);
 app.use("/api/collections", collectionRoutes);
 app.use("/api/delivery-collections", collectionRoutes);
 app.use("/api/finance/collections", collectionRoutes);
