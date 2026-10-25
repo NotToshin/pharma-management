@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { AppError } from "../errors";
+import { mirrorBatchQuantity } from "./productBatchService";
 
 const prisma = new PrismaClient();
 
@@ -166,10 +167,11 @@ export const orderService = {
               const deductUnits = Math.min(batch.availableUnits, qtyNeeded);
               const remainingUnits = batch.availableUnits - deductUnits;
 
-              await tx.inventoryBatch.update({
+              const updatedLot = await tx.inventoryBatch.update({
                 where: { id: batch.id },
                 data: { availableUnits: remainingUnits },
               });
+              await mirrorBatchQuantity(tx, updatedLot.id, updatedLot.availableUnits);
 
               qtyNeeded -= deductUnits;
             }
@@ -221,10 +223,13 @@ export const orderService = {
         });
 
         if (batch) {
-          await prisma.inventoryBatch.update({
+          const restored = await prisma.inventoryBatch.update({
             where: { id: batch.id },
             data: { availableUnits: { increment: qty } },
           }).catch(() => null);
+          if (restored) {
+            await mirrorBatchQuantity(prisma, restored.id, restored.availableUnits).catch(() => null);
+          }
         }
       }
 
@@ -277,10 +282,13 @@ export const orderService = {
         });
 
         if (batch) {
-          await prisma.inventoryBatch.update({
+          const restored = await prisma.inventoryBatch.update({
             where: { id: batch.id },
             data: { availableUnits: { increment: qty } },
           }).catch(() => null);
+          if (restored) {
+            await mirrorBatchQuantity(prisma, restored.id, restored.availableUnits).catch(() => null);
+          }
         }
       }
 

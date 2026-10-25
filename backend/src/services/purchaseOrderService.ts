@@ -8,6 +8,7 @@ import {
   UpdateWholesalerInput,
 } from "../validations/purchaseOrderValidation";
 import { auditLogService } from "./auditLogService";
+import { receiveIndependentBatch } from "./productBatchService";
 
 function formatCurrentDate(d: Date = new Date()): string {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -325,6 +326,22 @@ export const purchaseOrderService = {
     return updated;
   },
 
+  async approvePurchaseOrder(id: string, approvedBy?: string, notes?: string) {
+    const existing = await this.getPurchaseOrderById(id);
+
+    if (existing.status === "Cancelled") {
+      throw new AppError("A cancelled purchase order cannot be authorized", 400);
+    }
+    if (existing.status === "Received" || existing.status === "Partially Received") {
+      throw new AppError("This purchase order is already in receiving and cannot be authorized again", 400);
+    }
+    if (existing.status === "Approved") {
+      throw new AppError("This purchase order is already authorized", 400);
+    }
+
+    return this.updateOrderStatus(id, "Approved", "Final Approved", notes, approvedBy);
+  },
+
   async updateOrderStatus(
     id: string,
     status: "Draft" | "Submitted" | "Approved" | "Partially Received" | "Received" | "Cancelled",
@@ -387,56 +404,56 @@ export const purchaseOrderService = {
       throw new AppError("Cannot receive stock for a cancelled purchase order", 400);
     }
 
+    const { updatedPO, allFulfilled, openedBatches, newStatus } = await prisma.$transaction(async (tx) => {
     const updatedItems = [...existing.items];
-    const createdBatchIds: string[] = [];
+    const openedBatches: Array<{
+      id: string;
+      productId: string;
+      batchNumber: string;
+      created: boolean;
+      quantity: number;
+      purchasePrice: number;
+      expiryDate: string;
+    }> = [];
 
     for (const item of input.receivedItems) {
       const idx = updatedItems.findIndex(
         (it) => (it.skuCode && it.skuCode === item.skuCode) || it.drugName.toLowerCase() === item.drugName.toLowerCase()
       );
+      const poLine = idx !== -1 ? updatedItems[idx] : undefined;
 
       if (idx !== -1) {
         const currentRec = updatedItems[idx].quantityReceived || 0;
         updatedItems[idx].quantityReceived = currentRec + Number(item.quantityToReceive);
       }
 
-      // If user wants to inject directly into Active FEFO Inventory
       if (input.updateInventoryBatches) {
-        const batchNum = item.batchNumber.trim();
-        const existingBatch = await prisma.inventoryBatch.findUnique({
-          where: { batchNumber: batchNum },
+        const received = await receiveIndependentBatch(tx, {
+          brandName: item.drugName,
+          genericName: poLine?.genericName || item.drugName,
+          skuCode: item.skuCode || poLine?.skuCode,
+          packSize: poLine?.packSize,
+          category: item.storageCondition?.includes("Cold Chain") ? "Cold Chain Biologics" : undefined,
+          batchNumber: item.batchNumber,
+          mfgDate: item.mfgDate || formatCurrentDate(),
+          expiryDate: item.expiryDate || formatCurrentDate(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 2)),
+          quantity: Number(item.quantityToReceive),
+          purchasePrice: Number(item.unitPrice) || Number(poLine?.unitCostBDT) || 0,
+          warehouseBin: item.warehouseBin || "Dock Bay 01",
+          storageCondition: item.storageCondition || poLine?.storageRequirement || "Controlled Ambient (<25°C)",
+          purchaseOrderId: existing.id,
+          poNumber: existing.poNumber,
         });
 
-        if (existingBatch) {
-          // Increment stock
-          const updatedBatch = await prisma.inventoryBatch.update({
-            where: { batchNumber: batchNum },
-            data: {
-              availableUnits: existingBatch.availableUnits + Number(item.quantityToReceive),
-            },
-          });
-          createdBatchIds.push(updatedBatch.id);
-        } else {
-          // Create new batch in warehouse
-          const skuCode = item.skuCode || `SKU-${batchNum.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`;
-
-          const newBatch = await prisma.inventoryBatch.create({
-            data: {
-              skuCode,
-              brandName: item.drugName,
-              genericName: item.drugName,
-              category: item.storageCondition?.includes("Cold Chain") ? "Cold Chain Biologics" : "General Oral Solid",
-              batchNumber: batchNum,
-              mfgDate: item.mfgDate || formatCurrentDate(),
-              expiryDate: item.expiryDate || formatCurrentDate(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 2)),
-              availableUnits: Number(item.quantityToReceive),
-              unitPrice: Number(item.unitPrice) || 150.0,
-              warehouseBin: item.warehouseBin || "Dock Bay 01",
-              storageCondition: item.storageCondition || "Controlled Ambient (<25°C)",
-            },
-          });
-          createdBatchIds.push(newBatch.id);
-        }
+        openedBatches.push({
+          id: received.productBatch.id,
+          productId: received.product.id,
+          batchNumber: received.productBatch.batchNumber,
+          created: received.created,
+          quantity: received.productBatch.quantity,
+          purchasePrice: received.productBatch.purchasePrice,
+          expiryDate: received.productBatch.expiryDate,
+        });
       }
     }
 
@@ -447,7 +464,7 @@ export const purchaseOrderService = {
     const newStatus = allFulfilled ? "Received" : "Partially Received";
     const approvalStage = allFulfilled ? "Dock Intake Complete" : "Partial Intake Verified";
 
-    const updatedPO = await prisma.purchaseOrder.update({
+    const updatedPO = await tx.purchaseOrder.update({
       where: { id },
       data: {
         items: updatedItems,
@@ -460,6 +477,9 @@ export const purchaseOrderService = {
       },
     });
 
+    return { updatedPO, allFulfilled, openedBatches, newStatus };
+    });
+
     await auditLogService.recordAuditEvent({
       module: "FEFO Warehouse",
       actionType: "Wholesaler Goods Received",
@@ -467,12 +487,12 @@ export const purchaseOrderService = {
       entityTarget: `PO # ${existing.poNumber} | Wholesaler: ${existing.wholesalerName}`,
       entityType: "PurchaseOrder",
       entityId: existing.id,
-      changeSummary: `Stock intake recorded for PO ${existing.poNumber}. New status: ${newStatus}. Received batches synchronized into warehouse inventory ledger.`,
+      changeSummary: `Stock intake recorded for PO ${existing.poNumber}. New status: ${newStatus}. Each receipt was stored as its own batch under the master product.`,
       newPayload: {
         poNumber: existing.poNumber,
         receivedItems: input.receivedItems,
         challanNumber: input.challanNumber,
-        createdBatchCount: createdBatchIds.length,
+        batches: openedBatches,
       },
       reasonForChange: input.notes || "Dock intake verified and received against purchase order",
       actorName: input.receivedBy || "Receiving Pharmacist",
@@ -481,7 +501,8 @@ export const purchaseOrderService = {
     return {
       purchaseOrder: updatedPO,
       allFulfilled,
-      syncedBatchesCount: createdBatchIds.length,
+      syncedBatchesCount: openedBatches.length,
+      batches: openedBatches,
     };
   },
 

@@ -352,11 +352,55 @@ model JournalTransaction {
 }
 
 // ─────────────────────────────────────────────
-// Inventory
+// Inventory — one master product, many purchase batches (FEFO)
 // ─────────────────────────────────────────────
+
+model Product {
+  id               String         @id @default(auto()) @map("_id") @db.ObjectId
+  skuCode          String         @unique
+  brandName        String
+  genericName      String
+  category         String         @default("General Oral Solid")
+  packSize         String?
+  storageCondition String         @default("Controlled Ambient (<25°C)")
+  isActive         Boolean        @default(true)
+  batches          ProductBatch[]
+  inventoryLots    InventoryBatch[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([brandName])
+}
+
+// One row per purchase lot. Quantity, expiry, and purchase price never
+// move onto another lot of the same product.
+model ProductBatch {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  productId        String   @db.ObjectId
+  product          Product  @relation(fields: [productId], references: [id])
+  batchNumber      String
+  purchasePrice    Float
+  mfgDate          String
+  expiryDate       String
+  quantity         Int
+  warehouseBin     String
+  storageCondition String
+  purchaseOrderId  String?  @db.ObjectId
+  poNumber         String?
+  inventoryBatchId String?  @db.ObjectId
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([productId, batchNumber])
+  @@index([expiryDate])
+  @@index([batchNumber])
+  @@index([inventoryBatchId])
+}
 
 model InventoryBatch {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  productId        String?  @db.ObjectId
+  product          Product? @relation(fields: [productId], references: [id])
   skuCode          String
   brandName        String
   genericName      String
@@ -365,11 +409,15 @@ model InventoryBatch {
   mfgDate          String
   expiryDate       String
   availableUnits   Int
-  unitPrice        Float  
+  unitPrice        Float
   warehouseBin     String
   storageCondition String   // "Controlled Ambient (<25°C)" | "Cold Chain (2-8°C)"
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  @@index([productId])
+  @@index([brandName])
+  @@index([expiryDate])
 }
 
 model StockAdjustment {

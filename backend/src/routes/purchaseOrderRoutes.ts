@@ -6,6 +6,7 @@ import {
   createPurchaseOrder,
   updatePurchaseOrder,
   updateOrderStatus,
+  approvePurchaseOrder,
   receiveStock,
   deletePurchaseOrder,
   getAllWholesalers,
@@ -19,6 +20,7 @@ import {
   createPurchaseOrderSchema,
   updatePurchaseOrderSchema,
   updatePurchaseOrderStatusSchema,
+  approvePurchaseOrderSchema,
   receiveStockSchema,
   purchaseOrderIdParamSchema,
   queryPurchaseOrderSchema,
@@ -45,6 +47,7 @@ router.get("/:id", validateParams(purchaseOrderIdParamSchema), getPurchaseOrderB
 router.post("/", validateBody(createPurchaseOrderSchema), createPurchaseOrder);
 router.put("/:id", validateParams(purchaseOrderIdParamSchema), validateBody(updatePurchaseOrderSchema), updatePurchaseOrder);
 router.patch("/:id/status", validateParams(purchaseOrderIdParamSchema), validateBody(updatePurchaseOrderStatusSchema), updateOrderStatus);
+router.patch("/:id/approve", validateParams(purchaseOrderIdParamSchema), validateBody(approvePurchaseOrderSchema), approvePurchaseOrder);
 router.post("/:id/receive", validateParams(purchaseOrderIdParamSchema), validateBody(receiveStockSchema), receiveStock);
 router.patch("/:id/receive", validateParams(purchaseOrderIdParamSchema), validateBody(receiveStockSchema), receiveStock);
 router.delete("/:id", validateParams(purchaseOrderIdParamSchema), deletePurchaseOrder);
