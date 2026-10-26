@@ -1,0 +1,623 @@
+"use client"
+
+import * as React from "react"
+import { usePathname, useRouter } from "next/navigation"
+import { Geist, Geist_Mono } from "next/font/google"
+import "./globals.css"
+import { ThemeProvider } from "@/components/theme-provider"
+import { cn } from "@/lib/utils"
+import {
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { AppSidebar } from "@/components/app-sidebar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Shield, User, LogOut, Camera, ShieldAlert, ArrowLeft } from "lucide-react"
+import { Toaster } from "@/components/ui/toaster"
+import { isAuthenticated, getStoredUser, logout, isUserSuperAdmin } from "@/lib/auth"
+
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+})
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+})
+
+const routeTitleMap: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/analytics/targets": "Target Vs Achievement",
+  "/analytics/territories": "Territory Sales Breakdown",
+  "/field-force/tour-plans": "All Tour Plans",
+  "/field-force/approvals": "Pending Approvals",
+  "/field-force/visit-logs": "Doctor Visit Logs",
+  "/field-force/samples": "Sample & Gift Distribution",
+  "/field-force/zones": "MIO Zone Allocation",
+  "/field-force/routes": "Route Optimization",
+  "/doctors/database": "Doctors List",
+  "/doctors/new": "Add New Doctor",
+  "/doctors/ranking": "Prescription Category Ranking",
+  "/doctors/timeline": "Visit History Timeline",
+  "/inventory/ledger": "Stock Inventory",
+  "/inventory/expiry": "Expiry Watchlist",
+  "/inventory/adjustments": "Stock Adjustments",
+  "/procurement/orders": "Wholesale Purchase Orders",
+  "/procurement/batch-logs": "Receive Stock Batch Log",
+  "/logistics/orders": "Sales Orders",
+  "/logistics/batch-log": "Receive Stock Batch Log",
+  "/sales/clients": "Pharmacy Clients",
+  "/finance/overview": "Treasury Overview",
+  "/finance/bank-ledger": "Bank Accounts Ledger",
+  "/finance/collections": "Delivery Cash Collections",
+  "/finance/payments": "Payments",
+  "/finance/supplier-payments": "Supplier Payments",
+  "/finance/buyer-payments": "Buyer Payments",
+  "/hr/staff-directory": "Staff Directory & Roles",
+  "/hr/salary": "Salary",
+  "/settings/rbac": "Role Permissions (RBAC)",
+  "/settings/audit-logs": "Audit Logs (21 CFR Part 11)",
+}
+
+function getPageTitle(pathname: string): string {
+  if (routeTitleMap[pathname]) return routeTitleMap[pathname]
+  for (const [route, title] of Object.entries(routeTitleMap)) {
+    if (pathname.startsWith(route)) return title
+  }
+  const segments = pathname.split("/").filter(Boolean)
+  if (segments.length === 0) return "Dashboard"
+  const last = segments[segments.length - 1]
+  return last.charAt(0).toUpperCase() + last.slice(1).replace(/-/g, " ")
+}
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode
+}>) {
+  const pathname = usePathname()
+  const router = useRouter()
+  const [mounted, setMounted] = React.useState(false)
+  const [authorized, setAuthorized] = React.useState(false)
+
+  // User Session State
+  const [userData, setUserData] = React.useState({
+    name: "Toshin",
+    email: "toshin@akpharma.com",
+    role: "SUPERADMIN",
+    roleName: "Managing Director / Super Admin",
+    territory: "Central HQ",
+    avatar: "",
+    permissions: [] as any[],
+  })
+
+  // Modal Dialog states
+  const [isAccountOpen, setIsAccountOpen] = React.useState(false)
+  const [isPrivilegesOpen, setIsPrivilegesOpen] = React.useState(false)
+  const [editName, setEditName] = React.useState("Toshin")
+  const [editAvatar, setEditAvatar] = React.useState("")
+
+  const isLoginPage = pathname === "/login"
+
+  React.useEffect(() => {
+    setMounted(true)
+    const active = isAuthenticated()
+    const storedUser = getStoredUser()
+
+    if (!active && !isLoginPage) {
+      router.replace("/login")
+    } else {
+      if (storedUser) {
+        setUserData({
+          name: storedUser.name || "Toshin",
+          email: storedUser.email || "toshin@akpharma.com",
+          role: storedUser.role || storedUser.roleName || (storedUser as any).roleCode || "SUPERADMIN",
+          roleName: storedUser.roleName || storedUser.role || "Administrator",
+          territory: storedUser.territory || "Central HQ",
+          avatar: storedUser.avatar || "",
+          permissions: storedUser.permissions || [],
+        })
+        setEditName(storedUser.name || "Toshin")
+        setEditAvatar(storedUser.avatar || "")
+      }
+      setAuthorized(true)
+    }
+  }, [pathname, router, isLoginPage])
+
+  // Dynamic browser tab title
+  React.useEffect(() => {
+    const pageName = getPageTitle(pathname)
+    document.title = `AK-Pharma | ${pageName}`
+  }, [pathname])
+
+  const isSuperAdminUser = React.useMemo(() => {
+    return isUserSuperAdmin({
+      id: "",
+      name: userData.name,
+      email: userData.email,
+      role: userData.role || userData.roleName || "",
+      roleName: userData.roleName,
+    })
+  }, [userData.roleName, userData.role, userData.name, userData.email])
+
+  const isCurrentPageAllowed = React.useMemo(() => {
+    if (isSuperAdminUser) return true
+    if (pathname === "/dashboard" || pathname === "/login" || pathname === "/") return true
+    if (pathname === "/settings/rbac") return false // Super Admin exclusive
+
+    const permissions = userData.permissions || []
+    if (permissions.length === 0) return true // fallback allow
+
+    const perm = permissions.find((p: any) => {
+      if (!p) return false
+      const modTitle = (p.module || "").toLowerCase()
+      if (pathname.startsWith("/analytics/targets") && (modTitle.includes("target") || modTitle.includes("territory"))) return true
+      if (pathname.startsWith("/analytics/territories") && (modTitle.includes("territory") || modTitle.includes("target"))) return true
+      if (pathname.startsWith("/field-force/zones") && (modTitle.includes("zone") || modTitle.includes("territory") || modTitle.includes("target") || modTitle.includes("mio"))) return true
+      if (pathname.startsWith("/field-force/visit-logs") && (modTitle.includes("visit") || modTitle.includes("dcr") || modTitle.includes("call"))) return true
+      if (pathname.startsWith("/field-force/tour-plans") && modTitle.includes("tour")) return true
+      if (pathname.startsWith("/field-force/approvals") && modTitle.includes("approval")) return true
+      if (pathname.startsWith("/field-force/samples") && modTitle.includes("sample")) return true
+      if (pathname.startsWith("/field-force/routes") && modTitle.includes("route")) return true
+      if (pathname.startsWith("/doctors/database") && (modTitle.includes("doctor") || modTitle.includes("database") || modTitle.includes("list"))) return true
+      if (pathname.startsWith("/doctors/new") && modTitle.includes("add new doctor")) return true
+      if (pathname.startsWith("/doctors/ranking") && modTitle.includes("ranking")) return true
+      if (pathname.startsWith("/doctors/timeline") && modTitle.includes("timeline")) return true
+      if (pathname.startsWith("/inventory/ledger") && (modTitle.includes("inventory") || modTitle.includes("stock") || modTitle.includes("fefo") || modTitle.includes("ledger"))) return true
+      if (pathname.startsWith("/procurement/orders") && (modTitle.includes("purchase") || modTitle.includes("procurement") || modTitle.includes("order") || modTitle.includes("wholesale") || modTitle.includes("transaction"))) return true
+      if (pathname.startsWith("/inventory/adjustments") && (modTitle.includes("adjustment") || modTitle.includes("stock"))) return true
+      if (pathname.startsWith("/inventory/expiry") && modTitle.includes("expiry")) return true
+      if (pathname.startsWith("/procurement/batch-logs") && modTitle.includes("batch log")) return true
+      if (pathname.startsWith("/logistics/orders") && (modTitle.includes("logistics") || modTitle.includes("delivery") || modTitle.includes("order"))) return true
+      if (pathname.startsWith("/logistics/batch-log") && (modTitle.includes("delivery") || modTitle.includes("batch") || modTitle.includes("logistics"))) return true
+      if (pathname.startsWith("/sales/clients") && (modTitle.includes("client") || modTitle.includes("pharmacy"))) return true
+      if (pathname.startsWith("/finance/overview") && (modTitle.includes("treasury") || modTitle.includes("finance"))) return true
+      if (pathname.startsWith("/finance/bank-ledger") && (modTitle.includes("bank") || modTitle.includes("account"))) return true
+      if (pathname.startsWith("/finance/collections") && (modTitle.includes("cash") || modTitle.includes("collection") || modTitle.includes("transaction"))) return true
+      if (pathname.startsWith("/finance/payments") && modTitle.includes("payment")) return true
+      if (pathname.startsWith("/finance/supplier-payments") && (modTitle.includes("supplier") || modTitle.includes("payment") || modTitle.includes("transaction"))) return true
+      if (pathname.startsWith("/finance/buyer-payments") && (modTitle.includes("buyer") || modTitle.includes("payment") || modTitle.includes("transaction"))) return true
+      if (pathname.startsWith("/hr/staff-directory") && (modTitle.includes("staff") || modTitle.includes("directory") || modTitle.includes("hr"))) return true
+      if (pathname.startsWith("/hr/salary") && (modTitle.includes("salary") || modTitle.includes("payroll"))) return true
+      if (pathname.startsWith("/settings/audit-logs") && modTitle.includes("audit logs")) return true
+      return false
+    })
+
+    if (perm) {
+      return Boolean(perm.read)
+    }
+
+    return true
+  }, [isSuperAdminUser, pathname, userData.permissions])
+
+  const handleLogout = () => {
+    logout()
+  }
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault()
+    const updated = {
+      ...userData,
+      name: editName,
+      avatar: editAvatar,
+    }
+    setUserData(updated)
+    localStorage.setItem("ak_user", JSON.stringify(updated))
+    setIsAccountOpen(false)
+  }
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setEditAvatar(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  // Prevent server-client hydration tree mismatches
+  if (!mounted) {
+    return (
+      <html
+        lang="en"
+        suppressHydrationWarning
+        className={cn(geistSans.variable, geistMono.variable, "light")}
+      >
+        <head>
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+          />
+        </head>
+        <body
+          suppressHydrationWarning
+          className="min-h-screen bg-white font-sans text-slate-900 antialiased"
+        >
+          <div className="flex min-h-screen items-center justify-center font-mono text-xs text-slate-400">
+            Loading...
+          </div>
+        </body>
+      </html>
+    )
+  }
+
+  if (isLoginPage) {
+    return (
+      <html
+        lang="en"
+        suppressHydrationWarning
+        className={cn(geistSans.variable, geistMono.variable, "light")}
+      >
+        <head>
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+          />
+        </head>
+        <body
+          suppressHydrationWarning
+          className="min-h-screen bg-white font-sans text-slate-900 antialiased"
+        >
+          {children}
+        </body>
+      </html>
+    )
+  }
+
+  if (!authorized) {
+    return (
+      <html lang="en">
+        <head>
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+          />
+        </head>
+        <body className="flex min-h-screen items-center justify-center bg-slate-50 font-mono text-xs text-slate-400">
+          Authenticating secure session...
+        </body>
+      </html>
+    )
+  }
+
+  return (
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={cn(geistSans.variable, geistMono.variable, "light")}
+    >
+      <head>
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+        />
+      </head>
+      <body
+        suppressHydrationWarning
+        className="min-h-screen bg-[#FDFDFD] font-sans text-slate-900 antialiased"
+      >
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          forcedTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          <Toaster position="top-right" richColors closeButton />
+          <TooltipProvider delayDuration={0}>
+            <SidebarProvider
+              defaultOpen={true}
+              style={
+                {
+                  "--sidebar-width": "19rem",
+                  "--sidebar-width-icon": "3.5rem",
+                } as React.CSSProperties
+              }
+            >
+              <AppSidebar
+                onOpenAccount={() => setIsAccountOpen(true)}
+                onOpenPrivileges={() => setIsPrivilegesOpen(true)}
+              />
+              <SidebarInset className="min-w-0 flex-1 overflow-x-hidden bg-[#FDFDFD]">
+                <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-6">
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                    <SidebarTrigger className="-ml-1 h-9 w-9 text-slate-600 hover:bg-slate-100 hover:text-slate-900" />
+                    <span className="text-sm font-semibold text-slate-900 truncate">
+                      {getPageTitle(pathname)}
+                    </span>
+                  </div>
+
+                  {/* Clean header status without avatar (all account features now unified in side navbar) */}
+                  <div className="flex items-center gap-2">
+                    <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 border border-emerald-200">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Live Session
+                    </span>
+                  </div>
+                </header>
+
+                <main className="flex-1 p-3 sm:p-5 md:p-8 min-w-0">
+                  {isCurrentPageAllowed ? (
+                    children
+                  ) : (
+                    <div className="mx-auto flex min-h-[60vh] max-w-[620px] flex-col items-center justify-center p-6 text-center">
+                      <div className="w-full rounded-2xl border border-rose-200 bg-rose-50/40 p-8 shadow-xs">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 ring-6 ring-rose-50">
+                          <ShieldAlert className="h-7 w-7" />
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="mt-5 border-rose-300 bg-white px-3 py-1 text-xs font-bold text-rose-700 uppercase"
+                        >
+                          Access Denied • 403 Forbidden
+                        </Badge>
+                        <h2 className="mt-4 text-xl font-black tracking-tight text-slate-900">
+                          Module Access Restricted: {getPageTitle(pathname)}
+                        </h2>
+                        <p className="mt-2.5 text-xs leading-relaxed text-slate-600">
+                          Your assigned corporate operational role (
+                          <strong className="text-rose-600">{userData.roleName}</strong>)
+                          has not been granted view permissions for this page.
+                          Please contact the Super Administrator to update your permissions in the
+                          RBAC security control matrix.
+                        </p>
+                        <div className="mt-6 flex items-center justify-center">
+                          <Button
+                            asChild
+                            className="h-8 gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800"
+                          >
+                            <a href="/dashboard">
+                              <ArrowLeft className="h-3.5 w-3.5" />
+                              Return to Dashboard
+                            </a>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </main>
+              </SidebarInset>
+            </SidebarProvider>
+          </TooltipProvider>
+
+          {/* 1. Account Overview & Profile Picture Upload Dialog */}
+          <Dialog open={isAccountOpen} onOpenChange={setIsAccountOpen}>
+            <DialogContent className="rounded-2xl bg-white p-6 sm:max-w-[420px]">
+              <DialogHeader>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Account Overview
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Manage your personal identity, avatar image, and assigned
+                  territory.
+                </DialogDescription>
+              </DialogHeader>
+
+              <form
+                onSubmit={handleSaveProfile}
+                className="space-y-4 py-2 text-xs"
+              >
+                <div className="flex flex-col items-center justify-center space-y-2 py-2">
+                  <Avatar className="h-20 w-20 rounded-2xl border-2 border-slate-200 shadow-sm">
+                    {editAvatar ? (
+                      <AvatarImage src={editAvatar} alt={editName} />
+                    ) : null}
+                    <AvatarFallback className="rounded-2xl bg-indigo-600 text-xl font-bold text-white">
+                      {editName.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-50">
+                    <Camera className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Upload Avatar Image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="font-semibold text-slate-700">
+                    Full Name
+                  </Label>
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    required
+                    className="h-8 text-xs font-semibold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="font-semibold text-slate-700">
+                    Email Address (Login)
+                  </Label>
+                  <Input
+                    value={userData.email}
+                    disabled
+                    className="h-8 bg-slate-50 font-mono text-xs text-slate-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="font-semibold text-slate-700">
+                      Security Role
+                    </Label>
+                    <Input
+                      value={userData.roleName}
+                      disabled
+                      className="h-8 bg-slate-50 text-xs font-medium text-slate-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="font-semibold text-slate-700">
+                      Territory Station
+                    </Label>
+                    <Input
+                      value={userData.territory}
+                      disabled
+                      className="h-8 bg-slate-50 text-xs text-slate-500"
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter className="pt-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAccountOpen(false)}
+                    className="h-8 text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
+                  >
+                    Save Changes
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* 2. Role Privileges Dialog */}
+          <Dialog open={isPrivilegesOpen} onOpenChange={setIsPrivilegesOpen}>
+            <DialogContent className="rounded-2xl bg-white p-6 sm:max-w-[540px]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
+                  <Shield className="h-4 w-4 text-[#0090FF]" />
+                  Active Role Privileges & Scope
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Your current security clearance level and granted module
+                  privileges.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3 py-3 text-xs">
+                <div className="flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+                  <div>
+                    <span className="block text-[10px] font-bold text-[#0090FF] uppercase">
+                      Assigned Clearance
+                    </span>
+                    <strong className="mt-0.5 block text-sm font-bold text-slate-900">
+                      {userData.roleName}
+                    </strong>
+                  </div>
+                  <Badge className="bg-[#0090FF] text-[10px] text-white">
+                    Verified Session
+                  </Badge>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="block px-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+                    Granted Module Access
+                  </span>
+
+                  <div className="max-h-[240px] space-y-1.5 overflow-y-auto pr-1">
+                    {userData.permissions.length === 0 ? (
+                      <div className="rounded-lg bg-slate-50 p-4 text-center text-slate-400">
+                        Full Super Administrator clearance active. All
+                        operational modules unlocked.
+                      </div>
+                    ) : (
+                      userData.permissions.map((p: any, i: number) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-2.5"
+                        >
+                          <div>
+                            <span className="block font-bold text-slate-900">
+                              {p.module}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {p.category} Scope
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {p.read && (
+                              <Badge
+                                variant="outline"
+                                className="border-emerald-200 bg-emerald-50 text-[9px] text-emerald-700"
+                              >
+                                Read
+                              </Badge>
+                            )}
+                            {p.create && (
+                              <Badge
+                                variant="outline"
+                                className="border-blue-200 bg-blue-50 text-[9px] text-blue-700"
+                              >
+                                Create
+                              </Badge>
+                            )}
+                            {p.edit && (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-200 bg-amber-50 text-[9px] text-amber-700"
+                              >
+                                Edit
+                              </Badge>
+                            )}
+                            {p.delete && (
+                              <Badge
+                                variant="outline"
+                                className="border-rose-200 bg-rose-50 text-[9px] text-rose-700"
+                              >
+                                Delete
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  onClick={() => setIsPrivilegesOpen(false)}
+                  className="h-8 bg-slate-900 text-xs text-white"
+                >
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </ThemeProvider>
+      </body>
+    </html>
+  )
+}

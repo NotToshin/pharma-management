@@ -1,0 +1,673 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+    url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// Embedded composite types
+// ─────────────────────────────────────────────
+
+type OrderItem {
+  no          Int
+  description String
+  quantity    Int
+  unitCost    Float
+  total       Float
+}
+
+type PurchaseOrderItem {
+  no                 Int
+  skuCode            String?
+  drugName           String
+  genericName        String?
+  packSize           String?
+  quantityOrdered    Int
+  quantityReceived   Int      @default(0)
+  unitCostBDT        Float
+  totalCostBDT       Float
+  storageRequirement String?  @default("Controlled Ambient (<25°C)")
+}
+
+type ExpenseVoucherLineItem {
+  itemName     String
+  quantity     Int
+  unitCostBDT  Float?
+  lineTotalBDT Float?
+}
+
+type SettlementAllocation {
+  documentType    String
+  documentId      String
+  documentNumber  String
+  allocatedAmount Float
+}
+
+type AdvanceDraw {
+  paymentId String
+  amount    Float
+}
+
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  TERMINATED
+  PROBATION
+  ON_LEAVE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PROCESSING
+}
+
+enum AccountCategory {
+  BANK
+  CASH
+}
+
+enum JournalFlowType {
+  INFLOW   // Deposits, Capital, Sales Collection
+  OUTFLOW  // Withdrawals, Expense Payments
+  TRANSFER // Cash-to-Bank, Bank-to-Cash, Bank-to-Bank
+  LOAN     // Bank Loans, Director/Investor Borrowings
+}
+
+// ─────────────────────────────────────────────
+// Doctors
+// ─────────────────────────────────────────────
+
+model Doctor {
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  doctorName            String
+  phone                 String
+  bmdcRegNumber         String   @unique
+  specialtyAndInstitute String
+  chamber               String
+  territory             String?
+  territoryAndMio       String
+  email                 String
+  tier                  String
+  patientVolumeDaily    Int
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model DoctorVisitLog {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  dcrCode       String
+  doctorName    String
+  specialty     String
+  chamber       String
+  mioName       String
+  territory     String
+  visitDate     String
+  visitTime     String
+  promotedDrugs String
+  samplesGiven  String
+  feedback      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// HR / Staff
+// ─────────────────────────────────────────────
+
+model Role {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   @unique
+  permissions String[]
+  staff       Staff[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Staff {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  empId       String      @unique
+  fullName    String
+  phone       String
+  email       String?
+  nidNumber   String?
+  fathersName String?
+  mothersName String?
+  address     String?
+  department  String?
+  territory   String?
+  supervisor  String?
+  status      StaffStatus @default(ACTIVE)
+  joiningDate DateTime    @default(now())
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  roleId   String? @db.ObjectId
+  role     Role?   @relation(fields: [roleId], references: [id])
+  salaries Salary[]
+  zoneAllocations MioZoneAllocation[]
+}
+
+model Salary {
+  id               String        @id @default(auto()) @map("_id") @db.ObjectId
+  staffId          String        @db.ObjectId
+  staff            Staff         @relation(fields: [staffId], references: [id])
+  payPeriod        String        @default("September 2026")
+  baseSalary       Float  
+  houseRent        Float         @default(0.00)
+  medicalAllowance Float         @default(0.00)
+  conveyanceTaDa   Float         @default(0.00)
+  salesIncentive   Float         @default(0.00)
+  specialBonus     Float         @default(0.00)
+  providentFund    Float         @default(0.00)
+  taxDeduction     Float         @default(0.00)
+  otherDeductions  Float         @default(0.00)
+  leaveDays        Int           @default(0) // Track days off / leave here
+  netPay           Float  
+  paymentStatus    PaymentStatus @default(PENDING)
+  effectiveDate    DateTime
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@unique([staffId, payPeriod])
+}
+
+// ─────────────────────────────────────────────
+// Clients & Orders
+// ─────────────────────────────────────────────
+
+model Client {
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  clientCode            String   @unique
+  pharmacyName          String
+  proprietor            String?
+  phone                 String
+  drugLicenseNo         String?
+  tradeLicenseNo        String?
+  address               String?
+  territory             String?
+  assignedMio           String?
+  creditLimitBDT        Float    @default(0)
+  outstandingBalanceBDT Float    @default(0.00)
+  creditTermDays        Int      @default(30)
+  status                String   @default("Active / Healthy")
+  lastBilledDate        String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model Order {
+  id             String      @id @default(auto()) @map("_id") @db.ObjectId
+  orderNumber    String      @unique
+  orderDate      String
+  pharmacyName   String
+  territory      String
+  assignedMio    String
+  itemsSummary   String
+  itemsDetail    OrderItem[] // Embedded line items (was Json)
+  totalBoxes     Int
+  orderValue     Float  
+  discount       Float       @default(0.00)
+  comments       String?
+  deliveryMethod String
+  status         String
+  paidAmount     Float       @default(0)
+  paymentStatus  String      @default("UNPAID") // UNPAID | PARTIALLY_PAID | PAID
+  challanNumber  String?
+  invoiceNumber  String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Finance
+// ─────────────────────────────────────────────
+
+model TreasuryDeposit {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  destinationType String   // "Cash Drawer" or "Bank Account"
+  destinationName String   // e.g. "Head Office Cash Safe" or "Eastern Bank PLC"
+  amount          Float  
+  salesRep        String?
+  discrepancy     Float    @default(0.00)
+  resolution      String?
+  createdAt       DateTime @default(now())
+}
+
+model DeliveryCollection {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  receiptNo          String    @unique
+  invoiceNo          String
+  orderId            String?
+  clientCode         String?
+  chemistName        String
+  territory          String
+  salesRepName       String
+  totalInvoiceAmount Float
+  amountCollected    Float
+  dueAmountRemaining Float     @default(0.0)
+  collectionDate     String
+  paymentMethod      String    @default("Cash") // "Cash", "Cheque", "BEFTN / RTGS", "bKash / Nagad"
+  chequeNumber       String?
+  status             String    @default("Pending Vault Clearance") // "Pending Vault Clearance" | "Cleared & Deposited" | "Bounced / Rejected"
+  destinationType    String?   // "Cash Drawer" | "Bank Account"
+  destinationName    String?   // e.g. "Head Office Cash Safe" or "Eastern Bank PLC"
+  financialAccountId String?
+  clearedBy          String?
+  clearedAt          DateTime?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status])
+  @@index([territory])
+  @@index([chemistName])
+  @@index([invoiceNo])
+}
+
+model ExpenseVoucher {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  voucherNo          String    @unique
+  payeeName          String
+  payeeType          String?   @default("General / Other") // "Wholesaler / Vendor", "Doctor / Clinical", "Staff TA/DA", "Facility & Utilities", "Regulatory & DGDA", "General / Other"
+  wholesalerId       String?
+  poNumber           String?
+  category           String
+  fundingSource      String    // "Cash Safe" or "Bank Account"
+  sourceDetail       String    // e.g. "Head Office Cash Safe" or "Eastern Bank PLC"
+  financialAccountId String?
+  paymentMethod      String?   @default("Cash") // "Cash", "Cheque", "BEFTN / RTGS", "Pay Order"
+  chequeNumber       String?
+  grossAmount        Float?
+  tdsRate            Float?    @default(0.0)
+  tdsAmount          Float?    @default(0.0)
+  vdsRate            Float?    @default(0.0)
+  vdsAmount          Float?    @default(0.0)
+  netAmount          Float?
+  amount             Float     // Net disbursed amount
+  paymentDate        String
+  notes              String?
+  lineItems          ExpenseVoucherLineItem[]
+  status             String    @default("Disbursed") // "Draft" | "Pending Approval" | "Approved" | "Disbursed" | "Rejected"
+  rejectionReason    String?
+  preparedBy         String?
+  approvedBy         String?
+  approvedAt         DateTime?
+  disbursedBy        String?
+  disbursedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status])
+  @@index([category])
+  @@index([payeeType])
+  @@index([payeeName])
+}
+
+model FinancialAccount {
+  id            String          @id @default(auto()) @map("_id") @db.ObjectId
+  accountTitle  String          @unique
+  category      AccountCategory // BANK or CASH
+  institution   String          // e.g., "Eastern Bank PLC" or "Main Cash Drawer"
+  accountNumber String          // Account # or "CASH-HQ-01"
+  branch        String          // e.g., "Gulshan Corporate" or "Mirpur HQ"
+  accountClass  String          // "Current", "Savings", "Petty Cash", "Escrow", "Cash Counter"
+  balance       Float           @default(0.00)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  debitEntries  JournalTransaction[] @relation("SourceAccount")
+  creditEntries JournalTransaction[] @relation("DestinationAccount")
+}
+
+model JournalTransaction {
+  id                   String          @id @default(auto()) @map("_id") @db.ObjectId
+  entryDate            String
+  refCode              String          @unique
+  flowType             JournalFlowType
+  particulars          String
+  fundingEntity        String?         // e.g., "Loan from DBBL", "Director Equity", "Chemist Cash"
+  method               String          // "Cash Handover", "BEFTN / RTGS", "Cheque Deposit", "ATM"
+  amount               Float  
+  reconciliationStatus String          @default("Reconciled")
+
+  sourceAccountId String?           @db.ObjectId
+  sourceAccount   FinancialAccount? @relation("SourceAccount", fields: [sourceAccountId], references: [id])
+
+  destinationAccountId String?           @db.ObjectId
+  destinationAccount   FinancialAccount? @relation("DestinationAccount", fields: [destinationAccountId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Inventory — one master product, many purchase batches (FEFO)
+// ─────────────────────────────────────────────
+
+model Product {
+  id               String         @id @default(auto()) @map("_id") @db.ObjectId
+  skuCode          String         @unique
+  brandName        String
+  genericName      String
+  category         String         @default("General Oral Solid")
+  packSize         String?
+  storageCondition String         @default("Controlled Ambient (<25°C)")
+  isActive         Boolean        @default(true)
+  batches          ProductBatch[]
+  inventoryLots    InventoryBatch[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([brandName])
+}
+
+// One row per purchase lot. Quantity, expiry, and purchase price never
+// move onto another lot of the same product.
+model ProductBatch {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  productId        String   @db.ObjectId
+  product          Product  @relation(fields: [productId], references: [id])
+  batchNumber      String
+  purchasePrice    Float
+  mfgDate          String
+  expiryDate       String
+  quantity         Int
+  warehouseBin     String
+  storageCondition String
+  purchaseOrderId  String?  @db.ObjectId
+  poNumber         String?
+  inventoryBatchId String?  @db.ObjectId
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([productId, batchNumber])
+  @@index([expiryDate])
+  @@index([batchNumber])
+  @@index([inventoryBatchId])
+}
+
+model InventoryBatch {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  productId        String?  @db.ObjectId
+  product          Product? @relation(fields: [productId], references: [id])
+  skuCode          String
+  brandName        String
+  genericName      String
+  category         String
+  batchNumber      String   @unique
+  mfgDate          String
+  expiryDate       String
+  availableUnits   Int
+  unitPrice        Float
+  warehouseBin     String
+  storageCondition String   // "Controlled Ambient (<25°C)" | "Cold Chain (2-8°C)"
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([productId])
+  @@index([brandName])
+  @@index([expiryDate])
+}
+
+model StockAdjustment {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  adjustmentRef     String   @unique
+  date              String
+  skuCode           String
+  formulationName   String
+  batchNumber       String
+  warehouseLocation String
+  type              String   // "Write-off (Damaged/Broken)" | "Quarantine Transfer" | "Audit Count Discrepancy" | "Restock Inward Correction"
+  quantity          Float
+  unitCostBDT       Float
+  totalImpactBDT    Float
+  reasonCode        String
+  authorizedBy      String
+  approvalStatus    String   @default("Approved & Adjusted") // "Approved & Adjusted" | "Pending Review" | "Rejected"
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Wholesaler Procurement & Purchase Orders
+// ─────────────────────────────────────────────
+
+model PurchaseOrder {
+  id                   String              @id @default(auto()) @map("_id") @db.ObjectId
+  poNumber             String              @unique
+  poDate               String
+  expectedDeliveryDate String?
+  wholesalerName       String
+  wholesalerCode       String?
+  contactPerson        String?
+  phone                String?
+  email                String?
+  wholesalerAddress    String?
+  deliveryWarehouse    String              @default("Main Distribution Bay - Tejgaon Central")
+  paymentTerms         String              @default("Net 30 Days")
+  items                PurchaseOrderItem[]
+  totalUnits           Int                 @default(0)
+  subtotalBDT          Float               @default(0.0)
+  discountBDT          Float               @default(0.0)
+  taxBDT               Float               @default(0.0)
+  totalAmountBDT       Float               @default(0.0)
+  status               String              @default("Draft") // "Draft" | "Submitted" | "Approved" | "Partially Received" | "Received" | "Cancelled"
+  paidAmountBDT        Float               @default(0)
+  paymentStatus        String              @default("UNPAID") // UNPAID | PARTIALLY_PAID | PAID
+  approvalStage        String?             @default("Procurement Officer Review") // "Procurement Officer Review" | "Lead Pharmacist" | "Finance Clearance" | "Final Approved"
+  priority             String              @default("Routine") // "Routine" | "Urgent / Stockout Risk" | "Emergency Cold-Chain"
+  requisitionRef       String?
+  shippingTerms        String?             @default("FOB Central Depot")
+  notes                String?
+  createdBy            String?
+  approvedBy           String?
+  approvedAt           DateTime?
+  receivedAt           DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([status])
+  @@index([wholesalerName])
+  @@index([priority])
+}
+
+model PartySettlement {
+  id                 String                 @id @default(auto()) @map("_id") @db.ObjectId
+  paymentNumber      String                 @unique
+  direction          String                 // OUTGOING (supplier) | INCOMING (buyer)
+  partyName          String
+  partyCode          String?
+  amount             Float
+  unallocatedAmount  Float                  @default(0)
+  paymentMethod      String
+  paymentDate        String
+  transactionRef     String?
+  financialAccountId String?
+  accountTitle       String?
+  status             String                 @default("COMPLETED") // COMPLETED | REVERSED
+  notes              String?
+  allocations        SettlementAllocation[]
+  advanceDraws       AdvanceDraw[]
+  createdBy          String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@index([direction])
+  @@index([partyName])
+  @@index([status])
+}
+
+model Wholesaler {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  wholesalerCode     String   @unique
+  name               String   @unique
+  contactPerson      String
+  phone              String
+  email              String?
+  drugLicenseNo      String
+  tradeLicense       String?
+  address            String
+  territory          String   @default("Dhaka Metro")
+  paymentTerms       String   @default("Net 30 Days")
+  rating             Float    @default(5.0)
+  status             String   @default("Active") // "Active" | "Under Review" | "Blacklisted"
+  leadTimeDays       Int      @default(3)
+  suppliedCategories String[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+
+
+// ─────────────────────────────────────────────
+// System access control
+// ─────────────────────────────────────────────
+
+model SystemRole {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  code            String   @unique
+  description     String
+  isSystemDefault Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users       SystemUser[]
+  permissions RolePermission[]
+}
+
+model RolePermission {
+  id             String     @id @default(auto()) @map("_id") @db.ObjectId
+  roleId         String     @db.ObjectId
+  role           SystemRole @relation(fields: [roleId], references: [id])
+  module         String     // e.g. "Doctor Registry", "FEFO Stock Control"
+  category       String     // "Clinical", "Warehouse", "Logistics", "Finance", "HR"
+  read           Boolean    @default(false)
+  create         Boolean    @default(false)
+  edit           Boolean    @default(false)
+  delete         Boolean    @default(false)
+  specialAction  String?    // e.g. "Override Credit Hold"
+  specialGranted Boolean    @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([roleId, module])
+}
+
+model SystemUser {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String     @unique
+  passwordHash     String
+  refreshTokenHash String?
+  territory        String     @default("Dhaka HQ")
+  status       String     @default("Active") // "Active" | "Restricted"
+  lastLogin    String     @default("Never logged in")
+  roleId       String     @db.ObjectId
+  role         SystemRole @relation(fields: [roleId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  auditLogs    AuditLog[]
+}
+
+// ─────────────────────────────────────────────
+// 21 CFR Part 11 Statutory Audit Trail
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  auditRef          String      @unique
+  timestamp         DateTime    @default(now())
+  actorId           String?     @db.ObjectId
+  actor             SystemUser? @relation(fields: [actorId], references: [id])
+  actorName         String
+  actorEmail        String
+  actorRole         String
+  ipAddress         String
+  userAgent         String?
+  module            String      // e.g. "FEFO Warehouse", "Clinical Registry", "Finance & Accounts", "Workforce & HR", "RBAC Security"
+  actionType        String      // e.g. "Batch Quarantined", "Price Override", "Appointment Issued", "Tier Re-ranked", "Permission Changed", "Voucher Approved"
+  severity          String      @default("Routine") // "Critical", "Security Warning", "Statutory Notice", "Routine"
+  entityTarget      String      // e.g. "Batch # BX-2025-119 (Clavroc 625mg)"
+  entityType        String?     // "InventoryBatch", "Doctor", "Order", "Staff", "StockAdjustment", etc.
+  entityId          String?
+  changeSummary     String
+  priorPayload      String?     // Serialized JSON of pre-mutation record state
+  newPayload        String?     // Serialized JSON of post-mutation record state
+  reasonForChange   String?     // 21 CFR Part 11 required operator justification note
+  sha256Hash        String      // Cryptographic SHA-256 block hash
+  previousHash      String?     // Previous block hash for tamper-evident hash chaining
+  verifiedSignature Boolean     @default(true)
+  signerName        String?
+  signatureMeaning  String?     // "Authorship", "Approval", "Review", "Verification", "Responsibility"
+  signedAt          DateTime?
+  createdAt         DateTime    @default(now())
+
+  @@index([timestamp])
+  @@index([module])
+  @@index([severity])
+  @@index([actorEmail])
+}
+
+// ─────────────────────────────────────────────
+// Field Force: MIO Zone Allocations
+// ─────────────────────────────────────────────
+
+model MioZoneAllocation {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  staffId       String?  @db.ObjectId
+  staff         Staff?   @relation(fields: [staffId], references: [id])
+  mioName       String
+  employeeId    String
+  phone         String
+  division      String
+  territory     String
+  allocatedZone String
+  effectiveDate String
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Sales Quotas & Field Force Targets
+// ─────────────────────────────────────────────
+
+model TerritoryTarget {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  territory      String
+  mioName        String
+  targetAmount   Float
+  achievedAmount Float    @default(0.00)
+  fiscalYear     String   @default("Fiscal Year 2026")
+  status         String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Master Territories
+// ─────────────────────────────────────────────
+
+model Territory {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  division  String?
+  status    String   @default("Active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
