@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import Link from "next/link"
-import * as XLSX from "xlsx"
 import { API_URL } from "@/lib/api"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -23,23 +22,15 @@ import {
   Stethoscope,
   Truck,
   ShieldCheck,
-  Download,
   ArrowUpRight,
   Flame,
   CheckCircle2,
-  Plus,
   ArrowRight,
   Building2,
-  Receipt,
-  Snowflake,
-  Zap,
-  RefreshCw,
 } from "lucide-react"
-import { AKLogo } from "@/components/ui/ak-logo"
 
 export default function MasterExecutiveDashboardPage() {
   const [loading, setLoading] = React.useState(true)
-  const [activeDate, setActiveDate] = React.useState("")
 
   const [dashboardData, setDashboardData] = React.useState<{
     kpis: {
@@ -104,217 +95,15 @@ export default function MasterExecutiveDashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [API_URL])
+  }, [])
 
   React.useEffect(() => {
-    setActiveDate(
-      new Date().toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      })
-    )
     fetchDashboardTelemetry()
   }, [fetchDashboardTelemetry])
 
-  const handleExportExecutiveSummary = () => {
-    const kpis = dashboardData?.kpis || {
-      grossTurnover: 0,
-      realizedCash: 0,
-      recoveryRate: "0.0",
-      expiryExposureValue: 0,
-      criticalBatchCount: 0,
-      liquidBalance: 0,
-      totalStockValuation: 0,
-      reconciledAccountsCount: 0,
-      staffCount: 0,
-    }
-
-    const summaryData = [
-      {
-        Metric: "Gross Billed Turnover",
-        Value: `৳${(kpis.grossTurnover || 0).toLocaleString("en-IN")}`,
-      },
-      {
-        Metric: "Realized Cash Collections",
-        Value: `৳${(kpis.realizedCash || 0).toLocaleString("en-IN")}`,
-      },
-      {
-        Metric: "Collection Recovery Efficiency",
-        Value: `${kpis.recoveryRate || "0.0"}%`,
-      },
-      {
-        Metric: "Critical Expiry Value at Risk",
-        Value: `৳${(kpis.expiryExposureValue || 0).toLocaleString("en-IN")}`,
-      },
-      {
-        Metric: "Liquid Bank & Safe Liquidity",
-        Value: `৳${(kpis.liquidBalance || 0).toLocaleString("en-IN")}`,
-      },
-      {
-        Metric: "Total Warehouse Stock Valuation",
-        Value: `৳${(kpis.totalStockValuation || 0).toLocaleString("en-IN")}`,
-      },
-      {
-        Metric: "Reconciled Treasury Accounts",
-        Value: `${kpis.reconciledAccountsCount || 0} Accounts`,
-      },
-      {
-        Metric: "Active Personnel Roster",
-        Value: `${kpis.staffCount || 0} Enrolled Staff`,
-      },
-    ]
-
-    const worksheet = XLSX.utils.json_to_sheet(summaryData)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(
-      workbook,
-      worksheet,
-      "AK Pharma Executive Summary"
-    )
-    XLSX.writeFile(
-      workbook,
-      `AK_Pharma_Executive_Summary_${new Date().toISOString().slice(0, 10)}.xlsx`
-    )
-  }
-
   return (
     <div className="mx-auto max-w-[1380px] space-y-6 pb-16 font-sans text-slate-900">
-      {/* 1. EXECUTIVE BRAND HEADER */}
-      <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-r from-white via-slate-50/70 to-blue-50/30 p-6 shadow-sm sm:p-7">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          
-          {/* Brand Identity & Title */}
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-3">
-                <AKLogo className="h-9" showTagline={true} />
-              </div>
-
-              <span className="hidden h-7 w-px bg-slate-200 lg:block" />
-
-              <Badge variant="outline" className="gap-1.5 border-emerald-200 bg-emerald-50/80 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                </span>
-                LIVE GATEWAY ONLINE
-              </Badge>
-            </div>
-
-            <div>
-              <h1 className="text-xl font-black tracking-tight text-[#23496D] sm:text-2xl">
-                Executive Operations & Commercial Dashboard
-              </h1>
-              <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-                Real-time operational synchronization across warehousing, commercial detailing, financial accounts, and workforce operations.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#3B799B]" />
-              <span>{activeDate}</span>
-              <span>•</span>
-              <span>Dhaka Central HQ</span>
-            </div>
-          </div>
-
-          {/* Action Controls & Metrics */}
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Status Chips */}
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2 shadow-2xs">
-              <div className="rounded-lg bg-blue-50 p-1.5 text-[#3B799B]">
-                <Snowflake className="h-4 w-4" />
-              </div>
-              <div className="leading-tight">
-                <span className="block text-[10px] font-bold text-slate-400 uppercase">
-                  Cold Chain
-                </span>
-                <span className="font-mono text-xs font-bold text-emerald-700">
-                  4.2°C Normal
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2 shadow-2xs">
-              <div className="rounded-lg bg-emerald-50 p-1.5 text-emerald-600">
-                <ShieldCheck className="h-4 w-4" />
-              </div>
-              <div className="leading-tight">
-                <span className="block text-[10px] font-bold text-slate-400 uppercase">
-                  DGDA / GMP
-                </span>
-                <span className="font-mono text-xs font-bold text-emerald-700">
-                  Audit Compliant
-                </span>
-              </div>
-            </div>
-
-            {/* Sync & Export */}
-            <Button
-              onClick={fetchDashboardTelemetry}
-              variant="outline"
-              className="h-10 gap-2 rounded-xl border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50"
-            >
-              <RefreshCw
-                className={`h-3.5 w-3.5 text-[#3B799B] ${loading ? "animate-spin" : ""}`}
-              />
-              <span>Sync</span>
-            </Button>
-
-            <Button
-              onClick={handleExportExecutiveSummary}
-              className="h-10 gap-2 rounded-xl bg-[#23496D] px-4 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#1C3A57]"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>Export Brief</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Quick Action Ribbon */}
-        <div className="mt-6 grid grid-cols-2 gap-2.5 border-t border-slate-200/70 pt-4 text-xs sm:grid-cols-4">
-          <Link
-            href="/logistics/orders"
-            className="flex items-center gap-2.5 rounded-xl border border-slate-200/60 bg-white p-2.5 font-medium text-slate-700 transition-all hover:border-[#23496D]/40 hover:bg-slate-50 hover:shadow-2xs"
-          >
-            <div className="rounded-lg bg-blue-50 p-1 text-[#23496D]">
-              <Plus className="h-3.5 w-3.5" />
-            </div>
-            <span>Book Sales Order</span>
-          </Link>
-          <Link
-            href="/doctors/database"
-            className="flex items-center gap-2.5 rounded-xl border border-slate-200/60 bg-white p-2.5 font-medium text-slate-700 transition-all hover:border-emerald-500/40 hover:bg-slate-50 hover:shadow-2xs"
-          >
-            <div className="rounded-lg bg-emerald-50 p-1 text-emerald-600">
-              <Stethoscope className="h-3.5 w-3.5" />
-            </div>
-            <span>Doctor Registry</span>
-          </Link>
-          <Link
-            href="/finance/payments"
-            className="flex items-center gap-2.5 rounded-xl border border-slate-200/60 bg-white p-2.5 font-medium text-slate-700 transition-all hover:border-purple-500/40 hover:bg-slate-50 hover:shadow-2xs"
-          >
-            <div className="rounded-lg bg-purple-50 p-1 text-purple-600">
-              <Receipt className="h-3.5 w-3.5" />
-            </div>
-            <span>Issue Payment</span>
-          </Link>
-          <Link
-            href="/hr/salary"
-            className="flex items-center gap-2.5 rounded-xl border border-slate-200/60 bg-white p-2.5 font-medium text-slate-700 transition-all hover:border-amber-500/40 hover:bg-slate-50 hover:shadow-2xs"
-          >
-            <div className="rounded-lg bg-amber-50 p-1 text-amber-600">
-              <Zap className="h-3.5 w-3.5" />
-            </div>
-            <span>Process Payroll</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* 2. Top-Level Operational KPI Cards */}
+      {/* 1. Top-Level Operational KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-[#23496D]/30 hover:shadow-md">
           <div className="pointer-events-none absolute top-0 right-0 h-24 w-24 rounded-bl-full bg-[#23496D]/5 transition-transform group-hover:scale-110" />
@@ -418,7 +207,7 @@ export default function MasterExecutiveDashboardPage() {
         </Card>
       </div>
 
-      {/* 3. Core Operational Charting Suite */}
+      {/* 2. Core Operational Charting Suite */}
       <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
         <Card className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-8">
           <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -583,7 +372,7 @@ export default function MasterExecutiveDashboardPage() {
         </Card>
       </div>
 
-      {/* 4. Real-Time Operational Activity Feeds */}
+      {/* 3. Real-Time Operational Activity Feeds */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -736,7 +525,7 @@ export default function MasterExecutiveDashboardPage() {
         </Card>
       </div>
 
-      {/* 5. Bottom Multi-Deck: Dynamic Liquid Banks & Real Enrolled Doctors */}
+      {/* 4. Bottom Multi-Deck: Dynamic Liquid Banks & Real Enrolled Doctors */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
         {/* Dynamic Bank Accounts Linking to /finance/bank-ledger */}
         <Card className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-6">
@@ -866,7 +655,7 @@ export default function MasterExecutiveDashboardPage() {
         </Card>
       </div>
 
-      {/* 6. Institutional Footer Banner */}
+      {/* 5. Institutional Footer Banner */}
       <div className="flex flex-col items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-500 sm:flex-row">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-[#23496D]" />
