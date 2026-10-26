@@ -6,6 +6,7 @@ import {
   IPaginationOptions,
   IPaginatedResult,
 } from "../utils/paginationHelper";
+import { auditLogService } from "./auditLogService";
 
 export interface IClientFilterOptions {
   searchTerm?: string;
@@ -186,7 +187,7 @@ export const clientService = {
       code = generateClientCode();
     }
 
-    return prisma.client.create({
+    const newClient = await prisma.client.create({
       data: {
         clientCode: code,
         pharmacyName: data.pharmacyName.trim(),
@@ -207,6 +208,20 @@ export const clientService = {
         lastBilledDate: formatDate(data.lastBilledDate),
       },
     });
+
+    await auditLogService.recordAuditEvent({
+      module: "Sales & Deliveries",
+      actionType: "Pharmacy Client Registered",
+      severity: "Routine",
+      entityTarget: `${newClient.pharmacyName} (${newClient.clientCode})`,
+      entityType: "Client",
+      entityId: newClient.id,
+      changeSummary: `Registered pharmacy client '${newClient.pharmacyName}' with code ${newClient.clientCode} in ${newClient.territory} assigned to ${newClient.assignedMio}. Credit limit: ৳${newClient.creditLimitBDT}.`,
+      newPayload: newClient,
+      reasonForChange: "Pharmacy outlet onboarding and credit line provisioning.",
+    });
+
+    return newClient;
   },
 
   async updateClient(
@@ -228,13 +243,13 @@ export const clientService = {
       lastBilledDate?: string;
     }
   ) {
-    await this.getClientById(id);
+    const existing = await this.getClientById(id);
 
     if (data.clientCode) {
-      const existing = await prisma.client.findUnique({
+      const existingCode = await prisma.client.findUnique({
         where: { clientCode: data.clientCode },
       });
-      if (existing && existing.id !== id) {
+      if (existingCode && existingCode.id !== id) {
         throw new AppError(`Client code '${data.clientCode}' is already taken`, 400);
       }
     }
@@ -255,15 +270,44 @@ export const clientService = {
     if (data.status !== undefined) updateData.status = data.status;
     if (data.lastBilledDate !== undefined) updateData.lastBilledDate = formatDate(data.lastBilledDate);
 
-    return prisma.client.update({
+    const updated = await prisma.client.update({
       where: { id },
       data: updateData,
     });
+
+    await auditLogService.recordAuditEvent({
+      module: "Sales & Deliveries",
+      actionType: "Pharmacy Client Updated",
+      severity: "Routine",
+      entityTarget: `${updated.pharmacyName} (${updated.clientCode})`,
+      entityType: "Client",
+      entityId: updated.id,
+      changeSummary: `Pharmacy client profile for '${updated.pharmacyName}' updated. Status: ${updated.status}, Credit: ৳${updated.creditLimitBDT}.`,
+      priorPayload: existing,
+      newPayload: updated,
+      reasonForChange: "Client account details revision.",
+    });
+
+    return updated;
   },
 
   async deleteClient(id: string) {
-    await this.getClientById(id);
-    return prisma.client.delete({ where: { id } });
+    const existing = await this.getClientById(id);
+    const deleted = await prisma.client.delete({ where: { id } });
+
+    await auditLogService.recordAuditEvent({
+      module: "Sales & Deliveries",
+      actionType: "Pharmacy Client Deleted",
+      severity: "Critical",
+      entityTarget: `${existing.pharmacyName} (${existing.clientCode})`,
+      entityType: "Client",
+      entityId: existing.id,
+      changeSummary: `Pharmacy client account '${existing.pharmacyName}' (${existing.clientCode}) deleted from database.`,
+      priorPayload: existing,
+      reasonForChange: "Pharmacy client registry purge.",
+    });
+
+    return deleted;
   },
 
   async bulkImportClients(data: {
@@ -397,6 +441,17 @@ export const clientService = {
         createdCount++;
       }
     }
+
+    await auditLogService.recordAuditEvent({
+      module: "Sales & Deliveries",
+      actionType: "Pharmacy Clients Bulk Imported",
+      severity: "Routine",
+      entityTarget: `Bulk Import (${data.clients.length} outlets)`,
+      entityType: "ClientBatch",
+      changeSummary: `Bulk import completed: ${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped.`,
+      newPayload: { totalProcessed: data.clients.length, createdCount, updatedCount, skippedCount },
+      reasonForChange: "Bulk batch upload of pharmacy retail accounts.",
+    });
 
     return {
       totalProcessed: data.clients.length,

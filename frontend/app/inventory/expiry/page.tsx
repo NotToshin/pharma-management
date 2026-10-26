@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import * as XLSX from "xlsx"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -88,7 +89,7 @@ export default function ExpiryWatchlistPage() {
   React.useEffect(() => {
     async function loadBatches() {
       try {
-        const res = await fetch("/api/inventory/batches")
+        const res = await apiFetch("/inventory/batches")
         if (res.ok) {
           const json = await res.json()
           const batchList = Array.isArray(json) ? json : json.data || []

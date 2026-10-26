@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
 import {
@@ -7,8 +7,6 @@ import {
   SettleBulkCollectionInput,
   QueryCollectionInput,
 } from "../validations/collectionValidation";
-
-const prisma = new PrismaClient();
 
 const formatDate = (date?: string) => {
   if (!date) return new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });

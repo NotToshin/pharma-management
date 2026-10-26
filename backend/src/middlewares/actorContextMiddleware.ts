@@ -95,6 +95,72 @@ export const actorContextMiddleware = async (
       } catch {}
     }
 
+    // 4. Capture statutory reason for change if supplied
+    const explicitReason =
+      (req.headers["x-audit-reason"] as string) ||
+      (req.headers["x-reason-for-change"] as string) ||
+      req.body?.reasonForChange ||
+      req.body?.auditReason;
+    if (explicitReason && typeof explicitReason === "string") {
+      actor.reasonForChange = explicitReason.trim();
+    }
+
+    // 5. Dynamic operator resolution for any user from request body clues
+    if (!actor.email && req.body && typeof req.body === "object") {
+      const candidateName =
+        req.body.name ||
+        req.body.fullName ||
+        req.body.doctorName ||
+        req.body.mioName ||
+        req.body.assignedMio ||
+        req.body.salesRepName ||
+        req.body.createdBy ||
+        req.body.approvedBy;
+      const candidateEmail = req.body.email || req.body.actorEmail || req.body.operatorEmail;
+
+      if (candidateEmail && typeof candidateEmail === "string") {
+        try {
+          const user = await prisma.systemUser.findUnique({
+            where: { email: candidateEmail.trim().toLowerCase() },
+            include: { role: true },
+          });
+          if (user) {
+            actor.userId = user.id;
+            actor.name = user.name;
+            actor.email = user.email.toLowerCase();
+            actor.role = user.role?.name || user.role?.code;
+            (req as any).user = user;
+          }
+        } catch {}
+      }
+
+      if (!actor.name && candidateName && typeof candidateName === "string" && candidateName !== "Unassigned" && candidateName !== "General MIO") {
+        try {
+          const user = await prisma.systemUser.findFirst({
+            where: { name: { equals: candidateName.trim(), mode: "insensitive" } },
+            include: { role: true },
+          });
+          if (user) {
+            actor.userId = user.id;
+            actor.name = user.name;
+            actor.email = user.email.toLowerCase();
+            actor.role = user.role?.name || user.role?.code;
+            (req as any).user = user;
+          } else {
+            const staff = await prisma.staff.findFirst({
+              where: { fullName: { equals: candidateName.trim(), mode: "insensitive" } },
+              include: { role: true },
+            });
+            if (staff) {
+              actor.name = staff.fullName;
+              actor.email = staff.email ? staff.email.toLowerCase() : `${candidateName.toLowerCase().replace(/\s+/g, "")}@pharma.com`;
+              actor.role = staff.role?.name || staff.department || "Staff Member";
+            }
+          }
+        } catch {}
+      }
+    }
+
     requestContextStorage.run(actor, () => next());
   } catch (err) {
     next();

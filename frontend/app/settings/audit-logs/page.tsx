@@ -66,6 +66,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  Truck,
+  MapPin,
+  LineChart,
 } from "lucide-react"
 
 export interface AuditLogEntry {
@@ -604,11 +607,15 @@ export default function AuditLogsPage() {
             </SelectTrigger>
             <SelectContent className="text-xs">
               <SelectItem value="all">All Subsystems</SelectItem>
-              <SelectItem value="FEFO Warehouse">FEFO Warehouse</SelectItem>
+              <SelectItem value="Field Force">Field Force (MIO)</SelectItem>
+              <SelectItem value="Doctor Registry">Doctor Registry</SelectItem>
               <SelectItem value="Clinical Registry">Clinical Registry</SelectItem>
+              <SelectItem value="Sales & Deliveries">Sales & Deliveries</SelectItem>
+              <SelectItem value="FEFO Warehouse">FEFO Warehouse</SelectItem>
               <SelectItem value="Finance & Accounts">Finance & Accounts</SelectItem>
               <SelectItem value="Workforce & HR">Workforce & HR</SelectItem>
               <SelectItem value="RBAC Security">RBAC Security</SelectItem>
+              <SelectItem value="Overview & Analytics">Overview & Analytics</SelectItem>
             </SelectContent>
           </Select>
 
@@ -733,20 +740,29 @@ export default function AuditLogsPage() {
                     {/* Subsystem Scope */}
                     <TableCell className="py-3 text-xs">
                       <div className="flex items-center gap-1.5 whitespace-nowrap">
-                        {log.module === "FEFO Warehouse" && (
+                        {(log.module === "FEFO Warehouse" || log.module?.includes("Warehouse") || log.module?.includes("Inventory")) && (
                           <Boxes className="h-3.5 w-3.5 text-amber-600" />
                         )}
-                        {log.module === "Clinical Registry" && (
+                        {(log.module === "Clinical Registry" || log.module === "Doctor Registry" || log.module?.includes("Doctor")) && (
                           <Stethoscope className="h-3.5 w-3.5 text-blue-600" />
                         )}
-                        {log.module === "Finance & Accounts" && (
+                        {(log.module === "Field Force" || log.module?.includes("Field")) && (
+                          <MapPin className="h-3.5 w-3.5 text-cyan-600" />
+                        )}
+                        {(log.module === "Sales & Deliveries" || log.module?.includes("Sales") || log.module?.includes("Deliver")) && (
+                          <Truck className="h-3.5 w-3.5 text-indigo-600" />
+                        )}
+                        {(log.module === "Finance & Accounts" || log.module?.includes("Finance")) && (
                           <Banknote className="h-3.5 w-3.5 text-emerald-600" />
                         )}
-                        {log.module === "Workforce & HR" && (
+                        {(log.module === "Workforce & HR" || log.module?.includes("HR") || log.module?.includes("Staff")) && (
                           <Users2 className="h-3.5 w-3.5 text-purple-600" />
                         )}
-                        {log.module === "RBAC Security" && (
+                        {(log.module === "RBAC Security" || log.module?.includes("Security") || log.module?.includes("RBAC")) && (
                           <KeyRound className="h-3.5 w-3.5 text-rose-600" />
+                        )}
+                        {(log.module === "Overview & Analytics" || log.module?.includes("Analytics")) && (
+                          <LineChart className="h-3.5 w-3.5 text-teal-600" />
                         )}
                         <span className="font-medium text-slate-800">
                           {log.module}

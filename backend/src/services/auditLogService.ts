@@ -94,7 +94,7 @@ export const auditLogService = {
     }
 
     if (filters?.module && filters.module !== "all") {
-      where.module = { equals: filters.module, mode: "insensitive" };
+      where.module = { contains: filters.module, mode: "insensitive" };
     }
 
     if (filters?.severity && filters.severity !== "all") {
@@ -347,15 +347,19 @@ export const auditLogService = {
 
     const context = getActorContext();
     const timestamp = new Date();
-    const actorEmail = actorContext?.email || context?.email || "superadmin@pharma.com";
-    const actorName = actorContext?.name || context?.name || "Super Administrator";
-    const actorRole = actorContext?.role || context?.role || "Super Administrator";
+    const actorEmail = actorContext?.email || context?.email || "system@pharma.com";
+    const actorName = actorContext?.name || context?.name || "System Administrator";
+    const actorRole = actorContext?.role || context?.role || "System Administrator";
     const actorId = actorContext?.userId || context?.userId;
     const ipAddress = actorContext?.ipAddress || context?.ipAddress || "127.0.0.1";
     const userAgent = actorContext?.userAgent || context?.userAgent || "Mozilla/5.0";
 
     const priorPayloadStr = stringifyPayload(input.priorPayload);
     const newPayloadStr = stringifyPayload(input.newPayload);
+    const reasonForChange =
+      input.reasonForChange ||
+      context?.reasonForChange ||
+      `Statutory audit trail record executed under 21 CFR Part 11 protocols for ${input.module} (${input.actionType}).`;
 
     // 3. Calculate Immutable Cryptographic SHA-256 Hash
     const sha256Hash = calculateEntryHash({
@@ -367,7 +371,7 @@ export const auditLogService = {
       entityTarget: input.entityTarget,
       priorPayload: priorPayloadStr,
       newPayload: newPayloadStr,
-      reasonForChange: input.reasonForChange,
+      reasonForChange,
     });
 
     // 4. Create Immutable Record
@@ -390,7 +394,7 @@ export const auditLogService = {
         changeSummary: input.changeSummary,
         priorPayload: priorPayloadStr,
         newPayload: newPayloadStr,
-        reasonForChange: input.reasonForChange || "Statutory audit trail record executed under 21 CFR Part 11 protocols.",
+        reasonForChange,
         sha256Hash,
         previousHash,
         verifiedSignature: true,
@@ -456,15 +460,47 @@ export const auditLogService = {
 
       const context = getActorContext();
       const timestamp = new Date();
-      const actorEmail = options.actorEmail || context?.email || "superadmin@pharma.com";
-      const actorName = options.actorName || context?.name || "Super Administrator";
-      const actorRole = options.actorRole || context?.role || "Super Administrator";
-      const actorId = options.actorId || context?.userId;
+
+      // Resilient actor resolution for EVERY user
+      let resolvedEmail = options.actorEmail || context?.email;
+      let resolvedName = options.actorName || context?.name;
+      let resolvedRole = options.actorRole || context?.role;
+      let resolvedUserId = options.actorId || context?.userId;
+
+      // If actor was missing from context, inspect newPayload for clues
+      if (!resolvedEmail && options.newPayload && typeof options.newPayload === "object") {
+        const p = options.newPayload as any;
+        const candidateEmail = p.email || p.actorEmail || p.operatorEmail;
+        const candidateName =
+          p.name ||
+          p.fullName ||
+          p.doctorName ||
+          p.mioName ||
+          p.assignedMio ||
+          p.salesRepName ||
+          p.createdBy ||
+          p.approvedBy;
+        if (candidateEmail && typeof candidateEmail === "string") {
+          resolvedEmail = candidateEmail.trim().toLowerCase();
+        }
+        if (candidateName && typeof candidateName === "string" && candidateName !== "Unassigned" && candidateName !== "General MIO") {
+          resolvedName = resolvedName || candidateName;
+        }
+      }
+
+      const actorEmail = resolvedEmail || "system@pharma.com";
+      const actorName = resolvedName || "System Administrator";
+      const actorRole = resolvedRole || "System Administrator";
+      const actorId = resolvedUserId;
       const ipAddress = options.ipAddress || context?.ipAddress || "127.0.0.1";
       const userAgent = options.userAgent || context?.userAgent || "Mozilla/5.0";
 
       const priorPayloadStr = stringifyPayload(options.priorPayload);
       const newPayloadStr = stringifyPayload(options.newPayload);
+      const reasonForChange =
+        options.reasonForChange ||
+        context?.reasonForChange ||
+        `Statutory audit trail record executed under 21 CFR Part 11 protocols for ${options.module} (${options.actionType}).`;
 
       const sha256Hash = calculateEntryHash({
         previousHash,
@@ -475,7 +511,7 @@ export const auditLogService = {
         entityTarget: options.entityTarget,
         priorPayload: priorPayloadStr,
         newPayload: newPayloadStr,
-        reasonForChange: options.reasonForChange,
+        reasonForChange,
       });
 
       await prisma.auditLog.create({
@@ -497,7 +533,7 @@ export const auditLogService = {
           changeSummary: options.changeSummary,
           priorPayload: priorPayloadStr,
           newPayload: newPayloadStr,
-          reasonForChange: options.reasonForChange || "Automated statutory state transition audit capture.",
+          reasonForChange,
           sha256Hash,
           previousHash,
           verifiedSignature: true,

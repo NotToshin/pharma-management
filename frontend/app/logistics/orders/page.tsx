@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { API_URL } from "@/lib/api"
+import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
@@ -231,24 +231,24 @@ function LogisticsOrdersContent() {
   const fetchBackendData = React.useCallback(async () => {
     try {
       const [ordRes, clientRes, staffRes, invRes] = await Promise.all([
-        fetch(`${API_URL}/orders`).catch(() => ({
+        apiFetch(`${API_URL}/orders`).catch(() => ({
           ok: false,
           json: async () => [],
         })),
-        fetch(`${API_URL}/clients`).catch(() => ({
+        apiFetch(`${API_URL}/clients`).catch(() => ({
           ok: false,
           json: async () => [],
         })),
-        fetch(`${API_URL}/staff`).catch(() => ({
+        apiFetch(`${API_URL}/staff`).catch(() => ({
           ok: false,
           json: async () => [],
         })),
         // Connected directly to the live inventory batch ledger
-        fetch(`${API_URL}/inventory`).catch(() => ({
+        apiFetch(`${API_URL}/inventory`).catch(() => ({
           ok: false,
           json: async () => [],
         })),
-      ])
+      ]) as [Response, Response, Response, Response]
 
       // Dynamic Product Catalog mapped from live inventory batches
       if (invRes.ok) {
@@ -613,7 +613,7 @@ function LogisticsOrdersContent() {
         invoiceNumber: nextSerialInvoiceNo,
       }
 
-      const res = await fetch(`${API_URL}/orders`, {
+      const res = await apiFetch(`${API_URL}/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -646,7 +646,7 @@ function LogisticsOrdersContent() {
   ) => {
     const toastId = toast.loading(`Updating order status to ${newStatus}...`)
     try {
-      const res = await fetch(`${API_URL}/orders/${id}`, {
+      const res = await apiFetch(`${API_URL}/orders/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
@@ -675,7 +675,7 @@ function LogisticsOrdersContent() {
     const toastId = toast.loading(`Deleting sales order ${orderToDelete.orderNumber}...`)
     try {
       setIsDeletingOrder(true)
-      const res = await fetch(`${API_URL}/orders/${orderToDelete.id}`, {
+      const res = await apiFetch(`${API_URL}/orders/${orderToDelete.id}`, {
         method: "DELETE",
       })
 

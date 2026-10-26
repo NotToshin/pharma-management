@@ -1,7 +1,7 @@
-import { PrismaClient, StaffStatus } from "@prisma/client";
+import { StaffStatus } from "@prisma/client";
+import prisma from "../utils/prisma";
 import { AppError } from "../errors";
-
-const prisma = new PrismaClient();
+import { auditLogService } from "./auditLogService";
 
 const mapStatusToDb = (status?: string): StaffStatus => {
   if (!status) return StaffStatus.ACTIVE;
@@ -99,7 +99,7 @@ export const staffService = {
     const numericSalary = Number(data.salary) || 20000;
     const dbStatus = mapStatusToDb(data.employmentStatus);
 
-    return prisma.staff.create({
+    const newStaff = await prisma.staff.create({
       data: {
         empId: finalEmpId,
         fullName: data.fullName,
@@ -132,6 +132,20 @@ export const staffService = {
         salaries: true,
       },
     });
+
+    await auditLogService.recordAuditEvent({
+      module: "Workforce & HR",
+      actionType: "Staff Member Onboarded",
+      severity: "Routine",
+      entityTarget: `${newStaff.fullName} (${newStaff.empId})`,
+      entityType: "Staff",
+      entityId: newStaff.id,
+      changeSummary: `Onboarded personnel '${newStaff.fullName}' (ID: ${newStaff.empId}) into ${newStaff.department} department (${newStaff.territory}).`,
+      newPayload: newStaff,
+      reasonForChange: "Workforce personnel onboarding and compensation allocation.",
+    });
+
+    return newStaff;
   },
 
   async updateStaff(id: string, data: {
@@ -167,7 +181,7 @@ export const staffService = {
       roleConnect = { connect: { id: foundRole.id } };
     }
 
-    return prisma.staff.update({
+    const updated = await prisma.staff.update({
       where: { id },
       data: {
         fullName: data.fullName,
@@ -189,6 +203,21 @@ export const staffService = {
         salaries: true,
       },
     });
+
+    await auditLogService.recordAuditEvent({
+      module: "Workforce & HR",
+      actionType: "Staff Profile Updated",
+      severity: "Routine",
+      entityTarget: `${updated.fullName} (${updated.empId})`,
+      entityType: "Staff",
+      entityId: updated.id,
+      changeSummary: `Updated profile details for '${updated.fullName}' (ID: ${updated.empId}). Status: ${updated.status}.`,
+      priorPayload: existing,
+      newPayload: updated,
+      reasonForChange: "Workforce administrative record update.",
+    });
+
+    return updated;
   },
 
   async deleteStaff(id: string) {
@@ -197,6 +226,20 @@ export const staffService = {
       throw new AppError("Staff member not found", 404);
     }
     await prisma.salary.deleteMany({ where: { staffId: id } });
-    return prisma.staff.delete({ where: { id } });
+    const deleted = await prisma.staff.delete({ where: { id } });
+
+    await auditLogService.recordAuditEvent({
+      module: "Workforce & HR",
+      actionType: "Staff Member Offboarded",
+      severity: "Critical",
+      entityTarget: `${existing.fullName} (${existing.empId})`,
+      entityType: "Staff",
+      entityId: existing.id,
+      changeSummary: `Offboarded and purged personnel '${existing.fullName}' (ID: ${existing.empId}) and associated salary records.`,
+      priorPayload: existing,
+      reasonForChange: "Personnel separation and HR archive purge.",
+    });
+
+    return deleted;
   },
 };

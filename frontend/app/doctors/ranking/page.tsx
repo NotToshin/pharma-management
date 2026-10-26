@@ -43,7 +43,7 @@ import {
   ChevronRight,
 } from "lucide-react"
 
-import { getEndpoint } from "@/lib/api"
+import { apiFetch, getEndpoint } from "@/lib/api"
 
 interface RankedDoctor {
   id: string
@@ -69,7 +69,7 @@ export default function CategoryRankingPage() {
   React.useEffect(() => {
     async function fetchRankedDoctors() {
       try {
-        const res = await fetch(getEndpoint("/doctors?limit=100"))
+        const res = await apiFetch(getEndpoint("/doctors?limit=100"))
         if (res.ok) {
           const json = await res.json()
           const rawList = Array.isArray(json) ? json : json.data || []

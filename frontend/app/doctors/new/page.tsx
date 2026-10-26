@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { getEndpoint } from "@/lib/api"
+import { apiFetch, getEndpoint } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -96,7 +96,7 @@ export default function AddDoctorDirectoryPage() {
   // Fetch live doctors from backend database
   const fetchDoctors = async () => {
     try {
-      const res = await fetch(getEndpoint("/doctors"))
+      const res = await apiFetch(getEndpoint("/doctors"))
       const result = await res.json()
       const rawData = Array.isArray(result) ? result : result.data || []
 
@@ -164,7 +164,7 @@ export default function AddDoctorDirectoryPage() {
     const toastId = toast.loading("Registering new doctor profile in database...")
 
     try {
-      const res = await fetch(getEndpoint("/doctors"), {
+      const res = await apiFetch(getEndpoint("/doctors"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(validationResult.data),
@@ -213,7 +213,7 @@ export default function AddDoctorDirectoryPage() {
     const toastId = toast.loading(`Deleting doctor profile for ${targetName}...`)
 
     try {
-      const res = await fetch(getEndpoint(`/doctors/${id}`), {
+      const res = await apiFetch(getEndpoint(`/doctors/${id}`), {
         method: "DELETE",
       })
       if (res.ok) {
@@ -267,7 +267,7 @@ export default function AddDoctorDirectoryPage() {
         }))
 
         for (const doc of importedDocs) {
-          await fetch(getEndpoint("/doctors"), {
+          await apiFetch(getEndpoint("/doctors"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(doc),

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { getEndpoint } from "@/lib/api"
+import { apiFetch, getEndpoint } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -284,8 +284,8 @@ export default function MioZoneAllocationsPage() {
       else setIsRefreshing(true)
 
       const [allocRes, staffRes] = await Promise.all([
-        fetch(getEndpoint("/zone-allocations")),
-        fetch(getEndpoint("/zone-allocations/staff-mios")),
+        apiFetch(getEndpoint("/zone-allocations")),
+        apiFetch(getEndpoint("/zone-allocations/staff-mios")),
       ])
 
       if (allocRes.ok) {
@@ -415,7 +415,7 @@ export default function MioZoneAllocationsPage() {
         notes: createNotes.trim() || null,
       }
 
-      const res = await fetch(getEndpoint("/zone-allocations"), {
+      const res = await apiFetch(getEndpoint("/zone-allocations"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -470,7 +470,7 @@ export default function MioZoneAllocationsPage() {
         notes: editingItem.notes || null,
       }
 
-      const res = await fetch(getEndpoint(`/zone-allocations/${editingItem.id}`), {
+      const res = await apiFetch(getEndpoint(`/zone-allocations/${editingItem.id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -517,7 +517,7 @@ export default function MioZoneAllocationsPage() {
     setDeleteModal((prev) => ({ ...prev, isDeleting: true }))
 
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         getEndpoint(`/zone-allocations/${deleteModal.allocationId}`),
         { method: "DELETE" }
       )

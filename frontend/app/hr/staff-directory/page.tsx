@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { API_URL } from "@/lib/api"
+import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
@@ -212,7 +212,7 @@ export default function StaffDirectoryPage() {
 
   const fetchRolesData = React.useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/roles`)
+      const res = await apiFetch(`${API_URL}/roles`)
       if (!res.ok) throw new Error("Failed to fetch roles")
       const json = await res.json()
       const dataArr = Array.isArray(json) ? json : json.data || []
@@ -231,7 +231,7 @@ export default function StaffDirectoryPage() {
 
   const fetchStaffData = React.useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/staff`)
+      const res = await apiFetch(`${API_URL}/staff`)
       if (!res.ok) throw new Error("Failed to fetch staff")
       const json = await res.json()
       const rawData = Array.isArray(json) ? json : json.data || []
@@ -302,7 +302,7 @@ export default function StaffDirectoryPage() {
     const toastId = toast.loading(`Creating role "${newRoleTitle.trim()}"...`)
     try {
       setIsCreatingRole(true)
-      const res = await fetch(`${API_URL}/roles`, {
+      const res = await apiFetch(`${API_URL}/roles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newRoleTitle.trim() }),
@@ -429,7 +429,7 @@ export default function StaffDirectoryPage() {
         emergencyPhone: formState.emergencyPhone,
       }
 
-      const res = await fetch(`${API_URL}/staff`, {
+      const res = await apiFetch(`${API_URL}/staff`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -499,7 +499,7 @@ export default function StaffDirectoryPage() {
         emergencyPhone: editingEmp.emergencyPhone,
       }
 
-      const res = await fetch(`${API_URL}/staff/${editingEmp.id}`, {
+      const res = await apiFetch(`${API_URL}/staff/${editingEmp.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -531,7 +531,7 @@ export default function StaffDirectoryPage() {
     const toastId = toast.loading(`Deactivating/deleting staff record for ${staffToDelete.fullName}...`)
     try {
       setIsDeletingStaff(true)
-      const res = await fetch(`${API_URL}/staff/${staffToDelete.id}`, {
+      const res = await apiFetch(`${API_URL}/staff/${staffToDelete.id}`, {
         method: "DELETE",
       })
 

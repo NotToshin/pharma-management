@@ -403,6 +403,22 @@ export const accountLedgerService = {
       },
     });
 
+    try {
+      await auditLogService.createLogEntry({
+        module: "Central Treasury & Ledger",
+        actionType: "UPDATE_TRANSACTION",
+        entityTarget: existing.refCode,
+        entityType: "JournalTransaction",
+        entityId: id,
+        changeSummary: `Updated journal entry details for ${existing.refCode}`,
+        priorPayload: existing,
+        newPayload: updated,
+        severity: "Routine",
+      });
+    } catch (e) {
+      console.warn("Audit logging skipped:", e);
+    }
+
     return updated;
   },
 

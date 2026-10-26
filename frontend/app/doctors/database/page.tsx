@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { getEndpoint } from "@/lib/api"
+import { getEndpoint, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -551,9 +551,9 @@ export default function DoctorMasterDatabasePage() {
       }
 
       const [docRes, staffRes, territoryRes] = await Promise.all([
-        fetch(getEndpoint(`/doctors?${params.toString()}`)).catch(() => null),
-        staffList.length === 0 ? fetch(getEndpoint("/staff")).catch(() => null) : null,
-        territoryList.length === 0 ? fetch(getEndpoint("/territories")).catch(() => null) : null,
+        apiFetch(getEndpoint(`/doctors?${params.toString()}`)).catch(() => null),
+        staffList.length === 0 ? apiFetch(getEndpoint("/staff")).catch(() => null) : null,
+        territoryList.length === 0 ? apiFetch(getEndpoint("/territories")).catch(() => null) : null,
       ])
 
       if (docRes && docRes.ok) {
@@ -627,7 +627,7 @@ export default function DoctorMasterDatabasePage() {
     const toastId = toast.loading("Preparing full doctor database export...")
     try {
       let exportDocs = doctors
-      const res = await fetch(getEndpoint("/doctors?limit=0")).catch(() => null)
+      const res = await apiFetch(getEndpoint("/doctors?limit=0")).catch(() => null)
       if (res && res.ok) {
         const json = await res.json()
         const raw = Array.isArray(json) ? json : json.data || []
@@ -783,7 +783,7 @@ export default function DoctorMasterDatabasePage() {
         updateExisting,
       }
 
-      const res = await fetch(getEndpoint("/doctors/bulk-import"), {
+      const res = await apiFetch(getEndpoint("/doctors/bulk-import"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -866,7 +866,7 @@ export default function DoctorMasterDatabasePage() {
     const toastId = toast.loading("Saving new doctor profile to database...")
 
     try {
-      const res = await fetch(getEndpoint("/doctors"), {
+      const res = await apiFetch(getEndpoint("/doctors"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(validationResult.data),
@@ -942,7 +942,7 @@ export default function DoctorMasterDatabasePage() {
     const toastId = toast.loading("Updating doctor profile in database...")
 
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         getEndpoint(`/doctors/${editingDoctor.id}`),
         {
           method: "PUT",
@@ -985,7 +985,7 @@ export default function DoctorMasterDatabasePage() {
     const toastId = toast.loading(`Deleting doctor profile for ${targetName}...`)
 
     try {
-      const res = await fetch(getEndpoint(`/doctors/${id}`), {
+      const res = await apiFetch(getEndpoint(`/doctors/${id}`), {
         method: "DELETE",
       })
       if (res.ok) {

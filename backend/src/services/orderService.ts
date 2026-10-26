@@ -1,8 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { mirrorBatchQuantity } from "./productBatchService";
-
-const prisma = new PrismaClient();
+import { auditLogService } from "./auditLogService";
 
 const generateUniqueOrderNumber = async (tx: any): Promise<string> => {
   const count = await tx.order.count();
@@ -192,6 +191,18 @@ export const orderService = {
         }).catch(() => null);
       }
 
+      await auditLogService.recordAuditEvent({
+        module: "Sales & Deliveries",
+        actionType: "Sales Order Created",
+        severity: "Routine",
+        entityTarget: `${newOrder.orderNumber} (${newOrder.pharmacyName})`,
+        entityType: "Order",
+        entityId: newOrder.id,
+        changeSummary: `Sales order ${newOrder.orderNumber} generated for ${newOrder.pharmacyName} by ${newOrder.assignedMio}. Value: ৳${newOrder.orderValue}. Items: ${newOrder.itemsSummary}.`,
+        newPayload: newOrder,
+        reasonForChange: "Commercial sales booking and stock reservation.",
+      });
+
       return newOrder;
     });
   },
@@ -241,13 +252,28 @@ export const orderService = {
       }
     }
 
-    return prisma.order.update({
+    const updated = await prisma.order.update({
       where: { id },
       data: {
         status,
         ...(invoiceNum ? { invoiceNumber: invoiceNum } : {}),
       },
     });
+
+    await auditLogService.recordAuditEvent({
+      module: "Sales & Deliveries",
+      actionType: "Sales Order Status Changed",
+      severity: status === "Cancelled" ? "Security Warning" : "Routine",
+      entityTarget: `${updated.orderNumber} (${updated.pharmacyName})`,
+      entityType: "Order",
+      entityId: updated.id,
+      changeSummary: `Order ${updated.orderNumber} status changed from '${existing.status}' to '${updated.status}'.`,
+      priorPayload: existing,
+      newPayload: updated,
+      reasonForChange: "Order lifecycle delivery and fulfillment update.",
+    });
+
+    return updated;
   },
 
   async deleteOrder(id: string) {
@@ -300,6 +326,20 @@ export const orderService = {
       }
     }
 
-    return prisma.order.delete({ where: { id } });
+    const deleted = await prisma.order.delete({ where: { id } });
+
+    await auditLogService.recordAuditEvent({
+      module: "Sales & Deliveries",
+      actionType: "Sales Order Deleted",
+      severity: "Critical",
+      entityTarget: `${existing.orderNumber} (${existing.pharmacyName})`,
+      entityType: "Order",
+      entityId: existing.id,
+      changeSummary: `Sales order ${existing.orderNumber} permanently purged from system. Prior status: ${existing.status}, Value: ৳${existing.orderValue}.`,
+      priorPayload: existing,
+      reasonForChange: "Administrative purge of commercial order record.",
+    });
+
+    return deleted;
   },
 };

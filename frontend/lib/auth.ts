@@ -279,10 +279,20 @@ export async function logout(apiUrl?: string) {
   try {
     const baseApi = apiUrl ? apiUrl.replace(/\/$/, "") : getApiUrl()
 
-    // Optional fire-and-forget call to backend to invalidate refresh token
-    fetch(`${baseApi}/auth/logout`, {
+    const token = getAccessToken()
+    const user = getStoredUser()
+    const headers: Record<string, string> = { "Content-Type": "application/json" }
+    if (token) headers["Authorization"] = `Bearer ${token}`
+    if (user?.email) headers["x-user-email"] = user.email
+    if (user?.name) headers["x-user-name"] = user.name
+    const userRole = user?.role || (user as any)?.roleCode || (user as any)?.roleName
+    if (userRole) headers["x-user-role"] = userRole
+
+    // Call backend to invalidate refresh token and record audit trail
+    await fetch(`${baseApi}/auth/logout`, {
       method: "POST",
       credentials: "include",
+      headers,
     }).catch(() => null)
   } catch {
     // Non-blocking
