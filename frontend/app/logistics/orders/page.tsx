@@ -184,6 +184,76 @@ function parseSummaryToRows(
   return parsed
 }
 
+function numberToWordsBDT(num: number): string {
+  if (num === 0) return "Zero Taka Only"
+  const a = [
+    "",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Eleven",
+    "Twelve",
+    "Thirteen",
+    "Fourteen",
+    "Fifteen",
+    "Sixteen",
+    "Seventeen",
+    "Eighteen",
+    "Nineteen",
+  ]
+  const b = [
+    "",
+    "",
+    "Twenty",
+    "Thirty",
+    "Forty",
+    "Fifty",
+    "Sixty",
+    "Seventy",
+    "Eighty",
+    "Ninety",
+  ]
+
+  function inWords(n: number): string {
+    if (n < 20) return a[n]
+    if (n < 100)
+      return b[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + a[n % 10] : "")
+    if (n < 1000)
+      return (
+        a[Math.floor(n / 100)] +
+        " Hundred" +
+        (n % 100 !== 0 ? " and " + inWords(n % 100) : "")
+      )
+    if (n < 100000)
+      return (
+        inWords(Math.floor(n / 1000)) +
+        " Thousand" +
+        (n % 1000 !== 0 ? " " + inWords(n % 1000) : "")
+      )
+    if (n < 10000000)
+      return (
+        inWords(Math.floor(n / 100000)) +
+        " Lakh" +
+        (n % 100000 !== 0 ? " " + inWords(n % 100000) : "")
+      )
+    return (
+      inWords(Math.floor(n / 10000000)) +
+      " Crore" +
+      (n % 10000000 !== 0 ? " " + inWords(n % 10000000) : "")
+    )
+  }
+
+  const rounded = Math.round(Math.abs(num))
+  return inWords(rounded).trim() + " Taka Only"
+}
+
 function LogisticsOrdersContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -825,15 +895,29 @@ function LogisticsOrdersContent() {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 10mm;
+            margin: 8mm;
           }
           html,
           body {
             margin: 0 !important;
             padding: 0 !important;
-            background: #fff !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           body * {
+            visibility: hidden !important;
+          }
+          [data-slot="dialog-portal"],
+          [data-slot="dialog-overlay"],
+          [data-slot="dialog-content"],
+          [data-sidebar="sidebar"],
+          aside,
+          header,
+          nav,
+          button,
+          .print\\:hidden {
+            display: none !important;
             visibility: hidden !important;
           }
           #print-standalone-invoice,
@@ -847,8 +931,22 @@ function LogisticsOrdersContent() {
             top: 0 !important;
             width: 100% !important;
             box-sizing: border-box !important;
-            padding: 10px !important;
-            background: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            z-index: 999999 !important;
+          }
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          thead {
+            display: table-header-group !important;
+          }
+          tr {
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -1735,148 +1833,228 @@ function LogisticsOrdersContent() {
               </div>
 
               {/* On-screen Preview */}
-              <div className="flex max-h-[75vh] justify-center overflow-y-auto bg-neutral-100 p-8">
-                <div className="w-full max-w-[620px] border-2 border-black bg-white p-6 font-sans text-xs text-black">
-                  <div className="flex items-start justify-between">
-                    <h1 className="font-serif text-3xl font-black tracking-wider uppercase">
-                      INVOICE
-                    </h1>
-                    <div className="space-y-0.5 text-right text-[11px] leading-tight font-medium">
-                      <strong className="block font-serif text-sm font-black tracking-wide uppercase">
-                        AK Pharma
-                      </strong>
-                      <p>10/26, Rupnagar R/A, Mirpur, Dhaka 1216</p>
-                      <p>01712611074, 01798112763</p>
-                      <p>akpharmabd@gmail.com</p>
-                    </div>
-                  </div>
+              <div className="flex max-h-[75vh] justify-center overflow-y-auto bg-slate-100/80 p-6">
+                <div className="w-full max-w-[680px] rounded-2xl border border-slate-200 bg-white p-7 font-sans text-xs text-slate-900 shadow-md">
+                  {/* Top Brand Stripe */}
+                  <div className="mb-6 h-2 w-full rounded-full bg-gradient-to-r from-[#23496D] via-[#0090FF] to-[#38BDF8]" />
 
-                  <div className="mt-6 w-64 border border-black text-left">
-                    <div className="bg-black px-2 py-0.5 text-[10px] font-bold tracking-wider text-white uppercase">
-                      BILL TO:
-                    </div>
-                    <div className="space-y-0.5 p-2 text-[11px]">
-                      <strong className="block font-bold">
-                        {selectedOrder.pharmacyName}
-                      </strong>
-                      <p className="text-neutral-700">
-                        {matchedClient?.address || selectedOrder.territory}
-                      </p>
-                      <p className="text-neutral-700">
-                        {matchedClient?.phone || "Phone: On File"}
-                      </p>
-                      <p className="text-[10px] text-neutral-500">
-                        Territory: {selectedOrder.territory}
-                      </p>
-                    </div>
-                  </div>
-
-                  <table className="mt-6 w-full border-collapse border border-black text-center text-xs">
-                    <thead>
-                      <tr className="bg-black text-[10px] font-bold tracking-wider text-white uppercase">
-                        <th className="w-10 border border-black py-1.5">No.</th>
-                        <th className="border border-black px-2 py-1.5 text-left">
-                          Description
-                        </th>
-                        <th className="w-16 border border-black py-1.5">
-                          Boxes
-                        </th>
-                        <th className="w-24 border border-black py-1.5">
-                          Unit Cost
-                        </th>
-                        <th className="w-24 border border-black py-1.5">
-                          Total
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activeInvoiceRows.map((row, idx) => (
-                        <tr key={idx} className="border-b border-black">
-                          <td className="border-r border-black py-2 font-mono font-medium">
-                            {row.no || idx + 1}
-                          </td>
-                          <td className="border-r border-black px-2 py-2 text-left font-medium">
-                            {row.description}
-                          </td>
-                          <td className="border-r border-black py-2 font-mono">
-                            {row.quantity}
-                          </td>
-                          <td className="border-r border-black py-2 font-mono">
-                            ৳{row.unitCost.toLocaleString("en-IN")}
-                          </td>
-                          <td className="py-2 font-mono font-bold">
-                            ৳{row.total.toLocaleString("en-IN")}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  <div className="mt-4 flex items-start gap-4">
-                    <div className="min-h-[90px] flex-1 border border-black">
-                      <div className="bg-black px-2 py-0.5 text-center text-[10px] font-bold tracking-wider text-white uppercase">
-                        COMMENTS
-                      </div>
-                      <div className="space-y-1 p-2 text-[11px] text-neutral-700">
-                        <p>
-                          • Invoice No:{" "}
-                          <strong>{selectedOrder.invoiceNumber}</strong>
+                  {/* Header with Authentic Logo & Metadata */}
+                  <div className="flex items-start justify-between border-b border-slate-200 pb-5">
+                    <div className="flex flex-col items-start gap-1.5 max-w-[340px]">
+                      <img
+                        src="/logo-2.png"
+                        alt="AK Pharma"
+                        className="h-12 w-auto max-w-[320px] object-contain"
+                      />
+                      <div className="text-[11px] text-slate-600 leading-tight">
+                        <p className="font-medium text-slate-700">
+                          10/26, Rupnagar R/A, Mirpur, Dhaka 1216
                         </p>
-                        <p>• Assigned MIO: {selectedOrder.assignedMio}</p>
-                        <p>• Delivery Fleet: {selectedOrder.deliveryMethod}</p>
+                        <p className="font-mono text-[10px] text-slate-500 mt-0.5">
+                          Phone: 01712611074, 01798112763 | Email: akpharmabd@gmail.com
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="inline-block rounded-md border border-blue-200 bg-blue-50/80 px-2.5 py-1 text-[10px] font-bold tracking-wider text-[#23496D] uppercase">
+                        COMMERCIAL TAX INVOICE
+                      </span>
+                      <h2 className="mt-1 font-mono text-base font-extrabold text-slate-900">
+                        {selectedOrder.invoiceNumber}
+                      </h2>
+                      <div className="mt-1 space-y-0.5 text-[11px] font-medium text-slate-500">
+                        <p>
+                          Date: <span className="font-semibold text-slate-800">{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                        </p>
+                        <p>
+                          Order Ref: <span className="font-mono font-semibold text-slate-800">{selectedOrder.orderNumber}</span>
+                        </p>
+                        <p>
+                          Status:{" "}
+                          <span className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                            {selectedOrder.status}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Customer & Logistics Info Cards */}
+                  <div className="mt-5 grid grid-cols-2 gap-4">
+                    {/* Bill To */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                      <div className="bg-[#23496D] px-3.5 py-1.5 text-white flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider">BILL TO (CONSIGNEE)</span>
+                        <span className="text-[9px] text-blue-200 font-medium">Licensed Pharmacy</span>
+                      </div>
+                      <div className="p-3 text-xs space-y-1">
+                        <strong className="block text-sm font-bold text-slate-900">
+                          {selectedOrder.pharmacyName}
+                        </strong>
+                        <p className="text-slate-600">
+                          {matchedClient?.address || selectedOrder.territory}
+                        </p>
+                        <p className="font-mono text-slate-600">
+                          Contact: {matchedClient?.phone || "On Record"}
+                        </p>
+                        <p className="text-[10px] font-semibold text-[#0090FF]">
+                          Territory: {selectedOrder.territory}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Logistics Dispatch */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                      <div className="bg-slate-800 px-3.5 py-1.5 text-white flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider">LOGISTICS & DISPATCH</span>
+                        <span className="text-[9px] text-slate-300 font-medium">Fulfillment</span>
+                      </div>
+                      <div className="p-3 text-xs space-y-1">
+                        <p>
+                          <span className="text-slate-500">Assigned MIO:</span>{" "}
+                          <strong className="text-slate-900">{selectedOrder.assignedMio || "Field Executive"}</strong>
+                        </p>
+                        <p>
+                          <span className="text-slate-500">Delivery Fleet:</span>{" "}
+                          <span className="font-medium text-slate-800">{selectedOrder.deliveryMethod}</span>
+                        </p>
+                        <p>
+                          <span className="text-slate-500">Payment Terms:</span>{" "}
+                          <span className="font-semibold text-emerald-700">Credit (30 Days Net)</span>
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                          Dispatch Hub: Central Distribution Depot, Dhaka
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Products Table */}
+                  <div className="mt-5 rounded-xl border border-slate-200 overflow-hidden">
+                    <table className="w-full border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-[#23496D] text-white text-[11px] font-bold tracking-wider uppercase">
+                          <th className="w-12 py-2.5 px-3 text-center">No.</th>
+                          <th className="py-2.5 px-4 text-left">Description & Formulation</th>
+                          <th className="w-20 py-2.5 px-3 text-center">Boxes</th>
+                          <th className="w-28 py-2.5 px-3 text-right">Unit Rate (৳)</th>
+                          <th className="w-32 py-2.5 px-4 text-right">Total Amount (৳)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activeInvoiceRows.map((row, idx) => (
+                          <tr
+                            key={idx}
+                            className={`border-b border-slate-100 ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/60"}`}
+                          >
+                            <td className="py-2.5 px-3 text-center font-mono text-slate-500">
+                              {row.no || idx + 1}
+                            </td>
+                            <td className="py-2.5 px-4 font-semibold text-slate-900">
+                              {row.description}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-medium text-slate-800">
+                              {row.quantity}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-700">
+                              ৳{row.unitCost.toLocaleString("en-IN")}
+                            </td>
+                            <td className="py-2.5 px-4 text-right font-mono font-bold text-[#23496D]">
+                              ৳{row.total.toLocaleString("en-IN")}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Financial Summary & Notes */}
+                  <div className="mt-5 flex items-start gap-4">
+                    {/* Comments & In-Words */}
+                    <div className="flex-1 space-y-3">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-xs">
+                        <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                          Amount In Words
+                        </span>
+                        <p className="font-serif italic font-bold text-slate-900 leading-snug">
+                          {numberToWordsBDT(inspectGrandTotal)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 p-3 text-xs space-y-1 text-slate-600">
+                        <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">
+                          Special Instructions & Terms
+                        </span>
+                        <p>• Invoice No: <strong className="font-mono text-slate-900">{selectedOrder.invoiceNumber}</strong></p>
                         {selectedOrder.comments && (
-                          <p>• Notes: {selectedOrder.comments}</p>
+                          <p>• Notes: <span className="text-slate-800">{selectedOrder.comments}</span></p>
                         )}
+                        <p className="text-[10px] text-slate-400 mt-1 leading-normal">
+                          Goods received in good condition. All claims must be lodged within 48 hours of dispatch.
+                        </p>
                       </div>
                     </div>
 
-                    <div className="w-64 border border-black">
-                      <div className="flex border-b border-black">
-                        <div className="flex w-28 items-center bg-black px-2 py-1 text-[10px] font-bold text-white uppercase">
-                          SUBTOTAL
-                        </div>
-                        <div className="flex-1 p-1 text-right font-mono font-medium">
-                          ৳{inspectSubtotal.toLocaleString("en-IN")}
-                        </div>
+                    {/* Numerical Summary Box */}
+                    <div className="w-68 rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                      <div className="flex justify-between items-center px-3.5 py-2 border-b border-slate-100 text-xs">
+                        <span className="text-slate-500 font-medium">Subtotal (Gross)</span>
+                        <span className="font-mono font-semibold text-slate-900">৳{inspectSubtotal.toLocaleString("en-IN")}</span>
                       </div>
-                      <div className="flex border-b border-black">
-                        <div className="flex w-28 items-center bg-black px-2 py-1 text-[10px] font-bold text-white uppercase">
-                          DISCOUNT ({inspectDiscountPercent}%)
-                        </div>
-                        <div className="flex-1 p-1 text-right font-mono">
+                      <div className="flex justify-between items-center px-3.5 py-2 border-b border-slate-100 text-xs">
+                        <span className="text-slate-500 font-medium flex items-center gap-1.5">
+                          Discount
+                          <span className="bg-blue-50 text-[#0090FF] text-[10px] font-bold px-1.5 py-0.5 rounded border border-blue-200">
+                            {inspectDiscountPercent}%
+                          </span>
+                        </span>
+                        <span className="font-mono font-medium text-rose-600">
                           -৳{inspectDiscountAmount.toLocaleString("en-IN")}
-                        </div>
+                        </span>
                       </div>
-                      <div className="flex bg-neutral-50">
-                        <div className="flex w-28 items-center bg-black px-2 py-1 text-[10px] font-bold text-white uppercase">
-                          GRAND TOTAL
+                      <div className="flex justify-between items-center px-3.5 py-2 border-b border-slate-100 text-xs">
+                        <span className="text-slate-500 font-medium">VAT / Tax (Exempted)</span>
+                        <span className="font-mono font-medium text-slate-600">৳0.00</span>
+                      </div>
+                      <div className="bg-[#23496D] text-white p-3.5 flex justify-between items-center">
+                        <div>
+                          <span className="block text-[10px] font-bold uppercase tracking-wider opacity-90">GRAND TOTAL</span>
+                          <span className="text-[9px] text-blue-200">Net Payable BDT</span>
                         </div>
-                        <div className="flex-1 p-1 text-right font-mono text-sm font-bold text-[#0090FF]">
-                          ৳{inspectGrandTotal.toLocaleString("en-IN")}
-                        </div>
+                        <span className="text-lg font-black font-mono">
+                          ৳{inspectGrandTotal.toLocaleString("en-IN")}/-
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-12 grid grid-cols-2 gap-8 border-t-2 border-slate-200 pt-6 text-center text-[10px]">
+                  {/* Dual Signatures */}
+                  <div className="mt-12 grid grid-cols-2 gap-10 border-t border-slate-200 pt-6 text-center text-[10px]">
                     <div>
-                      <div className="mx-auto mb-1 w-32 border-b border-slate-400" />
+                      <div className="mx-auto mb-1.5 w-44 border-b border-slate-400" />
                       <strong className="block text-[11px] text-slate-900">
-                        Authorized Signature
+                        Authorized Signatory
                       </strong>
-                      <span className="text-slate-500"></span>
+                      <span className="text-[10px] text-slate-500">AK Pharma Billing & Accounts</span>
                     </div>
                     <div>
-                      <div className="mx-auto mb-1 w-32 border-b border-slate-400" />
+                      <div className="mx-auto mb-1.5 w-44 border-b border-slate-400" />
                       <strong className="block text-[11px] text-slate-900">
-                        MIO/SR Signature
+                        Receiver's Signature & Stamp
                       </strong>
-                      <span className="text-slate-500"></span>
+                      <span className="text-[10px] text-slate-500">Consignee Acceptance</span>
                     </div>
                   </div>
 
-                  <div className="mt-6 text-center font-serif text-xs font-bold tracking-wider uppercase">
-                    THANK YOU FOR YOUR BUSINESS
+                  {/* Footer */}
+                  <div className="mt-8 border-t border-slate-100 pt-3 text-center text-[10px] text-slate-400">
+                    <p className="font-semibold text-slate-600">
+                      AK PHARMA • 10/26, Rupnagar R/A, Mirpur, Dhaka 1216
+                    </p>
+                    <p className="text-[9px] text-slate-400 mt-0.5">
+                      Thank you for your business. Computer-generated official commercial tax invoice.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1907,138 +2085,229 @@ function LogisticsOrdersContent() {
       {selectedOrder && (
         <div
           id="print-standalone-invoice"
-          className="hidden bg-white font-sans text-black"
+          className="hidden bg-white p-6 font-sans text-slate-900"
         >
-          <div className="mx-auto w-full max-w-[760px] border-2 border-black p-8 text-xs">
-            <div className="flex items-start justify-between">
-              <h1 className="font-serif text-4xl font-black tracking-wider uppercase">
-                INVOICE
-              </h1>
-              <div className="space-y-0.5 text-right text-xs leading-snug">
-                <strong className="block font-serif text-base font-black tracking-wide uppercase">
-                  AK Pharma
-                </strong>
-                <p>10/26, Rupnagar R/A, Mirpur, Dhaka 1216</p>
-                <p>01712611074, 01798112763</p>
-                <p>akpharmabd@gmail.com</p>
-              </div>
-            </div>
+          <div className="mx-auto w-full max-w-[760px] rounded-xl border border-slate-300 bg-white p-7 text-xs shadow-none">
+            {/* Top Brand Stripe */}
+            <div className="mb-6 h-2.5 w-full rounded-full bg-gradient-to-r from-[#23496D] via-[#0090FF] to-[#38BDF8]" />
 
-            <div className="mt-8 w-72 border border-black text-left">
-              <div className="bg-black px-2.5 py-1 text-[11px] font-bold tracking-wider text-white uppercase">
-                BILL TO:
-              </div>
-              <div className="space-y-1 p-2.5 text-xs">
-                <strong className="block text-sm font-bold">
-                  {selectedOrder.pharmacyName}
-                </strong>
-                <p>{matchedClient?.address || selectedOrder.territory}</p>
-                <p>{matchedClient?.phone || "Phone: On Record"}</p>
-                <p className="text-[10px] text-neutral-600">
-                  Territory: {selectedOrder.territory}
-                </p>
-              </div>
-            </div>
-
-            <table className="mt-8 w-full border-collapse border border-black text-center text-xs">
-              <thead>
-                <tr className="bg-black text-[11px] font-bold tracking-wider text-white uppercase">
-                  <th className="w-12 border border-black py-2">No.</th>
-                  <th className="border border-black px-3 py-2 text-left">
-                    Description
-                  </th>
-                  <th className="w-20 border border-black py-2">Boxes</th>
-                  <th className="w-28 border border-black py-2">Unit Cost</th>
-                  <th className="w-28 border border-black py-2">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeInvoiceRows.map((row, idx) => (
-                  <tr key={idx} className="border-b border-black">
-                    <td className="border-r border-black py-2.5 font-mono font-medium">
-                      {row.no || idx + 1}
-                    </td>
-                    <td className="border-r border-black px-3 py-2.5 text-left font-medium">
-                      {row.description}
-                    </td>
-                    <td className="border-r border-black py-2.5 font-mono">
-                      {row.quantity}
-                    </td>
-                    <td className="border-r border-black py-2.5 font-mono">
-                      ৳{row.unitCost.toLocaleString("en-IN")}
-                    </td>
-                    <td className="py-2.5 font-mono font-bold">
-                      ৳{row.total.toLocaleString("en-IN")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="mt-6 flex items-start gap-6">
-              <div className="min-h-[110px] flex-1 border border-black">
-                <div className="bg-black px-3 py-1 text-center text-[11px] font-bold tracking-wider text-white uppercase">
-                  COMMENTS
-                </div>
-                <div className="space-y-1 p-3 text-xs text-neutral-800">
-                  <p>
-                    • Invoice No: <strong>{selectedOrder.invoiceNumber}</strong>
+            {/* Header with Authentic Logo & Metadata */}
+            <div className="flex items-start justify-between border-b-2 border-slate-900 pb-5">
+              <div className="flex flex-col items-start gap-2 max-w-[380px]">
+                <img
+                  src="/logo-2.png"
+                  alt="AK Pharma"
+                  className="h-14 w-auto max-w-[360px] object-contain"
+                />
+                <div className="text-[11px] text-slate-700 leading-tight">
+                  <p className="font-medium text-slate-800">
+                    10/26, Rupnagar R/A, Mirpur, Dhaka 1216
                   </p>
-                  <p>• Assigned MIO: {selectedOrder.assignedMio}</p>
-                  <p>• Delivery Fleet: {selectedOrder.deliveryMethod}</p>
+                  <p className="font-mono text-[10px] text-slate-600 mt-0.5">
+                    Phone: 01712611074, 01798112763 | Email: akpharmabd@gmail.com
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <span className="inline-block rounded border border-blue-300 bg-blue-50 px-2.5 py-1 text-[10px] font-bold tracking-wider text-[#23496D] uppercase">
+                  COMMERCIAL TAX INVOICE
+                </span>
+                <h2 className="mt-1 font-mono text-base font-extrabold text-slate-900">
+                  {selectedOrder.invoiceNumber}
+                </h2>
+                <div className="mt-1 space-y-0.5 text-[11px] font-medium text-slate-600">
+                  <p>
+                    Invoice Date: <span className="font-semibold text-slate-900">{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                  </p>
+                  <p>
+                    Order Ref: <span className="font-mono font-semibold text-slate-900">{selectedOrder.orderNumber}</span>
+                  </p>
+                  <p>
+                    Delivery Status:{" "}
+                    <span className="rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                      {selectedOrder.status}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Customer & Logistics Info Cards */}
+            <div className="mt-5 grid grid-cols-2 gap-4">
+              {/* Bill To */}
+              <div className="rounded-lg border border-slate-300 bg-slate-50/70 overflow-hidden">
+                <div className="bg-[#23496D] px-3.5 py-1.5 text-white flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">BILL TO (CONSIGNEE)</span>
+                  <span className="text-[9px] text-blue-200 font-medium">Licensed Pharmacy</span>
+                </div>
+                <div className="p-3 text-xs space-y-1">
+                  <strong className="block text-sm font-bold text-slate-900">
+                    {selectedOrder.pharmacyName}
+                  </strong>
+                  <p className="text-slate-700">
+                    {matchedClient?.address || selectedOrder.territory}
+                  </p>
+                  <p className="font-mono text-slate-700">
+                    Contact: {matchedClient?.phone || "On Record"}
+                  </p>
+                  <p className="text-[10px] font-semibold text-[#0090FF]">
+                    Territory: {selectedOrder.territory}
+                  </p>
+                </div>
+              </div>
+
+              {/* Logistics Dispatch */}
+              <div className="rounded-lg border border-slate-300 bg-slate-50/70 overflow-hidden">
+                <div className="bg-slate-800 px-3.5 py-1.5 text-white flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">LOGISTICS & DISPATCH</span>
+                  <span className="text-[9px] text-slate-300 font-medium">Fulfillment</span>
+                </div>
+                <div className="p-3 text-xs space-y-1">
+                  <p>
+                    <span className="text-slate-600">Assigned MIO:</span>{" "}
+                    <strong className="text-slate-900">{selectedOrder.assignedMio || "Field Executive"}</strong>
+                  </p>
+                  <p>
+                    <span className="text-slate-600">Delivery Fleet:</span>{" "}
+                    <span className="font-medium text-slate-900">{selectedOrder.deliveryMethod}</span>
+                  </p>
+                  <p>
+                    <span className="text-slate-600">Payment Terms:</span>{" "}
+                    <span className="font-semibold text-emerald-800">Credit (30 Days Net)</span>
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    Dispatch Hub: Central Distribution Depot, Dhaka
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Products Table */}
+            <div className="mt-5 rounded-lg border border-slate-300 overflow-hidden">
+              <table className="w-full border-collapse text-xs">
+                <thead>
+                  <tr className="bg-[#23496D] text-white text-[11px] font-bold tracking-wider uppercase">
+                    <th className="w-12 py-2.5 px-3 text-center border-r border-blue-900">No.</th>
+                    <th className="py-2.5 px-4 text-left border-r border-blue-900">Description & Formulation</th>
+                    <th className="w-20 py-2.5 px-3 text-center border-r border-blue-900">Boxes</th>
+                    <th className="w-28 py-2.5 px-3 text-right border-r border-blue-900">Unit Rate (৳)</th>
+                    <th className="w-32 py-2.5 px-4 text-right">Total Amount (৳)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeInvoiceRows.map((row, idx) => (
+                    <tr
+                      key={idx}
+                      className={`border-b border-slate-200 ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/70"}`}
+                    >
+                      <td className="py-2.5 px-3 text-center font-mono text-slate-600 border-r border-slate-200">
+                        {row.no || idx + 1}
+                      </td>
+                      <td className="py-2.5 px-4 font-semibold text-slate-900 border-r border-slate-200">
+                        {row.description}
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-mono font-medium text-slate-800 border-r border-slate-200">
+                        {row.quantity}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-slate-700 border-r border-slate-200">
+                        ৳{row.unitCost.toLocaleString("en-IN")}
+                      </td>
+                      <td className="py-2.5 px-4 text-right font-mono font-bold text-[#23496D]">
+                        ৳{row.total.toLocaleString("en-IN")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Financial Summary & Notes */}
+            <div className="mt-5 flex items-start gap-4">
+              {/* Comments & In-Words */}
+              <div className="flex-1 space-y-3">
+                <div className="rounded-lg border border-slate-300 bg-slate-50/80 p-3 text-xs">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Amount In Words
+                  </span>
+                  <p className="font-serif italic font-bold text-slate-900 leading-snug">
+                    {numberToWordsBDT(inspectGrandTotal)}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-slate-300 p-3 text-xs space-y-1 text-slate-600 bg-white">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
+                    Special Instructions & Terms
+                  </span>
+                  <p>• Invoice No: <strong className="font-mono text-slate-900">{selectedOrder.invoiceNumber}</strong></p>
                   {selectedOrder.comments && (
-                    <p>• Notes: {selectedOrder.comments}</p>
+                    <p>• Notes: <span className="text-slate-800">{selectedOrder.comments}</span></p>
                   )}
+                  <p className="text-[10px] text-slate-500 mt-1 leading-normal">
+                    Goods received in good condition. All claims must be lodged within 48 hours of dispatch.
+                  </p>
                 </div>
               </div>
 
-              <div className="w-72 border border-black">
-                <div className="flex border-b border-black">
-                  <div className="flex w-32 items-center bg-black px-2.5 py-1.5 text-[11px] font-bold text-white uppercase">
-                    SUBTOTAL
-                  </div>
-                  <div className="flex-1 p-1.5 text-right font-mono text-xs font-medium">
-                    ৳{inspectSubtotal.toLocaleString("en-IN")}
-                  </div>
+              {/* Numerical Summary Box */}
+              <div className="w-72 rounded-lg border border-slate-300 bg-white overflow-hidden shadow-none">
+                <div className="flex justify-between items-center px-3.5 py-2 border-b border-slate-200 text-xs">
+                  <span className="text-slate-600 font-medium">Subtotal (Gross)</span>
+                  <span className="font-mono font-semibold text-slate-900">৳{inspectSubtotal.toLocaleString("en-IN")}</span>
                 </div>
-                <div className="flex border-b border-black">
-                  <div className="flex w-32 items-center bg-black px-2.5 py-1.5 text-[11px] font-bold text-white uppercase">
-                    DISCOUNT ({inspectDiscountPercent}%)
-                  </div>
-                  <div className="flex-1 p-1.5 text-right font-mono text-xs">
+                <div className="flex justify-between items-center px-3.5 py-2 border-b border-slate-200 text-xs">
+                  <span className="text-slate-600 font-medium flex items-center gap-1.5">
+                    Trade Discount
+                    <span className="bg-blue-50 text-[#0090FF] text-[10px] font-bold px-1.5 py-0.5 rounded border border-blue-200">
+                      {inspectDiscountPercent}%
+                    </span>
+                  </span>
+                  <span className="font-mono font-medium text-rose-600">
                     -৳{inspectDiscountAmount.toLocaleString("en-IN")}
-                  </div>
+                  </span>
                 </div>
-                <div className="flex">
-                  <div className="flex w-32 items-center bg-black px-2.5 py-1.5 text-[11px] font-bold text-white uppercase">
-                    GRAND TOTAL
+                <div className="flex justify-between items-center px-3.5 py-2 border-b border-slate-200 text-xs">
+                  <span className="text-slate-600 font-medium">VAT / Tax (Exempted)</span>
+                  <span className="font-mono font-medium text-slate-600">৳0.00</span>
+                </div>
+                <div className="bg-[#23496D] text-white p-3.5 flex justify-between items-center">
+                  <div>
+                    <span className="block text-[10px] font-bold uppercase tracking-wider opacity-90">GRAND TOTAL</span>
+                    <span className="text-[9px] text-blue-200">Net Payable BDT</span>
                   </div>
-                  <div className="flex-1 p-1.5 text-right font-mono text-sm font-bold">
-                    ৳{inspectGrandTotal.toLocaleString("en-IN")}
-                  </div>
+                  <span className="text-lg font-black font-mono">
+                    ৳{inspectGrandTotal.toLocaleString("en-IN")}/-
+                  </span>
                 </div>
               </div>
             </div>
 
-            <div className="mt-16 grid grid-cols-2 gap-12 border-t-2 border-slate-200 pt-8 text-center text-[10px]">
+            {/* Dual Signatures */}
+            <div className="mt-14 grid grid-cols-2 gap-10 border-t-2 border-slate-200 pt-6 text-center text-[10px]">
               <div>
                 <div className="mx-auto mb-1.5 w-48 border-b border-slate-400" />
-                <strong className="block text-xs text-slate-900">
-                  Authorized Signature
+                <strong className="block text-[11px] text-slate-900">
+                  Authorized Signatory
                 </strong>
-                <span className="text-slate-500"></span>
+                <span className="text-[10px] text-slate-500">AK Pharma Billing & Accounts</span>
               </div>
               <div>
                 <div className="mx-auto mb-1.5 w-48 border-b border-slate-400" />
-                <strong className="block text-xs text-slate-900">
-                  MIO/SR Signature
+                <strong className="block text-[11px] text-slate-900">
+                  Receiver's Signature & Stamp
                 </strong>
-                <span className="text-slate-500"></span>
+                <span className="text-[10px] text-slate-500">Consignee Acceptance</span>
               </div>
             </div>
 
-            <div className="mt-10 text-center font-serif text-sm font-bold tracking-widest uppercase">
-              THANK YOU FOR YOUR BUSINESS
+            {/* Footer */}
+            <div className="mt-8 border-t border-slate-200 pt-3 text-center text-[10px] text-slate-500">
+              <p className="font-semibold text-slate-700">
+                AK PHARMA • 10/26, Rupnagar R/A, Mirpur, Dhaka 1216
+              </p>
+              <p className="text-[9px] text-slate-400 mt-0.5">
+                Thank you for your business. Computer-generated official commercial tax invoice.
+              </p>
             </div>
           </div>
         </div>

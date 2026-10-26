@@ -711,9 +711,9 @@ export default function SalaryManagementPage() {
         <body>
           <div class="header">
             <div>
-              <div class="company">AK PHARMA LTD.</div>
+              <div class="company">AK PHARMA</div>
               <div class="subtitle">Official Monthly Pay Advice & Salary Payslip</div>
-              <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Gulshan Corporate Office, Dhaka, Bangladesh</div>
+              <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">10/26, Rupnagar R/A, Mirpur, Dhaka 1216</div>
             </div>
             <div class="text-right">
               <div style="font-size: 16px; font-weight: 800; color: #0090FF;">${printRecord.payPeriod}</div>
@@ -2106,13 +2106,20 @@ export default function SalaryManagementPage() {
             <div className="space-y-6">
               <div className="print-payslip-node space-y-6 rounded-xl border border-slate-200 bg-white p-8">
                 <div className="flex items-start justify-between border-b-2 border-[#0090FF] pb-4">
-                  <div>
-                    <h2 className="text-xl font-black text-[#0090FF]">
-                      AK PHARMA LTD.
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Official Monthly Pay Advice / Salary Payslip
-                    </p>
+                  <div className="flex flex-col items-start gap-1.5 max-w-[340px]">
+                    <img
+                      src="/logo-2.png"
+                      alt="AK Pharma"
+                      className="h-12 w-auto max-w-[320px] object-contain"
+                    />
+                    <div className="text-xs text-slate-600 leading-tight">
+                      <p className="font-semibold text-slate-700">
+                        Official Monthly Pay Advice / Salary Payslip
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        10/26, Rupnagar R/A, Mirpur, Dhaka 1216
+                      </p>
+                    </div>
                   </div>
                   <div className="text-right">
                     <span className="block text-sm font-black text-slate-900">

@@ -67,43 +67,115 @@ import {
 
 const PRINT_STYLES = `
 @page {
-  size: A4;
-  margin: 12mm;
+  size: A4 portrait;
+  margin: 10mm;
 }
 
 @media print {
   html,
   body {
     height: auto !important;
+    min-height: 100% !important;
     overflow: visible !important;
     background: #ffffff !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
+  /* Hide onscreen components */
   body * {
     visibility: hidden !important;
   }
 
-  #staff-dossier-printable,
-  #staff-dossier-printable * {
-    visibility: visible !important;
+  /* Force hide all modals, overlays, popovers, sidebars, buttons */
+  [data-slot="dialog-portal"],
+  [data-slot="dialog-overlay"],
+  [data-slot="dialog-content"],
+  [data-radix-popper-content-wrapper],
+  [data-sidebar="sidebar"],
+  aside,
+  header,
+  nav,
+  button,
+  .print\\:hidden {
+    display: none !important;
+    visibility: hidden !important;
   }
 
-  #staff-dossier-printable {
+  /* When printing Dossier */
+  body.printing-dossier #staff-dossier-printable-standalone,
+  body.printing-dossier #staff-dossier-printable-standalone * {
+    visibility: visible !important;
+  }
+  body.printing-dossier #staff-dossier-printable-standalone {
+    display: block !important;
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
     width: 100% !important;
+    box-sizing: border-box !important;
     margin: 0 !important;
     padding: 10px !important;
     background: #ffffff !important;
+    z-index: 999999 !important;
+  }
+  body.printing-dossier #staff-roster-printable-standalone {
+    display: none !important;
+    visibility: hidden !important;
   }
 
-  .print\\:hidden,
-  button,
-  [data-radix-popper-content-wrapper] {
+  /* When printing Roster */
+  body.printing-roster #staff-roster-printable-standalone,
+  body.printing-roster #staff-roster-printable-standalone * {
+    visibility: visible !important;
+  }
+  body.printing-roster #staff-roster-printable-standalone {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 10px !important;
+    background: #ffffff !important;
+    z-index: 999999 !important;
+  }
+  body.printing-roster #staff-dossier-printable-standalone {
     display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Fallback if user presses Ctrl+P directly */
+  body:not(.printing-dossier):not(.printing-roster) #staff-roster-printable-standalone,
+  body:not(.printing-dossier):not(.printing-roster) #staff-roster-printable-standalone * {
+    visibility: visible !important;
+  }
+  body:not(.printing-dossier):not(.printing-roster) #staff-roster-printable-standalone {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 10px !important;
+    background: #ffffff !important;
+    z-index: 999999 !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
   }
 }
 `
@@ -397,6 +469,43 @@ export default function StaffDirectoryPage() {
     setIsPrintOpen(true)
   }
 
+  const handlePrintDossier = (emp?: Employee) => {
+    const target = emp || printProfile
+    if (!target) return
+    setPrintProfile(target)
+    if (typeof document !== "undefined") {
+      document.body.classList.remove("printing-roster")
+      document.body.classList.add("printing-dossier")
+    }
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        window.print()
+      }, 100)
+    })
+  }
+
+  const handlePrintRoster = () => {
+    if (typeof document !== "undefined") {
+      document.body.classList.remove("printing-dossier")
+      document.body.classList.add("printing-roster")
+    }
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        window.print()
+      }, 100)
+    })
+  }
+
+  React.useEffect(() => {
+    const handleAfterPrint = () => {
+      if (typeof document !== "undefined") {
+        document.body.classList.remove("printing-dossier", "printing-roster")
+      }
+    }
+    window.addEventListener("afterprint", handleAfterPrint)
+    return () => window.removeEventListener("afterprint", handleAfterPrint)
+  }, [])
+
   const handleOpenEdit = (emp: Employee) => {
     setEditingEmp({ ...emp })
     setIsEditOpen(true)
@@ -649,6 +758,16 @@ export default function StaffDirectoryPage() {
           >
             <Download className="h-3.5 w-3.5 text-emerald-600" />
             Export Staff Roster
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handlePrintRoster}
+            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
+          >
+            <Printer className="h-3.5 w-3.5 text-[#0090FF]" />
+            Print Directory
           </Button>
 
           {/* Onboard New Staff Modal */}
@@ -1366,6 +1485,13 @@ export default function StaffDirectoryPage() {
                             View Dossier
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            onClick={() => handlePrintDossier(emp)}
+                            className="cursor-pointer text-xs text-slate-700"
+                          >
+                            <Printer className="mr-2 h-3.5 w-3.5 text-[#0090FF]" />
+                            Print Dossier (Direct)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
                             onClick={() => handleOpenEdit(emp)}
                             className="cursor-pointer text-xs text-slate-700"
                           >
@@ -1506,7 +1632,7 @@ export default function StaffDirectoryPage() {
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
-                    onClick={() => window.print()}
+                    onClick={() => handlePrintDossier(printProfile)}
                     className="h-8 gap-1.5 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
                   >
                     <Printer className="h-3.5 w-3.5" />
@@ -1530,16 +1656,20 @@ export default function StaffDirectoryPage() {
               >
                 {/* Letterhead */}
                 <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
-                  <div>
-                    <h2 className="text-lg font-extrabold tracking-tight uppercase">
-                      AK PHARMA
-                    </h2>
-                    <p className="text-[11px] text-slate-500">
-                      Human Resources & Personnel Administration
-                    </p>
-                    <p className="text-[10px] text-slate-400">
-                      Dhaka, Bangladesh
-                    </p>
+                  <div className="flex flex-col items-start gap-1.5 max-w-[340px]">
+                    <img
+                      src="/logo-2.png"
+                      alt="AK Pharma"
+                      className="h-12 w-auto max-w-[320px] object-contain"
+                    />
+                    <div className="text-[11px] text-slate-600 leading-tight">
+                      <p className="font-semibold text-slate-700">
+                        Human Resources & Personnel Administration
+                      </p>
+                      <p className="text-[10px] text-slate-500">
+                        10/26, Rupnagar R/A, Mirpur, Dhaka 1216
+                      </p>
+                    </div>
                   </div>
                   <div className="text-right">
                     <span className="block text-xs font-bold tracking-wider text-slate-800 uppercase">
@@ -2168,6 +2298,353 @@ export default function StaffDirectoryPage() {
         cancelText="Cancel"
         isDeleting={isDeletingStaff}
       />
+
+      {/* 10. Standalone Printable Employee Dossier (Rendered outside Dialog for clean multi-page printing) */}
+      {printProfile && (
+        <div
+          id="staff-dossier-printable-standalone"
+          className="hidden bg-white p-6 font-sans text-slate-900"
+        >
+          {/* Letterhead */}
+          <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
+            <div className="flex flex-col items-start gap-2 max-w-[380px]">
+              <img
+                src="/logo-2.png"
+                alt="AK Pharma"
+                className="h-14 w-auto max-w-[360px] object-contain"
+              />
+              <div className="text-xs text-slate-600 leading-tight">
+                <p className="font-semibold text-slate-800">
+                  Human Resources & Personnel Administration
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  10/26, Rupnagar R/A, Mirpur, Dhaka 1216
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="block text-xs font-bold tracking-wider text-slate-800 uppercase">
+                EMPLOYEE DOSSIER
+              </span>
+              <span className="block font-mono text-sm font-bold text-slate-900">
+                {printProfile.empId}
+              </span>
+              <span className="block text-[10px] text-slate-400 mt-1">
+                Issued: {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+              </span>
+            </div>
+          </div>
+
+          {/* Core Credentials */}
+          <div className="border-b border-slate-200 py-4">
+            <h4 className="mb-2 text-xs font-bold tracking-wider text-slate-900 uppercase">
+              1. Institutional Credentials & Identification
+            </h4>
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="space-y-1.5">
+                <div>
+                  <span className="text-slate-500">Full Name: </span>
+                  <strong className="text-slate-900">{printProfile.fullName}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500">Employee ID: </span>
+                  <span className="font-mono font-semibold text-slate-900">
+                    {printProfile.empId}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500">National ID (NID): </span>
+                  <span className="font-mono text-slate-900">
+                    {printProfile.nidNumber}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Mobile Phone: </span>
+                  <span className="font-mono text-slate-900">{printProfile.phone}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Email: </span>
+                  <span className="text-slate-900">{printProfile.email}</span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <div>
+                  <span className="text-slate-500">Designation / Role: </span>
+                  <strong className="text-slate-900">
+                    {printProfile.roleName || printProfile.designation}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-slate-500">Department: </span>
+                  <span className="text-slate-900">{printProfile.department}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Date of Joining: </span>
+                  <span className="text-slate-900">{printProfile.startDate}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Employment Status: </span>
+                  <span className="font-semibold text-slate-900">
+                    {printProfile.employmentStatus}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Monthly Base Salary: </span>
+                  <span className="font-mono font-bold text-slate-900">
+                    ৳{printProfile.salary?.toLocaleString("en-IN") || 0}/-
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Family & Residence */}
+          <div className="border-b border-slate-200 py-4 text-xs">
+            <h4 className="mb-2 text-xs font-bold tracking-wider text-slate-900 uppercase">
+              2. Family & Residence Particulars
+            </h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="text-slate-500">Father's Name: </span>
+                <strong className="text-slate-900">{printProfile.fathersName || "N/A"}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500">Mother's Name: </span>
+                <strong className="text-slate-900">{printProfile.mothersName || "N/A"}</strong>
+              </div>
+            </div>
+            <div className="mt-2">
+              <span className="text-slate-500">Permanent Address: </span>
+              <span className="text-slate-900">{printProfile.address || "N/A"}</span>
+            </div>
+          </div>
+
+          {/* Supervision & Work Schedule */}
+          <div className="border-b border-slate-200 py-4 text-xs">
+            <h4 className="mb-2 text-xs font-bold tracking-wider text-slate-900 uppercase">
+              3. Operational Supervision & Schedule
+            </h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="text-slate-500">Direct Reporting Supervisor: </span>
+                <strong className="text-slate-900">{printProfile.supervisor || "General Management"}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500">Standard Working Hours: </span>
+                <strong className="text-slate-900">{printProfile.workSchedule || "Standard Shift"}</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Emergency Contact */}
+          <div className="border-b border-slate-200 py-4 text-xs">
+            <h4 className="mb-2 text-xs font-bold tracking-wider text-slate-900 uppercase">
+              4. Emergency Contact Information
+            </h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <span className="text-slate-500">Contact Person: </span>
+                <strong className="text-slate-900">{printProfile.emergencyName || "N/A"}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500">Relationship: </span>
+                <span className="text-slate-900">{printProfile.emergencyRelationship || "N/A"}</span>
+              </div>
+              <div>
+                <span className="text-slate-500">Emergency Phone: </span>
+                <strong className="font-mono text-slate-900">
+                  {printProfile.emergencyPhone || "N/A"}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Signatures / Footer */}
+          <div className="mt-16 flex items-center justify-between border-t border-slate-200 pt-6 text-[11px] text-slate-500">
+            <div className="text-center">
+              <div className="mb-2 w-36 border-b border-slate-400" />
+              <span className="font-semibold text-slate-800">Employee Signature</span>
+              <p className="text-[10px] text-slate-400">Date: _______________</p>
+            </div>
+            <div className="text-center">
+              <div className="mb-2 w-36 border-b border-slate-400" />
+              <span className="font-semibold text-slate-800">HR Records Officer</span>
+              <p className="text-[10px] text-slate-400">Date: _______________</p>
+            </div>
+            <div className="text-center">
+              <div className="mb-2 w-36 border-b border-slate-400" />
+              <span className="font-semibold text-slate-800">Authorized Official</span>
+              <p className="text-[10px] text-slate-400">Date: _______________</p>
+            </div>
+          </div>
+          <div className="mt-8 border-t border-slate-100 pt-2 text-center text-[9px] text-slate-400">
+            This document is an official confidential employee dossier of AK Pharma. Unauthorized reproduction or dissemination is strictly prohibited.
+          </div>
+        </div>
+      )}
+
+      {/* 11. Standalone Printable Staff Roster (Rendered for complete directory ledger printouts) */}
+      <div
+        id="staff-roster-printable-standalone"
+        className="hidden bg-white p-6 font-sans text-slate-900"
+      >
+        {/* Letterhead */}
+        <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
+          <div className="flex flex-col items-start gap-2 max-w-[380px]">
+            <img
+              src="/logo-2.png"
+              alt="AK Pharma"
+              className="h-14 w-auto max-w-[360px] object-contain"
+            />
+            <div className="text-xs text-slate-600 leading-tight">
+              <p className="font-semibold text-slate-800">
+                Human Resources & Corporate Administration
+              </p>
+              <p className="text-[11px] text-slate-500">
+                10/26, Rupnagar R/A, Mirpur, Dhaka 1216
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="block text-xs font-bold tracking-wider text-slate-800 uppercase">
+              STAFF ROSTER LEDGER
+            </span>
+            <span className="block text-[11px] text-slate-600 mt-1">
+              Date: {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+            </span>
+            <span className="block text-[10px] text-slate-400">
+              Scope: {departmentFilter === "all" ? "All Departments" : departmentFilter}
+            </span>
+          </div>
+        </div>
+
+        {/* Summary Metric Strip */}
+        <div className="my-4 grid grid-cols-4 gap-3 border border-slate-200 bg-slate-50 p-3 text-xs">
+          <div>
+            <span className="block text-[10px] font-bold uppercase text-slate-500">
+              Total Personnel
+            </span>
+            <span className="font-mono text-sm font-bold text-slate-900">
+              {filteredEmployees.length}
+            </span>
+          </div>
+          <div>
+            <span className="block text-[10px] font-bold uppercase text-slate-500">
+              Active Staff
+            </span>
+            <span className="font-mono text-sm font-bold text-emerald-700">
+              {filteredEmployees.filter((e) => e.employmentStatus === "Active").length}
+            </span>
+          </div>
+          <div>
+            <span className="block text-[10px] font-bold uppercase text-slate-500">
+              Probationary / Leave
+            </span>
+            <span className="font-mono text-sm font-bold text-amber-700">
+              {filteredEmployees.filter((e) => e.employmentStatus !== "Active").length}
+            </span>
+          </div>
+          <div>
+            <span className="block text-[10px] font-bold uppercase text-slate-500">
+              Monthly Payroll
+            </span>
+            <span className="font-mono text-sm font-bold text-slate-900">
+              ৳{filteredEmployees.reduce((acc, e) => acc + (e.salary || 0), 0).toLocaleString("en-IN")}/-
+            </span>
+          </div>
+        </div>
+
+        {/* Staff Table */}
+        <table className="w-full border-collapse border border-slate-200 text-left text-[11px]">
+          <thead>
+            <tr className="border-b border-slate-300 bg-slate-100 font-bold text-slate-800">
+              <th className="border-r border-slate-200 p-2 text-center w-10">#</th>
+              <th className="border-r border-slate-200 p-2">Emp ID</th>
+              <th className="border-r border-slate-200 p-2">Full Name</th>
+              <th className="border-r border-slate-200 p-2">Role / Designation</th>
+              <th className="border-r border-slate-200 p-2">Department</th>
+              <th className="border-r border-slate-200 p-2">Phone</th>
+              <th className="border-r border-slate-200 p-2">NID Number</th>
+              <th className="border-r border-slate-200 p-2">Start Date</th>
+              <th className="border-r border-slate-200 p-2 text-right">Salary (BDT)</th>
+              <th className="p-2 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredEmployees.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="p-6 text-center text-xs text-slate-400">
+                  No personnel records found.
+                </td>
+              </tr>
+            ) : (
+              filteredEmployees.map((emp, idx) => (
+                <tr key={emp.id} className="border-b border-slate-200">
+                  <td className="border-r border-slate-200 p-1.5 text-center font-mono">
+                    {idx + 1}
+                  </td>
+                  <td className="border-r border-slate-200 p-1.5 font-mono font-semibold text-slate-900">
+                    {emp.empId}
+                  </td>
+                  <td className="border-r border-slate-200 p-1.5 font-semibold text-slate-900">
+                    {emp.fullName}
+                  </td>
+                  <td className="border-r border-slate-200 p-1.5 text-slate-800">
+                    {emp.roleName || emp.designation}
+                  </td>
+                  <td className="border-r border-slate-200 p-1.5 text-slate-600">
+                    {emp.department}
+                  </td>
+                  <td className="border-r border-slate-200 p-1.5 font-mono text-slate-700">
+                    {emp.phone}
+                  </td>
+                  <td className="border-r border-slate-200 p-1.5 font-mono text-slate-600">
+                    {emp.nidNumber}
+                  </td>
+                  <td className="border-r border-slate-200 p-1.5 text-slate-600">
+                    {emp.startDate}
+                  </td>
+                  <td className="border-r border-slate-200 p-1.5 text-right font-mono font-semibold text-slate-900">
+                    ৳{emp.salary.toLocaleString("en-IN")}
+                  </td>
+                  <td className="p-1.5 text-center font-semibold text-[10px]">
+                    <span
+                      className={`inline-block rounded px-1.5 py-0.5 ${
+                        emp.employmentStatus === "Active"
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : emp.employmentStatus === "Probationary"
+                            ? "bg-blue-50 text-blue-800 border border-blue-200"
+                            : "bg-slate-100 text-slate-700 border border-slate-200"
+                      }`}
+                    >
+                      {emp.employmentStatus}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+
+        {/* Official Signatures */}
+        <div className="mt-14 flex items-center justify-between border-t border-slate-200 pt-6 text-[11px] text-slate-500">
+          <div className="text-center">
+            <div className="mb-2 w-36 border-b border-slate-400" />
+            <span className="font-semibold text-slate-800">Prepared By (HR)</span>
+            <p className="text-[10px] text-slate-400">Date: _______________</p>
+          </div>
+          <div className="text-center">
+            <div className="mb-2 w-36 border-b border-slate-400" />
+            <span className="font-semibold text-slate-800">Verified By (Head of HR)</span>
+            <p className="text-[10px] text-slate-400">Date: _______________</p>
+          </div>
+          <div className="text-center">
+            <div className="mb-2 w-36 border-b border-slate-400" />
+            <span className="font-semibold text-slate-800">Approved By (Director)</span>
+            <p className="text-[10px] text-slate-400">Date: _______________</p>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

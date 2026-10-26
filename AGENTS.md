@@ -4,7 +4,7 @@
 
 Full-stack pharmaceutical management application with:
 - **Frontend**: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS
-- **Backend**: Express.js, TypeScript, Prisma ORM, PostgreSQL
+- **Backend**: Express.js, TypeScript, Prisma ORM, MongoDB
 
 ## Backend Architecture (IMPORTANT)
 
@@ -74,7 +74,7 @@ npm run dev          # Dev server with hot reload
 npm run build        # Compile TypeScript
 npm start            # Production
 npx prisma studio    # DB GUI
-npx prisma migrate dev  # Run migrations
+npx prisma db push   # Push schema to MongoDB
 
 # Frontend
 cd frontend
@@ -99,7 +99,7 @@ Key models in `backend/prisma/schema.prisma`:
 
 ### Backend (`backend/.env`)
 ```
-DATABASE_URL="postgresql://..."
+DATABASE_URL="mongodb+srv://..."
 JWT_SECRET="..."
 PORT=5000
 NODE_ENV=development

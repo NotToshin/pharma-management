@@ -1,5 +1,5 @@
-import { visitLogFormSchema } from "./src/validations/doctorVisitLogValidation";
-import app from "./src/app";
+import { visitLogFormSchema } from "../src/validations/doctorVisitLogValidation";
+import app from "../src/app";
 import { Server } from "http";
 import fs from "fs";
 import path from "path";

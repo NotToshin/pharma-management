@@ -2426,19 +2426,23 @@ export default function WholesalerPurchaseOrdersPage() {
             <div id="print-standalone-voucher" className="p-6 bg-white border border-slate-200 rounded-xl space-y-6 text-slate-900 font-sans print:border-none print:p-0">
               {/* Header Letterhead */}
               <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
-                <div>
-                  <h2 className="text-xl font-extrabold tracking-tight text-slate-900">
-                    AK PHARMACEUTICALS LTD.
-                  </h2>
-                  <p className="text-xs text-slate-600 font-medium">
-                    Central Distribution & Supply Chain Operations
-                  </p>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Plot 48, Tejgaon Industrial Area, Dhaka 1208, Bangladesh | Tel: +880 2-8878901
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    Drug License: DA-DL-1998-00412 | 21 CFR Part 11 Regulated
-                  </p>
+                <div className="flex flex-col items-start gap-1.5 max-w-[340px]">
+                  <img
+                    src="/logo-2.png"
+                    alt="AK Pharma"
+                    className="h-12 w-auto max-w-[320px] object-contain"
+                  />
+                  <div className="text-xs text-slate-600 leading-tight">
+                    <p className="font-semibold text-slate-700">
+                      Central Distribution & Supply Chain Operations
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      10/26, Rupnagar R/A, Mirpur, Dhaka 1216 | Tel: 01712611074, 01798112763
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Drug License: DA-DL-1998-00412 | Email: akpharmabd@gmail.com
+                    </p>
+                  </div>
                 </div>
 
                 <div className="text-right">

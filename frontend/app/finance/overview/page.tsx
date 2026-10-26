@@ -1130,17 +1130,20 @@ export default function FinanceOverviewPage() {
             className="bg-white p-8 font-sans text-xs text-slate-900"
           >
             <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
-              <div>
-                <h1 className="text-xl font-black tracking-tight uppercase">
-                  AK PHARMA LTD.
-                </h1>
-                <p className="text-[10px] font-semibold text-slate-600">
-                  Directorate of Finance & Commercial Operations
-                </p>
-                <p className="text-[9px] text-slate-500">
-                  10/26, Rupnagar R/A, Mirpur, Dhaka 1216 • DGDA Lic:
-                  DL-PH-2026-88
-                </p>
+              <div className="flex flex-col items-start gap-1.5 max-w-[340px]">
+                <img
+                  src="/logo-2.png"
+                  alt="AK Pharma"
+                  className="h-12 w-auto max-w-[320px] object-contain"
+                />
+                <div className="text-[11px] text-slate-700 leading-tight">
+                  <p className="font-semibold text-slate-800">
+                    Directorate of Finance & Commercial Operations
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    10/26, Rupnagar R/A, Mirpur, Dhaka 1216 • DGDA Lic: DL-PH-2026-88
+                  </p>
+                </div>
               </div>
               <div className="text-right">
                 <span className="block inline-block border border-slate-900 px-2 py-0.5 text-xs font-bold tracking-wider uppercase">

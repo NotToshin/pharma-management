@@ -1,5 +1,5 @@
-import { doctorFormSchema } from "./src/validations/doctorValidation";
-import app from "./src/app";
+import { doctorFormSchema } from "../src/validations/doctorValidation";
+import app from "../src/app";
 import { Server } from "http";
 import fs from "fs";
 import path from "path";

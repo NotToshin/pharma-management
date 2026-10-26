@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "tsx prisma/seed.ts",
+    "db:push": "prisma db push",
+    "db:clean": "tsx scripts/clean-database.ts",
     "test:e2e": "tsx scripts/test-e2e-flow.ts"
   },
   "prisma": {

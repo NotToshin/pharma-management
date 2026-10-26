@@ -1767,16 +1767,20 @@ export default function AccountLedgerPage() {
             <div className="mt-4 border border-slate-300 rounded-xl p-6 bg-white text-slate-900 font-sans print:border-none print:p-0">
               {/* Slip Header */}
               <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
-                <div>
-                  <h2 className="text-xl font-black tracking-tight text-slate-900">
-                    AK PHARMA LIMITED
-                  </h2>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">
-                    Central Treasury & Cash Management Division
-                  </p>
-                  <p className="text-[11px] text-slate-600 mt-1">
-                    Corporate HQ: Gulshan-2, Dhaka-1212, Bangladesh
-                  </p>
+                <div className="flex flex-col items-start gap-1.5 max-w-[340px]">
+                  <img
+                    src="/logo-2.png"
+                    alt="AK Pharma"
+                    className="h-12 w-auto max-w-[320px] object-contain"
+                  />
+                  <div className="text-[11px] text-slate-700 leading-tight">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-600 font-bold">
+                      Central Treasury & Cash Management Division
+                    </p>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      10/26, Rupnagar R/A, Mirpur, Dhaka 1216
+                    </p>
+                  </div>
                 </div>
                 <div className="text-right">
                   <Badge
