@@ -382,28 +382,28 @@ export function AppSidebar({ onOpenAccount, onOpenPrivileges, ...props }: AppSid
             <div className="flex items-center justify-between w-full">
               <SidebarMenuButton
                 size="lg"
-                className="transition-colors hover:bg-slate-50 flex-1"
+                asChild
+                className="transition-colors hover:bg-slate-50 flex-1 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center h-12"
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#23496D] shadow-xs">
-                  <svg
-                    viewBox="0 0 105 72"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-auto"
-                  >
-                    <path d="M38 4L4 68H26L42 36H56L38 4Z" fill="#FFFFFF" />
-                    <path d="M56 4L39 39L57 68H74L60 34L71 4H56Z" fill="#FFFFFF" />
-                    <path d="M60 34L98 4H78L52 44L80 68H102L67 37L60 34Z" fill="#7DD3FC" />
-                  </svg>
-                </div>
-                <div className="ml-2 grid flex-1 text-left text-xs leading-tight group-data-[collapsible=icon]:hidden">
-                  <span className="truncate font-extrabold tracking-tight text-[#23496D]">
-                    AK PHARMA
-                  </span>
-                  <span className="truncate text-[10px] font-medium text-slate-500">
-                    Smart Solutions for Healthier Living
-                  </span>
-                </div>
+                <Link href="/" className="flex items-center w-full">
+                  {/* Expanded Sidebar: horizontal-logo-motto.svg */}
+                  <div className="flex items-center group-data-[collapsible=icon]:hidden py-1 px-1">
+                    <img
+                      src="/horizontal-logo-motto.svg"
+                      alt="AK Pharma - Smart Solutions for Healthier Living"
+                      className="h-9 w-auto max-w-[205px] object-contain"
+                    />
+                  </div>
+
+                  {/* Collapsed Sidebar: just-logo.svg */}
+                  <div className="hidden group-data-[collapsible=icon]:flex items-center justify-center w-full py-1">
+                    <img
+                      src="/just-logo.svg"
+                      alt="AK Pharma"
+                      className="h-5 w-auto max-w-[30px] object-contain"
+                    />
+                  </div>
+                </Link>
               </SidebarMenuButton>
               {isMobile && (
                 <button
