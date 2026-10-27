@@ -1,13 +1,15 @@
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
+import type { Prisma } from "@prisma/client";
+import { loadOrderAttributionSources, normalizeAssignment, resolveOrderMio } from "./orderAttributionService";
 
 export const territoryTargetService = {
   /**
    * Retrieves all sales quota targets for MIOs with real-time database orders sync
    */
   async getAllTargets(filters?: { fiscalYear?: string; territory?: string }) {
-    const where: any = {};
+    const where: Prisma.TerritoryTargetWhereInput = {};
     if (filters?.fiscalYear && filters.fiscalYear !== "all") {
       where.fiscalYear = { equals: filters.fiscalYear, mode: "insensitive" };
     }
@@ -15,7 +17,7 @@ export const territoryTargetService = {
       where.territory = { equals: filters.territory, mode: "insensitive" };
     }
 
-    const [targets, orders, staffList, allocations] = await Promise.all([
+    const [targets, orders, staffList, attributionSources] = await Promise.all([
       prisma.territoryTarget.findMany({
         where,
         orderBy: { createdAt: "asc" },
@@ -26,6 +28,7 @@ export const territoryTargetService = {
           orderNumber: true,
           territory: true,
           assignedMio: true,
+          pharmacyName: true,
           orderValue: true,
           status: true,
         },
@@ -42,18 +45,13 @@ export const territoryTargetService = {
           email: true,
         },
       }),
-      prisma.mioZoneAllocation.findMany({
-        select: {
-          id: true,
-          mioName: true,
-          employeeId: true,
-          phone: true,
-          division: true,
-          territory: true,
-          allocatedZone: true,
-        },
-      }),
+      loadOrderAttributionSources(),
     ]);
+    const { allocations } = attributionSources;
+    const attributedOrders = orders.map((order) => ({
+      ...order,
+      resolvedMio: normalizeAssignment(resolveOrderMio(order, attributionSources)),
+    }));
 
     // Lookup caches for enriching MIO records with real HR & Field Force details
     const staffByName = new Map<string, (typeof staffList)[0]>();
@@ -71,32 +69,16 @@ export const territoryTargetService = {
     });
 
     const formattedTargets = targets.map((target) => {
-      const targetTerritoryLower = (target.territory || "").trim().toLowerCase();
-      const targetMioLower = (target.mioName || "").trim().toLowerCase();
+      const targetTerritoryLower = normalizeAssignment(target.territory);
+      const targetMioLower = normalizeAssignment(target.mioName);
 
       // Aggregate matching orders for real delivered/invoiced sales from DB
-      const matchingOrders = orders.filter((o) => {
-        const orderTerritoryLower = (o.territory || "").trim().toLowerCase();
-        const orderMioLower = (o.assignedMio || "").trim().toLowerCase();
-
-        const mioMatches =
-          orderMioLower &&
-          (orderMioLower === targetMioLower ||
-            orderMioLower.includes(targetMioLower) ||
-            targetMioLower.includes(orderMioLower));
-
-        const terrMatches =
-          orderTerritoryLower &&
-          (orderTerritoryLower === targetTerritoryLower ||
-            orderTerritoryLower.includes(targetTerritoryLower) ||
-            targetTerritoryLower.includes(orderTerritoryLower));
-
-        if (mioMatches && terrMatches) return true;
-        if (mioMatches && !targetTerritoryLower) return true;
-        if (mioMatches && !orderTerritoryLower) return true;
-        return false;
-      });
-
+      const attributableOrders = attributedOrders.filter((order) =>
+        Boolean(targetMioLower) && order.resolvedMio === targetMioLower &&
+        (!targetTerritoryLower || !normalizeAssignment(order.territory) ||
+          normalizeAssignment(order.territory) === targetTerritoryLower));
+      const matchingOrders = attributableOrders.filter((order) =>
+        normalizeAssignment(order.status) === "delivered & invoiced");
       const ordersRealized = matchingOrders.reduce(
         (sum, o) => sum + (Number(o.orderValue) || 0),
         0
@@ -104,7 +86,7 @@ export const territoryTargetService = {
 
       // Achieved amount is derived directly from live database orders
       const achievedRaw =
-        matchingOrders.length > 0 ? ordersRealized : target.achievedAmount || 0;
+        attributableOrders.length > 0 ? ordersRealized : target.achievedAmount || 0;
 
       const targetRaw = target.targetAmount;
       const rate =
@@ -128,6 +110,7 @@ export const territoryTargetService = {
         zone: allocInfo?.allocatedZone || null,
         targetRaw,
         achievedRaw,
+        baselineAchievedRaw: target.achievedAmount,
         target: `৳${targetRaw.toLocaleString("en-IN")}`,
         achieved: `৳${achievedRaw.toLocaleString("en-IN")}`,
         rate,
@@ -308,25 +291,8 @@ export const territoryTargetService = {
     const fiscalYear = data.fiscalYear?.trim() || "Fiscal Year 2026";
     const targetAmount = Number(data.targetAmount);
 
-    // Compute live order achievement from database if existing orders match
-    const matchingOrders = await prisma.order.findMany({
-      where: {
-        AND: [
-          { assignedMio: { equals: mioName, mode: "insensitive" } },
-          { territory: { equals: territory, mode: "insensitive" } },
-        ],
-      },
-      select: { orderValue: true },
-    });
-
-    const ordersTotal = matchingOrders.reduce(
-      (sum, o) => sum + (Number(o.orderValue) || 0),
-      0
-    );
-    const achievedAmount =
-      matchingOrders.length > 0
-        ? ordersTotal
-        : Number(data.achievedAmount) || 0;
+    // Store only the entered baseline; live achievements are calculated on read.
+    const achievedAmount = Number(data.achievedAmount) || 0;
 
     // Check if target for same territory, MIO, and fiscal year already exists
     const existing = await prisma.territoryTarget.findFirst({
@@ -415,26 +381,8 @@ export const territoryTargetService = {
     const territory = data.territory ? data.territory.trim() : existing.territory;
     const mioName = data.mioName ? data.mioName.trim() : existing.mioName;
 
-    // Recalculate real database orders for this MIO and territory
-    const matchingOrders = await prisma.order.findMany({
-      where: {
-        AND: [
-          { assignedMio: { equals: mioName, mode: "insensitive" } },
-          { territory: { equals: territory, mode: "insensitive" } },
-        ],
-      },
-      select: { orderValue: true },
-    });
-
-    const ordersTotal = matchingOrders.reduce(
-      (sum, o) => sum + (Number(o.orderValue) || 0),
-      0
-    );
-
     const calculatedAchieved =
-      matchingOrders.length > 0
-        ? ordersTotal
-        : data.achievedAmount !== undefined
+      data.achievedAmount !== undefined
         ? Number(data.achievedAmount)
         : existing.achievedAmount;
 

@@ -1,8 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { ALL_SYSTEM_MODULES, generateCode } from "./rbacService";
-
-const prisma = new PrismaClient();
+import { auditLogService } from "./auditLogService";
 
 export const roleService = {
   async getAllRoles() {
@@ -77,6 +76,18 @@ export const roleService = {
       }
     }
 
+    await auditLogService.recordAuditEvent({
+      module: "RBAC Security",
+      actionType: "Corporate Role Created",
+      severity: "Routine",
+      entityTarget: existing.name,
+      entityType: "Role",
+      entityId: existing.id,
+      changeSummary: `Created corporate role '${existing.name}' with initial permissions.`,
+      newPayload: existing,
+      reasonForChange: "Corporate role structure definition and permission provisioning.",
+    });
+
     return existing;
   },
 
@@ -101,6 +112,20 @@ export const roleService = {
       await prisma.systemRole.delete({ where: { id: sysRole.id } }).catch(() => null);
     }
 
-    return prisma.role.delete({ where: { id } });
+    const deleted = await prisma.role.delete({ where: { id } });
+
+    await auditLogService.recordAuditEvent({
+      module: "RBAC Security",
+      actionType: "Corporate Role Removed",
+      severity: "Critical",
+      entityTarget: existing.name,
+      entityType: "Role",
+      entityId: existing.id,
+      changeSummary: `Corporate role '${existing.name}' revoked and purged from access matrix.`,
+      priorPayload: existing,
+      reasonForChange: "Administrative access governance revocation.",
+    });
+
+    return deleted;
   },
 };

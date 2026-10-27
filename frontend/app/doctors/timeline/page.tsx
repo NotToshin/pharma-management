@@ -30,7 +30,7 @@ import {
   TrendingUp,
 } from "lucide-react"
 
-import { getEndpoint } from "@/lib/api"
+import { apiFetch, getEndpoint } from "@/lib/api"
 
 interface TimelineEvent {
   id: string
@@ -62,7 +62,7 @@ export default function VisitHistoryTimelinePage() {
   React.useEffect(() => {
     async function fetchVisitLogs() {
       try {
-        const res = await fetch(getEndpoint("/doctor-visit-logs"))
+        const res = await apiFetch(getEndpoint("/doctor-visit-logs"))
         if (res.ok) {
           const json = await res.json()
           const rawLogs = Array.isArray(json) ? json : json.data || []

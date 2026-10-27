@@ -28,7 +28,7 @@ import {
   ShieldCheck,
 } from "lucide-react"
 import { logout, getStoredUser, isUserSuperAdmin } from "@/lib/auth"
-import { getEndpoint } from "@/lib/api"
+import { apiFetch, getEndpoint } from "@/lib/api"
 
 import {
   Sidebar,
@@ -228,7 +228,7 @@ const navSections: NavSection[] = [
           { title: "Treasury Overview", href: "/finance/overview" },
           { title: "Bank Accounts Ledger", href: "/finance/bank-ledger" },
           { title: "Supplier Payments", href: "/finance/supplier-payments" },
-          { title: "Buyer Payments", href: "/finance/buyer-payments" },
+          // { title: "Buyer Payments", href: "/finance/buyer-payments" },
         ],
       },
       {
@@ -371,7 +371,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const fetchClientCount = React.useCallback(async () => {
     try {
-      const res = await fetch(getEndpoint("/clients?limit=1")).catch(() => null)
+      const res = await apiFetch(getEndpoint("/clients?limit=1")).catch(() => null)
       if (res && res.ok) {
         const json = await res.json()
         if (json.meta && typeof json.meta.total === "number") {

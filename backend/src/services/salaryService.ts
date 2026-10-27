@@ -1,7 +1,7 @@
-import { PrismaClient, PaymentStatus } from "@prisma/client";
+import { PaymentStatus } from "@prisma/client";
+import prisma from "../utils/prisma";
 import { AppError } from "../errors";
-
-const prisma = new PrismaClient();
+import { auditLogService } from "./auditLogService";
 
 interface SalaryInput {
   empId: string;
@@ -96,7 +96,7 @@ export const salaryService = {
     const payPeriod = data.payPeriod || "September 2026";
     const statusEnum = resolvePaymentStatus(data.paymentStatus || data.status) || PaymentStatus.PENDING;
 
-    return prisma.salary.upsert({
+    const result = await prisma.salary.upsert({
       where: {
         staffId_payPeriod: {
           staffId: staffMember.id,
@@ -117,10 +117,27 @@ export const salaryService = {
       },
       include: { staff: { include: { role: true } } },
     });
+
+    await auditLogService.recordAuditEvent({
+      module: "Workforce & HR",
+      actionType: "Salary Structure Established",
+      severity: "Routine",
+      entityTarget: `${staffMember.fullName} (${staffMember.empId}) - ${payPeriod}`,
+      entityType: "Salary",
+      entityId: result.id,
+      changeSummary: `Set salary pay structure for '${staffMember.fullName}' (${payPeriod}): Net ৳${result.netPay.toLocaleString()}.`,
+      newPayload: result,
+      reasonForChange: "Monthly payroll structure establishment and compensation review.",
+    });
+
+    return result;
   },
 
   async updateSalary(id: string, data: SalaryUpdateInput) {
-    const existing = await prisma.salary.findUnique({ where: { id } });
+    const existing = await prisma.salary.findUnique({
+      where: { id },
+      include: { staff: true },
+    });
     if (!existing) {
       throw new AppError("Salary record not found", 404);
     }
@@ -142,7 +159,7 @@ export const salaryService = {
     const calculated = calculateNetPay(mergedData);
     const statusEnum = resolvePaymentStatus(data.paymentStatus || data.status);
 
-    return prisma.salary.update({
+    const updated = await prisma.salary.update({
       where: { id },
       data: {
         ...calculated,
@@ -150,6 +167,21 @@ export const salaryService = {
       },
       include: { staff: { include: { role: true } } },
     });
+
+    await auditLogService.recordAuditEvent({
+      module: "Workforce & HR",
+      actionType: "Salary Structure Revised",
+      severity: "Routine",
+      entityTarget: `${existing.staff?.fullName || "Staff"} (${existing.payPeriod})`,
+      entityType: "Salary",
+      entityId: updated.id,
+      changeSummary: `Revised salary structure for '${existing.staff?.fullName || "Staff"}': Net changed to ৳${updated.netPay.toLocaleString()}.`,
+      priorPayload: existing,
+      newPayload: updated,
+      reasonForChange: "Compensation adjustment / salary revision.",
+    });
+
+    return updated;
   },
 
   async generatePayrollForMonth(payPeriod: string) {
@@ -219,10 +251,27 @@ export const salaryService = {
   },
 
   async deleteSalary(id: string) {
-    const existing = await prisma.salary.findUnique({ where: { id } });
+    const existing = await prisma.salary.findUnique({
+      where: { id },
+      include: { staff: true },
+    });
     if (!existing) {
       throw new AppError("Salary record not found", 404);
     }
-    return prisma.salary.delete({ where: { id } });
+    const deleted = await prisma.salary.delete({ where: { id } });
+
+    await auditLogService.recordAuditEvent({
+      module: "Workforce & HR",
+      actionType: "Salary Record Removed",
+      severity: "Critical",
+      entityTarget: `${existing.staff?.fullName || "Staff"} (${existing.payPeriod})`,
+      entityType: "Salary",
+      entityId: existing.id,
+      changeSummary: `Deleted salary compensation record for '${existing.staff?.fullName || "Staff"}' (${existing.payPeriod}).`,
+      priorPayload: existing,
+      reasonForChange: "Salary record purge / payroll rectification.",
+    });
+
+    return deleted;
   },
 };

@@ -3,7 +3,7 @@
 import * as React from "react"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
-import { API_URL } from "@/lib/api"
+import { API_URL, apiFetch } from "@/lib/api"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -130,8 +130,8 @@ export default function StockAdjustmentsPage() {
       else setLoading(true)
 
       const [adjRes, batchRes] = await Promise.all([
-        fetch(`${API_URL}/stock-adjustments`),
-        fetch(`${API_URL}/inventory`).catch(() => null),
+        apiFetch(`${API_URL}/stock-adjustments`),
+        apiFetch(`${API_URL}/inventory`).catch(() => null),
       ])
 
       if (adjRes.ok) {
@@ -211,7 +211,7 @@ export default function StockAdjustmentsPage() {
         approvalStatus,
       }
 
-      const res = await fetch(`${API_URL}/stock-adjustments`, {
+      const res = await apiFetch(`${API_URL}/stock-adjustments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -252,7 +252,7 @@ export default function StockAdjustmentsPage() {
   const handleApproveAdjustment = async (adj: StockAdjustment) => {
     const toastId = toast.loading(`Approving adjustment ${adj.adjustmentRef}...`)
     try {
-      const res = await fetch(`${API_URL}/stock-adjustments/${adj.id}/status`, {
+      const res = await apiFetch(`${API_URL}/stock-adjustments/${adj.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ approvalStatus: "Approved & Adjusted" }),
@@ -278,7 +278,7 @@ export default function StockAdjustmentsPage() {
     const toastId = toast.loading(`Removing record ${adjustmentToDelete.adjustmentRef}...`)
 
     try {
-      const res = await fetch(`${API_URL}/stock-adjustments/${adjustmentToDelete.id}`, {
+      const res = await apiFetch(`${API_URL}/stock-adjustments/${adjustmentToDelete.id}`, {
         method: "DELETE",
       })
 

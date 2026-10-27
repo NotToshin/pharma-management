@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { API_URL } from "@/lib/api"
+import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
@@ -144,6 +144,32 @@ const WORK_SCHEDULE_PRESETS = [
   "Flexible (Field Visits)",
 ]
 
+const createEmployeeFormState = () => ({
+  empId: "",
+  fullName: "",
+  phone: "",
+  fathersName: "",
+  mothersName: "",
+  address: "",
+  nidNumber: "",
+  email: "",
+  roleId: "",
+  roleName: "",
+  department: "",
+  startDate: new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "2-digit",
+    year: "numeric",
+  }),
+  employmentStatus: "Active" as Employee["employmentStatus"],
+  salary: "",
+  supervisor: "Toshin Bin Azad (Human Resource)",
+  workSchedule: "Sat - Thu (8:30 AM - 5:30 PM)",
+  emergencyName: "",
+  emergencyRelationship: "",
+  emergencyPhone: "",
+})
+
 export default function StaffDirectoryPage() {
   const [employees, setEmployees] = React.useState<Employee[]>([])
   const [rolesList, setRolesList] = React.useState<RoleItem[]>([])
@@ -179,27 +205,7 @@ export default function StaffDirectoryPage() {
 
   // Onboard New Staff Modal State
   const [isAddOpen, setIsAddOpen] = React.useState(false)
-  const [formState, setFormState] = React.useState({
-    empId: "",
-    fullName: "",
-    phone: "+880 ",
-    fathersName: "",
-    mothersName: "",
-    address: "",
-    nidNumber: "",
-    email: "",
-    roleId: "",
-    roleName: "Medical Information Officer",
-    department: "Field Force",
-    startDate: "January 01, 2025",
-    employmentStatus: "Active" as Employee["employmentStatus"],
-    salary: "",
-    supervisor: "Toshin Bin Azad (Human Resource)",
-    workSchedule: "Sat - Thu (8:30 AM - 5:30 PM)",
-    emergencyName: "",
-    emergencyRelationship: "",
-    emergencyPhone: "+880 ",
-  })
+  const [formState, setFormState] = React.useState(createEmployeeFormState)
 
   // Edit Staff Modal State
   const [isEditOpen, setIsEditOpen] = React.useState(false)
@@ -212,26 +218,19 @@ export default function StaffDirectoryPage() {
 
   const fetchRolesData = React.useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/roles`)
+      const res = await apiFetch(`${API_URL}/roles`)
       if (!res.ok) throw new Error("Failed to fetch roles")
       const json = await res.json()
       const dataArr = Array.isArray(json) ? json : json.data || []
       setRolesList(dataArr)
-      if (dataArr.length > 0 && !formState.roleId) {
-        setFormState((prev) => ({
-          ...prev,
-          roleId: dataArr[0].id,
-          roleName: dataArr[0].name,
-        }))
-      }
     } catch (err) {
       console.error("Error loading roles data:", err)
     }
-  }, [formState.roleId])
+  }, [])
 
   const fetchStaffData = React.useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/staff`)
+      const res = await apiFetch(`${API_URL}/staff`)
       if (!res.ok) throw new Error("Failed to fetch staff")
       const json = await res.json()
       const rawData = Array.isArray(json) ? json : json.data || []
@@ -258,7 +257,7 @@ export default function StaffDirectoryPage() {
                 day: "2-digit",
                 year: "numeric",
               })
-            : "January 01, 2025",
+            : "",
           employmentStatus:
             item.status === "ACTIVE"
               ? "Active"
@@ -275,10 +274,10 @@ export default function StaffDirectoryPage() {
               ? Number(item.salaries[0].baseSalary)
               : 20000,
           supervisor: item.supervisor || "Toshin Bin Azad (Human Resource)",
-          workSchedule: item.workSchedule || "Sat - Thu (8:30 AM - 5:30 PM)",
-          emergencyName: item.emergencyName || item.fathersName || "N/A",
-          emergencyRelationship: item.emergencyRelationship || "Father / Spouse",
-          emergencyPhone: item.emergencyPhone || "+880 1711223344",
+          workSchedule: item.workSchedule ?? "",
+          emergencyName: item.emergencyName ?? "",
+          emergencyRelationship: item.emergencyRelationship ?? "",
+          emergencyPhone: item.emergencyPhone ?? "",
         }
       })
 
@@ -302,7 +301,7 @@ export default function StaffDirectoryPage() {
     const toastId = toast.loading(`Creating role "${newRoleTitle.trim()}"...`)
     try {
       setIsCreatingRole(true)
-      const res = await fetch(`${API_URL}/roles`, {
+      const res = await apiFetch(`${API_URL}/roles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newRoleTitle.trim() }),
@@ -404,6 +403,18 @@ export default function StaffDirectoryPage() {
 
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!formState.roleId) {
+      toast.error("Please select a role before enrolling the employee.")
+      return
+    }
+    if (!formState.department) {
+      toast.error("Please select a department before enrolling the employee.")
+      return
+    }
+    if (!formState.startDate) {
+      toast.error("Please select a start date.")
+      return
+    }
     const toastId = toast.loading(`Onboarding staff member ${formState.fullName}...`)
     try {
       const payload = {
@@ -429,7 +440,7 @@ export default function StaffDirectoryPage() {
         emergencyPhone: formState.emergencyPhone,
       }
 
-      const res = await fetch(`${API_URL}/staff`, {
+      const res = await apiFetch(`${API_URL}/staff`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -441,27 +452,7 @@ export default function StaffDirectoryPage() {
       }
 
       toast.success(`Staff member ${formState.fullName} onboarded successfully!`, { id: toastId })
-      setFormState({
-        empId: "",
-        fullName: "",
-        phone: "+880 ",
-        fathersName: "",
-        mothersName: "",
-        address: "",
-        nidNumber: "",
-        email: "",
-        roleId: rolesList.length > 0 ? rolesList[0].id : "",
-        roleName: rolesList.length > 0 ? rolesList[0].name : "Medical Information Officer",
-        department: "Field Force",
-        startDate: "January 01, 2025",
-        employmentStatus: "Active",
-        salary: "",
-        supervisor: "Toshin Bin Azad (Human Resource)",
-        workSchedule: "Sat - Thu (8:30 AM - 5:30 PM)",
-        emergencyName: "",
-        emergencyRelationship: "",
-        emergencyPhone: "+880 ",
-      })
+      setFormState(createEmployeeFormState())
       setIsAddOpen(false)
       fetchStaffData()
       fetchRolesData()
@@ -499,7 +490,7 @@ export default function StaffDirectoryPage() {
         emergencyPhone: editingEmp.emergencyPhone,
       }
 
-      const res = await fetch(`${API_URL}/staff/${editingEmp.id}`, {
+      const res = await apiFetch(`${API_URL}/staff/${editingEmp.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -531,7 +522,7 @@ export default function StaffDirectoryPage() {
     const toastId = toast.loading(`Deactivating/deleting staff record for ${staffToDelete.fullName}...`)
     try {
       setIsDeletingStaff(true)
-      const res = await fetch(`${API_URL}/staff/${staffToDelete.id}`, {
+      const res = await apiFetch(`${API_URL}/staff/${staffToDelete.id}`, {
         method: "DELETE",
       })
 
@@ -652,7 +643,13 @@ export default function StaffDirectoryPage() {
           </Button>
 
           {/* Onboard New Staff Modal */}
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <Dialog
+            open={isAddOpen}
+            onOpenChange={(open) => {
+              if (open) setFormState(createEmployeeFormState())
+              setIsAddOpen(open)
+            }}
+          >
             <DialogTrigger asChild>
               <Button
                 size="sm"
@@ -699,19 +696,10 @@ export default function StaffDirectoryPage() {
                         Phone Number
                       </Label>
                       <Input
+                        type="tel"
                         placeholder="+880 1611357885"
                         value={formState.phone}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          if (!val.startsWith("+880")) {
-                            handleFormChange(
-                              "phone",
-                              "+880 " + val.replace(/^\+?880\s*/, "")
-                            )
-                          } else {
-                            handleFormChange("phone", val)
-                          }
-                        }}
+                        onChange={(e) => handleFormChange("phone", e.target.value)}
                         required
                         className="h-8 font-mono text-xs"
                       />
@@ -803,7 +791,8 @@ export default function StaffDirectoryPage() {
                         Role <span className="text-rose-500">*</span>
                       </Label>
                       <Select
-                        value={formState.roleId || formState.roleName}
+                        required
+                        value={formState.roleId}
                         onValueChange={(val) => {
                           if (val === "__CREATE_NEW_ROLE__") {
                             setIsCreateRoleOpen(true)
@@ -850,9 +839,10 @@ export default function StaffDirectoryPage() {
                     {/* Department */}
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-slate-700">
-                        Department
+                        Department <span className="text-rose-500">*</span>
                       </Label>
                       <Select
+                        required
                         value={formState.department}
                         onValueChange={(v) => handleFormChange("department", v)}
                       >
@@ -1022,19 +1012,10 @@ export default function StaffDirectoryPage() {
                         Phone Number
                       </Label>
                       <Input
+                        type="tel"
                         placeholder="+880 1711223344"
                         value={formState.emergencyPhone}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          if (!val.startsWith("+880")) {
-                            handleFormChange(
-                              "emergencyPhone",
-                              "+880 " + val.replace(/^\+?880\s*/, "")
-                            )
-                          } else {
-                            handleFormChange("emergencyPhone", val)
-                          }
-                        }}
+                        onChange={(e) => handleFormChange("emergencyPhone", e.target.value)}
                         required
                         className="h-8 font-mono text-xs"
                       />

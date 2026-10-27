@@ -1,7 +1,7 @@
-import { PrismaClient, StaffStatus } from "@prisma/client";
+import { StaffStatus } from "@prisma/client";
+import prisma from "../utils/prisma";
 import { AppError } from "../errors";
-
-const prisma = new PrismaClient();
+import { auditLogService } from "./auditLogService";
 
 const mapStaffStatus = (status?: StaffStatus | string): string => {
   if (!status) return "Active";
@@ -240,6 +240,18 @@ export const zoneAllocationService = {
       },
     });
 
+    await auditLogService.recordAuditEvent({
+      module: "Field Force",
+      actionType: "Zone Allocation Assigned",
+      severity: "Routine",
+      entityTarget: `${newAllocation.mioName} (${newAllocation.allocatedZone} - ${newAllocation.territory})`,
+      entityType: "MioZoneAllocation",
+      entityId: newAllocation.id,
+      changeSummary: `Allocated zone '${newAllocation.allocatedZone}' in ${newAllocation.territory} (${newAllocation.division}) to MIO ${newAllocation.mioName}.`,
+      newPayload: newAllocation,
+      reasonForChange: "Field sales coverage and route deployment.",
+    });
+
     return newAllocation;
   },
 
@@ -291,6 +303,19 @@ export const zoneAllocationService = {
       },
     });
 
+    await auditLogService.recordAuditEvent({
+      module: "Field Force",
+      actionType: "Zone Allocation Modified",
+      severity: "Routine",
+      entityTarget: `${updated.mioName} (${updated.allocatedZone} - ${updated.territory})`,
+      entityType: "MioZoneAllocation",
+      entityId: updated.id,
+      changeSummary: `Reallocated zone '${updated.allocatedZone}' for ${updated.mioName} in ${updated.territory}.`,
+      priorPayload: existing,
+      newPayload: updated,
+      reasonForChange: "Field operational zone boundary reassignment.",
+    });
+
     return updated;
   },
 
@@ -303,8 +328,22 @@ export const zoneAllocationService = {
       throw new AppError("Zone allocation record not found", 404);
     }
 
-    return prisma.mioZoneAllocation.delete({
+    const deleted = await prisma.mioZoneAllocation.delete({
       where: { id },
     });
+
+    await auditLogService.recordAuditEvent({
+      module: "Field Force",
+      actionType: "Zone Allocation Revoked",
+      severity: "Security Warning",
+      entityTarget: `${existing.mioName} (${existing.allocatedZone} - ${existing.territory})`,
+      entityType: "MioZoneAllocation",
+      entityId: existing.id,
+      changeSummary: `Revoked zone allocation '${existing.allocatedZone}' from ${existing.mioName}.`,
+      priorPayload: existing,
+      reasonForChange: "Zone allocation decommission / field realignment.",
+    });
+
+    return deleted;
   },
 };

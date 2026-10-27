@@ -1,6 +1,7 @@
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { STANDARD_TERRITORY_DIVISION_MAP } from "./territoryAnalyticsService";
+import { auditLogService } from "./auditLogService";
 
 export const territoryService = {
   /**
@@ -67,12 +68,26 @@ export const territoryService = {
       throw new AppError(`Territory '${trimmedName}' already exists`, 400);
     }
 
-    return prisma.territory.create({
+    const created = await prisma.territory.create({
       data: {
         name: trimmedName,
         division: data.division?.trim() || "General Division",
         status: data.status?.trim() || "Active",
       },
     });
+
+    await auditLogService.recordAuditEvent({
+      module: "Field Force",
+      actionType: "Territory Created",
+      severity: "Routine",
+      entityTarget: `${created.name} (${created.division})`,
+      entityType: "Territory",
+      entityId: created.id,
+      changeSummary: `Created master sales territory '${created.name}' under division '${created.division}'.`,
+      newPayload: created,
+      reasonForChange: "Sales territory master boundary creation.",
+    });
+
+    return created;
   },
 };

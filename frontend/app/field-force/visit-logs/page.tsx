@@ -164,7 +164,7 @@ interface RegisteredDoctor {
   bmdcRegNumber?: string
 }
 
-import { getEndpoint } from "@/lib/api"
+import { getEndpoint, apiFetch } from "@/lib/api"
 import { visitLogFormSchema } from "@/lib/validations/doctorVisitLogValidation"
 
 export default function DoctorVisitLogsPage() {
@@ -227,7 +227,7 @@ export default function DoctorVisitLogsPage() {
   const fetchLogs = async () => {
     try {
       setLoading(true)
-      const res = await fetch(getEndpoint("/visit-logs")).catch(() => null)
+      const res = await apiFetch(getEndpoint("/visit-logs")).catch(() => null)
       if (res && res.ok) {
         const result = await res.json()
         const rawData = Array.isArray(result) ? result : result.data || []
@@ -260,7 +260,7 @@ export default function DoctorVisitLogsPage() {
   // Fetch doctor collection from backend
   const fetchDoctors = async () => {
     try {
-      const res = await fetch(getEndpoint("/doctors")).catch(() => null)
+      const res = await apiFetch(getEndpoint("/doctors")).catch(() => null)
       if (res && res.ok) {
         const result = await res.json()
         const rawData = Array.isArray(result) ? result : result.data || []
@@ -407,7 +407,7 @@ export default function DoctorVisitLogsPage() {
     const toastId = toast.loading("Saving doctor visit log to database...")
 
     try {
-      const res = await fetch(getEndpoint("/visit-logs"), {
+      const res = await apiFetch(getEndpoint("/visit-logs"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(validationResult.data),
@@ -454,7 +454,7 @@ export default function DoctorVisitLogsPage() {
     const toastId = toast.loading("Updating visit log in database...")
 
     try {
-      const res = await fetch(getEndpoint(`/visit-logs/${editingLog.id}`), {
+      const res = await apiFetch(getEndpoint(`/visit-logs/${editingLog.id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(validationResult.data),
@@ -494,7 +494,7 @@ export default function DoctorVisitLogsPage() {
     const toastId = toast.loading(`Deleting visit log for ${targetDoctor}...`)
 
     try {
-      const res = await fetch(getEndpoint(`/visit-logs/${id}`), {
+      const res = await apiFetch(getEndpoint(`/visit-logs/${id}`), {
         method: "DELETE",
       })
       if (res.ok) {
@@ -584,7 +584,7 @@ export default function DoctorVisitLogsPage() {
               "Positive") as VisitLog["feedback"],
           }
 
-          const res = await fetch(getEndpoint("/visit-logs"), {
+          const res = await apiFetch(getEndpoint("/visit-logs"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),

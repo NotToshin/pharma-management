@@ -8,7 +8,9 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "tsx prisma/seed.ts",
-    "test:e2e": "tsx scripts/test-e2e-flow.ts"
+    "test:e2e": "tsx scripts/test-e2e-flow.ts",
+    "test:audit": "node scripts/test-multiusers-audit.js",
+    "test:staff": "node --require tsx/cjs --test scripts/test-staff-onboarding.cjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

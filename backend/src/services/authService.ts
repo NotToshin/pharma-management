@@ -9,6 +9,7 @@ import {
   compareTokenHash,
 } from "../middlewares/token";
 import prisma from "../utils/prisma";
+import { auditLogService } from "./auditLogService";
 
 export const authService = {
   async login(email: string, password: string) {
@@ -73,6 +74,22 @@ export const authService = {
         refreshTokenHash,
         lastLogin: nowStr,
       },
+    });
+
+    await auditLogService.recordAuditEvent({
+      actorId: user.id,
+      actorName: user.name,
+      actorEmail: user.email,
+      actorRole: user.role.name || user.role.code,
+      module: "RBAC Security",
+      actionType: "Operator Authenticated",
+      severity: "Routine",
+      entityTarget: `${user.name} (${user.email})`,
+      entityType: "SystemUser",
+      entityId: user.id,
+      changeSummary: `Operator '${user.name}' (${user.role.name || user.role.code}) signed in to system successfully.`,
+      newPayload: { userId: user.id, email: user.email, role: user.role.code, lastLogin: nowStr },
+      reasonForChange: "Session authorization and cryptographic token issuance.",
     });
 
     return {
@@ -182,10 +199,32 @@ export const authService = {
     if (incomingRefreshToken) {
       try {
         const decoded = verifyRefreshToken(incomingRefreshToken);
+        const user = await prisma.systemUser.findUnique({
+          where: { id: decoded.userId },
+          include: { role: true },
+        });
+
         await prisma.systemUser.update({
           where: { id: decoded.userId },
           data: { refreshTokenHash: null },
         });
+
+        if (user) {
+          await auditLogService.recordAuditEvent({
+            actorId: user.id,
+            actorName: user.name,
+            actorEmail: user.email,
+            actorRole: user.role?.name || user.role?.code,
+            module: "RBAC Security",
+            actionType: "Operator Session Terminated",
+            severity: "Routine",
+            entityTarget: `${user.name} (${user.email})`,
+            entityType: "SystemUser",
+            entityId: user.id,
+            changeSummary: `Operator '${user.name}' signed out and revoked active refresh credentials.`,
+            reasonForChange: "Explicit user session revocation.",
+          });
+        }
       } catch {
         // Token was invalid or already expired; nothing further needed in DB
       }

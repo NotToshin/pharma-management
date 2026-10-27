@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { getEndpoint } from "@/lib/api"
+import { getEndpoint, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -303,8 +303,8 @@ export default function ClientsDirectoryPage() {
       }
 
       const [clientRes, staffRes] = await Promise.all([
-        fetch(getEndpoint(`/clients?${params.toString()}`)).catch(() => null),
-        staffList.length === 0 ? fetch(getEndpoint("/staff")).catch(() => null) : null,
+        apiFetch(getEndpoint(`/clients?${params.toString()}`)).catch(() => null),
+        staffList.length === 0 ? apiFetch(getEndpoint("/staff")).catch(() => null) : null,
       ])
 
       if (clientRes && clientRes.ok) {
@@ -473,7 +473,7 @@ export default function ClientsDirectoryPage() {
         : getEndpoint("/clients")
       const method = editingId ? "PUT" : "POST"
 
-      const res = await fetch(endpoint, {
+      const res = await apiFetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(validationResult.data),
@@ -511,7 +511,7 @@ export default function ClientsDirectoryPage() {
     const toastId = toast.loading(`Deleting pharmacy client record for ${clientToDelete.pharmacyName}...`)
     try {
       setIsDeletingClient(true)
-      const res = await fetch(getEndpoint(`/clients/${clientToDelete.id}`), {
+      const res = await apiFetch(getEndpoint(`/clients/${clientToDelete.id}`), {
         method: "DELETE",
       })
 
@@ -537,7 +537,7 @@ export default function ClientsDirectoryPage() {
     const toastId = toast.loading("Preparing chemist client master database export...")
     try {
       let exportClients = clients
-      const res = await fetch(getEndpoint("/clients?limit=0")).catch(() => null)
+      const res = await apiFetch(getEndpoint("/clients?limit=0")).catch(() => null)
       if (res && res.ok) {
         const json = await res.json()
         const raw = Array.isArray(json) ? json : json.data || []
@@ -720,7 +720,7 @@ export default function ClientsDirectoryPage() {
         updateExisting,
       }
 
-      const res = await fetch(getEndpoint("/clients/bulk-import"), {
+      const res = await apiFetch(getEndpoint("/clients/bulk-import"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

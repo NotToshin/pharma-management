@@ -92,6 +92,7 @@ export interface MioTargetItem {
   zone?: string | null
   targetRaw: number
   achievedRaw: number
+  baselineAchievedRaw?: number
   target: string
   achieved: string
   rate: number
@@ -147,6 +148,8 @@ export default function TargetVsAchievementPage() {
 
   const [isLoading, setIsLoading] = React.useState(true)
   const [isRefreshing, setIsRefreshing] = React.useState(false)
+  const fetchRequest = React.useRef(0)
+  const fetchInFlight = React.useRef(false)
 
   // Filters, Search & Sorting
   const [searchQuery, setSearchQuery] = React.useState("")
@@ -194,18 +197,25 @@ export default function TargetVsAchievementPage() {
   })
 
   // Fetch targets and options from Backend
-  const fetchData = React.useCallback(async (silent = false) => {
+  const fetchData = React.useCallback(async (silent = false, background = false) => {
+    if (background && fetchInFlight.current) return
+    const requestId = ++fetchRequest.current
+    fetchInFlight.current = true
     try {
-      if (!silent) setIsLoading(true)
-      else setIsRefreshing(true)
+      if (!background) {
+        if (!silent) setIsLoading(true)
+        else setIsRefreshing(true)
+      }
 
       const [targetsRes, optionsRes] = await Promise.all([
-        apiFetch(getEndpoint("/targets")),
-        apiFetch(getEndpoint("/targets/options")),
+        apiFetch(getEndpoint("/targets"), { cache: "no-store" }),
+        apiFetch(getEndpoint("/targets/options"), { cache: "no-store" }),
       ])
+      if (requestId !== fetchRequest.current) return
 
       if (targetsRes.ok) {
         const json = await targetsRes.json()
+        if (requestId !== fetchRequest.current) return
         const payload = json.data || json
         if (payload.targets && Array.isArray(payload.targets)) {
           setTargets(payload.targets)
@@ -215,12 +225,13 @@ export default function TargetVsAchievementPage() {
         } else if (Array.isArray(payload)) {
           setTargets(payload)
         }
-      } else {
+      } else if (!background) {
         toast.error("Failed to fetch MIO targets from database.")
       }
 
       if (optionsRes.ok) {
         const optJson = await optionsRes.json()
+        if (requestId !== fetchRequest.current) return
         const optData = optJson.data || optJson
         setOptions({
           territories: optData.territories || [],
@@ -230,16 +241,35 @@ export default function TargetVsAchievementPage() {
       }
     } catch (err) {
       console.error("Error loading targets from database:", err)
-      toast.error("Network error while connecting to backend server.")
+      if (!background) toast.error("Network error while connecting to backend server.")
     } finally {
-      setIsLoading(false)
-      setIsRefreshing(false)
+      if (requestId === fetchRequest.current) {
+        fetchInFlight.current = false
+        setIsLoading(false)
+        setIsRefreshing(false)
+      }
     }
   }, [])
 
   React.useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  React.useEffect(() => {
+    const refreshAchievements = () => {
+      if (document.visibilityState === "visible" && !isAddOpen && !isEditOpen && !deleteModal.isOpen) {
+        void fetchData(true, true)
+      }
+    }
+    const interval = window.setInterval(refreshAchievements, 30_000)
+    window.addEventListener("focus", refreshAchievements)
+    document.addEventListener("visibilitychange", refreshAchievements)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener("focus", refreshAchievements)
+      document.removeEventListener("visibilitychange", refreshAchievements)
+    }
+  }, [fetchData, isAddOpen, isEditOpen, deleteModal.isOpen])
 
   // Handle Territory selection in Add Modal
   const handleTerritorySelection = (val: string) => {
@@ -369,7 +399,7 @@ export default function TargetVsAchievementPage() {
     setEditTerritory(target.territory)
     setEditMio(target.mio)
     setEditTargetAmount(String(target.targetRaw))
-    setEditAchievedAmount(String(target.achievedRaw))
+    setEditAchievedAmount(String(target.baselineAchievedRaw ?? target.achievedRaw))
     setEditNotes(target.notes || "")
     setIsEditOpen(true)
   }

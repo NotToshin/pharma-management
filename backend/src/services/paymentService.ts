@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
 import {
@@ -6,8 +6,6 @@ import {
   UpdateVoucherInput,
   QueryVoucherInput,
 } from "../validations/paymentValidation";
-
-const prisma = new PrismaClient();
 
 const generateNextVoucherCode = async (): Promise<string> => {
   const currentYear = new Date().getFullYear();

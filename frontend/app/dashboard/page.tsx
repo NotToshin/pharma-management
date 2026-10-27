@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import * as XLSX from "xlsx"
-import { API_URL } from "@/lib/api"
+import { API_URL, apiFetch } from "@/lib/api"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -91,7 +91,7 @@ export default function MasterExecutiveDashboardPage() {
   const fetchDashboardTelemetry = React.useCallback(async () => {
     try {
       setLoading(true)
-      const res = await fetch(`${API_URL}/dashboard/telemetry`)
+      const res = await apiFetch(`${API_URL}/dashboard/telemetry`)
       if (res.ok) {
         const json = await res.json()
         const payload = json.data || json

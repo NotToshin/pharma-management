@@ -1,8 +1,8 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { mirrorBatchQuantity } from "./productBatchService";
-
-const prisma = new PrismaClient();
+import { auditLogService } from "./auditLogService";
+import { loadOrderAttributionSources, resolveOrderMio } from "./orderAttributionService";
 
 const generateUniqueOrderNumber = async (tx: any): Promise<string> => {
   const count = await tx.order.count();
@@ -43,23 +43,39 @@ export const orderService = {
         orderBy: { createdAt: "desc" },
       }),
       prisma.deliveryCollection.findMany({
-        where: { status: { not: "Bounced / Rejected" }, orderId: { not: null } },
-        select: { orderId: true, amountCollected: true },
+        where: { status: { not: "Bounced / Rejected" } },
+        select: { orderId: true, invoiceNo: true, amountCollected: true },
       }),
     ]);
 
-    const collected = new Map<string, number>();
+    const collectedByOrderId = new Map<string, number>();
+    const collectedByInvoice = new Map<string, number>();
+
     for (const collection of collections) {
-      if (!collection.orderId) continue;
-      collected.set(
-        collection.orderId,
-        (collected.get(collection.orderId) || 0) + (Number(collection.amountCollected) || 0)
-      );
+      const amt = Number(collection.amountCollected) || 0;
+      if (collection.orderId) {
+        collectedByOrderId.set(
+          collection.orderId,
+          (collectedByOrderId.get(collection.orderId) || 0) + amt
+        );
+      }
+      if (collection.invoiceNo) {
+        const inv = collection.invoiceNo.trim().toLowerCase();
+        collectedByInvoice.set(inv, (collectedByInvoice.get(inv) || 0) + amt);
+      }
     }
 
     return orders.map((order) => {
       const total = Number(order.orderValue) || 0;
-      const paid = Math.min(total, (Number(order.paidAmount) || 0) + (collected.get(order.id) || 0));
+      const byOrderId = collectedByOrderId.get(order.id) || 0;
+      const byInv =
+        (order.invoiceNumber ? collectedByInvoice.get(order.invoiceNumber.trim().toLowerCase()) : 0) ||
+        (order.orderNumber ? collectedByInvoice.get(order.orderNumber.trim().toLowerCase()) : 0) ||
+        0;
+      const collectionPaid = byOrderId > 0 ? byOrderId : byInv;
+
+      const directPaid = Number(order.paidAmount) || 0;
+      const paid = Math.min(total, Math.max(directPaid, collectionPaid));
       const paymentStatus = paid <= 0.009 ? "UNPAID" : paid + 0.009 >= total ? "PAID" : "PARTIALLY_PAID";
       return { ...order, paidAmount: paid, paymentStatus };
     });
@@ -109,13 +125,19 @@ export const orderService = {
           }))
         : [];
 
+      const finalTerritory = data.territory?.trim() || "Dhaka North";
+      const assignedMio = resolveOrderMio(
+        { ...data, territory: finalTerritory },
+        await loadOrderAttributionSources(tx)
+      ) || "General MIO";
+
       const newOrder = await tx.order.create({
         data: {
           orderNumber: finalOrderNumber,
           orderDate: formatDate(data.orderDate),
           pharmacyName: data.pharmacyName.trim(),
-          territory: data.territory?.trim() || "Dhaka North",
-          assignedMio: data.assignedMio?.trim() || "General MIO",
+          territory: finalTerritory,
+          assignedMio,
           itemsSummary:
             data.itemsSummary?.trim() ||
             (formattedItems.map((i) => `${i.description} (${i.quantity})`).join(", ") ||
@@ -192,6 +214,18 @@ export const orderService = {
         }).catch(() => null);
       }
 
+      await auditLogService.recordAuditEvent({
+        module: "Sales & Deliveries",
+        actionType: "Sales Order Created",
+        severity: "Routine",
+        entityTarget: `${newOrder.orderNumber} (${newOrder.pharmacyName})`,
+        entityType: "Order",
+        entityId: newOrder.id,
+        changeSummary: `Sales order ${newOrder.orderNumber} generated for ${newOrder.pharmacyName} by ${newOrder.assignedMio}. Value: ৳${newOrder.orderValue}. Items: ${newOrder.itemsSummary}.`,
+        newPayload: newOrder,
+        reasonForChange: "Commercial sales booking and stock reservation.",
+      });
+
       return newOrder;
     });
   },
@@ -241,13 +275,28 @@ export const orderService = {
       }
     }
 
-    return prisma.order.update({
+    const updated = await prisma.order.update({
       where: { id },
       data: {
         status,
         ...(invoiceNum ? { invoiceNumber: invoiceNum } : {}),
       },
     });
+
+    await auditLogService.recordAuditEvent({
+      module: "Sales & Deliveries",
+      actionType: "Sales Order Status Changed",
+      severity: status === "Cancelled" ? "Security Warning" : "Routine",
+      entityTarget: `${updated.orderNumber} (${updated.pharmacyName})`,
+      entityType: "Order",
+      entityId: updated.id,
+      changeSummary: `Order ${updated.orderNumber} status changed from '${existing.status}' to '${updated.status}'.`,
+      priorPayload: existing,
+      newPayload: updated,
+      reasonForChange: "Order lifecycle delivery and fulfillment update.",
+    });
+
+    return updated;
   },
 
   async deleteOrder(id: string) {
@@ -300,6 +349,20 @@ export const orderService = {
       }
     }
 
-    return prisma.order.delete({ where: { id } });
+    const deleted = await prisma.order.delete({ where: { id } });
+
+    await auditLogService.recordAuditEvent({
+      module: "Sales & Deliveries",
+      actionType: "Sales Order Deleted",
+      severity: "Critical",
+      entityTarget: `${existing.orderNumber} (${existing.pharmacyName})`,
+      entityType: "Order",
+      entityId: existing.id,
+      changeSummary: `Sales order ${existing.orderNumber} permanently purged from system. Prior status: ${existing.status}, Value: ৳${existing.orderValue}.`,
+      priorPayload: existing,
+      reasonForChange: "Administrative purge of commercial order record.",
+    });
+
+    return deleted;
   },
 };

@@ -7,6 +7,7 @@ export interface ActorContext {
   role?: string;
   ipAddress?: string;
   userAgent?: string;
+  reasonForChange?: string;
 }
 
 export const requestContextStorage = new AsyncLocalStorage<ActorContext>();

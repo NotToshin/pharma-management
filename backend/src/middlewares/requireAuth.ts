@@ -107,9 +107,18 @@ export const requireAuth = (...allowedRoles: string[]) => {
         currentStore.name = user.name;
         currentStore.email = user.email.toLowerCase();
         currentStore.role = user.role?.name || user.role?.code || currentStore.role;
+        return next();
+      } else {
+        const actor = {
+          userId: user.id,
+          name: user.name,
+          email: user.email.toLowerCase(),
+          role: user.role?.name || user.role?.code || "Authenticated User",
+          ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "127.0.0.1",
+          userAgent: (req.headers["user-agent"] as string) || "Mozilla/5.0",
+        };
+        return requestContextStorage.run(actor, () => next());
       }
-
-      return next();
     } catch (error) {
       return next(error);
     }
