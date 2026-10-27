@@ -23,8 +23,10 @@ const getOrCreateRole = async (name: string) => {
 };
 
 const generateNextEmpId = async (): Promise<string> => {
-  const currentYear = new Date().getFullYear().toString().slice(-2);
-  const prefix = currentYear;
+  const currentYear = new Date().getFullYear().toString();
+  const prefix = `AKP-${currentYear}-`;
+  const legacyPrefix = currentYear.slice(-2);
+  const idPattern = new RegExp(`^(?:${prefix}|${legacyPrefix})(\\d{3,})$`);
 
   const allStaff = await prisma.staff.findMany({
     select: { empId: true },
@@ -33,9 +35,9 @@ const generateNextEmpId = async (): Promise<string> => {
   let maxSeq = 0;
 
   for (const s of allStaff) {
-    if (s.empId && s.empId.startsWith(prefix)) {
-      const numPart = s.empId.slice(prefix.length);
-      const parsed = parseInt(numPart, 10);
+    const match = s.empId?.match(idPattern);
+    if (match) {
+      const parsed = parseInt(match[1], 10);
       if (!isNaN(parsed) && parsed > maxSeq) {
         maxSeq = parsed;
       }
@@ -76,9 +78,14 @@ export const staffService = {
     territory?: string;
     joiningDate?: string | Date;
     salary?: number;
+    workSchedule?: string;
+    emergencyName?: string;
+    emergencyRelationship?: string;
+    emergencyPhone?: string;
   }) {
     let finalEmpId = data.empId?.trim();
-    if (!finalEmpId) {
+    const empIdPattern = new RegExp(`^AKP-${new Date().getFullYear()}-\\d{3,}$`);
+    if (!finalEmpId || !empIdPattern.test(finalEmpId)) {
       finalEmpId = await generateNextEmpId();
     } else {
       const existing = await prisma.staff.findUnique({ where: { empId: finalEmpId } });
@@ -90,9 +97,15 @@ export const staffService = {
     let targetRole = null;
     if (data.roleId && data.roleId.trim()) {
       targetRole = await prisma.role.findUnique({ where: { id: data.roleId.trim() } });
+      if (!targetRole) {
+        throw new AppError("Selected role not found", 400);
+      }
     }
     if (!targetRole) {
-      const nameToUse = data.roleName || data.designation || data.department || "General Staff";
+      const nameToUse = data.roleName?.trim() || data.designation?.trim();
+      if (!nameToUse) {
+        throw new AppError("Please select a role", 400);
+      }
       targetRole = await getOrCreateRole(nameToUse);
     }
 
@@ -111,6 +124,10 @@ export const staffService = {
         address: data.address || "N/A",
         department: data.department || "General",
         supervisor: data.supervisor || "Toshin Bin Azad (Head of HR)",
+        workSchedule: data.workSchedule ?? null,
+        emergencyName: data.emergencyName ?? null,
+        emergencyRelationship: data.emergencyRelationship ?? null,
+        emergencyPhone: data.emergencyPhone ?? null,
         status: dbStatus,
         territory: data.territory || "Dhaka",
         joiningDate: data.joiningDate ? new Date(data.joiningDate) : new Date(),
@@ -165,6 +182,10 @@ export const staffService = {
     status?: string;
     territory?: string;
     joiningDate?: string | Date;
+    workSchedule?: string;
+    emergencyName?: string;
+    emergencyRelationship?: string;
+    emergencyPhone?: string;
   }) {
     const existing = await prisma.staff.findUnique({ where: { id } });
     if (!existing) {
@@ -194,6 +215,10 @@ export const staffService = {
         department: data.department,
         territory: data.territory,
         supervisor: data.supervisor || null,
+        workSchedule: data.workSchedule,
+        emergencyName: data.emergencyName,
+        emergencyRelationship: data.emergencyRelationship,
+        emergencyPhone: data.emergencyPhone,
         status: resolvedStatus,
         ...(data.joiningDate ? { joiningDate: new Date(data.joiningDate) } : {}),
         ...(roleConnect ? { role: roleConnect } : {}),

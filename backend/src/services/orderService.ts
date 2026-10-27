@@ -2,6 +2,7 @@ import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { mirrorBatchQuantity } from "./productBatchService";
 import { auditLogService } from "./auditLogService";
+import { loadOrderAttributionSources, resolveOrderMio } from "./orderAttributionService";
 
 const generateUniqueOrderNumber = async (tx: any): Promise<string> => {
   const count = await tx.order.count();
@@ -124,13 +125,19 @@ export const orderService = {
           }))
         : [];
 
+      const finalTerritory = data.territory?.trim() || "Dhaka North";
+      const assignedMio = resolveOrderMio(
+        { ...data, territory: finalTerritory },
+        await loadOrderAttributionSources(tx)
+      ) || "General MIO";
+
       const newOrder = await tx.order.create({
         data: {
           orderNumber: finalOrderNumber,
           orderDate: formatDate(data.orderDate),
           pharmacyName: data.pharmacyName.trim(),
-          territory: data.territory?.trim() || "Dhaka North",
-          assignedMio: data.assignedMio?.trim() || "General MIO",
+          territory: finalTerritory,
+          assignedMio,
           itemsSummary:
             data.itemsSummary?.trim() ||
             (formattedItems.map((i) => `${i.description} (${i.quantity})`).join(", ") ||

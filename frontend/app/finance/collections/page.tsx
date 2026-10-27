@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { GlobalCalendar } from "@/components/ui/global-calendar"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -229,6 +230,7 @@ export default function DeliveryCashCollectionsPage() {
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [isSubmittingForm, setIsSubmittingForm] = React.useState(false)
+  const [detailsTarget, setDetailsTarget] = React.useState<DeliveryCollection | null>(null)
 
   // Create / Edit Form State
   const [formData, setFormData] = React.useState({
@@ -468,9 +470,6 @@ export default function DeliveryCashCollectionsPage() {
         totalInvoiceAmount: invoiceAmt,
         amountCollected: invoiceAmt,
         dueAmountRemaining: 0,
-        notes: paid > 0
-          ? `Delivery collection against order #${ord.orderNumber} (Invoice Total: ৳${total.toLocaleString("en-IN")}, Previously Collected: ৳${paid.toLocaleString("en-IN")}, Remaining Due: ৳${remainingDue.toLocaleString("en-IN")}).`
-          : `Delivery collection against order #${ord.orderNumber}.`,
       }))
     }
   }
@@ -1224,7 +1223,21 @@ export default function DeliveryCashCollectionsPage() {
                   return (
                     <TableRow
                       key={c.id}
-                      className={`border-b border-slate-50 text-xs transition-colors hover:bg-slate-50/50 ${
+                      tabIndex={0}
+                      aria-label={`View collection ${c.receiptNo}`}
+                      aria-haspopup="dialog"
+                      onClick={(event) => {
+                        if ((event.target as HTMLElement).closest("button, a, input")) return
+                        setDetailsTarget(c)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          setDetailsTarget(c)
+                        }
+                      }}
+                      className={`cursor-pointer border-b border-slate-50 text-xs transition-colors hover:bg-slate-50/50 focus-visible:outline-2 focus-visible:outline-[#0090FF] ${
                         isSelected ? "bg-blue-50/40" : ""
                       }`}
                     >
@@ -1363,10 +1376,7 @@ export default function DeliveryCashCollectionsPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => {
-                              setPrintTarget(c)
-                              setIsPrintOpen(true)
-                            }}
+                            onClick={() => setDetailsTarget(c)}
                             className="h-7 border-slate-200 px-2 text-[11px] text-slate-700 hover:bg-slate-50"
                           >
                             <Receipt className="mr-1 h-3 w-3 text-[#0090FF]" /> View
@@ -1606,14 +1616,20 @@ export default function DeliveryCashCollectionsPage() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">
+                <Label htmlFor="collection-date" className="text-xs font-medium text-slate-700">
                   Collection Date *
                 </Label>
-                <Input
+                <GlobalCalendar
+                  id="collection-date"
+                  name="collectionDate"
                   value={formData.collectionDate}
-                  onChange={(e) => setFormData({ ...formData, collectionDate: e.target.value })}
+                  onValueChange={(collectionDate) => setFormData((prev) => ({ ...prev, collectionDate }))}
+                  formatStr="dd MMM yyyy"
+                  size="sm"
+                  clearable={false}
+                  calendarProps={{ required: true, defaultMonth: new Date(formData.collectionDate) }}
                   required
-                  className="h-8 font-mono"
+                  className="font-mono"
                 />
               </div>
             </div>
@@ -1998,6 +2014,156 @@ export default function DeliveryCashCollectionsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Collection Details Modal */}
+      <Dialog open={detailsTarget !== null} onOpenChange={(open) => { if (!open) setDetailsTarget(null) }}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl sm:max-w-4xl">
+          {detailsTarget && (
+            <div className="space-y-5">
+              <DialogHeader className="border-b border-slate-100 pb-4 pr-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#0090FF]">
+                    <Receipt className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <DialogTitle className="font-mono text-lg font-bold text-slate-900">
+                      Collection {detailsTarget.receiptNo}
+                    </DialogTitle>
+                    <DialogDescription className="mt-1 text-xs text-slate-500">
+                      Collected on {detailsTarget.collectionDate} · Invoice #{detailsTarget.invoiceNo}
+                    </DialogDescription>
+                  </div>
+                  <Badge variant="outline" className={`text-[10px] font-semibold ${
+                    detailsTarget.status === "Cleared & Deposited"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : detailsTarget.status === "Pending Vault Clearance"
+                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                        : "border-rose-200 bg-rose-50 text-rose-700"
+                  }`}>
+                    {detailsTarget.status}
+                  </Badge>
+                </div>
+              </DialogHeader>
+
+              <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50/75 p-3.5 sm:grid-cols-3">
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <p className="text-[11px] font-medium text-slate-500">Invoice Amount</p>
+                  <p className="mt-1 font-mono text-lg font-bold text-slate-900">৳{detailsTarget.totalInvoiceAmount.toLocaleString("en-IN")}</p>
+                </div>
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-[11px] font-medium text-emerald-700">Amount Collected</p>
+                  <p className="mt-1 font-mono text-lg font-bold text-emerald-800">৳{detailsTarget.amountCollected.toLocaleString("en-IN")}</p>
+                </div>
+                <div className={`rounded-lg border p-3 ${detailsTarget.dueAmountRemaining > 0 ? "border-rose-200 bg-rose-50 text-rose-700" : "border-slate-200 bg-white text-slate-700"}`}>
+                  <p className="text-[11px] font-medium">Remaining Due</p>
+                  <p className="mt-1 font-mono text-lg font-bold">৳{detailsTarget.dueAmountRemaining.toLocaleString("en-IN")}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <section className="space-y-3 rounded-xl border border-slate-200 p-4 text-xs">
+                  <h3 className="flex items-center gap-2 border-b border-slate-100 pb-2 font-bold text-slate-900">
+                    <Building2 className="h-4 w-4 text-[#0090FF]" /> Chemist & Invoice
+                  </h3>
+                  <dl className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <dt className="text-slate-500">Chemist / Pharmacy</dt>
+                      <dd className="mt-1 break-words text-sm font-bold text-slate-900">{detailsTarget.chemistName}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Client Code</dt>
+                      <dd className="mt-1 break-words font-mono font-semibold">{detailsTarget.clientCode || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Invoice Reference</dt>
+                      <dd className="mt-1 break-words font-mono font-semibold text-blue-700">{detailsTarget.invoiceNo}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Territory</dt>
+                      <dd className="mt-1 break-words font-medium">{detailsTarget.territory}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Collecting Sales Rep (MIO)</dt>
+                      <dd className="mt-1 break-words font-medium">{detailsTarget.salesRepName}</dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <section className="space-y-3 rounded-xl border border-slate-200 p-4 text-xs">
+                  <h3 className="flex items-center gap-2 border-b border-slate-100 pb-2 font-bold text-slate-900">
+                    <Landmark className="h-4 w-4 text-[#0090FF]" /> Payment & Vault Clearance
+                  </h3>
+                  <dl className="grid grid-cols-2 gap-3">
+                    <div>
+                      <dt className="text-slate-500">Payment Method</dt>
+                      <dd className="mt-1 font-semibold">{detailsTarget.paymentMethod}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Cheque / Instrument Reference</dt>
+                      <dd className="mt-1 break-words font-mono font-medium">{detailsTarget.chequeNumber || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Destination Type</dt>
+                      <dd className="mt-1 font-medium">{detailsTarget.destinationType || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Destination Safe / Bank</dt>
+                      <dd className="mt-1 break-words font-medium">{detailsTarget.destinationName || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Cleared By</dt>
+                      <dd className="mt-1 break-words font-medium">{detailsTarget.clearedBy || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Cleared At</dt>
+                      <dd className="mt-1 font-medium">{detailsTarget.clearedAt ? new Date(detailsTarget.clearedAt).toLocaleString("en-GB") : "—"}</dd>
+                    </div>
+                  </dl>
+                </section>
+              </div>
+
+              <section className="space-y-2 rounded-xl border border-slate-200 p-4 text-xs">
+                <h3 className="flex items-center gap-2 border-b border-slate-100 pb-2 font-bold text-slate-900">
+                  <FileText className="h-4 w-4 text-[#0090FF]" /> Collection Remarks / Notes
+                </h3>
+                <p className="whitespace-pre-wrap break-words text-slate-600">{detailsTarget.notes || "No remarks added."}</p>
+              </section>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                Amount in Words: <strong className="text-slate-900">{numberToWordsBDT(detailsTarget.amountCollected)}</strong>
+              </div>
+
+              <DialogFooter className="m-0 flex-wrap rounded-xl border border-slate-100 bg-slate-50/50 p-3">
+                <Button variant="outline" size="sm" onClick={() => {
+                  setPrintTarget(detailsTarget)
+                  setDetailsTarget(null)
+                  setIsPrintOpen(true)
+                }} className="gap-1.5 text-xs">
+                  <Receipt className="h-3.5 w-3.5" /> Receipt Preview
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handlePrint(detailsTarget)} className="gap-1.5 text-xs">
+                  <Printer className="h-3.5 w-3.5" /> Print Receipt
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => {
+                  setDetailsTarget(null)
+                  handleOpenEdit(detailsTarget)
+                }} className="gap-1.5 text-xs">
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </Button>
+                {detailsTarget.status === "Pending Vault Clearance" && (
+                  <Button size="sm" onClick={() => {
+                    setDetailsTarget(null)
+                    handleOpenSettleModal(detailsTarget.id)
+                  }} className="gap-1.5 bg-emerald-600 text-xs text-white hover:bg-emerald-700">
+                    <Wallet className="h-3.5 w-3.5" /> Settle Collection
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={() => setDetailsTarget(null)} className="text-xs">Close</Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

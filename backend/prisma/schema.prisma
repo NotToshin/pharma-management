@@ -134,22 +134,26 @@ model Role {
 }
 
 model Staff {
-  id          String      @id @default(auto()) @map("_id") @db.ObjectId
-  empId       String      @unique
-  fullName    String
-  phone       String
-  email       String?
-  nidNumber   String?
-  fathersName String?
-  mothersName String?
-  address     String?
-  department  String?
-  territory   String?
-  supervisor  String?
-  status      StaffStatus @default(ACTIVE)
-  joiningDate DateTime    @default(now())
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id                    String      @id @default(auto()) @map("_id") @db.ObjectId
+  empId                 String      @unique
+  fullName              String
+  phone                 String
+  email                 String?
+  nidNumber             String?
+  fathersName           String?
+  mothersName           String?
+  address               String?
+  department            String?
+  territory             String?
+  supervisor            String?
+  workSchedule          String?
+  emergencyName         String?
+  emergencyRelationship String?
+  emergencyPhone        String?
+  status                StaffStatus @default(ACTIVE)
+  joiningDate           DateTime    @default(now())
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
   roleId   String? @db.ObjectId
   role     Role?   @relation(fields: [roleId], references: [id])
