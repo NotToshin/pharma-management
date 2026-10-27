@@ -71,17 +71,62 @@ import {
 import { MoneyReceiptSheet } from "@/components/finance/money-receipt-sheet"
 
 const PRINT_STYLES = `
-@page { size: A4 portrait; margin: 10mm; }
 @media print {
-  html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; }
-  body * { visibility: hidden !important; }
-  #print-standalone-money-receipt, #print-standalone-money-receipt * { visibility: visible !important; }
-  #print-standalone-money-receipt {
-    position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: #ffffff !important;
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  .print\\:hidden, button { display: none !important; }
+  body * {
+    visibility: hidden !important;
+  }
+  [data-slot="dialog-portal"],
+  [data-slot="dialog-overlay"],
+  [data-slot="dialog-content"],
+  [data-sidebar="sidebar"],
+  aside,
+  header,
+  nav,
+  button,
+  .print\\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  #print-standalone-money-receipt,
+  #print-standalone-money-receipt * {
+    visibility: visible !important;
+  }
+  #print-standalone-money-receipt {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    z-index: 999999 !important;
+  }
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+  }
 }
 `
 
@@ -1960,8 +2005,12 @@ export default function DeliveryCashCollectionsPage() {
               </div>
               <Button
                 size="sm"
-                onClick={() => window.print()}
-                className="h-8 gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                onClick={() => {
+                  requestAnimationFrame(() => {
+                    setTimeout(() => window.print(), 60)
+                  })
+                }}
+                className="h-8 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-xs"
               >
                 <Printer className="h-3.5 w-3.5" />
                 Print Receipt
@@ -1971,7 +2020,7 @@ export default function DeliveryCashCollectionsPage() {
 
           {printTarget && (
             <div className="space-y-6 pt-2">
-              <div id="print-standalone-money-receipt">
+              <div className="mx-auto w-full max-w-[760px] bg-white text-xs">
                 <MoneyReceiptSheet record={printTarget} />
               </div>
 
@@ -1984,8 +2033,12 @@ export default function DeliveryCashCollectionsPage() {
                   Close
                 </Button>
                 <Button
-                  onClick={() => window.print()}
-                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                  onClick={() => {
+                    requestAnimationFrame(() => {
+                      setTimeout(() => window.print(), 60)
+                    })
+                  }}
+                  className="gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-xs"
                 >
                   <Printer className="h-4 w-4" /> Print Receipt
                 </Button>
@@ -1994,6 +2047,18 @@ export default function DeliveryCashCollectionsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Isolated Standalone Printable Money Receipt Sheet */}
+      {printTarget && (
+        <div
+          id="print-standalone-money-receipt"
+          className="hidden bg-white p-0 font-sans text-black"
+        >
+          <div className="mx-auto w-full max-w-[760px] bg-white p-6 text-xs">
+            <MoneyReceiptSheet record={printTarget} />
+          </div>
+        </div>
+      )}
 
       {/* 8. Global Delete Confirmation Modal */}
       <DeleteConfirmationModal

@@ -1319,15 +1319,29 @@ export default function WholesalerPurchaseOrdersPage() {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 10mm;
+            margin: 8mm;
           }
           html,
           body {
             margin: 0 !important;
             padding: 0 !important;
-            background: #fff !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           body * {
+            visibility: hidden !important;
+          }
+          [data-slot="dialog-portal"],
+          [data-slot="dialog-overlay"],
+          [data-slot="dialog-content"],
+          [data-sidebar="sidebar"],
+          aside,
+          header,
+          nav,
+          button,
+          .print\\:hidden {
+            display: none !important;
             visibility: hidden !important;
           }
           #print-standalone-voucher,
@@ -1343,9 +1357,20 @@ export default function WholesalerPurchaseOrdersPage() {
             box-sizing: border-box !important;
             padding: 0 !important;
             margin: 0 !important;
-            background: white !important;
+            background: #ffffff !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            z-index: 999999 !important;
+          }
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          thead {
+            display: table-header-group !important;
+          }
+          tr {
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -2422,8 +2447,12 @@ export default function WholesalerPurchaseOrdersPage() {
               </div>
               <Button
                 size="sm"
-                onClick={() => window.print()}
-                className="h-8 gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                onClick={() => {
+                  requestAnimationFrame(() => {
+                    setTimeout(() => window.print(), 60)
+                  })
+                }}
+                className="h-8 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-sm"
               >
                 <Printer className="h-3.5 w-3.5" />
                 Print Order
@@ -2433,7 +2462,7 @@ export default function WholesalerPurchaseOrdersPage() {
 
           {voucherOrder && (
             <div className="space-y-6 pt-2">
-              <div id="print-standalone-voucher">
+              <div className="mx-auto w-full max-w-[760px] bg-white text-xs">
                 <PurchaseOrderSheet order={voucherOrder} />
               </div>
 
@@ -2446,7 +2475,11 @@ export default function WholesalerPurchaseOrdersPage() {
                   Close
                 </Button>
                 <Button
-                  onClick={() => window.print()}
+                  onClick={() => {
+                    requestAnimationFrame(() => {
+                      setTimeout(() => window.print(), 60)
+                    })
+                  }}
                   className="gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-sm"
                 >
                   <Printer className="h-4 w-4" /> Print Purchase Order
@@ -2456,6 +2489,18 @@ export default function WholesalerPurchaseOrdersPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Isolated Standalone Printable Purchase Order Sheet */}
+      {voucherOrder && (
+        <div
+          id="print-standalone-voucher"
+          className="hidden bg-white p-0 font-sans text-black"
+        >
+          <div className="mx-auto w-full max-w-[760px] bg-white p-6 text-xs">
+            <PurchaseOrderSheet order={voucherOrder} />
+          </div>
+        </div>
+      )}
 
       {/* ─────────────────────────────────────────────
           MODAL 5: Wholesalers Directory Modal

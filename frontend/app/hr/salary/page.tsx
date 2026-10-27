@@ -64,17 +64,62 @@ import {
 import { SalaryPayslipSheet } from "@/components/hr/salary-payslip"
 
 const PRINT_STYLES = `
-@page { size: A4 portrait; margin: 10mm; }
 @media print {
-  html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; }
-  body * { visibility: hidden !important; }
-  #print-standalone-payslip, #print-standalone-payslip * { visibility: visible !important; }
-  #print-standalone-payslip {
-    position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: #ffffff !important;
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  .print\\:hidden, button { display: none !important; }
+  body * {
+    visibility: hidden !important;
+  }
+  [data-slot="dialog-portal"],
+  [data-slot="dialog-overlay"],
+  [data-slot="dialog-content"],
+  [data-sidebar="sidebar"],
+  aside,
+  header,
+  nav,
+  button,
+  .print\\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  #print-standalone-payslip,
+  #print-standalone-payslip * {
+    visibility: visible !important;
+  }
+  #print-standalone-payslip {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    z-index: 999999 !important;
+  }
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+  }
 }
 `
 
@@ -668,7 +713,9 @@ export default function SalaryManagementPage() {
   // Payslip Print Function
   const handleTriggerPrint = () => {
     if (!printRecord) return
-    window.print()
+    requestAnimationFrame(() => {
+      setTimeout(() => window.print(), 60)
+    })
   }
 
   // Month navigation helpers
@@ -1994,8 +2041,8 @@ export default function SalaryManagementPage() {
               </div>
               <Button
                 size="sm"
-                onClick={() => window.print()}
-                className="h-8 gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                onClick={handleTriggerPrint}
+                className="h-8 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-xs"
               >
                 <Printer className="h-3.5 w-3.5" />
                 Print Payslip
@@ -2005,7 +2052,7 @@ export default function SalaryManagementPage() {
 
           {printRecord && (
             <div className="space-y-6 pt-2">
-              <div id="print-standalone-payslip">
+              <div className="mx-auto w-full max-w-[760px] bg-white text-xs">
                 <SalaryPayslipSheet record={printRecord} />
               </div>
 
@@ -2014,8 +2061,8 @@ export default function SalaryManagementPage() {
                   Close
                 </Button>
                 <Button
-                  onClick={() => window.print()}
-                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                  onClick={handleTriggerPrint}
+                  className="gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-xs"
                 >
                   <Printer className="h-4 w-4" /> Print Official Payslip
                 </Button>
@@ -2024,6 +2071,18 @@ export default function SalaryManagementPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Isolated Standalone Printable Payslip Sheet */}
+      {printRecord && (
+        <div
+          id="print-standalone-payslip"
+          className="hidden bg-white p-0 font-sans text-black"
+        >
+          <div className="mx-auto w-full max-w-[760px] bg-white p-6 text-xs">
+            <SalaryPayslipSheet record={printRecord} />
+          </div>
+        </div>
+      )}
 
       {/* GLOBAL DELETE CONFIRMATION MODAL */}
       <DeleteConfirmationModal

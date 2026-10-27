@@ -71,17 +71,62 @@ import {
 import { ExpenseVoucherSheet } from "@/components/finance/expense-voucher-sheet"
 
 const PRINT_STYLES = `
-@page { size: A4 portrait; margin: 10mm; }
 @media print {
-  html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; }
-  body * { visibility: hidden !important; }
-  #print-standalone-payment-voucher, #print-standalone-payment-voucher * { visibility: visible !important; }
-  #print-standalone-payment-voucher {
-    position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: #ffffff !important;
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  .print\\:hidden, button { display: none !important; }
+  body * {
+    visibility: hidden !important;
+  }
+  [data-slot="dialog-portal"],
+  [data-slot="dialog-overlay"],
+  [data-slot="dialog-content"],
+  [data-sidebar="sidebar"],
+  aside,
+  header,
+  nav,
+  button,
+  .print\\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  #print-standalone-payment-voucher,
+  #print-standalone-payment-voucher * {
+    visibility: visible !important;
+  }
+  #print-standalone-payment-voucher {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    z-index: 999999 !important;
+  }
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+  }
 }
 `
 
@@ -2390,8 +2435,12 @@ export default function GeneralPaymentsPage() {
               </div>
               <Button
                 size="sm"
-                onClick={() => window.print()}
-                className="h-8 gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                onClick={() => {
+                  requestAnimationFrame(() => {
+                    setTimeout(() => window.print(), 60)
+                  })
+                }}
+                className="h-8 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-xs"
               >
                 <Printer className="h-3.5 w-3.5" />
                 Print Voucher
@@ -2401,7 +2450,7 @@ export default function GeneralPaymentsPage() {
 
           {printTarget && (
             <div className="space-y-6 pt-2">
-              <div id="print-standalone-payment-voucher">
+              <div className="mx-auto w-full max-w-[760px] bg-white text-xs">
                 <ExpenseVoucherSheet
                   record={printTarget}
                   particulars={printParticulars}
@@ -2417,8 +2466,12 @@ export default function GeneralPaymentsPage() {
                   Close
                 </Button>
                 <Button
-                  onClick={() => window.print()}
-                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                  onClick={() => {
+                    requestAnimationFrame(() => {
+                      setTimeout(() => window.print(), 60)
+                    })
+                  }}
+                  className="gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-xs"
                 >
                   <Printer className="h-4 w-4" /> Print Voucher
                 </Button>
@@ -2427,6 +2480,21 @@ export default function GeneralPaymentsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Isolated Standalone Printable Payment Voucher Sheet */}
+      {printTarget && (
+        <div
+          id="print-standalone-payment-voucher"
+          className="hidden bg-white p-0 font-sans text-black"
+        >
+          <div className="mx-auto w-full max-w-[760px] bg-white p-6 text-xs">
+            <ExpenseVoucherSheet
+              record={printTarget}
+              particulars={printParticulars}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 8. Global Delete Confirmation Modal */}
       <DeleteConfirmationModal
