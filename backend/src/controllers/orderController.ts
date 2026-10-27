@@ -15,10 +15,10 @@ export const createOrder = catchAsync(async (req: Request, res: Response) => {
 
 export const updateOrderStatus = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, assignedMio, territory } = req.body;
 
-  const updatedOrder = await orderService.updateOrderStatus(id, status);
-  sendResponse(res, 200, "Order status updated successfully", updatedOrder);
+  const updatedOrder = await orderService.updateOrderStatus(id, status, assignedMio, territory);
+  sendResponse(res, 200, "Order updated successfully", updatedOrder);
 });
 
 export const deleteOrder = catchAsync(async (req: Request, res: Response) => {

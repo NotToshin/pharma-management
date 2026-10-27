@@ -196,7 +196,7 @@ export const orderService = {
     });
   },
 
-  async updateOrderStatus(id: string, status: string) {
+  async updateOrderStatus(id: string, status?: string, assignedMio?: string, territory?: string) {
     const existing = await prisma.order.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError("Order not found", 404);
@@ -244,7 +244,9 @@ export const orderService = {
     return prisma.order.update({
       where: { id },
       data: {
-        status,
+        ...(status ? { status } : {}),
+        ...(assignedMio ? { assignedMio: assignedMio.trim() } : {}),
+        ...(territory ? { territory: territory.trim() } : {}),
         ...(invoiceNum ? { invoiceNumber: invoiceNum } : {}),
       },
     });

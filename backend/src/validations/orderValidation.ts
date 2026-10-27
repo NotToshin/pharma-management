@@ -32,7 +32,9 @@ export const createOrderSchema = z.object({
 
 export const updateOrderStatusSchema = z.object({
   body: z.object({
-    status: z.string().min(1, "Status is required"),
+    status: z.string().optional(),
+    assignedMio: z.string().optional(),
+    territory: z.string().optional(),
   }),
   params: z.object({
     id: z.string().min(1, "Order ID is required"),
