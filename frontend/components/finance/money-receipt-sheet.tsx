@@ -29,204 +29,200 @@ export function MoneyReceiptSheet({
 }: {
   record: MoneyReceiptData
 }) {
+  const previouslyPaid = Math.max(
+    0,
+    (record.totalInvoiceAmount || 0) - (record.amountCollected || 0) - (record.dueAmountRemaining || 0)
+  )
+
   return (
-    <div className="w-full bg-white text-black font-sans text-xs selection:bg-none print:p-0">
-      {/* 1. Header: Logo (left) + Solid Black Box (right) */}
-      <div className="flex items-start justify-between">
-        {/* Brand Logo & Contact */}
-        <div className="flex flex-col items-start max-w-[340px]">
+    <div className="w-full bg-white text-slate-900 font-sans text-xs selection:bg-none print:p-0">
+      {/* 1. Header: Horizontal Logo & Motto + Corporate Receipt Details */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-200/90 gap-4">
+        {/* Brand Horizontal Logo with Motto */}
+        <div className="flex flex-col items-start max-w-[380px]">
           <img
-            src="/logo.svg"
-            alt="AK Pharma"
-            className="h-[74px] w-auto object-contain"
+            src="/horizontal-logo-motto.svg"
+            alt="AK Pharma - Smart Solutions for Healthier Living"
+            className="h-10 w-auto object-contain"
           />
-          <div className="mt-1 text-[11px] leading-[1.35] text-black font-normal">
-            <p>Dhaka, Bangladesh</p>
-            <p>Phone: +8801712-611071, +8801798-112763</p>
-            <p>Email: akpharmabd@gmail.com</p>
+          <div className="mt-2 text-[11px] leading-relaxed text-slate-500 font-normal">
+            <p>10/26, Rupnagar R/A, Mirpur, Dhaka 1216, Bangladesh</p>
+            <p>Collections & Treasury • Hotline: +8801712-611071 • Email: akpharmabd@gmail.com</p>
           </div>
         </div>
 
-        {/* MONEY RECEIPT Box */}
-        <div className="bg-black text-white px-8 py-3.5 flex items-center justify-center min-w-[210px] h-[68px]">
-          <span className="text-2xl font-extrabold tracking-[0.2em] text-white uppercase font-sans select-none whitespace-nowrap">
-            MONEY RECEIPT
-          </span>
+        {/* Receipt Header Tag Block */}
+        <div className="text-left sm:text-right space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold uppercase tracking-wider">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            {record.status === "Cleared" ? "Cleared & Vault Deposited" : record.status}
+          </div>
+          <h2 className="text-lg font-black tracking-tight text-slate-900 uppercase">
+            Official Money Receipt
+          </h2>
+          <p className="font-mono text-xs font-bold text-slate-800">
+            Receipt No: <span className="text-blue-600">{record.receiptNo}</span>
+          </p>
+          <p className="text-[11px] text-slate-500">
+            Collection Date: <span className="font-semibold text-slate-700">{record.collectionDate}</span>
+          </p>
         </div>
       </div>
 
-      {/* 2. Side-by-Side Dual Boxes */}
-      <div className="mt-6 grid grid-cols-2 gap-4">
-        {/* Left Box: RECEIVED FROM */}
-        <div className="border border-black">
-          <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-            RECEIVED FROM:
+      {/* 2. Chemist Details vs Collection Channel Cards */}
+      <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Left: Chemist / Pharmacy */}
+        <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 space-y-2">
+          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Received From (Chemist / Pharmacy)
+          </span>
+          <div>
+            <h3 className="font-bold text-slate-900 text-sm">{record.chemistName}</h3>
+            <p className="text-slate-600 text-[11px] mt-0.5">
+              Territory / Route: <strong className="text-slate-800">{record.territory}</strong>
+            </p>
           </div>
-          <div className="p-2.5 text-xs text-black space-y-1">
-            <p>
-              <span className="font-normal">Chemist / Pharmacy: </span>
-              <span className="font-semibold">{record.chemistName}</span>
-            </p>
-            <p>
-              <span className="font-normal">Territory: </span>
-              <span className="font-semibold">{record.territory}</span>
-            </p>
-            <p>
-              <span className="font-normal">Invoice Reference: </span>
-              <span className="font-semibold font-mono">Invoice #{record.invoiceNo}</span>
-            </p>
+          <div className="pt-1 flex flex-wrap gap-2 text-[11px]">
+            <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 border border-blue-200 font-mono font-semibold text-blue-800">
+              Invoice #{record.invoiceNo}
+            </span>
             {record.orderId && (
-              <p>
-                <span className="font-normal">Order Reference: </span>
-                <span className="font-semibold font-mono">Order #{record.orderId}</span>
-              </p>
+              <span className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-slate-700">
+                Order #{record.orderId}
+              </span>
             )}
           </div>
         </div>
 
-        {/* Right Box: RECEIPT DETAILS */}
-        <div className="border border-black">
-          <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-            RECEIPT NO: {record.receiptNo}
+        {/* Right: Collecting Agent & Treasury */}
+        <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 space-y-2">
+          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Collection Officer & Instrument
+          </span>
+          <div>
+            <p className="font-semibold text-slate-900">
+              Collector (MIO): <strong className="text-slate-900">{record.salesRepName}</strong>
+            </p>
+            <p className="text-slate-600 text-[11px] mt-0.5 font-mono">
+              Mode: {record.paymentMethod}
+              {record.chequeNumber ? ` (Cheque / Ref: ${record.chequeNumber})` : ""}
+            </p>
           </div>
-          <div className="p-2.5 text-xs text-black space-y-1">
-            <p>
-              <span className="font-normal">Date: </span>
-              <span className="font-semibold">{record.collectionDate}</span>
-            </p>
-            <p>
-              <span className="font-normal">Collecting MIO/SR: </span>
-              <span className="font-semibold">{record.salesRepName}</span>
-            </p>
-            <p>
-              <span className="font-normal">Payment Instrument: </span>
-              <span className="font-semibold">
-                {record.paymentMethod}
-                {record.chequeNumber ? ` (Ref: ${record.chequeNumber})` : ""}
-              </span>
-            </p>
-            <p>
-              <span className="font-normal">Status: </span>
-              <span className="font-semibold">{record.status}</span>
-            </p>
+          <div className="pt-1 text-[11px] text-slate-600">
+            Deposited Safe: <strong className="text-slate-800">{record.depositedInto || "Primary Cash Vault"}</strong>
+          </div>
+          <div className="pt-1 text-[11px] text-slate-500 border-t border-slate-200/60 flex items-center justify-between">
+            <span>Treasury Status: Verified</span>
+            <span className="font-mono text-emerald-600 font-semibold">{record.status}</span>
           </div>
         </div>
       </div>
 
-      {/* 3. Collection Particulars Table */}
-      <table className="w-full border-collapse border border-black mt-6 text-xs text-black">
-        <thead className="bg-black text-white font-bold text-xs uppercase">
-          <tr>
-            <th className="w-12 py-1.5 px-2 text-center border-r border-neutral-700">SL</th>
-            <th className="py-1.5 px-3 text-left border-r border-neutral-700">Particulars Description</th>
-            <th className="w-32 py-1.5 px-3 text-right border-r border-neutral-700">Total Invoice</th>
-            <th className="w-32 py-1.5 px-3 text-right border-r border-neutral-700">Amount Received</th>
-            <th className="w-32 py-1.5 px-3 text-right">Remaining Due</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="border-b border-black h-8">
-            <td className="py-1 px-2 text-center border-r border-black font-mono font-medium">
-              1
-            </td>
-            <td className="py-1 px-3 text-left border-r border-black font-semibold">
-              Delivery collection settlement against Invoice #{record.invoiceNo}
-              {record.notes ? ` (${record.notes})` : ""}
-            </td>
-            <td className="py-1 px-3 text-right border-r border-black font-mono">
-              ৳{(record.totalInvoiceAmount || 0).toLocaleString("en-IN")}
-            </td>
-            <td className="py-1 px-3 text-right border-r border-black font-mono font-bold">
-              ৳{(record.amountCollected || 0).toLocaleString("en-IN")}
-            </td>
-            <td className="py-1 px-3 text-right font-mono font-semibold">
-              ৳{(record.dueAmountRemaining || 0).toLocaleString("en-IN")}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      {/* 3. Invoice Realization Breakdown Table */}
+      <div className="mt-5 rounded-xl border border-slate-200/90 overflow-hidden shadow-xs">
+        <table className="w-full text-xs">
+          <thead className="bg-slate-100/90 text-slate-700 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
+            <tr>
+              <th className="py-2.5 px-3 text-center w-12">#</th>
+              <th className="py-2.5 px-3 text-left">Particulars & Invoice Reference</th>
+              <th className="py-2.5 px-3 text-right w-28">Total Invoice</th>
+              <th className="py-2.5 px-3 text-right w-28">Previously Paid</th>
+              <th className="py-2.5 px-3 text-right w-32">Received Today</th>
+              <th className="py-2.5 px-3 text-right w-28">Balance Due</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            <tr className="hover:bg-slate-50/50">
+              <td className="py-3 px-3 text-center text-slate-400 font-mono">1</td>
+              <td className="py-3 px-3 font-medium text-slate-800">
+                Delivery collection against Commercial Invoice #{record.invoiceNo}
+                {record.notes ? ` (${record.notes})` : ""}
+              </td>
+              <td className="py-3 px-3 text-right font-mono text-slate-600">
+                ৳{(record.totalInvoiceAmount || 0).toLocaleString("en-IN")}
+              </td>
+              <td className="py-3 px-3 text-right font-mono text-slate-600">
+                ৳{previouslyPaid.toLocaleString("en-IN")}
+              </td>
+              <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700 text-sm">
+                ৳{(record.amountCollected || 0).toLocaleString("en-IN")}
+              </td>
+              <td className="py-3 px-3 text-right font-mono font-semibold text-slate-900">
+                ৳{(record.dueAmountRemaining || 0).toLocaleString("en-IN")}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-      {/* 4. Financial Summary: Amount in Words (Left) & Realized Totals (Right) */}
-      <div className="flex items-stretch border border-black border-t-0">
+      {/* 4. Financial Summary Cards */}
+      <div className="mt-5 flex flex-col md:flex-row md:items-start justify-between gap-5">
         {/* Left: Amount in Words */}
-        <div className="flex-1 p-3 flex flex-col justify-between">
-          <div className="text-xs text-black">
-            <span className="font-semibold">Received in Words: </span>
-            <span className="font-medium underline decoration-black decoration-1 underline-offset-4">
-              {numberToWordsBDT(record.amountCollected)}
+        <div className="flex-1 rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 space-y-2">
+          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Amount Received in Words
+          </span>
+          <p className="text-xs font-semibold text-slate-800 italic leading-relaxed">
+            "{numberToWordsBDT(record.amountCollected)}"
+          </p>
+          <div className="pt-2 text-[11px] text-slate-500 border-t border-slate-200/60 flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span>Clearing Verification: {record.clearedBy || "Cashier & Treasury Officer"}</span>
+          </div>
+        </div>
+
+        {/* Right: Balance Summary */}
+        <div className="w-full md:w-80 rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-2 text-xs">
+          <div className="flex justify-between text-slate-600 pb-1 border-b border-slate-100">
+            <span>Original Invoice Value:</span>
+            <span className="font-mono font-semibold text-slate-800">
+              ৳{(record.totalInvoiceAmount || 0).toLocaleString("en-IN")}
             </span>
           </div>
-          <div className="text-[11px] text-neutral-600 mt-2">
-            Payment Mode: {record.paymentMethod} • Status: {record.status}
-          </div>
-        </div>
-
-        {/* Right: Totals summary */}
-        <div className="w-80 border-l border-black">
-          <div className="flex border-b border-black text-xs">
-            <div className="w-36 bg-black text-white font-bold py-1.5 px-3 flex items-center">
-              INVOICE VALUE :
-            </div>
-            <div className="flex-1 py-1.5 px-3 text-right font-mono font-semibold text-black">
-              ৳{(record.totalInvoiceAmount || 0).toLocaleString("en-IN")}
-            </div>
-          </div>
-          <div className="flex border-b border-black text-xs">
-            <div className="w-36 bg-black text-white font-bold py-1.5 px-3 flex items-center">
-              REMAINING DUE :
-            </div>
-            <div className="flex-1 py-1.5 px-3 text-right font-mono font-semibold text-black">
+          <div className="flex justify-between text-slate-600 pb-1 border-b border-slate-100">
+            <span>Remaining Due Balance:</span>
+            <span className="font-mono font-semibold text-slate-800">
               ৳{(record.dueAmountRemaining || 0).toLocaleString("en-IN")}
-            </div>
+            </span>
           </div>
-          <div className="flex text-xs">
-            <div className="w-36 bg-black text-white font-bold py-1.5 px-3 flex items-center">
-              AMOUNT RECEIVED:
-            </div>
-            <div className="flex-1 py-1.5 px-3 text-right font-mono font-bold text-sm text-black">
+          <div className="flex justify-between pt-1 text-sm font-bold text-slate-900 border-t border-slate-200">
+            <span className="text-slate-900">Amount Received:</span>
+            <span className="font-mono font-black text-emerald-700 text-base">
               ৳{(record.amountCollected || 0).toLocaleString("en-IN")}
-            </div>
+            </span>
           </div>
         </div>
       </div>
 
-      {/* 5. Vault & Deposit Verification */}
-      <div className="mt-6 border border-black">
-        <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-          TREASURY CLEARANCE & SAFE DEPOSIT:
-        </div>
-        <div className="p-3 text-xs text-black space-y-1">
-          <p>
-            <span className="font-semibold">Deposited Into: </span>
-            {record.depositedInto || "Primary Cash Vault / Treasury Clearance Account"}
-          </p>
-          <p>
-            <span className="font-semibold">Verification Officer: </span>
-            {record.clearedBy || "Cashier & Treasury Verification Team"}
-          </p>
-          <p>
-            <span className="font-semibold">Official Receipt Policy: </span>
-            Cheque payments are subject to actual realization in bank. Official receipt is valid only with authorized stamp and signature.
-          </p>
-        </div>
+      {/* 5. Treasury Compliance & Official Terms */}
+      <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-[11px] text-slate-600 space-y-1">
+        <p className="font-semibold text-slate-700">
+          Official Delivery Receipt Terms & Audit Reconciliation:
+        </p>
+        <p>
+          1. This official money receipt is issued upon receiving cash or instrument payment for pharmaceutical goods delivered.
+        </p>
+        <p>
+          2. Cheque and electronic payments are accepted subject to actual realization in AK Pharma corporate bank account.
+        </p>
       </div>
 
       {/* 6. Signatures */}
-      <div className="mt-14 pb-4 grid grid-cols-3 gap-8 text-center text-xs text-black">
+      <div className="mt-12 pb-2 grid grid-cols-3 gap-6 text-center text-xs text-slate-600">
         <div>
-          <div className="w-40 mx-auto border-t border-black mb-1.5" />
-          <span className="font-semibold text-black">Customer / Chemist Stamp</span>
-          <span className="block text-[10px] text-neutral-500">Acknowledged</span>
+          <div className="w-36 mx-auto border-b border-slate-300 pb-1 mb-1.5" />
+          <span className="font-semibold text-slate-800 block">Chemist / Pharmacy</span>
+          <span className="text-[10px] text-slate-400">Stamp & Signature</span>
         </div>
         <div>
-          <div className="w-40 mx-auto border-t border-black mb-1.5" />
-          <span className="font-semibold text-black">{record.salesRepName}</span>
-          <span className="block text-[10px] text-neutral-500">Collecting Agent (MIO)</span>
+          <div className="w-36 mx-auto border-b border-slate-300 pb-1 mb-1.5" />
+          <span className="font-semibold text-slate-800 block">{record.salesRepName}</span>
+          <span className="text-[10px] text-slate-400">Collecting Agent (MIO)</span>
         </div>
         <div>
-          <div className="w-40 mx-auto border-t border-black mb-1.5" />
-          <span className="font-semibold text-black">{record.clearedBy || "Authorized Treasury"}</span>
-          <span className="block text-[10px] text-neutral-500">Finance & Accounts</span>
+          <div className="w-36 mx-auto border-b border-slate-300 pb-1 mb-1.5" />
+          <span className="font-semibold text-slate-800 block">{record.clearedBy || "Cashier & Vault Officer"}</span>
+          <span className="text-[10px] text-slate-400">Treasury Verification</span>
         </div>
       </div>
     </div>

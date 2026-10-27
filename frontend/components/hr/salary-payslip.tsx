@@ -47,266 +47,259 @@ export function SalaryPayslipSheet({
   const net = Math.max(0, gross - deductions)
 
   return (
-    <div className="w-full bg-white text-black font-sans text-xs selection:bg-none print:p-0">
-      {/* 1. Header: Logo (left) + Solid Black Title Box (right) */}
-      <div className="flex items-start justify-between">
-        {/* Brand Logo & Contact */}
-        <div className="flex flex-col items-start max-w-[340px]">
+    <div className="w-full bg-white text-slate-900 font-sans text-xs selection:bg-none print:p-0">
+      {/* 1. Corporate Header: Horizontal Logo & Motto + Executive Pay Slip Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-200/90 gap-4">
+        {/* Brand Horizontal Logo with Motto */}
+        <div className="flex flex-col items-start max-w-[380px]">
           <img
-            src="/logo.svg"
-            alt="AK Pharma"
-            className="h-[74px] w-auto object-contain"
+            src="/horizontal-logo-motto.svg"
+            alt="AK Pharma - Smart Solutions for Healthier Living"
+            className="h-10 w-auto object-contain"
           />
-          <div className="mt-1 text-[11px] leading-[1.35] text-black font-normal">
-            <p>Dhaka, Bangladesh</p>
-            <p>Phone: +8801712-611071, +8801798-112763</p>
-            <p>Email: akpharmabd@gmail.com</p>
+          <div className="mt-2 text-[11px] leading-relaxed text-slate-500 font-normal">
+            <p>10/26, Rupnagar R/A, Mirpur, Dhaka 1216, Bangladesh</p>
+            <p>Hotline: +8801712-611071, +8801798-112763 • Email: akpharmabd@gmail.com</p>
           </div>
         </div>
 
-        {/* SALARY PAYSLIP Box */}
-        <div className="bg-black text-white px-8 py-3.5 flex items-center justify-center min-w-[210px] h-[68px]">
-          <span className="text-2xl font-extrabold tracking-[0.2em] text-white uppercase font-sans select-none whitespace-nowrap">
-            SALARY PAYSLIP
-          </span>
-        </div>
-      </div>
-
-      {/* 2. Side-by-Side Dual Boxes: Employee Details (Left) vs Payslip Details (Right) */}
-      <div className="mt-6 grid grid-cols-2 gap-4">
-        {/* Left Box: EMPLOYEE DETAILS */}
-        <div className="border border-black">
-          <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-            EMPLOYEE DETAILS:
+        {/* Executive Pay Advice Block */}
+        <div className="text-left sm:text-right space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold uppercase tracking-wider">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            {record.status === "Disbursed" ? "Disbursed & Confirmed" : record.status}
           </div>
-          <div className="p-2.5 text-xs text-black space-y-1">
-            <p>
-              <span className="font-normal">Employee Name: </span>
-              <span className="font-semibold">{record.fullName}</span>
-            </p>
-            <p>
-              <span className="font-normal">Employee ID: </span>
-              <span className="font-semibold font-mono">{record.empId}</span>
-            </p>
-            <p>
-              <span className="font-normal">Designation: </span>
-              <span className="font-semibold">{record.designation}</span>
-            </p>
-            <p>
-              <span className="font-normal">Department: </span>
-              <span className="font-semibold">{record.department}</span>
-            </p>
-            <p>
-              <span className="font-normal">Territory / Location: </span>
-              <span className="font-semibold">{record.territory || "Head Office / Central"}</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Right Box: PAYSLIP REF */}
-        <div className="border border-black">
-          <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-            REF: AKP/{record.empId || "EMP"}/SAL
-          </div>
-          <div className="p-2.5 text-xs text-black space-y-1">
-            <p>
-              <span className="font-normal">Pay Period: </span>
-              <span className="font-semibold">{record.payPeriod}</span>
-            </p>
-            <p>
-              <span className="font-normal">Bank Name: </span>
-              <span className="font-semibold">{record.bankName || "Dutch-Bangla Bank PLC"}</span>
-            </p>
-            <p>
-              <span className="font-normal">Bank Account: </span>
-              <span className="font-semibold font-mono">{record.bankAccount || "Direct Payroll Transfer"}</span>
-            </p>
-            <p>
-              <span className="font-normal">Status: </span>
-              <span className="font-semibold">{record.status}</span>
-            </p>
-            <p>
-              <span className="font-normal">Recorded Leaves: </span>
-              <span className="font-semibold">{record.leaveDays || 0} Day(s)</span>
-            </p>
-          </div>
+          <h2 className="text-lg font-black tracking-tight text-slate-900 uppercase">
+            Official Salary Payslip
+          </h2>
+          <p className="text-xs font-semibold text-slate-700">
+            Pay Period: <span className="font-bold text-blue-600">{record.payPeriod}</span>
+          </p>
+          <p className="font-mono text-[11px] text-slate-400">
+            Ref Code: AKP/{record.empId || "EMP"}/SAL
+          </p>
         </div>
       </div>
 
-      {/* 3. Earnings & Deductions Table */}
-      <table className="w-full border-collapse border border-black mt-6 text-xs text-black">
-        <thead className="bg-black text-white font-bold text-xs uppercase">
-          <tr>
-            <th className="w-10 py-1.5 px-2 text-center border-r border-neutral-700">SL</th>
-            <th className="py-1.5 px-3 text-left border-r border-neutral-700">Earnings Particulars</th>
-            <th className="w-32 py-1.5 px-3 text-right border-r border-neutral-700">Amount</th>
-            <th className="py-1.5 px-3 text-left border-r border-neutral-700">Deductions & Withholdings</th>
-            <th className="w-32 py-1.5 px-3 text-right">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="border-b border-black h-7">
-            <td className="py-1 px-2 text-center border-r border-black font-mono">1</td>
-            <td className="py-1 px-3 text-left border-r border-black font-medium">Basic Salary</td>
-            <td className="py-1 px-3 text-right border-r border-black font-mono">
-              ৳{(record.basicSalary || 0).toLocaleString("en-IN")}
-            </td>
-            <td className="py-1 px-3 text-left border-r border-black font-medium">Provident Fund (PF)</td>
-            <td className="py-1 px-3 text-right font-mono">
-              ৳{(record.providentFund || 0).toLocaleString("en-IN")}
-            </td>
-          </tr>
-          <tr className="border-b border-black h-7">
-            <td className="py-1 px-2 text-center border-r border-black font-mono">2</td>
-            <td className="py-1 px-3 text-left border-r border-black font-medium">House Rent Allowance (50%)</td>
-            <td className="py-1 px-3 text-right border-r border-black font-mono">
-              ৳{(record.houseRent || 0).toLocaleString("en-IN")}
-            </td>
-            <td className="py-1 px-3 text-left border-r border-black font-medium">Income Tax Withholding</td>
-            <td className="py-1 px-3 text-right font-mono">
-              ৳{(record.taxDeduction || 0).toLocaleString("en-IN")}
-            </td>
-          </tr>
-          <tr className="border-b border-black h-7">
-            <td className="py-1 px-2 text-center border-r border-black font-mono">3</td>
-            <td className="py-1 px-3 text-left border-r border-black font-medium">Medical Allowance</td>
-            <td className="py-1 px-3 text-right border-r border-black font-mono">
-              ৳{(record.medicalAllowance || 0).toLocaleString("en-IN")}
-            </td>
-            <td className="py-1 px-3 text-left border-r border-black font-medium">Other Deductions / Advance</td>
-            <td className="py-1 px-3 text-right font-mono">
-              ৳{(record.otherDeductions || 0).toLocaleString("en-IN")}
-            </td>
-          </tr>
-          <tr className="border-b border-black h-7">
-            <td className="py-1 px-2 text-center border-r border-black font-mono">4</td>
-            <td className="py-1 px-3 text-left border-r border-black font-medium">Conveyance / TA-DA</td>
-            <td className="py-1 px-3 text-right border-r border-black font-mono">
-              ৳{(record.conveyanceTaDa || 0).toLocaleString("en-IN")}
-            </td>
-            <td className="py-1 px-3 text-left border-r border-black text-neutral-400 italic">Nil</td>
-            <td className="py-1 px-3 text-right font-mono text-neutral-400">৳0</td>
-          </tr>
-          {(record.salesIncentive > 0 || record.specialBonus > 0) && (
-            <>
-              {record.salesIncentive > 0 && (
-                <tr className="border-b border-black h-7">
-                  <td className="py-1 px-2 text-center border-r border-black font-mono">5</td>
-                  <td className="py-1 px-3 text-left border-r border-black font-medium">Field Sales Incentive</td>
-                  <td className="py-1 px-3 text-right border-r border-black font-mono font-medium">
-                    ৳{record.salesIncentive.toLocaleString("en-IN")}
-                  </td>
-                  <td className="py-1 px-3 text-left border-r border-black text-neutral-400 italic">Nil</td>
-                  <td className="py-1 px-3 text-right font-mono text-neutral-400">৳0</td>
-                </tr>
-              )}
-              {record.specialBonus > 0 && (
-                <tr className="border-b border-black h-7">
-                  <td className="py-1 px-2 text-center border-r border-black font-mono">
-                    {record.salesIncentive > 0 ? 6 : 5}
-                  </td>
-                  <td className="py-1 px-3 text-left border-r border-black font-medium">Special Festival / Performance Bonus</td>
-                  <td className="py-1 px-3 text-right border-r border-black font-mono font-medium">
-                    ৳{record.specialBonus.toLocaleString("en-IN")}
-                  </td>
-                  <td className="py-1 px-3 text-left border-r border-black text-neutral-400 italic">Nil</td>
-                  <td className="py-1 px-3 text-right font-mono text-neutral-400">৳0</td>
-                </tr>
-              )}
-            </>
-          )}
-          <tr className="border-b border-black font-semibold bg-neutral-50 h-8">
-            <td colSpan={2} className="py-1 px-3 text-right border-r border-black uppercase text-[11px]">
-              Gross Remuneration :
-            </td>
-            <td className="py-1 px-3 text-right border-r border-black font-mono text-xs">
-              ৳{gross.toLocaleString("en-IN")}
-            </td>
-            <td className="py-1 px-3 text-right border-r border-black uppercase text-[11px]">
-              Total Deductions :
-            </td>
-            <td className="py-1 px-3 text-right font-mono text-xs">
-              ৳{deductions.toLocaleString("en-IN")}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* 4. Financial Summary: Amount in Words (Left) & Net Pay Breakdown (Right) */}
-      <div className="flex items-stretch border border-black border-t-0">
-        {/* Left: Amount in Words */}
-        <div className="flex-1 p-3 flex flex-col justify-between">
-          <div className="text-xs text-black">
-            <span className="font-semibold">Net Amount in Words: </span>
-            <span className="font-medium underline decoration-black decoration-1 underline-offset-4">
-              {numberToWordsBDT(net)}
+      {/* 2. Employee Profile 4-Column Summary Card */}
+      <div className="mt-5 rounded-xl border border-slate-200/90 bg-slate-50/70 p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+          {/* Col 1 */}
+          <div className="space-y-1">
+            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Employee Name
+            </span>
+            <span className="block font-bold text-slate-900 text-sm">
+              {record.fullName}
+            </span>
+            <span className="block text-[11px] text-slate-600 font-medium">
+              {record.designation}
             </span>
           </div>
-          <div className="text-[11px] text-neutral-600 mt-2">
-            Disbursement Mode: Direct Bank Credit / Account Payee Cheque
+
+          {/* Col 2 */}
+          <div className="space-y-1">
+            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Staff ID & Dept
+            </span>
+            <span className="block font-mono font-bold text-slate-800 text-sm">
+              {record.empId}
+            </span>
+            <span className="block text-[11px] text-slate-600">
+              {record.department} ({record.territory || "Head Office"})
+            </span>
+          </div>
+
+          {/* Col 3 */}
+          <div className="space-y-1">
+            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Disbursement Channel
+            </span>
+            <span className="block font-semibold text-slate-800">
+              {record.bankName || "Dutch-Bangla Bank PLC"}
+            </span>
+            <span className="block font-mono text-[11px] text-slate-600">
+              A/C: {record.bankAccount || "Direct Payroll Credit"}
+            </span>
+          </div>
+
+          {/* Col 4 */}
+          <div className="space-y-1">
+            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Leaves & Attendance
+            </span>
+            <span className="block font-bold text-slate-800">
+              {record.leaveDays || 0} Day(s) Leave
+            </span>
+            <span className="block text-[11px] text-emerald-600 font-medium">
+              Pay Status: Active Regular
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Dual Breakdown Cards: Earnings vs Deductions */}
+      <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Earnings Card */}
+        <div className="rounded-xl border border-slate-200/90 overflow-hidden bg-white shadow-xs">
+          <div className="bg-slate-100/80 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                Remuneration / Earnings
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-400 font-medium">Standard BDT</span>
+          </div>
+          <div className="p-3.5 space-y-2 text-xs">
+            <div className="flex justify-between py-1 border-b border-slate-100">
+              <span className="text-slate-600">Basic Salary</span>
+              <span className="font-mono font-medium text-slate-900">
+                ৳{(record.basicSalary || 0).toLocaleString("en-IN")}
+              </span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-100">
+              <span className="text-slate-600">House Rent Allowance (50%)</span>
+              <span className="font-mono font-medium text-slate-900">
+                ৳{(record.houseRent || 0).toLocaleString("en-IN")}
+              </span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-100">
+              <span className="text-slate-600">Medical Allowance</span>
+              <span className="font-mono font-medium text-slate-900">
+                ৳{(record.medicalAllowance || 0).toLocaleString("en-IN")}
+              </span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-100">
+              <span className="text-slate-600">Conveyance / TA-DA</span>
+              <span className="font-mono font-medium text-slate-900">
+                ৳{(record.conveyanceTaDa || 0).toLocaleString("en-IN")}
+              </span>
+            </div>
+            {record.salesIncentive > 0 && (
+              <div className="flex justify-between py-1 border-b border-slate-100 text-emerald-700 font-medium">
+                <span>Field Sales Performance Incentive</span>
+                <span className="font-mono">+৳{record.salesIncentive.toLocaleString("en-IN")}</span>
+              </div>
+            )}
+            {record.specialBonus > 0 && (
+              <div className="flex justify-between py-1 border-b border-slate-100 text-emerald-700 font-medium">
+                <span>Special Festival / Bonus</span>
+                <span className="font-mono">+৳{record.specialBonus.toLocaleString("en-IN")}</span>
+              </div>
+            )}
+            <div className="flex justify-between pt-2 text-xs font-bold text-slate-900">
+              <span className="uppercase text-[11px] text-slate-700">Gross Earnings</span>
+              <span className="font-mono text-sm text-slate-900 font-black">
+                ৳{gross.toLocaleString("en-IN")}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Right: Net Remuneration Box */}
-        <div className="w-80 border-l border-black">
-          <div className="flex border-b border-black text-xs">
-            <div className="w-36 bg-black text-white font-bold py-1.5 px-3 flex items-center">
-              GROSS PAY :
+        {/* Deductions Card */}
+        <div className="rounded-xl border border-slate-200/90 overflow-hidden bg-white shadow-xs">
+          <div className="bg-slate-100/80 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-rose-500" />
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                Deductions & Withholdings
+              </span>
             </div>
-            <div className="flex-1 py-1.5 px-3 text-right font-mono font-semibold text-black">
-              ৳{gross.toLocaleString("en-IN")}
-            </div>
+            <span className="text-[10px] text-slate-400 font-medium">Statutory & Other</span>
           </div>
-          <div className="flex border-b border-black text-xs">
-            <div className="w-36 bg-black text-white font-bold py-1.5 px-3 flex items-center">
-              TOTAL DED. :
+          <div className="p-3.5 space-y-2 text-xs">
+            <div className="flex justify-between py-1 border-b border-slate-100">
+              <span className="text-slate-600">Provident Fund (PF Withholding)</span>
+              <span className="font-mono font-medium text-slate-900">
+                ৳{(record.providentFund || 0).toLocaleString("en-IN")}
+              </span>
             </div>
-            <div className="flex-1 py-1.5 px-3 text-right font-mono font-semibold text-black">
-              - ৳{deductions.toLocaleString("en-IN")}
+            <div className="flex justify-between py-1 border-b border-slate-100">
+              <span className="text-slate-600">Income Tax (TDS Withholding)</span>
+              <span className="font-mono font-medium text-slate-900">
+                ৳{(record.taxDeduction || 0).toLocaleString("en-IN")}
+              </span>
             </div>
-          </div>
-          <div className="flex text-xs">
-            <div className="w-36 bg-black text-white font-bold py-1.5 px-3 flex items-center">
-              NET REMUNERATION:
+            <div className="flex justify-between py-1 border-b border-slate-100">
+              <span className="text-slate-600">Salary Advance / Other Deductions</span>
+              <span className="font-mono font-medium text-slate-900">
+                ৳{(record.otherDeductions || 0).toLocaleString("en-IN")}
+              </span>
             </div>
-            <div className="flex-1 py-1.5 px-3 text-right font-mono font-bold text-sm text-black">
-              ৳{net.toLocaleString("en-IN")}
+            <div className="flex justify-between py-1 border-b border-slate-100 text-slate-400 italic">
+              <span>Unpaid Leave / Loss of Pay</span>
+              <span className="font-mono">৳0</span>
+            </div>
+            <div className="flex justify-between pt-6 text-xs font-bold text-rose-700">
+              <span className="uppercase text-[11px]">Total Deductions</span>
+              <span className="font-mono text-sm font-black">
+                - ৳{deductions.toLocaleString("en-IN")}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 5. Policy & Verification Note */}
-      <div className="mt-6 border border-black">
-        <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-          PAYROLL ADVICE & CONFIDENTIALITY:
-        </div>
-        <div className="p-3 text-xs text-black space-y-1">
-          <p>
-            1. This document is a computer-generated official pay advice issued by AK Pharma Bangladesh.
-          </p>
-          <p>
-            2. Remuneration has been credited directly to the employee's registered salary bank account.
-          </p>
-          <p>
-            3. Compensation details are strictly private and confidential between the employee and AK Pharma.
-          </p>
+      {/* 4. Executive Net Pay Highlight Banner (Workday / Enterprise ERP Style) */}
+      <div className="mt-5 rounded-xl bg-slate-900 text-white p-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-1">
+            <span className="text-[11px] font-bold tracking-wider text-slate-300 uppercase">
+              Net Remuneration Disbursed
+            </span>
+            <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-emerald-400">
+              ৳ {net.toLocaleString("en-IN")}
+            </div>
+            <p className="text-xs text-slate-300 italic pt-0.5">
+              <span className="font-semibold text-slate-200">Amount in Words: </span>
+              {numberToWordsBDT(net)}
+            </p>
+          </div>
+
+          <div className="sm:text-right border-t sm:border-t-0 sm:border-l border-slate-700 pt-3 sm:pt-0 sm:pl-6 space-y-1 text-xs">
+            <div className="text-slate-300">
+              Gross Earnings: <strong className="text-white font-mono">৳{gross.toLocaleString("en-IN")}</strong>
+            </div>
+            <div className="text-slate-300">
+              Total Deductions: <strong className="text-rose-400 font-mono">-৳{deductions.toLocaleString("en-IN")}</strong>
+            </div>
+            <div className="text-[11px] text-slate-400 pt-1">
+              Transfer Mode: Direct Bank Credit (BEFTN)
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* 6. Signatures */}
-      <div className="mt-14 pb-4 grid grid-cols-3 gap-8 text-center text-xs text-black">
+      {/* 5. Confidentiality & Payroll Policy Note */}
+      <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-[11px] text-slate-600 leading-relaxed space-y-1">
+        <p className="font-semibold text-slate-700">
+          Official Payroll Certification & Privacy Notice:
+        </p>
+        <p>
+          1. This pay advice is generated by the central ERP of AK Pharma Bangladesh and is certified accurate as per approved attendance and payroll records.
+        </p>
+        <p>
+          2. Remuneration has been transferred directly into the designated bank account on record. Compensation terms are confidential between AK Pharma and the employee.
+        </p>
+      </div>
+
+      {/* 6. Corporate Signatures */}
+      <div className="mt-12 pb-2 grid grid-cols-3 gap-6 text-center text-xs text-slate-600">
         <div>
-          <div className="w-40 mx-auto border-t border-black mb-1.5" />
-          <span className="font-semibold text-black">Employee Signature</span>
+          <div className="w-36 mx-auto border-b border-slate-300 pb-1 mb-1.5" />
+          <span className="font-semibold text-slate-800 block">{record.fullName}</span>
+          <span className="text-[10px] text-slate-400">Employee Acknowledgment</span>
         </div>
         <div>
-          <div className="w-40 mx-auto border-t border-black mb-1.5" />
-          <span className="font-semibold text-black">HR & Admin Officer</span>
+          <div className="w-36 mx-auto border-b border-slate-300 pb-1 mb-1.5" />
+          <span className="font-semibold text-slate-800 block">HR & Talent Operations</span>
+          <span className="text-[10px] text-slate-400">Verified & Processed</span>
         </div>
         <div>
-          <div className="w-40 mx-auto border-t border-black mb-1.5" />
-          <span className="font-semibold text-black">Authorized Signatory</span>
+          <div className="w-36 mx-auto border-b border-slate-300 pb-1 mb-1.5" />
+          <span className="font-semibold text-slate-800 block">Finance Controller</span>
+          <span className="text-[10px] text-slate-400">Authorized Signatory</span>
         </div>
       </div>
     </div>

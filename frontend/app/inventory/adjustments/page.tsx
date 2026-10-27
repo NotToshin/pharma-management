@@ -1089,7 +1089,7 @@ export default function StockAdjustmentsPage() {
               <Button
                 size="sm"
                 onClick={() => window.print()}
-                className="h-8 gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                className="h-8 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-sm"
               >
                 <Printer className="h-3.5 w-3.5" /> Print Certificate
               </Button>
@@ -1098,189 +1098,244 @@ export default function StockAdjustmentsPage() {
 
           {selectedAdjustment && (
             <div className="space-y-6 pt-2">
-              <div id="print-standalone-adjustment" className="w-full bg-white text-black font-sans text-xs selection:bg-none print:p-0">
-                {/* 1. Header: Logo (left) + Solid Black Box (right) */}
-                <div className="flex items-start justify-between">
-                  {/* Brand Logo & Contact */}
-                  <div className="flex flex-col items-start max-w-[340px]">
+              <div id="print-standalone-adjustment" className="w-full bg-white text-slate-900 font-sans text-xs selection:bg-none print:p-0">
+                {/* 1. Header: Horizontal Logo & Motto + Stock Adjustment Metadata */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-200/90 gap-4">
+                  {/* Brand Horizontal Logo with Motto */}
+                  <div className="flex flex-col items-start max-w-[390px]">
                     <img
-                      src="/logo.svg"
-                      alt="AK Pharma"
-                      className="h-[74px] w-auto object-contain"
+                      src="/horizontal-logo-motto.svg"
+                      alt="AK Pharma - Smart Solutions for Healthier Living"
+                      className="h-10 w-auto object-contain"
                     />
-                    <div className="mt-1 text-[11px] leading-[1.35] text-black font-normal">
-                      <p>Dhaka, Bangladesh</p>
-                      <p>Phone: +8801712-611071, +8801798-112763</p>
-                      <p>Email: akpharmabd@gmail.com</p>
+                    <div className="mt-2 text-[11px] leading-relaxed text-slate-500 font-normal">
+                      <p className="font-semibold text-slate-700">AK Pharma Ltd. • QA & Central Inventory Governance</p>
+                      <p>10/26, Rupnagar R/A, Mirpur, Dhaka 1216, Bangladesh</p>
+                      <p>Tel: +8801712-611071 • Email: akpharmabd@gmail.com</p>
+                      <p className="text-[10px] text-slate-400">DGDA Lic: DL-2024-DH-08492 • Tax TIN: 4892-1082-9381</p>
                     </div>
                   </div>
 
-                  {/* ADJUSTMENT CERTIFICATE Box */}
-                  <div className="bg-black text-white px-8 py-3.5 flex items-center justify-center min-w-[210px] h-[68px]">
-                    <span className="text-xl font-extrabold tracking-[0.18em] text-white uppercase font-sans select-none whitespace-nowrap">
-                      ADJUSTMENT CERTIFICATE
-                    </span>
+                  {/* Certificate Meta Block */}
+                  <div className="text-left sm:text-right space-y-1">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold uppercase tracking-wider">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      DGDA GxP Certified
+                    </div>
+                    <h2 className="text-xl font-black tracking-tight text-slate-900 uppercase">
+                      Stock Adjustment Certificate
+                    </h2>
+                    <p className="font-mono text-xs font-bold text-slate-800">
+                      Certificate Ref: <span className="text-amber-600">{selectedAdjustment.adjustmentRef}</span>
+                    </p>
+                    <div className="text-[11px] text-slate-500 space-y-0.5">
+                      <p>
+                        Audit Date: <span className="font-semibold text-slate-700">{selectedAdjustment.date}</span>
+                      </p>
+                      <p>
+                        Action Type: <span className="font-semibold text-slate-700">{selectedAdjustment.type}</span>
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* 2. Side-by-Side Dual Boxes */}
-                <div className="mt-6 grid grid-cols-2 gap-4">
-                  {/* Left Box: ITEM & BATCH DETAILS */}
-                  <div className="border border-black">
-                    <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-                      ITEM & BATCH IDENTIFICATION:
+                {/* 2. Side-by-Side Dual Cards: Item & Batch Profile vs Regulatory Reference */}
+                <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Left: Item & Batch Profile */}
+                  <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-500" />
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <Package className="h-4 w-4 text-blue-600" />
+                      <h3 className="font-bold text-slate-800 text-[11px] tracking-wider uppercase">
+                        Formulation & Batch Identification
+                      </h3>
                     </div>
-                    <div className="p-2.5 text-xs text-black space-y-1">
-                      <p>
-                        <span className="font-normal">Formulation Name: </span>
-                        <span className="font-semibold">{selectedAdjustment.formulationName}</span>
-                      </p>
-                      <p>
-                        <span className="font-normal">SKU Code: </span>
-                        <span className="font-semibold font-mono">{selectedAdjustment.skuCode}</span>
-                      </p>
-                      <p>
-                        <span className="font-normal">Batch Number: </span>
-                        <span className="font-semibold font-mono">{selectedAdjustment.batchNumber}</span>
-                      </p>
-                      <p>
-                        <span className="font-normal">Storage Location / Bin: </span>
-                        <span className="font-semibold">{selectedAdjustment.warehouseLocation}</span>
-                      </p>
+                    <div className="space-y-1.5 text-xs">
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Formulation Name</p>
+                        <p className="font-bold text-slate-900 text-sm">{selectedAdjustment.formulationName}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+                        <div>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">SKU Code</p>
+                          <p className="font-mono font-semibold text-slate-700">{selectedAdjustment.skuCode}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">Batch Number</p>
+                          <p className="font-mono font-semibold text-slate-700">{selectedAdjustment.batchNumber}</p>
+                        </div>
+                      </div>
+                      <div className="pt-1 border-t border-slate-200/60 text-[11px] text-slate-600">
+                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Storage Location / Bin</span>
+                        <p className="font-semibold text-slate-800">{selectedAdjustment.warehouseLocation}</p>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Right Box: CERTIFICATE DETAILS */}
-                  <div className="border border-black">
-                    <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-                      CERTIFICATE REF: {selectedAdjustment.adjustmentRef}
+                  {/* Right: Regulatory Reference & Authorization */}
+                  <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <ShieldCheck className="h-4 w-4 text-amber-600" />
+                      <h3 className="font-bold text-slate-800 text-[11px] tracking-wider uppercase">
+                        Action Classification & Authority
+                      </h3>
                     </div>
-                    <div className="p-2.5 text-xs text-black space-y-1">
-                      <p>
-                        <span className="font-normal">Date: </span>
-                        <span className="font-semibold">{selectedAdjustment.date}</span>
-                      </p>
-                      <p>
-                        <span className="font-normal">Action Classification: </span>
-                        <span className="font-semibold">{selectedAdjustment.type}</span>
-                      </p>
-                      <p>
-                        <span className="font-normal">Authorized Officer: </span>
-                        <span className="font-semibold">{selectedAdjustment.authorizedBy}</span>
-                      </p>
-                      <p>
-                        <span className="font-normal">Status: </span>
-                        <span className="font-semibold">Approved & Ledger Reconciled</span>
-                      </p>
+                    <div className="space-y-1.5 text-xs">
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Classification Type</p>
+                        <p className="font-bold text-slate-900">{selectedAdjustment.type}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+                        <div>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">Authorized Officer</p>
+                          <p className="font-semibold text-slate-800">{selectedAdjustment.authorizedBy}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">Audit Status</p>
+                          <p className="font-medium text-emerald-700 flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Reconciled
+                          </p>
+                        </div>
+                      </div>
+                      <div className="pt-1 border-t border-slate-200/60 text-[11px] text-slate-600">
+                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Facility Context</span>
+                        <p className="font-semibold text-slate-800">Central Pharma Logistics Depot - Tejgaon</p>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* 3. Items Table */}
-                <table className="w-full border-collapse border border-black mt-6 text-xs text-black">
-                  <thead className="bg-black text-white font-bold text-xs uppercase">
-                    <tr>
-                      <th className="w-12 py-1.5 px-2 text-center border-r border-neutral-700">SL</th>
-                      <th className="py-1.5 px-3 text-left border-r border-neutral-700">Formulation & SKU</th>
-                      <th className="w-24 py-1.5 px-2 text-center border-r border-neutral-700">Batch No</th>
-                      <th className="w-24 py-1.5 px-2 text-center border-r border-neutral-700">Quantity</th>
-                      <th className="w-28 py-1.5 px-3 text-right border-r border-neutral-700">Unit Cost</th>
-                      <th className="w-32 py-1.5 px-3 text-right">Net Impact</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-black h-8">
-                      <td className="py-1 px-2 text-center border-r border-black font-mono font-medium">
-                        1
-                      </td>
-                      <td className="py-1 px-3 text-left border-r border-black font-semibold">
-                        <div>{selectedAdjustment.formulationName}</div>
-                        <div className="text-[10px] text-neutral-600 font-mono font-normal">
-                          {selectedAdjustment.skuCode}
-                        </div>
-                      </td>
-                      <td className="py-1 px-2 text-center border-r border-black font-mono">
-                        {selectedAdjustment.batchNumber}
-                      </td>
-                      <td className="py-1 px-2 text-center border-r border-black font-mono font-bold">
-                        {selectedAdjustment.quantity > 0
-                          ? `+${selectedAdjustment.quantity}`
-                          : selectedAdjustment.quantity}{" "}
-                        Units
-                      </td>
-                      <td className="py-1 px-3 text-right border-r border-black font-mono">
-                        ৳{selectedAdjustment.unitCostBDT.toFixed(2)}
-                      </td>
-                      <td className="py-1 px-3 text-right font-mono font-bold">
+                <div className="mt-5 rounded-xl border border-slate-200 overflow-hidden">
+                  <table className="w-full border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100/80 text-slate-600 border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                        <th className="w-10 py-2.5 px-3 text-center font-semibold">SL</th>
+                        <th className="py-2.5 px-3 text-left font-semibold">Formulation & SKU Code</th>
+                        <th className="w-28 py-2.5 px-3 text-center font-semibold">Batch No</th>
+                        <th className="w-28 py-2.5 px-3 text-center font-semibold">Quantity Delta</th>
+                        <th className="w-28 py-2.5 px-3 text-right font-semibold">Unit Cost (৳)</th>
+                        <th className="w-36 py-2.5 px-3 text-right font-semibold">Net Financial Impact (৳)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      <tr className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3 px-3 text-center font-mono text-slate-400 text-[11px]">01</td>
+                        <td className="py-3 px-3">
+                          <p className="font-bold text-slate-900">{selectedAdjustment.formulationName}</p>
+                          <p className="text-[10px] font-mono text-slate-500">SKU: {selectedAdjustment.skuCode}</p>
+                        </td>
+                        <td className="py-3 px-3 text-center font-mono text-slate-700 font-semibold">
+                          {selectedAdjustment.batchNumber}
+                        </td>
+                        <td className="py-3 px-3 text-center font-mono font-bold">
+                          <span
+                            className={
+                              selectedAdjustment.quantity > 0
+                                ? "text-emerald-700"
+                                : "text-red-700"
+                            }
+                          >
+                            {selectedAdjustment.quantity > 0
+                              ? `+${selectedAdjustment.quantity}`
+                              : selectedAdjustment.quantity}{" "}
+                            Units
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono text-slate-700">
+                          ৳{selectedAdjustment.unitCostBDT.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+                          <span
+                            className={
+                              selectedAdjustment.totalImpactBDT < 0
+                                ? "text-red-700"
+                                : "text-emerald-700"
+                            }
+                          >
+                            {selectedAdjustment.totalImpactBDT < 0
+                              ? `-৳${Math.abs(selectedAdjustment.totalImpactBDT).toLocaleString("en-IN")}`
+                              : `+৳${selectedAdjustment.totalImpactBDT.toLocaleString("en-IN")}`}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 4. Financial Calculation & Words Callout */}
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-12 gap-4 items-start">
+                  {/* Left: Amount in Words */}
+                  <div className="sm:col-span-7 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+                    <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-amber-600" />
+                      Financial Adjustment Valuation in Words
+                    </p>
+                    <p className="text-xs font-semibold text-amber-950 italic leading-relaxed">
+                      "{numberToWordsBDT(Math.abs(selectedAdjustment.totalImpactBDT))}"
+                    </p>
+                    <div className="mt-3 pt-2.5 border-t border-amber-200/50 flex flex-wrap items-center justify-between text-[11px] text-amber-800">
+                      <span>Reason: <strong>{selectedAdjustment.reasonCode}</strong></span>
+                      <span>Action: <strong>{selectedAdjustment.type}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Right: Net Financial Valuation Delta */}
+                  <div className="sm:col-span-5 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-slate-600">
+                      <span>Ledger Impact Classification</span>
+                      <span className="font-semibold text-slate-800">{selectedAdjustment.type}</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                      <span className="font-bold text-slate-900 text-xs uppercase tracking-wide">
+                        Net Impact
+                      </span>
+                      <span
+                        className={`font-mono text-base font-black ${
+                          selectedAdjustment.totalImpactBDT < 0
+                            ? "text-red-700"
+                            : "text-emerald-700"
+                        }`}
+                      >
                         {selectedAdjustment.totalImpactBDT < 0
                           ? `-৳${Math.abs(selectedAdjustment.totalImpactBDT).toLocaleString("en-IN")}`
                           : `+৳${selectedAdjustment.totalImpactBDT.toLocaleString("en-IN")}`}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                {/* 4. Financial Summary: Amount in Words (Left) & Impact (Right) */}
-                <div className="flex items-stretch border border-black border-t-0">
-                  {/* Left: Amount in Words */}
-                  <div className="flex-1 p-3 flex flex-col justify-between">
-                    <div className="text-xs text-black">
-                      <span className="font-semibold">Financial Impact in Words: </span>
-                      <span className="font-medium underline decoration-black decoration-1 underline-offset-4">
-                        {numberToWordsBDT(Math.abs(selectedAdjustment.totalImpactBDT))}
                       </span>
                     </div>
-                    <div className="text-[11px] text-neutral-600 mt-2">
-                      Ledger Category: {selectedAdjustment.type}
-                    </div>
-                  </div>
-
-                  {/* Right: Net Impact */}
-                  <div className="w-80 border-l border-black">
-                    <div className="flex text-xs">
-                      <div className="w-36 bg-black text-white font-bold py-2.5 px-3 flex items-center">
-                        TOTAL NET IMPACT:
-                      </div>
-                      <div className="flex-1 py-2.5 px-3 text-right font-mono font-bold text-sm text-black">
-                        {selectedAdjustment.totalImpactBDT < 0
-                          ? `-৳${Math.abs(selectedAdjustment.totalImpactBDT).toLocaleString("en-IN")}`
-                          : `+৳${selectedAdjustment.totalImpactBDT.toLocaleString("en-IN")}`}
-                      </div>
-                    </div>
                   </div>
                 </div>
 
-                {/* 5. Audited Reason & Regulatory Justification */}
-                <div className="mt-6 border border-black">
-                  <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-                    REGULATORY JUSTIFICATION & AUDIT REASON:
+                {/* 5. Regulatory Justification & Audit Memo */}
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 text-xs text-slate-700 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-slate-800 font-bold text-[11px] tracking-wide uppercase">
+                    <ShieldCheck className="h-4 w-4 text-slate-600" />
+                    Regulatory Justification & DGDA Audit Protocol
                   </div>
-                  <div className="p-3 text-xs text-black space-y-1">
-                    <p className="font-medium italic">
-                      "{selectedAdjustment.reasonCode}"
-                    </p>
-                    <p className="text-[11px] text-neutral-600 pt-1">
-                      Conforms to DGDA inventory disposal and stock correction SOPs. Certified physical inventory record updated.
-                    </p>
-                  </div>
+                  <p className="italic text-slate-800 text-[11px]">
+                    "{selectedAdjustment.reasonCode}"
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-slate-600 pt-0.5">
+                    This adjustment conforms to Directorate General of Drug Administration (DGDA) standard operating procedures for physical stock reconciliations, quarantine, or disposal. Physical count records and financial sub-ledgers have been updated accordingly.
+                  </p>
                 </div>
 
-                {/* 6. Signatures */}
-                <div className="mt-14 pb-4 grid grid-cols-3 gap-8 text-center text-xs text-black">
+                {/* 6. Executive 3-Tier Signatures */}
+                <div className="mt-10 pt-4 grid grid-cols-3 gap-6 text-center text-xs">
                   <div>
-                    <div className="w-40 mx-auto border-t border-black mb-1.5" />
-                    <span className="font-semibold text-black">Warehouse Officer</span>
-                    <span className="block text-[10px] text-neutral-500">Stock Controller</span>
+                    <div className="w-36 mx-auto border-t border-slate-400 mb-1.5" />
+                    <p className="font-bold text-slate-800">Warehouse Officer</p>
+                    <p className="text-[10px] text-slate-400">Stock Controller</p>
                   </div>
                   <div>
-                    <div className="w-40 mx-auto border-t border-black mb-1.5" />
-                    <span className="font-semibold text-black">QA Inspector</span>
-                    <span className="block text-[10px] text-neutral-500">DGDA Compliance Lead</span>
+                    <div className="w-36 mx-auto border-t border-slate-400 mb-1.5" />
+                    <p className="font-bold text-slate-800">QA Inspector</p>
+                    <p className="text-[10px] text-slate-400">DGDA Compliance Lead</p>
                   </div>
                   <div>
-                    <div className="w-40 mx-auto border-t border-black mb-1.5" />
-                    <span className="font-semibold text-black">{selectedAdjustment.authorizedBy}</span>
-                    <span className="block text-[10px] text-neutral-500">Authorized Signatory</span>
+                    <div className="w-36 mx-auto border-t border-slate-400 mb-1.5" />
+                    <p className="font-bold text-slate-800">{selectedAdjustment.authorizedBy}</p>
+                    <p className="text-[10px] text-slate-400">Authorized Signatory</p>
                   </div>
                 </div>
               </div>
@@ -1297,7 +1352,7 @@ export default function StockAdjustmentsPage() {
                 <Button
                   size="sm"
                   onClick={() => window.print()}
-                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                  className="gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-sm"
                 >
                   <Printer className="h-4 w-4" /> Print Certificate
                 </Button>

@@ -2447,7 +2447,7 @@ export default function WholesalerPurchaseOrdersPage() {
                 </Button>
                 <Button
                   onClick={() => window.print()}
-                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                  className="gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-sm"
                 >
                   <Printer className="h-4 w-4" /> Print Purchase Order
                 </Button>

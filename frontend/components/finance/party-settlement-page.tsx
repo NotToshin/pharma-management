@@ -833,7 +833,7 @@ export function PartySettlementPage({
                 </Button>
                 <Button
                   onClick={() => window.print()}
-                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                  className="gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-sm"
                 >
                   <Printer className="h-4 w-4" /> {outgoing ? "Print Voucher" : "Print Receipt"}
                 </Button>

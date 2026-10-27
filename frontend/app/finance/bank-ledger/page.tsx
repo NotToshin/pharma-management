@@ -1783,7 +1783,7 @@ export default function AccountLedgerPage() {
               <Button
                 size="sm"
                 onClick={triggerDirectPrint}
-                className="h-8 gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                className="h-8 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-sm"
               >
                 <Printer className="h-3.5 w-3.5" /> Print Voucher
               </Button>
@@ -1792,183 +1792,209 @@ export default function AccountLedgerPage() {
 
           {printTarget && (
             <div className="space-y-6 pt-2">
-              <div id="print-standalone-bank-voucher" className="w-full bg-white text-black font-sans text-xs selection:bg-none print:p-0">
-                {/* 1. Header: Logo (left) + Solid Black Box (right) */}
-                <div className="flex items-start justify-between">
-                  {/* Brand Logo & Contact */}
-                  <div className="flex flex-col items-start max-w-[340px]">
+              <div id="print-standalone-bank-voucher" className="w-full bg-white text-slate-900 font-sans text-xs selection:bg-none print:p-0">
+                {/* 1. Header: Horizontal Logo & Motto + Treasury Voucher Metadata */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-200/90 gap-4">
+                  {/* Brand Horizontal Logo with Motto */}
+                  <div className="flex flex-col items-start max-w-[390px]">
                     <img
-                      src="/logo.svg"
-                      alt="AK Pharma"
-                      className="h-[74px] w-auto object-contain"
+                      src="/horizontal-logo-motto.svg"
+                      alt="AK Pharma - Smart Solutions for Healthier Living"
+                      className="h-10 w-auto object-contain"
                     />
-                    <div className="mt-1 text-[11px] leading-[1.35] text-black font-normal">
-                      <p>Dhaka, Bangladesh</p>
-                      <p>Phone: +8801712-611071, +8801798-112763</p>
-                      <p>Email: akpharmabd@gmail.com</p>
+                    <div className="mt-2 text-[11px] leading-relaxed text-slate-500 font-normal">
+                      <p className="font-semibold text-slate-700">AK Pharma Ltd. • Central Treasury & Bank Operations</p>
+                      <p>10/26, Rupnagar R/A, Mirpur, Dhaka 1216, Bangladesh</p>
+                      <p>Tel: +8801712-611071 • Email: akpharmabd@gmail.com</p>
+                      <p className="text-[10px] text-slate-400">DGDA Lic: DL-2024-DH-08492 • Tax TIN: 4892-1082-9381</p>
                     </div>
                   </div>
 
-                  {/* BANK VOUCHER Box */}
-                  <div className="bg-black text-white px-8 py-3.5 flex items-center justify-center min-w-[210px] h-[68px]">
-                    <span className="text-2xl font-extrabold tracking-[0.2em] text-white uppercase font-sans select-none whitespace-nowrap">
-                      BANK VOUCHER
-                    </span>
+                  {/* Voucher Meta Block */}
+                  <div className="text-left sm:text-right space-y-1">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-700 text-[11px] font-bold uppercase tracking-wider">
+                      <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+                      Treasury Journal Entry
+                    </div>
+                    <h2 className="text-xl font-black tracking-tight text-slate-900 uppercase">
+                      Bank Voucher
+                    </h2>
+                    <p className="font-mono text-xs font-bold text-slate-800">
+                      Voucher No: <span className="text-purple-600">{printTarget.refCode}</span>
+                    </p>
+                    <div className="text-[11px] text-slate-500 space-y-0.5">
+                      <p>
+                        Entry Date: <span className="font-semibold text-slate-700">{printTarget.entryDate}</span>
+                      </p>
+                      <p>
+                        Flow Type: <span className="font-semibold text-slate-700">{printTarget.flowType}</span>
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* 2. Side-by-Side Dual Boxes */}
-                <div className="mt-6 grid grid-cols-2 gap-4">
-                  {/* Left Box: TRANSACTION ACCOUNTS */}
-                  <div className="border border-black">
-                    <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-                      TRANSACTION ACCOUNTS:
+                {/* 2. Side-by-Side Dual Cards: Source Debit vs Destination Credit */}
+                <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Source Account (Debit / Out) */}
+                  <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 to-amber-500" />
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <Landmark className="h-4 w-4 text-amber-600" />
+                      <h3 className="font-bold text-slate-800 text-[11px] tracking-wider uppercase">
+                        Source Account (Debit / Disbursed)
+                      </h3>
                     </div>
-                    <div className="p-2.5 text-xs text-black space-y-1">
-                      <p>
-                        <span className="font-normal">Source (Debit / Out): </span>
-                        <span className="font-semibold">
+                    <div className="space-y-1.5 text-xs">
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Account Title</p>
+                        <p className="font-bold text-slate-900 text-sm">
                           {printTarget.sourceAccount?.accountTitle || "External Source / Payee"}
-                        </span>
-                      </p>
+                        </p>
+                      </div>
                       {printTarget.sourceAccount?.accountNumber && (
-                        <p className="font-mono text-[11px] text-neutral-600">
-                          A/C: {printTarget.sourceAccount.accountNumber}
-                        </p>
-                      )}
-                      <p className="pt-1">
-                        <span className="font-normal">Destination (Credit / In): </span>
-                        <span className="font-semibold">
-                          {printTarget.destinationAccount?.accountTitle || "External Payee / Safe"}
-                        </span>
-                      </p>
-                      {printTarget.destinationAccount?.accountNumber && (
-                        <p className="font-mono text-[11px] text-neutral-600">
-                          A/C: {printTarget.destinationAccount.accountNumber}
-                        </p>
+                        <div className="pt-1 border-t border-slate-200/60">
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">Account Number</p>
+                          <p className="font-mono font-semibold text-slate-700">{printTarget.sourceAccount.accountNumber}</p>
+                        </div>
                       )}
                       {printTarget.fundingEntity && (
-                        <p className="pt-1">
-                          <span className="font-normal">Entity / Counterparty: </span>
-                          <span className="font-semibold">{printTarget.fundingEntity}</span>
-                        </p>
+                        <div className="pt-1 border-t border-slate-200/60">
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">Entity / Counterparty</p>
+                          <p className="font-medium text-slate-800">{printTarget.fundingEntity}</p>
+                        </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Right Box: VOUCHER DETAILS */}
-                  <div className="border border-black">
-                    <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-                      VOUCHER NO: {printTarget.refCode}
+                  {/* Destination Account (Credit / In) */}
+                  <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <Building2 className="h-4 w-4 text-emerald-600" />
+                      <h3 className="font-bold text-slate-800 text-[11px] tracking-wider uppercase">
+                        Destination Account (Credit / Deposited)
+                      </h3>
                     </div>
-                    <div className="p-2.5 text-xs text-black space-y-1">
-                      <p>
-                        <span className="font-normal">Date: </span>
-                        <span className="font-semibold">{printTarget.entryDate}</span>
-                      </p>
-                      <p>
-                        <span className="font-normal">Operation Flow: </span>
-                        <span className="font-semibold">{printTarget.flowType}</span>
-                      </p>
-                      <p>
-                        <span className="font-normal">Payment Channel: </span>
-                        <span className="font-semibold">{printTarget.method}</span>
-                      </p>
-                      <p>
-                        <span className="font-normal">Category: </span>
-                        <span className="font-semibold">Central Treasury Journal Entry</span>
-                      </p>
-                      <p>
-                        <span className="font-normal">Status: </span>
-                        <span className="font-semibold">Posted & Reconciled</span>
-                      </p>
+                    <div className="space-y-1.5 text-xs">
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Account Title</p>
+                        <p className="font-bold text-slate-900 text-sm">
+                          {printTarget.destinationAccount?.accountTitle || "External Payee / Safe"}
+                        </p>
+                      </div>
+                      {printTarget.destinationAccount?.accountNumber && (
+                        <div className="pt-1 border-t border-slate-200/60">
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">Account Number</p>
+                          <p className="font-mono font-semibold text-slate-700">{printTarget.destinationAccount.accountNumber}</p>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+                        <div>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">Payment Channel</p>
+                          <p className="font-semibold text-slate-800">{printTarget.method}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">Audit Status</p>
+                          <p className="font-medium text-emerald-700 flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Reconciled
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* 3. Particulars Table */}
-                <table className="w-full border-collapse border border-black mt-6 text-xs text-black">
-                  <thead className="bg-black text-white font-bold text-xs uppercase">
-                    <tr>
-                      <th className="w-12 py-1.5 px-2 text-center border-r border-neutral-700">SL</th>
-                      <th className="py-1.5 px-3 text-left border-r border-neutral-700">Particulars / Journal Memo</th>
-                      <th className="w-36 py-1.5 px-3 text-right">Transacted Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-black h-8">
-                      <td className="py-1 px-2 text-center border-r border-black font-mono font-medium">
-                        1
-                      </td>
-                      <td className="py-1 px-3 text-left border-r border-black font-semibold">
-                        {printTarget.particulars}
-                      </td>
-                      <td className="py-1 px-3 text-right font-mono font-bold">
-                        ৳{printTarget.amount.toLocaleString("en-IN")}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div className="mt-5 rounded-xl border border-slate-200 overflow-hidden">
+                  <table className="w-full border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100/80 text-slate-600 border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                        <th className="w-10 py-2.5 px-3 text-center font-semibold">SL</th>
+                        <th className="py-2.5 px-3 text-left font-semibold">Particulars / Journal Transaction Memo</th>
+                        <th className="w-44 py-2.5 px-3 text-right font-semibold">Transacted Amount (৳)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      <tr className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3 px-3 text-center font-mono text-slate-400 text-[11px]">01</td>
+                        <td className="py-3 px-3 font-semibold text-slate-900">
+                          <p>{printTarget.particulars}</p>
+                          <p className="text-[10px] text-slate-500 font-normal mt-0.5">
+                            Method: {printTarget.method} • Flow Classification: {printTarget.flowType}
+                          </p>
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 text-sm">
+                          ৳{printTarget.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
-                {/* 4. Financial Summary: Amount in Words (Left) & Total (Right) */}
-                <div className="flex items-stretch border border-black border-t-0">
+                {/* 4. Financial Calculation & Words Callout */}
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-12 gap-4 items-start">
                   {/* Left: Amount in Words */}
-                  <div className="flex-1 p-3 flex flex-col justify-between">
-                    <div className="text-xs text-black">
-                      <span className="font-semibold">Amount in Words: </span>
-                      <span className="font-medium underline decoration-black decoration-1 underline-offset-4">
-                        {numberToWordsBDT(printTarget.amount)}
+                  <div className="sm:col-span-7 rounded-xl border border-purple-100 bg-purple-50/40 p-4">
+                    <p className="text-[10px] font-bold text-purple-900 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                      <Receipt className="h-3.5 w-3.5 text-purple-600" />
+                      Transacted Amount in Words
+                    </p>
+                    <p className="text-xs font-semibold text-purple-950 italic leading-relaxed">
+                      "{numberToWordsBDT(printTarget.amount)}"
+                    </p>
+                    <div className="mt-3 pt-2.5 border-t border-purple-200/50 flex flex-wrap items-center justify-between text-[11px] text-purple-800">
+                      <span>Channel: <strong>{printTarget.method}</strong></span>
+                      <span>Flow: <strong>{printTarget.flowType}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Right: Net Transacted Total */}
+                  <div className="sm:col-span-5 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-slate-600">
+                      <span>Accounting Classification</span>
+                      <span className="font-semibold text-slate-800">Treasury Transfer</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                      <span className="font-bold text-slate-900 text-xs uppercase tracking-wide">
+                        Total Transacted
+                      </span>
+                      <span className="font-mono text-base font-black text-purple-700">
+                        ৳{printTarget.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
-                    <div className="text-[11px] text-neutral-600 mt-2">
-                      Treasury Instrument: {printTarget.method} • Flow: {printTarget.flowType}
-                    </div>
-                  </div>
-
-                  {/* Right: Total box */}
-                  <div className="w-80 border-l border-black">
-                    <div className="flex text-xs">
-                      <div className="w-36 bg-black text-white font-bold py-2.5 px-3 flex items-center">
-                        TOTAL TRANSACTED:
-                      </div>
-                      <div className="flex-1 py-2.5 px-3 text-right font-mono font-bold text-sm text-black">
-                        ৳{printTarget.amount.toLocaleString("en-IN")}
-                      </div>
-                    </div>
                   </div>
                 </div>
 
-                {/* 5. Treasury Verification Box */}
-                <div className="mt-6 border border-black">
-                  <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-                    TREASURY RECONCILIATION & AUDIT COMPLIANCE:
+                {/* 5. Treasury Verification & Audit Compliance */}
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 text-xs text-slate-700 space-y-1">
+                  <div className="flex items-center gap-1.5 text-slate-800 font-bold text-[11px] tracking-wide uppercase">
+                    <CheckCircle2 className="h-4 w-4 text-slate-600" />
+                    Treasury Reconciliation & Statutory Audit Compliance
                   </div>
-                  <div className="p-3 text-xs text-black space-y-1">
-                    <p>
-                      1. System-generated electronic ledger record verified against bank statement & physical deposit slips.
-                    </p>
-                    <p>
-                      2. Complies with Central Treasury operating procedures and statutory accounting regulations.
-                    </p>
-                  </div>
+                  <p className="text-[11px] leading-relaxed text-slate-600">
+                    1. System-generated electronic ledger record verified against bank statement feeds and treasury deposit slips.
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-slate-600">
+                    2. Complies with Central Treasury operating procedures and statutory accounting regulations.
+                  </p>
                 </div>
 
-                {/* 6. Signatures */}
-                <div className="mt-14 pb-4 grid grid-cols-3 gap-8 text-center text-xs text-black">
+                {/* 6. Executive 3-Tier Signatures */}
+                <div className="mt-10 pt-4 grid grid-cols-3 gap-6 text-center text-xs">
                   <div>
-                    <div className="w-40 mx-auto border-t border-black mb-1.5" />
-                    <span className="font-semibold text-black">Treasury Officer</span>
-                    <span className="block text-[10px] text-neutral-500">Prepared By</span>
+                    <div className="w-36 mx-auto border-t border-slate-400 mb-1.5" />
+                    <p className="font-bold text-slate-800">Treasury Officer</p>
+                    <p className="text-[10px] text-slate-400">Prepared & Initiated By</p>
                   </div>
                   <div>
-                    <div className="w-40 mx-auto border-t border-black mb-1.5" />
-                    <span className="font-semibold text-black">Internal Auditor</span>
-                    <span className="block text-[10px] text-neutral-500">Verified By</span>
+                    <div className="w-36 mx-auto border-t border-slate-400 mb-1.5" />
+                    <p className="font-bold text-slate-800">Internal Auditor</p>
+                    <p className="text-[10px] text-slate-400">Verified & Reconciled</p>
                   </div>
                   <div>
-                    <div className="w-40 mx-auto border-t border-black mb-1.5" />
-                    <span className="font-semibold text-black">Chief Financial Officer</span>
-                    <span className="block text-[10px] text-neutral-500">Authorized Signatory</span>
+                    <div className="w-36 mx-auto border-t border-slate-400 mb-1.5" />
+                    <p className="font-bold text-slate-800">Chief Financial Officer</p>
+                    <p className="text-[10px] text-slate-400">Authorized & Approved</p>
                   </div>
                 </div>
               </div>
@@ -1987,7 +2013,7 @@ export default function AccountLedgerPage() {
                   type="button"
                   size="sm"
                   onClick={triggerDirectPrint}
-                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                  className="gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white shadow-sm"
                 >
                   <Printer className="h-4 w-4" /> Print Voucher
                 </Button>
