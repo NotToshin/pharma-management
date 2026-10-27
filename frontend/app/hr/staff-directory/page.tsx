@@ -138,6 +138,67 @@ export interface Employee {
   emergencyPhone: string
 }
 
+interface StaffRecord {
+  id: string
+  empId: string
+  fullName: string
+  phone: string
+  fathersName?: string | null
+  mothersName?: string | null
+  address?: string | null
+  nidNumber?: string | null
+  email?: string | null
+  roleId?: string | null
+  role?: RoleItem | null
+  designation?: string | null
+  department?: string | null
+  joiningDate?: string | null
+  status: string
+  salaryDetails?: { baseSalary: number | string }
+  salaries?: { baseSalary: number | string }[]
+  supervisor?: string | null
+  workSchedule?: string | null
+  emergencyName?: string | null
+  emergencyRelationship?: string | null
+  emergencyPhone?: string | null
+}
+
+function formatEmployee(item: StaffRecord): Employee {
+  const resolvedRoleName = item.role?.name || item.designation || "Staff Member"
+  return {
+    id: item.id,
+    empId: item.empId,
+    fullName: item.fullName,
+    phone: item.phone,
+    fathersName: item.fathersName || "N/A",
+    mothersName: item.mothersName || "N/A",
+    address: item.address || "N/A",
+    nidNumber: item.nidNumber || "N/A",
+    email: item.email || "",
+    roleId: item.roleId || item.role?.id || "",
+    roleName: resolvedRoleName,
+    designation: resolvedRoleName,
+    department: item.department || "General",
+    startDate: item.joiningDate
+      ? new Date(item.joiningDate).toLocaleDateString("en-US", {
+          month: "long",
+          day: "2-digit",
+          year: "numeric",
+        })
+      : "",
+    employmentStatus:
+      item.status === "PROBATION" ? "Probationary"
+        : item.status === "ON_LEAVE" ? "On Leave"
+          : item.status === "SUSPENDED" ? "Suspended" : "Active",
+    salary: Number(item.salaryDetails?.baseSalary || item.salaries?.[0]?.baseSalary) || 20000,
+    supervisor: item.supervisor || "Toshin Bin Azad (Human Resource)",
+    workSchedule: item.workSchedule ?? "",
+    emergencyName: item.emergencyName ?? "",
+    emergencyRelationship: item.emergencyRelationship ?? "",
+    emergencyPhone: item.emergencyPhone ?? "",
+  }
+}
+
 const WORK_SCHEDULE_PRESETS = [
   "Sat - Thu (8:30 AM - 5:30 PM)",
   "Sun - Thu (9:00 AM - 6:00 PM)",
@@ -210,6 +271,7 @@ export default function StaffDirectoryPage() {
   // Edit Staff Modal State
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [editingEmp, setEditingEmp] = React.useState<Employee | null>(null)
+  const [isSavingStaff, setIsSavingStaff] = React.useState(false)
 
   // Global Delete Modal State
   const [staffToDelete, setStaffToDelete] = React.useState<Employee | null>(null)
@@ -235,56 +297,13 @@ export default function StaffDirectoryPage() {
       const json = await res.json()
       const rawData = Array.isArray(json) ? json : json.data || []
 
-      const formattedData = rawData.map((item: any) => {
-        const resolvedRoleName = item.role?.name || item.designation || "Staff Member"
-        return {
-          id: item.id,
-          empId: item.empId,
-          fullName: item.fullName,
-          phone: item.phone,
-          fathersName: item.fathersName || "N/A",
-          mothersName: item.mothersName || "N/A",
-          address: item.address || "N/A",
-          nidNumber: item.nidNumber || "N/A",
-          email: item.email || "",
-          roleId: item.roleId || item.role?.id || "",
-          roleName: resolvedRoleName,
-          designation: resolvedRoleName,
-          department: item.department || "General",
-          startDate: item.joiningDate
-            ? new Date(item.joiningDate).toLocaleDateString("en-US", {
-                month: "long",
-                day: "2-digit",
-                year: "numeric",
-              })
-            : "",
-          employmentStatus:
-            item.status === "ACTIVE"
-              ? "Active"
-              : item.status === "PROBATION"
-                ? "Probationary"
-                : item.status === "ON_LEAVE"
-                  ? "On Leave"
-                  : item.status === "SUSPENDED"
-                    ? "Suspended"
-                    : "Active",
-          salary: item.salaryDetails?.baseSalary
-            ? Number(item.salaryDetails.baseSalary)
-            : item.salaries?.[0]?.baseSalary
-              ? Number(item.salaries[0].baseSalary)
-              : 20000,
-          supervisor: item.supervisor || "Toshin Bin Azad (Human Resource)",
-          workSchedule: item.workSchedule ?? "",
-          emergencyName: item.emergencyName ?? "",
-          emergencyRelationship: item.emergencyRelationship ?? "",
-          emergencyPhone: item.emergencyPhone ?? "",
-        }
-      })
+      const formattedData = (rawData as StaffRecord[]).map(formatEmployee)
 
       setEmployees(formattedData)
       setLoading(false)
     } catch (err) {
       console.error("Error loading staff data:", err)
+      toast.error("Failed to load staff records. Please try again.")
       setLoading(false)
     }
   }, [])
@@ -401,8 +420,24 @@ export default function StaffDirectoryPage() {
     setIsEditOpen(true)
   }
 
+  const applySavedEmployee = (
+    record: StaffRecord,
+    submitted: Pick<Employee, "workSchedule" | "emergencyName" | "emergencyRelationship" | "emergencyPhone">
+  ) => {
+    const detailFields = ["workSchedule", "emergencyName", "emergencyRelationship", "emergencyPhone"] as const
+    const detailsSaved = detailFields.every((field) => (record[field] ?? "") === submitted[field])
+    const savedEmployee = formatEmployee(record)
+    setEmployees((current) => current.some((emp) => emp.id === savedEmployee.id)
+      ? current.map((emp) => emp.id === savedEmployee.id ? savedEmployee : emp)
+      : [savedEmployee, ...current])
+    setSelectedEmp((current) => current?.id === savedEmployee.id ? savedEmployee : current)
+    setPrintProfile((current) => current?.id === savedEmployee.id ? savedEmployee : current)
+    return { savedEmployee, detailsSaved }
+  }
+
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSavingStaff) return
     if (!formState.roleId) {
       toast.error("Please select a role before enrolling the employee.")
       return
@@ -416,6 +451,7 @@ export default function StaffDirectoryPage() {
       return
     }
     const toastId = toast.loading(`Onboarding staff member ${formState.fullName}...`)
+    setIsSavingStaff(true)
     try {
       const payload = {
         fullName: formState.fullName,
@@ -451,21 +487,39 @@ export default function StaffDirectoryPage() {
         throw new Error(errData.message || "Failed to save staff to database")
       }
 
+      const json = await res.json()
+      const { savedEmployee, detailsSaved } = applySavedEmployee(json.data || json, payload)
+      if (!detailsSaved) {
+        // Continue editing the created record so retrying cannot enroll it twice.
+        setEditingEmp({
+          ...savedEmployee,
+          workSchedule: payload.workSchedule,
+          emergencyName: payload.emergencyName,
+          emergencyRelationship: payload.emergencyRelationship,
+          emergencyPhone: payload.emergencyPhone,
+        })
+        setIsAddOpen(false)
+        setIsEditOpen(true)
+        toast.error("The employee was created, but the schedule or emergency contact was not saved. Your entries are available in the edit form.", { id: toastId })
+        return
+      }
       toast.success(`Staff member ${formState.fullName} onboarded successfully!`, { id: toastId })
       setFormState(createEmployeeFormState())
       setIsAddOpen(false)
-      fetchStaffData()
       fetchRolesData()
     } catch (error: any) {
       console.error("Error adding employee:", error)
       toast.error(error.message || "Failed to onboard staff member.", { id: toastId })
+    } finally {
+      setIsSavingStaff(false)
     }
   }
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!editingEmp) return
+    if (!editingEmp || isSavingStaff) return
     const toastId = toast.loading(`Updating staff record for ${editingEmp.fullName}...`)
+    setIsSavingStaff(true)
 
     try {
       const payload = {
@@ -501,14 +555,21 @@ export default function StaffDirectoryPage() {
         throw new Error(errData.message || "Failed to update staff record")
       }
 
+      const json = await res.json()
+      const { detailsSaved } = applySavedEmployee(json.data || json, payload)
+      if (!detailsSaved) {
+        toast.error("The server did not save the work schedule or emergency contact. Your entries have been kept. Please try again.", { id: toastId })
+        return
+      }
       toast.success(`Staff record for ${editingEmp.fullName} updated successfully!`, { id: toastId })
       setIsEditOpen(false)
       setEditingEmp(null)
-      fetchStaffData()
       fetchRolesData()
     } catch (error: any) {
       console.error("Error updating employee:", error)
       toast.error(error.message || "Failed to update staff record.", { id: toastId })
+    } finally {
+      setIsSavingStaff(false)
     }
   }
 
@@ -1034,9 +1095,10 @@ export default function StaffDirectoryPage() {
                   </Button>
                   <Button
                     type="submit"
+                    disabled={isSavingStaff}
                     className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
                   >
-                    Confirm & Enroll Staff
+                    {isSavingStaff ? "Enrolling..." : "Confirm & Enroll Staff"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -2080,9 +2142,10 @@ export default function StaffDirectoryPage() {
                 </Button>
                 <Button
                   type="submit"
+                  disabled={isSavingStaff}
                   className="h-8 bg-[#0090FF] text-xs font-semibold text-white hover:bg-[#0080e5]"
                 >
-                  Update Personnel Record
+                  {isSavingStaff ? "Saving..." : "Update Personnel Record"}
                 </Button>
               </DialogFooter>
             </form>

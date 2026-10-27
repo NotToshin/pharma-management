@@ -192,7 +192,9 @@ export const staffService = {
       throw new AppError("Staff member not found", 404);
     }
 
-    const resolvedStatus = mapStatusToDb(data.status || data.employmentStatus);
+    const resolvedStatus = data.status || data.employmentStatus
+      ? mapStatusToDb(data.status || data.employmentStatus)
+      : undefined;
 
     let roleConnect = undefined;
     if (data.roleId && data.roleId.trim()) {
@@ -207,14 +209,14 @@ export const staffService = {
       data: {
         fullName: data.fullName,
         phone: data.phone,
-        email: data.email || null,
+        email: data.email === undefined ? undefined : data.email || null,
         nidNumber: data.nidNumber,
         fathersName: data.fathersName,
         mothersName: data.mothersName,
         address: data.address,
         department: data.department,
         territory: data.territory,
-        supervisor: data.supervisor || null,
+        supervisor: data.supervisor === undefined ? undefined : data.supervisor || null,
         workSchedule: data.workSchedule,
         emergencyName: data.emergencyName,
         emergencyRelationship: data.emergencyRelationship,
