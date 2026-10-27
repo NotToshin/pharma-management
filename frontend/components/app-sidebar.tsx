@@ -228,7 +228,7 @@ const navSections: NavSection[] = [
           { title: "Treasury Overview", href: "/finance/overview" },
           { title: "Bank Accounts Ledger", href: "/finance/bank-ledger" },
           { title: "Supplier Payments", href: "/finance/supplier-payments" },
-          { title: "Buyer Payments", href: "/finance/buyer-payments" },
+          // { title: "Buyer Payments", href: "/finance/buyer-payments" },
         ],
       },
       {

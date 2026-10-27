@@ -212,6 +212,25 @@ export const collectionService = {
     const created = await prisma.$transaction(async (txClient) => {
       let targetAccountId = data.financialAccountId;
 
+      // 1. Resolve or find matching order
+      let matchedOrder = null;
+      if (data.orderId) {
+        matchedOrder = await txClient.order.findUnique({ where: { id: data.orderId } });
+      }
+      if (!matchedOrder && data.invoiceNo?.trim()) {
+        const inv = data.invoiceNo.trim();
+        matchedOrder = await txClient.order.findFirst({
+          where: {
+            OR: [
+              { invoiceNumber: { equals: inv, mode: "insensitive" } },
+              { orderNumber: { equals: inv, mode: "insensitive" } },
+            ],
+          },
+        });
+      }
+
+      const finalOrderId = matchedOrder ? matchedOrder.id : (data.orderId || null);
+
       // If clearing immediately and destination specified, lookup account
       if (status === "Cleared & Deposited") {
         if (!targetAccountId && data.destinationName) {
@@ -260,36 +279,66 @@ export const collectionService = {
             },
           });
         }
+      }
 
-        // Decrement client outstanding dues if registered
-        if (data.chemistName) {
-          await txClient.client.updateMany({
-            where: { pharmacyName: { equals: data.chemistName.trim(), mode: "insensitive" } },
-            data: { outstandingBalanceBDT: { decrement: collected } },
+      // Decrement client outstanding dues if registered
+      // ALWAYS reduce pharmacy due balance as soon as cash collection is recorded from pharmacy
+      if (data.chemistName) {
+        const client = await txClient.client.findFirst({
+          where: {
+            OR: [
+              { pharmacyName: { equals: data.chemistName.trim(), mode: "insensitive" } },
+              ...(data.clientCode ? [{ clientCode: data.clientCode.trim() }] : []),
+            ],
+          },
+        });
+        if (client) {
+          const currentBal = Number(client.outstandingBalanceBDT) || 0;
+          const newBal = Math.max(0, Math.round((currentBal - collected) * 100) / 100);
+          await txClient.client.update({
+            where: { id: client.id },
+            data: { outstandingBalanceBDT: newBal },
           });
         }
+      }
 
-        // Mark order settled if fully paid
-        if (dueRemaining === 0) {
-          if (data.orderId) {
-            await txClient.order.update({
-              where: { id: data.orderId },
-              data: { status: "Settled" },
-            }).catch(() => null);
-          } else if (data.invoiceNo) {
-            await txClient.order.updateMany({
-              where: { invoiceNumber: data.invoiceNo },
-              data: { status: "Settled" },
-            }).catch(() => null);
-          }
-        }
+      // Update Order payment status and status if linked
+      if (matchedOrder) {
+        const priorCollections = await txClient.deliveryCollection.findMany({
+          where: {
+            orderId: matchedOrder.id,
+            status: { not: "Bounced / Rejected" },
+          },
+          select: { amountCollected: true },
+        });
+        const priorCollected = priorCollections.reduce(
+          (sum, c) => sum + (Number(c.amountCollected) || 0),
+          0
+        );
+        const totalPaid = Math.min(
+          Number(matchedOrder.orderValue) || 0,
+          priorCollected + collected
+        );
+        const orderVal = Number(matchedOrder.orderValue) || 0;
+        const newPaymentStatus =
+          totalPaid <= 0.009 ? "UNPAID" : totalPaid + 0.009 >= orderVal ? "PAID" : "PARTIALLY_PAID";
+        const isFullySettled = totalPaid + 0.009 >= orderVal;
+
+        await txClient.order.update({
+          where: { id: matchedOrder.id },
+          data: {
+            paidAmount: totalPaid,
+            paymentStatus: newPaymentStatus,
+            ...(isFullySettled ? { status: "Settled" } : {}),
+          },
+        });
       }
 
       return txClient.deliveryCollection.create({
         data: {
           receiptNo: finalReceiptNo,
           invoiceNo: data.invoiceNo.trim(),
-          orderId: data.orderId || null,
+          orderId: finalOrderId,
           clientCode: data.clientCode || null,
           chemistName: data.chemistName.trim(),
           territory: data.territory.trim(),
@@ -359,9 +408,68 @@ export const collectionService = {
     const amtColl = updateData.amountCollected !== undefined ? updateData.amountCollected : existing.amountCollected;
     updateData.dueAmountRemaining = Math.max(0, totalInv - amtColl);
 
-    const updated = await prisma.deliveryCollection.update({
-      where: { id },
-      data: updateData,
+    const delta = amtColl - existing.amountCollected;
+
+    const updated = await prisma.$transaction(async (txClient) => {
+      if (delta !== 0) {
+        // Adjust client balance by delta
+        const chemist = updateData.chemistName || existing.chemistName;
+        if (chemist) {
+          const client = await txClient.client.findFirst({
+            where: { pharmacyName: { equals: chemist.trim(), mode: "insensitive" } },
+          });
+          if (client) {
+            const currentBal = Number(client.outstandingBalanceBDT) || 0;
+            const newBal = Math.max(0, Math.round((currentBal - delta) * 100) / 100);
+            await txClient.client.update({
+              where: { id: client.id },
+              data: { outstandingBalanceBDT: newBal },
+            });
+          }
+        }
+
+        // Adjust order status if linked
+        const targetOrderId = updateData.orderId || existing.orderId;
+        if (targetOrderId) {
+          const order = await txClient.order.findUnique({ where: { id: targetOrderId } });
+          if (order) {
+            const otherCollections = await txClient.deliveryCollection.findMany({
+              where: {
+                orderId: order.id,
+                id: { not: existing.id },
+                status: { not: "Bounced / Rejected" },
+              },
+              select: { amountCollected: true },
+            });
+            const otherTotal = otherCollections.reduce(
+              (sum, c) => sum + (Number(c.amountCollected) || 0),
+              0
+            );
+            const totalPaid = Math.min(
+              Number(order.orderValue) || 0,
+              otherTotal + amtColl
+            );
+            const orderVal = Number(order.orderValue) || 0;
+            const newPaymentStatus =
+              totalPaid <= 0.009 ? "UNPAID" : totalPaid + 0.009 >= orderVal ? "PAID" : "PARTIALLY_PAID";
+            const isFullySettled = totalPaid + 0.009 >= orderVal;
+
+            await txClient.order.update({
+              where: { id: order.id },
+              data: {
+                paidAmount: totalPaid,
+                paymentStatus: newPaymentStatus,
+                status: isFullySettled ? "Settled" : "Delivered & Invoiced",
+              },
+            });
+          }
+        }
+      }
+
+      return txClient.deliveryCollection.update({
+        where: { id },
+        data: updateData,
+      });
     });
 
     await auditLogService.recordAuditEvent({
@@ -472,26 +580,7 @@ export const collectionService = {
           },
         });
 
-        // Reduce client outstanding balance if matching
-        if (item.chemistName) {
-          await txClient.client.updateMany({
-            where: { pharmacyName: { equals: item.chemistName.trim(), mode: "insensitive" } },
-            data: { outstandingBalanceBDT: { decrement: item.amountCollected } },
-          });
-        }
-
-        // Mark associated order as Settled
-        if (item.orderId) {
-          await txClient.order.update({
-            where: { id: item.orderId },
-            data: { status: "Settled" },
-          }).catch(() => null);
-        } else if (item.invoiceNo) {
-          await txClient.order.updateMany({
-            where: { invoiceNumber: item.invoiceNo },
-            data: { status: "Settled" },
-          }).catch(() => null);
-        }
+        // Note: Pharmacy outstanding balance was already decremented when the delivery cash collection was created
       }
 
       return {
@@ -515,7 +604,7 @@ export const collectionService = {
   },
 
   /**
-   * Deletes a collection receipt (reverses ledger if it was cleared)
+   * Deletes a collection receipt (reverses ledger and restores pharmacy and order dues)
    */
   async deleteCollection(id: string, actorName?: string) {
     const existing = await prisma.deliveryCollection.findUnique({ where: { id } });
@@ -523,20 +612,65 @@ export const collectionService = {
       throw new AppError("Collection receipt not found", 404);
     }
 
-    // If cleared, reverse account balance and revert client balance
-    if (existing.status === "Cleared & Deposited" && existing.financialAccountId) {
-      await prisma.financialAccount.update({
-        where: { id: existing.financialAccountId },
-        data: { balance: { decrement: existing.amountCollected } },
-      }).catch(() => null);
-
+    await prisma.$transaction(async (txClient) => {
+      // 1. Restore client outstanding dues
       if (existing.chemistName) {
-        await prisma.client.updateMany({
+        const client = await txClient.client.findFirst({
           where: { pharmacyName: { equals: existing.chemistName.trim(), mode: "insensitive" } },
-          data: { outstandingBalanceBDT: { increment: existing.amountCollected } },
+        });
+        if (client) {
+          const currentBal = Number(client.outstandingBalanceBDT) || 0;
+          await txClient.client.update({
+            where: { id: client.id },
+            data: {
+              outstandingBalanceBDT: Math.round((currentBal + existing.amountCollected) * 100) / 100,
+            },
+          });
+        }
+      }
+
+      // 2. Restore order status if linked
+      if (existing.orderId) {
+        const order = await txClient.order.findUnique({ where: { id: existing.orderId } });
+        if (order) {
+          const otherCollections = await txClient.deliveryCollection.findMany({
+            where: {
+              orderId: order.id,
+              id: { not: existing.id },
+              status: { not: "Bounced / Rejected" },
+            },
+            select: { amountCollected: true },
+          });
+          const remainingPaid = otherCollections.reduce(
+            (sum, c) => sum + (Number(c.amountCollected) || 0),
+            0
+          );
+          const orderVal = Number(order.orderValue) || 0;
+          const newPaymentStatus =
+            remainingPaid <= 0.009 ? "UNPAID" : remainingPaid + 0.009 >= orderVal ? "PAID" : "PARTIALLY_PAID";
+
+          await txClient.order.update({
+            where: { id: order.id },
+            data: {
+              paidAmount: remainingPaid,
+              paymentStatus: newPaymentStatus,
+              status: newPaymentStatus === "PAID" ? "Settled" : "Delivered & Invoiced",
+            },
+          });
+        }
+      }
+
+      // 3. If cleared, reverse financial account balance
+      if (existing.status === "Cleared & Deposited" && existing.financialAccountId) {
+        await txClient.financialAccount.update({
+          where: { id: existing.financialAccountId },
+          data: { balance: { decrement: existing.amountCollected } },
         }).catch(() => null);
       }
-    }
+
+      // 4. Delete the collection record
+      await txClient.deliveryCollection.delete({ where: { id } });
+    });
 
     await auditLogService.recordAuditEvent({
       module: "Finance & Accounts",
@@ -550,6 +684,6 @@ export const collectionService = {
       actorName: actorName || "Finance Controller",
     });
 
-    return prisma.deliveryCollection.delete({ where: { id } });
+    return { success: true, id };
   },
 };

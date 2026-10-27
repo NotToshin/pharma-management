@@ -42,23 +42,39 @@ export const orderService = {
         orderBy: { createdAt: "desc" },
       }),
       prisma.deliveryCollection.findMany({
-        where: { status: { not: "Bounced / Rejected" }, orderId: { not: null } },
-        select: { orderId: true, amountCollected: true },
+        where: { status: { not: "Bounced / Rejected" } },
+        select: { orderId: true, invoiceNo: true, amountCollected: true },
       }),
     ]);
 
-    const collected = new Map<string, number>();
+    const collectedByOrderId = new Map<string, number>();
+    const collectedByInvoice = new Map<string, number>();
+
     for (const collection of collections) {
-      if (!collection.orderId) continue;
-      collected.set(
-        collection.orderId,
-        (collected.get(collection.orderId) || 0) + (Number(collection.amountCollected) || 0)
-      );
+      const amt = Number(collection.amountCollected) || 0;
+      if (collection.orderId) {
+        collectedByOrderId.set(
+          collection.orderId,
+          (collectedByOrderId.get(collection.orderId) || 0) + amt
+        );
+      }
+      if (collection.invoiceNo) {
+        const inv = collection.invoiceNo.trim().toLowerCase();
+        collectedByInvoice.set(inv, (collectedByInvoice.get(inv) || 0) + amt);
+      }
     }
 
     return orders.map((order) => {
       const total = Number(order.orderValue) || 0;
-      const paid = Math.min(total, (Number(order.paidAmount) || 0) + (collected.get(order.id) || 0));
+      const byOrderId = collectedByOrderId.get(order.id) || 0;
+      const byInv =
+        (order.invoiceNumber ? collectedByInvoice.get(order.invoiceNumber.trim().toLowerCase()) : 0) ||
+        (order.orderNumber ? collectedByInvoice.get(order.orderNumber.trim().toLowerCase()) : 0) ||
+        0;
+      const collectionPaid = byOrderId > 0 ? byOrderId : byInv;
+
+      const directPaid = Number(order.paidAmount) || 0;
+      const paid = Math.min(total, Math.max(directPaid, collectionPaid));
       const paymentStatus = paid <= 0.009 ? "UNPAID" : paid + 0.009 >= total ? "PAID" : "PARTIALLY_PAID";
       return { ...order, paidAmount: paid, paymentStatus };
     });

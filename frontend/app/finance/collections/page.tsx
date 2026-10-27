@@ -125,6 +125,8 @@ export interface DeliveredOrder {
   assignedMio: string
   orderValue: number
   status: string
+  paidAmount?: number
+  paymentStatus?: string
 }
 
 function numberToWordsBDT(num: number): string {
@@ -442,9 +444,20 @@ export default function DeliveryCashCollectionsPage() {
 
   // Auto-populate when picking a delivered order
   const handleSelectOrder = (orderId: string) => {
+    if (!orderId || orderId === "__none__") {
+      setFormData((prev) => ({
+        ...prev,
+        orderId: "",
+      }))
+      return
+    }
     const ord = deliveredOrders.find((o) => o.id === orderId)
     if (ord) {
-      const val = Number(ord.orderValue) || 0
+      const total = Number(ord.orderValue) || 0
+      const paid = Number(ord.paidAmount) || 0
+      const remainingDue = Math.max(0, total - paid)
+      const invoiceAmt = remainingDue > 0 ? remainingDue : total
+
       setFormData((prev) => ({
         ...prev,
         orderId: ord.id,
@@ -452,10 +465,12 @@ export default function DeliveryCashCollectionsPage() {
         chemistName: ord.pharmacyName,
         territory: ord.territory || "Dhaka North",
         salesRepName: ord.assignedMio || "General MIO",
-        totalInvoiceAmount: val,
-        amountCollected: val,
+        totalInvoiceAmount: invoiceAmt,
+        amountCollected: invoiceAmt,
         dueAmountRemaining: 0,
-        notes: `Delivery collection against order #${ord.orderNumber}.`,
+        notes: paid > 0
+          ? `Delivery collection against order #${ord.orderNumber} (Invoice Total: ৳${total.toLocaleString("en-IN")}, Previously Collected: ৳${paid.toLocaleString("en-IN")}, Remaining Due: ৳${remainingDue.toLocaleString("en-IN")}).`
+          : `Delivery collection against order #${ord.orderNumber}.`,
       }))
     }
   }
@@ -1493,27 +1508,86 @@ export default function DeliveryCashCollectionsPage() {
 
           <form onSubmit={handleSaveForm} className="space-y-4 py-2 text-xs">
             {/* Quick Pick Delivered Order */}
-            {!editingId && deliveredOrders.length > 0 && (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1.5">
-                <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
-                  <FileText className="h-3.5 w-3.5 text-blue-600" />
-                  Quick-Link Delivered Order / Invoice (Optional)
-                </Label>
+            {!editingId && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5 text-blue-600" />
+                    Quick-Link Delivered Order / Invoice (Optional)
+                  </Label>
+                </div>
                 <Select
-                  value={formData.orderId}
+                  value={formData.orderId || undefined}
                   onValueChange={handleSelectOrder}
                 >
-                  <SelectTrigger className="h-8 bg-white text-xs">
-                    <SelectValue placeholder="Select delivered order to auto-populate..." />
+                  <SelectTrigger className="h-8 bg-white text-xs cursor-pointer">
+                    <SelectValue placeholder="Select delivered order with pending dues..." />
                   </SelectTrigger>
-                  <SelectContent className="text-xs">
-                    {deliveredOrders.map((ord) => (
-                      <SelectItem key={ord.id} value={ord.id}>
-                        {ord.pharmacyName} • Inv #{ord.invoiceNumber || ord.orderNumber} (৳{Number(ord.orderValue).toLocaleString("en-IN")})
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="text-xs max-h-64">
+                    <SelectItem value="__none__" className="text-slate-500 cursor-pointer text-xs italic">
+                      -- None (Enter manual collection details) --
+                    </SelectItem>
+                    {deliveredOrders
+                      .filter((ord) => {
+                        const total = Number(ord.orderValue) || 0
+                        const paid = Number(ord.paidAmount) || 0
+                        const due = Math.max(0, total - paid)
+                        return due > 0.01 && ord.paymentStatus !== "PAID"
+                      })
+                      .map((ord) => {
+                        const total = Number(ord.orderValue) || 0
+                        const paid = Number(ord.paidAmount) || 0
+                        const due = Math.max(0, total - paid)
+                        return (
+                          <SelectItem key={ord.id} value={ord.id} className="cursor-pointer py-1.5">
+                            <span className="font-semibold text-slate-800">{ord.pharmacyName}</span>
+                            <span className="text-slate-400"> • </span>
+                            <span className="text-slate-600">Inv #{ord.invoiceNumber || ord.orderNumber}</span>
+                            <span className="ml-1 text-emerald-600 font-semibold font-mono text-[11px]">
+                              (Due: ৳{due.toLocaleString("en-IN")})
+                            </span>
+                            {paid > 0 && (
+                              <span className="text-slate-400 text-[10px] font-mono">
+                                {" "}[Total: ৳{total.toLocaleString("en-IN")}]
+                              </span>
+                            )}
+                          </SelectItem>
+                        )
+                      })}
                   </SelectContent>
                 </Select>
+
+                {/* Selected Order Summary Banner */}
+                {formData.orderId && (() => {
+                  const selOrder = deliveredOrders.find((o) => o.id === formData.orderId)
+                  if (!selOrder) return null
+                  const total = Number(selOrder.orderValue) || 0
+                  const paid = Number(selOrder.paidAmount) || 0
+                  const due = Math.max(0, total - paid)
+                  return (
+                    <div className="rounded-lg bg-blue-50/80 border border-blue-200/80 px-2.5 py-1.5 flex items-center justify-between text-[11px] text-blue-900">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{selOrder.pharmacyName}</span>
+                        <span className="text-blue-600 font-mono text-[10px]">({selOrder.orderNumber})</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2 font-mono">
+                          <span>Total: ৳{total.toLocaleString("en-IN")}</span>
+                          {paid > 0 && <span className="text-emerald-700">Paid: ৳{paid.toLocaleString("en-IN")}</span>}
+                          <span className="font-bold text-amber-700">Due: ৳{due.toLocaleString("en-IN")}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormData((prev) => ({ ...prev, orderId: "" }))}
+                          className="ml-1 text-slate-400 hover:text-rose-600 font-medium text-[10px] cursor-pointer"
+                          title="Unlink order"
+                        >
+                          ✕ Clear
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )}
 
