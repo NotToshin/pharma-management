@@ -44,7 +44,24 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   FileText,
+  Printer,
 } from "lucide-react"
+import { SettlementReceiptSheet } from "@/components/finance/settlement-receipt-sheet"
+
+const PRINT_STYLES = `
+@page { size: A4 portrait; margin: 10mm; }
+@media print {
+  html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; }
+  body * { visibility: hidden !important; }
+  #print-standalone-settlement-receipt, #print-standalone-settlement-receipt * { visibility: visible !important; }
+  #print-standalone-settlement-receipt {
+    position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print\\:hidden, button { display: none !important; }
+}
+`
 
 type Direction = "OUTGOING" | "INCOMING"
 
@@ -152,6 +169,8 @@ export function PartySettlementPage({
   const [saving, setSaving] = React.useState(false)
   const [deleteTarget, setDeleteTarget] = React.useState<Settlement | null>(null)
   const [reverseTarget, setReverseTarget] = React.useState<Settlement | null>(null)
+  const [printSettlement, setPrintSettlement] = React.useState<Settlement | null>(null)
+  const [isPrintOpen, setIsPrintOpen] = React.useState(false)
   const [working, setWorking] = React.useState(false)
   const presetHandled = React.useRef(false)
 
@@ -409,6 +428,7 @@ export function PartySettlementPage({
 
   return (
     <div className="space-y-4">
+      <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">{title}</h1>
@@ -597,6 +617,18 @@ export function PartySettlementPage({
                   </TableCell>
                   <TableCell className="py-3 text-right">
                     <div className="flex justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-[11px] text-slate-700 hover:text-black"
+                        onClick={() => {
+                          setPrintSettlement(payment)
+                          setIsPrintOpen(true)
+                        }}
+                      >
+                        <Printer className="mr-1 h-3 w-3" />
+                        Print
+                      </Button>
                       {payment.status === "COMPLETED" && (
                         <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => setReverseTarget(payment)}>
                           <RotateCcw className="mr-1 h-3 w-3" />
@@ -760,6 +792,56 @@ export function PartySettlementPage({
         description="The payment is removed and any balance it changed is restored first."
         itemName={deleteTarget?.paymentNumber}
       />
+
+      {/* Screen Settlement Preview & Print Modal */}
+      <Dialog open={isPrintOpen} onOpenChange={setIsPrintOpen}>
+        <DialogContent className="max-h-[95vh] overflow-y-auto rounded-2xl bg-white sm:max-w-[760px] p-6 print:p-0">
+          <DialogHeader className="print:hidden">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  {outgoing ? "Official Supplier Payment Voucher" : "Official Buyer Money Receipt"}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  {outgoing ? "Payment Voucher" : "Money Receipt"} #{printSettlement?.paymentNumber} ({printSettlement?.partyName})
+                </DialogDescription>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => window.print()}
+                className="h-8 gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                {outgoing ? "Print Voucher" : "Print Receipt"}
+              </Button>
+            </div>
+          </DialogHeader>
+
+          {printSettlement && (
+            <div className="space-y-6 pt-2">
+              <div id="print-standalone-settlement-receipt">
+                <SettlementReceiptSheet record={printSettlement} />
+              </div>
+
+              <div className="flex justify-end gap-2 pb-2 print:hidden pt-4 border-t border-slate-100">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsPrintOpen(false)}
+                  className="text-xs"
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => window.print()}
+                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                >
+                  <Printer className="h-4 w-4" /> {outgoing ? "Print Voucher" : "Print Receipt"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

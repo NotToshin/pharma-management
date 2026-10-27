@@ -68,6 +68,23 @@ import {
   Calculator,
 } from "lucide-react"
 
+import { ExpenseVoucherSheet } from "@/components/finance/expense-voucher-sheet"
+
+const PRINT_STYLES = `
+@page { size: A4 portrait; margin: 10mm; }
+@media print {
+  html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; }
+  body * { visibility: hidden !important; }
+  #print-standalone-payment-voucher, #print-standalone-payment-voucher * { visibility: visible !important; }
+  #print-standalone-payment-voucher {
+    position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print\\:hidden, button { display: none !important; }
+}
+`
+
 export interface ExpenseVoucher {
   id: string
   voucherNo: string
@@ -1113,6 +1130,7 @@ export default function GeneralPaymentsPage() {
 
   return (
     <div className="mx-auto max-w-[1420px] space-y-6 pb-20 font-sans text-neutral-900">
+      <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
       {/* 1. Header Toolbar */}
       <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -1710,7 +1728,7 @@ export default function GeneralPaymentsPage() {
 
       {/* 5. Create / Edit Payment Voucher Modal */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white sm:max-w-[620px] shadow-2xl">
+        <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white sm:max-w-155 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-[#0090FF]">
@@ -2359,151 +2377,38 @@ export default function GeneralPaymentsPage() {
 
       {/* 7. Screen Voucher Preview Modal */}
       <Dialog open={isPrintOpen} onOpenChange={setIsPrintOpen}>
-        <DialogContent className="max-h-[95vh] overflow-y-auto rounded-xl bg-white sm:max-w-[700px]">
+        <DialogContent className="max-h-[95vh] overflow-y-auto rounded-2xl bg-white sm:max-w-[760px] p-6 print:p-0">
+          <DialogHeader className="print:hidden">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Official Payment Voucher
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Official disbursement voucher for #{printTarget?.voucherNo} ({printTarget?.payeeName})
+                </DialogDescription>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => window.print()}
+                className="h-8 gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Print Voucher
+              </Button>
+            </div>
+          </DialogHeader>
+
           {printTarget && (
-            <div className="space-y-6">
-              <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-6 text-xs text-neutral-900">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-                  <div>
-                    <h2 className="text-lg font-extrabold text-slate-900 uppercase">
-                      AK PHARMA
-                    </h2>
-                    <p className="text-[11px] text-slate-500">
-                      Official Expense Payment Voucher / Disbursement Slip
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="block font-mono text-xs font-bold text-[#0090FF]">
-                      {printTarget.voucherNo}
-                    </span>
-                    <span className="font-mono text-[10px] text-slate-400">
-                      Date: {printTarget.paymentDate}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-4 text-xs">
-                  <div>
-                    <p className="font-medium text-slate-500">Payee / Beneficiary:</p>
-                    <p className="mt-0.5 text-sm font-bold text-slate-900">
-                      {printTarget.payeeName}
-                    </p>
-                    <p className="mt-3 font-medium text-slate-500">Classification:</p>
-                    <p className="font-semibold text-slate-800">
-                      {printTarget.category} ({printTarget.payeeType || "Vendor / General"})
-                    </p>
-                    {printTarget.poNumber && (
-                      <>
-                        <p className="mt-2 font-medium text-slate-500">PO Ref:</p>
-                        <p className="font-mono font-bold text-blue-700">{printTarget.poNumber}</p>
-                      </>
-                    )}
-                  </div>
-
-                  <div>
-                    <p className="font-medium text-slate-500">
-                      Disbursed From ({printTarget.fundingSource}):
-                    </p>
-                    <p className="mt-0.5 font-semibold text-slate-800">
-                      {printTarget.sourceDetail}
-                    </p>
-                    <p className="mt-3 font-medium text-slate-500">Mode & Cheque #:</p>
-                    <p className="font-mono font-semibold text-slate-800">
-                      {printTarget.paymentMethod || "Cash"} {printTarget.chequeNumber ? `• ${printTarget.chequeNumber}` : ""}
-                    </p>
-                    <p className="mt-3 font-medium text-slate-500">Status:</p>
-                    <p className="font-bold text-emerald-600">
-                      {printTarget.status === "Disbursed" ? "Settled & Disbursed" : printTarget.status}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2 rounded-lg border border-slate-200 p-4">
-                  <p className="border-b border-slate-100 pb-2 font-bold text-slate-900">
-                    Expenditure Particulars
-                  </p>
-                  {printParticulars.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b border-slate-100 text-left text-[10px] uppercase text-slate-500">
-                            <th className="pb-2 font-semibold">Item / Product</th>
-                            <th className="pb-2 font-semibold text-center w-16">Qty</th>
-                            <th className="pb-2 font-semibold text-right w-28">Amount (BDT)</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {printParticulars.map((item, idx) => {
-                            const lineAmt =
-                              item.lineTotalBDT != null
-                                ? item.lineTotalBDT
-                                : item.unitCostBDT != null
-                                  ? item.unitCostBDT * item.quantity
-                                  : null
-                            return (
-                              <tr key={`particular-${idx}`} className="border-b border-slate-50">
-                                <td className="py-1.5 font-medium text-slate-800">{item.itemName}</td>
-                                <td className="py-1.5 text-center font-mono text-slate-700">{item.quantity}</td>
-                                <td className="py-1.5 text-right font-mono font-semibold text-slate-900">
-                                  {lineAmt != null ? `৳${lineAmt.toLocaleString("en-IN")}` : "—"}
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="flex justify-between py-1 text-slate-600">
-                      <span>General disbursement to {printTarget.payeeName}</span>
-                      <span className="font-mono text-sm font-bold text-slate-900">
-                        ৳{(printTarget.grossAmount || printTarget.amount).toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="border-t border-slate-100 pt-2 flex justify-between text-[11px] text-slate-500">
-                    <span>TDS Withholding: -৳{(printTarget.tdsAmount || 0).toLocaleString("en-IN")}</span>
-                    <span>VDS Withholding: -৳{(printTarget.vdsAmount || 0).toLocaleString("en-IN")}</span>
-                    <strong className="text-emerald-700 font-mono text-xs">
-                      Net: ৳{printTarget.amount.toLocaleString("en-IN")}
-                    </strong>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
-                  <span className="font-medium text-slate-500">Net in Words:</span>
-                  <strong className="text-slate-900 italic">
-                    {numberToWordsBDT(printTarget.amount)}
-                  </strong>
-                </div>
-
-                <div className="flex justify-between border-t border-slate-200 pt-10 text-[11px] text-slate-500">
-                  <div className="text-center">
-                    <div className="mx-auto mb-1 w-32 border-b border-slate-400" />
-                    <strong className="block text-slate-900">
-                      {printTarget.preparedBy || "Accounts Officer"}
-                    </strong>
-                    <span className="text-[9px]">Prepared By (Maker)</span>
-                  </div>
-                  <div className="text-center">
-                    <div className="mx-auto mb-1 w-32 border-b border-slate-400" />
-                    <strong className="block text-slate-900">
-                      {printTarget.approvedBy || "Finance Controller"}
-                    </strong>
-                    <span className="text-[9px]">Audit Approval</span>
-                  </div>
-                  <div className="text-center">
-                    <div className="mx-auto mb-1 w-32 border-b border-slate-400" />
-                    <strong className="block text-slate-900">
-                      {printTarget.disbursedBy || "Managing Director"}
-                    </strong>
-                    <span className="text-[9px]">Final Cheque Sign-off</span>
-                  </div>
-                </div>
+            <div className="space-y-6 pt-2">
+              <div id="print-standalone-payment-voucher">
+                <ExpenseVoucherSheet
+                  record={printTarget}
+                  particulars={printParticulars}
+                />
               </div>
 
-              <div className="flex justify-end gap-2 pb-2">
+              <div className="flex justify-end gap-2 pb-2 print:hidden pt-4 border-t border-slate-100">
                 <Button
                   variant="outline"
                   onClick={() => setIsPrintOpen(false)}
@@ -2512,8 +2417,8 @@ export default function GeneralPaymentsPage() {
                   Close
                 </Button>
                 <Button
-                  onClick={() => void handlePrint(printTarget, printParticulars)}
-                  className="gap-1.5 bg-[#0090FF] text-xs font-semibold text-white hover:bg-[#0080e5]"
+                  onClick={() => window.print()}
+                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
                 >
                   <Printer className="h-4 w-4" /> Print Voucher
                 </Button>

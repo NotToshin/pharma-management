@@ -55,6 +55,23 @@ import {
   Package,
 } from "lucide-react"
 
+import { numberToWordsBDT } from "@/components/logistics/order-invoice"
+
+const PRINT_STYLES = `
+@page { size: A4 portrait; margin: 10mm; }
+@media print {
+  html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; }
+  body * { visibility: hidden !important; }
+  #print-standalone-adjustment, #print-standalone-adjustment * { visibility: visible !important; }
+  #print-standalone-adjustment {
+    position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print\\:hidden, button { display: none !important; }
+}
+`
+
 export interface StockAdjustment {
   id: string
   adjustmentRef: string
@@ -386,6 +403,7 @@ export default function StockAdjustmentsPage() {
 
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-12">
+      <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
       {/* 1. Header Toolbar */}
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:justify-between print:hidden">
         <div>
@@ -1057,188 +1075,231 @@ export default function StockAdjustmentsPage() {
 
       {/* 5. Printable Adjustment Slip Modal */}
       <Dialog open={isSlipOpen} onOpenChange={setIsSlipOpen}>
-        <DialogContent className="overflow-hidden rounded-2xl bg-white p-0 sm:max-w-[620px]">
-          {selectedAdjustment && (
-            <div>
-              {/* Toolbar Bar */}
-              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4 print:hidden">
-                <span className="text-xs font-bold text-slate-800">
-                  Official Stock Adjustment Certificate — {selectedAdjustment.adjustmentRef}
-                </span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => window.print()}
-                    className="h-8 gap-1.5 bg-[#0090FF] text-xs text-white shadow-none hover:bg-[#0080e5]"
-                  >
-                    <Printer className="h-3.5 w-3.5" />
-                    Print / Save as PDF
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsSlipOpen(false)}
-                    className="h-8 text-xs"
-                  >
-                    Close
-                  </Button>
-                </div>
+        <DialogContent className="max-h-[95vh] overflow-y-auto rounded-2xl bg-white sm:max-w-[760px] p-6 print:p-0 shadow-2xl">
+          <DialogHeader className="print:hidden">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Stock Adjustment Certificate
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Certificate #{selectedAdjustment?.adjustmentRef} ({selectedAdjustment?.formulationName})
+                </DialogDescription>
               </div>
+              <Button
+                size="sm"
+                onClick={() => window.print()}
+                className="h-8 gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+              >
+                <Printer className="h-3.5 w-3.5" /> Print Certificate
+              </Button>
+            </div>
+          </DialogHeader>
 
-              {/* Printable Body Content */}
-              <div className="p-8 font-sans text-xs leading-relaxed text-slate-900">
-                {/* Official Letterhead */}
-                <div className="flex items-start justify-between border-b-2 border-slate-900 pb-3">
-                  <div>
-                    <h2 className="text-lg font-black tracking-tight uppercase">
-                      AK PHARMA
-                    </h2>
-                    <p className="text-[11px] font-medium text-slate-600">
-                      Quality Assurance & Warehouse Inventory Control
-                    </p>
-                    <p className="text-[10px] text-slate-400">
-                      Tejgaon Central Depot, Dhaka • DGDA Lic: DL-PH-2026-88
-                    </p>
+          {selectedAdjustment && (
+            <div className="space-y-6 pt-2">
+              <div id="print-standalone-adjustment" className="w-full bg-white text-black font-sans text-xs selection:bg-none print:p-0">
+                {/* 1. Header: Logo (left) + Solid Black Box (right) */}
+                <div className="flex items-start justify-between">
+                  {/* Brand Logo & Contact */}
+                  <div className="flex flex-col items-start max-w-[340px]">
+                    <img
+                      src="/logo.svg"
+                      alt="AK Pharma"
+                      className="h-[74px] w-auto object-contain"
+                    />
+                    <div className="mt-1 text-[11px] leading-[1.35] text-black font-normal">
+                      <p>Dhaka, Bangladesh</p>
+                      <p>Phone: +8801712-611071, +8801798-112763</p>
+                      <p>Email: akpharmabd@gmail.com</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="inline-block border border-slate-900 px-2 py-0.5 text-xs font-black tracking-wider text-slate-900 uppercase">
-                      STOCK ADJUSTMENT SLIP
-                    </span>
-                    <span className="mt-1 block font-mono text-xs font-bold text-[#0090FF]">
-                      {selectedAdjustment.adjustmentRef}
-                    </span>
-                    <span className="mt-0.5 block font-mono text-[10px] text-slate-500">
-                      Date: {selectedAdjustment.date}
+
+                  {/* ADJUSTMENT CERTIFICATE Box */}
+                  <div className="bg-black text-white px-8 py-3.5 flex items-center justify-center min-w-[210px] h-[68px]">
+                    <span className="text-xl font-extrabold tracking-[0.18em] text-white uppercase font-sans select-none whitespace-nowrap">
+                      ADJUSTMENT CERTIFICATE
                     </span>
                   </div>
                 </div>
 
-                {/* Primary Meta Strip */}
-                <div className="grid grid-cols-2 gap-4 border-b border-slate-200 py-4 text-xs">
-                  <div className="space-y-1">
-                    <div>
-                      <span className="block text-[10px] font-bold text-slate-400 uppercase">
-                        Formulation / Item:
-                      </span>
-                      <strong className="block text-sm text-slate-900">
-                        {selectedAdjustment.formulationName}
-                      </strong>
+                {/* 2. Side-by-Side Dual Boxes */}
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                  {/* Left Box: ITEM & BATCH DETAILS */}
+                  <div className="border border-black">
+                    <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
+                      ITEM & BATCH IDENTIFICATION:
                     </div>
-                    <div>
-                      <span className="block text-[10px] text-slate-400">
-                        SKU & Batch Identification:
-                      </span>
-                      <span className="font-mono font-semibold text-slate-800">
-                        {selectedAdjustment.skuCode} • Batch: {selectedAdjustment.batchNumber}
-                      </span>
+                    <div className="p-2.5 text-xs text-black space-y-1">
+                      <p>
+                        <span className="font-normal">Formulation Name: </span>
+                        <span className="font-semibold">{selectedAdjustment.formulationName}</span>
+                      </p>
+                      <p>
+                        <span className="font-normal">SKU Code: </span>
+                        <span className="font-semibold font-mono">{selectedAdjustment.skuCode}</span>
+                      </p>
+                      <p>
+                        <span className="font-normal">Batch Number: </span>
+                        <span className="font-semibold font-mono">{selectedAdjustment.batchNumber}</span>
+                      </p>
+                      <p>
+                        <span className="font-normal">Storage Location / Bin: </span>
+                        <span className="font-semibold">{selectedAdjustment.warehouseLocation}</span>
+                      </p>
                     </div>
                   </div>
 
-                  <div className="space-y-1 text-right sm:text-left">
-                    <div>
-                      <span className="block text-[10px] font-bold text-slate-400 uppercase">
-                        Warehouse Storage Bin:
-                      </span>
-                      <strong className="block text-slate-900">
-                        {selectedAdjustment.warehouseLocation}
-                      </strong>
+                  {/* Right Box: CERTIFICATE DETAILS */}
+                  <div className="border border-black">
+                    <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
+                      CERTIFICATE REF: {selectedAdjustment.adjustmentRef}
                     </div>
-                    <div>
-                      <span className="block text-[10px] text-slate-400">
-                        Action Classification:
-                      </span>
-                      <span className="font-medium text-slate-800">
-                        {selectedAdjustment.type}
-                      </span>
+                    <div className="p-2.5 text-xs text-black space-y-1">
+                      <p>
+                        <span className="font-normal">Date: </span>
+                        <span className="font-semibold">{selectedAdjustment.date}</span>
+                      </p>
+                      <p>
+                        <span className="font-normal">Action Classification: </span>
+                        <span className="font-semibold">{selectedAdjustment.type}</span>
+                      </p>
+                      <p>
+                        <span className="font-normal">Authorized Officer: </span>
+                        <span className="font-semibold">{selectedAdjustment.authorizedBy}</span>
+                      </p>
+                      <p>
+                        <span className="font-normal">Status: </span>
+                        <span className="font-semibold">Approved & Ledger Reconciled</span>
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Quantity & Ledger Summary */}
-                <div className="my-4 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <span className="block text-xs font-bold tracking-wider text-slate-800 uppercase">
-                    Inventory Ledger Impact
-                  </span>
-                  <div className="grid grid-cols-3 gap-4 pt-1 text-xs">
-                    <div>
-                      <span className="block text-[11px] text-slate-500">
-                        Quantity Adjusted:
-                      </span>
-                      <span
-                        className={`font-mono text-sm font-bold ${selectedAdjustment.quantity < 0 ? "text-rose-600" : "text-emerald-600"}`}
-                      >
+                {/* 3. Items Table */}
+                <table className="w-full border-collapse border border-black mt-6 text-xs text-black">
+                  <thead className="bg-black text-white font-bold text-xs uppercase">
+                    <tr>
+                      <th className="w-12 py-1.5 px-2 text-center border-r border-neutral-700">SL</th>
+                      <th className="py-1.5 px-3 text-left border-r border-neutral-700">Formulation & SKU</th>
+                      <th className="w-24 py-1.5 px-2 text-center border-r border-neutral-700">Batch No</th>
+                      <th className="w-24 py-1.5 px-2 text-center border-r border-neutral-700">Quantity</th>
+                      <th className="w-28 py-1.5 px-3 text-right border-r border-neutral-700">Unit Cost</th>
+                      <th className="w-32 py-1.5 px-3 text-right">Net Impact</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-black h-8">
+                      <td className="py-1 px-2 text-center border-r border-black font-mono font-medium">
+                        1
+                      </td>
+                      <td className="py-1 px-3 text-left border-r border-black font-semibold">
+                        <div>{selectedAdjustment.formulationName}</div>
+                        <div className="text-[10px] text-neutral-600 font-mono font-normal">
+                          {selectedAdjustment.skuCode}
+                        </div>
+                      </td>
+                      <td className="py-1 px-2 text-center border-r border-black font-mono">
+                        {selectedAdjustment.batchNumber}
+                      </td>
+                      <td className="py-1 px-2 text-center border-r border-black font-mono font-bold">
                         {selectedAdjustment.quantity > 0
                           ? `+${selectedAdjustment.quantity}`
                           : selectedAdjustment.quantity}{" "}
                         Units
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-[11px] text-slate-500">
-                        Unit Base Cost:
-                      </span>
-                      <span className="font-mono text-sm font-semibold text-slate-800">
+                      </td>
+                      <td className="py-1 px-3 text-right border-r border-black font-mono">
                         ৳{selectedAdjustment.unitCostBDT.toFixed(2)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-[11px] text-slate-500">
-                        Total Net Impact:
-                      </span>
-                      <span
-                        className={`font-mono text-sm font-bold ${selectedAdjustment.totalImpactBDT < 0 ? "text-rose-600" : "text-emerald-600"}`}
-                      >
+                      </td>
+                      <td className="py-1 px-3 text-right font-mono font-bold">
                         {selectedAdjustment.totalImpactBDT < 0
                           ? `-৳${Math.abs(selectedAdjustment.totalImpactBDT).toLocaleString("en-IN")}`
                           : `+৳${selectedAdjustment.totalImpactBDT.toLocaleString("en-IN")}`}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* 4. Financial Summary: Amount in Words (Left) & Impact (Right) */}
+                <div className="flex items-stretch border border-black border-t-0">
+                  {/* Left: Amount in Words */}
+                  <div className="flex-1 p-3 flex flex-col justify-between">
+                    <div className="text-xs text-black">
+                      <span className="font-semibold">Financial Impact in Words: </span>
+                      <span className="font-medium underline decoration-black decoration-1 underline-offset-4">
+                        {numberToWordsBDT(Math.abs(selectedAdjustment.totalImpactBDT))}
                       </span>
+                    </div>
+                    <div className="text-[11px] text-neutral-600 mt-2">
+                      Ledger Category: {selectedAdjustment.type}
+                    </div>
+                  </div>
+
+                  {/* Right: Net Impact */}
+                  <div className="w-80 border-l border-black">
+                    <div className="flex text-xs">
+                      <div className="w-36 bg-black text-white font-bold py-2.5 px-3 flex items-center">
+                        TOTAL NET IMPACT:
+                      </div>
+                      <div className="flex-1 py-2.5 px-3 text-right font-mono font-bold text-sm text-black">
+                        {selectedAdjustment.totalImpactBDT < 0
+                          ? `-৳${Math.abs(selectedAdjustment.totalImpactBDT).toLocaleString("en-IN")}`
+                          : `+৳${selectedAdjustment.totalImpactBDT.toLocaleString("en-IN")}`}
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Audit Narrative */}
-                <div className="space-y-1 py-2">
-                  <span className="block text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                    Audited Reason & Regulatory Justification:
-                  </span>
-                  <p className="rounded-lg border border-slate-200 bg-white p-3 text-slate-700 italic">
-                    "{selectedAdjustment.reasonCode}"
-                  </p>
+                {/* 5. Audited Reason & Regulatory Justification */}
+                <div className="mt-6 border border-black">
+                  <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
+                    REGULATORY JUSTIFICATION & AUDIT REASON:
+                  </div>
+                  <div className="p-3 text-xs text-black space-y-1">
+                    <p className="font-medium italic">
+                      "{selectedAdjustment.reasonCode}"
+                    </p>
+                    <p className="text-[11px] text-neutral-600 pt-1">
+                      Conforms to DGDA inventory disposal and stock correction SOPs. Certified physical inventory record updated.
+                    </p>
+                  </div>
                 </div>
 
-                {/* Sign-off Blocks */}
-                <div className="mt-12 grid grid-cols-3 gap-6 border-t-2 border-slate-200 pt-6 text-center text-[11px]">
+                {/* 6. Signatures */}
+                <div className="mt-14 pb-4 grid grid-cols-3 gap-8 text-center text-xs text-black">
                   <div>
-                    <div className="mx-auto mb-1.5 w-32 border-b border-slate-400" />
-                    <span className="block font-bold text-slate-900">
-                      Warehouse Officer
-                    </span>
-                    <span className="text-[10px] text-slate-500">Stock Controller</span>
+                    <div className="w-40 mx-auto border-t border-black mb-1.5" />
+                    <span className="font-semibold text-black">Warehouse Officer</span>
+                    <span className="block text-[10px] text-neutral-500">Stock Controller</span>
                   </div>
                   <div>
-                    <div className="mx-auto mb-1.5 w-32 border-b border-slate-400" />
-                    <span className="block font-bold text-slate-900">QA Inspector</span>
-                    <span className="text-[10px] text-slate-500">DGDA Compliance Lead</span>
+                    <div className="w-40 mx-auto border-t border-black mb-1.5" />
+                    <span className="font-semibold text-black">QA Inspector</span>
+                    <span className="block text-[10px] text-neutral-500">DGDA Compliance Lead</span>
                   </div>
                   <div>
-                    <div className="mx-auto mb-1.5 w-32 border-b border-slate-400" />
-                    <span className="block font-bold text-slate-900">
-                      {selectedAdjustment.authorizedBy}
-                    </span>
-                    <span className="text-[10px] text-slate-500">Authorized Signatory</span>
+                    <div className="w-40 mx-auto border-t border-black mb-1.5" />
+                    <span className="font-semibold text-black">{selectedAdjustment.authorizedBy}</span>
+                    <span className="block text-[10px] text-neutral-500">Authorized Signatory</span>
                   </div>
                 </div>
               </div>
 
-              {/* Modal Footer */}
-              <div className="flex items-center justify-end border-t border-slate-100 bg-slate-50 p-4 print:hidden">
+              <div className="flex justify-end gap-2 pb-2 print:hidden pt-4 border-t border-slate-100">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setIsSlipOpen(false)}
-                  className="h-8 text-xs"
+                  className="text-xs"
                 >
-                  Close Preview
+                  Close
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => window.print()}
+                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                >
+                  <Printer className="h-4 w-4" /> Print Certificate
                 </Button>
               </div>
             </div>

@@ -61,14 +61,18 @@ import {
   Sparkles,
 } from "lucide-react"
 
+import { SalaryPayslipSheet } from "@/components/hr/salary-payslip"
+
 const PRINT_STYLES = `
-@page { size: A4; margin: 12mm; }
+@page { size: A4 portrait; margin: 10mm; }
 @media print {
   html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; }
   body * { visibility: hidden !important; }
-  .print-payslip-node, .print-payslip-node * { visibility: visible !important; }
-  .print-payslip-node {
+  #print-standalone-payslip, #print-standalone-payslip * { visibility: visible !important; }
+  #print-standalone-payslip {
     position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   .print\\:hidden, button { display: none !important; }
 }
@@ -664,131 +668,7 @@ export default function SalaryManagementPage() {
   // Payslip Print Function
   const handleTriggerPrint = () => {
     if (!printRecord) return
-
-    const existingIframe = document.getElementById("payslip-print-iframe")
-    if (existingIframe) existingIframe.remove()
-
-    const iframe = document.createElement("iframe")
-    iframe.id = "payslip-print-iframe"
-    iframe.style.position = "fixed"
-    iframe.style.right = "0"
-    iframe.style.bottom = "0"
-    iframe.style.width = "0"
-    iframe.style.height = "0"
-    iframe.style.border = "none"
-    document.body.appendChild(iframe)
-
-    const grossEarnings = getGross(printRecord)
-    const totalDeductions = getDeductions(printRecord)
-    const netPayable = grossEarnings - totalDeductions
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Payslip - ${printRecord.fullName} - ${printRecord.payPeriod}</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0f172a; padding: 36px; margin: 0; background: #ffffff; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0090FF; padding-bottom: 18px; margin-bottom: 24px; }
-            .company { font-size: 24px; font-weight: 800; color: #0090FF; letter-spacing: -0.5px; }
-            .subtitle { font-size: 13px; color: #64748b; margin-top: 4px; font-weight: 500; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; background: #f8fafc; padding: 18px; border-radius: 10px; margin-bottom: 24px; font-size: 13px; border: 1px solid #e2e8f0; }
-            .grid-label { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600; margin-bottom: 4px; }
-            .grid-val { font-weight: 700; color: #0f172a; }
-            .sections { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 13px; margin-bottom: 24px; }
-            .box { border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; background: #ffffff; }
-            .box-title { font-weight: 700; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 12px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
-            .row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; }
-            .total-row { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 8px; border-top: 1px dashed #cbd5e1; font-weight: 700; font-size: 13px; }
-            .net-box { background: #f0fdf4; border: 1px solid #86efac; padding: 18px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 16px; font-weight: 800; color: #166534; margin-bottom: 24px; }
-            .leave-info { font-size: 12px; color: #475569; margin-bottom: 32px; padding: 12px 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
-            .signatures { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 24px; margin-top: 40px; }
-            .sig-line { width: 180px; border-top: 1px solid #94a3b8; text-align: center; padding-top: 6px; }
-            .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-            .text-right { text-align: right; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <div class="company">AK PHARMA</div>
-              <div class="subtitle">Official Monthly Pay Advice & Salary Payslip</div>
-              <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">10/26, Rupnagar R/A, Mirpur, Dhaka 1216</div>
-            </div>
-            <div class="text-right">
-              <div style="font-size: 16px; font-weight: 800; color: #0090FF;">${printRecord.payPeriod}</div>
-              <div class="subtitle mono">Ref: AKP/${printRecord.empId}/SAL</div>
-              <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">Status: ${printRecord.status.toUpperCase()}</div>
-            </div>
-          </div>
-
-          <div class="grid">
-            <div>
-              <div class="grid-label">Employee Details</div>
-              <div class="grid-val">${printRecord.fullName}</div>
-              <div style="color: #475569; font-size: 12px; margin-top: 2px;">
-                ID: <span class="mono">${printRecord.empId}</span> • ${printRecord.designation}
-              </div>
-            </div>
-            <div>
-              <div class="grid-label">Department & Bank</div>
-              <div class="grid-val">${printRecord.department} (${printRecord.territory})</div>
-              <div style="color: #475569; font-size: 12px; margin-top: 2px;" class="mono">
-                ${printRecord.bankName} (${printRecord.bankAccount})
-              </div>
-            </div>
-          </div>
-
-          <div class="sections">
-            <div class="box">
-              <div class="box-title" style="color: #059669;">Earnings Breakdown</div>
-              <div class="row"><span>Basic Salary</span><span class="mono">৳${printRecord.basicSalary.toLocaleString("en-IN")}</span></div>
-              <div class="row"><span>House Rent Allowance (50%)</span><span class="mono">৳${printRecord.houseRent.toLocaleString("en-IN")}</span></div>
-              <div class="row"><span>Medical Allowance</span><span class="mono">৳${printRecord.medicalAllowance.toLocaleString("en-IN")}</span></div>
-              <div class="row"><span>TA-DA / Conveyance</span><span class="mono">৳${printRecord.conveyanceTaDa.toLocaleString("en-IN")}</span></div>
-              <div class="row"><span>Sales Performance Incentive</span><span class="mono" style="color: #059669;">+৳${printRecord.salesIncentive.toLocaleString("en-IN")}</span></div>
-              <div class="row"><span>Special Festival / Bonus</span><span class="mono" style="color: #059669;">+৳${printRecord.specialBonus.toLocaleString("en-IN")}</span></div>
-              <div class="total-row"><span>Total Gross Earnings</span><span class="mono" style="color: #059669;">৳${grossEarnings.toLocaleString("en-IN")}</span></div>
-            </div>
-
-            <div class="box">
-              <div class="box-title" style="color: #e11d48;">Deductions & Withholdings</div>
-              <div class="row"><span>Provident Fund (PF 10%)</span><span class="mono" style="color: #e11d48;">৳${printRecord.providentFund.toLocaleString("en-IN")}</span></div>
-              <div class="row"><span>Income Tax Withholding</span><span class="mono" style="color: #e11d48;">৳${printRecord.taxDeduction.toLocaleString("en-IN")}</span></div>
-              <div class="row"><span>Other Advance / Deductions</span><span class="mono" style="color: #e11d48;">৳${printRecord.otherDeductions.toLocaleString("en-IN")}</span></div>
-              <div class="total-row" style="color: #e11d48;"><span>Total Deductions</span><span class="mono">-৳${totalDeductions.toLocaleString("en-IN")}</span></div>
-            </div>
-          </div>
-
-          <div class="leave-info">
-            <strong>Attendance & Leave Summary:</strong> Recorded Leave Days for ${printRecord.payPeriod}: <strong>${printRecord.leaveDays || 0} Day(s)</strong>.
-          </div>
-
-          <div class="net-box">
-            <span>NET REMUNERATION PAYABLE:</span>
-            <span class="mono" style="font-size: 20px;">৳${netPayable.toLocaleString("en-IN")}</span>
-          </div>
-
-          <div class="signatures">
-            <div class="sig-line">Prepared & Checked By<br/><small style="color: #94a3b8;">HR Department</small></div>
-            <div class="sig-line">Authorized Signatory<br/><small style="color: #94a3b8;">Finance & Accounts</small></div>
-            <div class="sig-line">Employee Signature<br/><small style="color: #94a3b8;">Received / Acknowledged</small></div>
-          </div>
-        </body>
-      </html>
-    `
-
-    const iframeDoc = iframe.contentWindow?.document
-    if (iframeDoc) {
-      iframeDoc.open()
-      iframeDoc.write(htmlContent)
-      iframeDoc.close()
-
-      setTimeout(() => {
-        iframe.contentWindow?.focus()
-        iframe.contentWindow?.print()
-      }, 300)
-    }
+    window.print()
   }
 
   // Month navigation helpers
@@ -1831,7 +1711,7 @@ export default function SalaryManagementPage() {
                   <SelectTrigger className="h-9 w-full min-w-0 bg-white text-xs">
                     <SelectValue placeholder="Choose bank account or cash vault..." />
                   </SelectTrigger>
-                  <SelectContent className="max-w-[440px] text-xs">
+                  <SelectContent className="max-w-110 text-xs">
                     {treasuryAccounts.length === 0 ? (
                       <SelectItem value="none" disabled>
                         No bank accounts registered in Treasury
@@ -2101,140 +1981,41 @@ export default function SalaryManagementPage() {
 
       {/* PRINT & OFFICIAL PAYSLIP MODAL */}
       <Dialog open={isPrintOpen} onOpenChange={setIsPrintOpen}>
-        <DialogContent className="max-h-[95vh] overflow-y-auto rounded-2xl bg-white sm:max-w-[720px]">
+        <DialogContent className="max-h-[95vh] overflow-y-auto rounded-2xl bg-white sm:max-w-[760px] p-6 print:p-0">
+          <DialogHeader className="print:hidden">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Official Salary Payslip
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Official pay advice sheet for {printRecord?.fullName} ({printRecord?.payPeriod})
+                </DialogDescription>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => window.print()}
+                className="h-8 gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Print Payslip
+              </Button>
+            </div>
+          </DialogHeader>
+
           {printRecord && (
-            <div className="space-y-6">
-              <div className="print-payslip-node space-y-6 rounded-xl border border-slate-200 bg-white p-8">
-                <div className="flex items-start justify-between border-b-2 border-[#0090FF] pb-4">
-                  <div className="flex flex-col items-start gap-1.5 max-w-[340px]">
-                    <img
-                      src="/logo-2.png"
-                      alt="AK Pharma"
-                      className="h-12 w-auto max-w-[320px] object-contain"
-                    />
-                    <div className="text-xs text-slate-600 leading-tight">
-                      <p className="font-semibold text-slate-700">
-                        Official Monthly Pay Advice / Salary Payslip
-                      </p>
-                      <p className="text-[11px] text-slate-500">
-                        10/26, Rupnagar R/A, Mirpur, Dhaka 1216
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="block text-sm font-black text-slate-900">
-                      {printRecord.payPeriod}
-                    </span>
-                    <span className="font-mono text-[11px] text-slate-400">
-                      Ref: AKP/{printRecord.empId}/SAL
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 rounded-xl bg-slate-50 p-4 text-xs border border-slate-200">
-                  <div>
-                    <p className="text-slate-400 text-[10px] uppercase font-bold">Employee Name</p>
-                    <p className="font-bold text-slate-900 text-sm mt-0.5">{printRecord.fullName}</p>
-                    <p className="mt-2 text-slate-400 text-[10px] uppercase font-bold">Emp ID & Designation</p>
-                    <p className="font-semibold text-slate-800">
-                      {printRecord.empId} — {printRecord.designation}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 text-[10px] uppercase font-bold">Department & Territory</p>
-                    <p className="font-semibold text-slate-800 mt-0.5">
-                      {printRecord.department} ({printRecord.territory})
-                    </p>
-                    <p className="mt-2 text-slate-400 text-[10px] uppercase font-bold">Disbursement Account</p>
-                    <p className="font-mono text-slate-800">
-                      {printRecord.bankName} ({printRecord.bankAccount})
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6 text-xs">
-                  <div className="space-y-2 rounded-xl border p-3.5">
-                    <p className="border-b pb-1 font-bold text-emerald-700 uppercase tracking-wider text-[11px]">
-                      Earnings Breakdown
-                    </p>
-                    <div className="flex justify-between">
-                      <span>Basic Salary</span>
-                      <span className="font-mono">৳{printRecord.basicSalary.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>House Rent (50%)</span>
-                      <span className="font-mono">৳{printRecord.houseRent.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Medical Allowance</span>
-                      <span className="font-mono">৳{printRecord.medicalAllowance.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Conveyance / TA-DA</span>
-                      <span className="font-mono">৳{printRecord.conveyanceTaDa.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="flex justify-between text-emerald-600">
-                      <span>Sales Incentive</span>
-                      <span className="font-mono">+৳{printRecord.salesIncentive.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="flex justify-between text-emerald-600">
-                      <span>Special Bonus</span>
-                      <span className="font-mono">+৳{printRecord.specialBonus.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t font-bold text-emerald-700">
-                      <span>Gross Earnings</span>
-                      <span className="font-mono">৳{getGross(printRecord).toLocaleString("en-IN")}</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 rounded-xl border p-3.5">
-                    <p className="border-b pb-1 font-bold text-rose-600 uppercase tracking-wider text-[11px]">
-                      Deductions & Tax
-                    </p>
-                    <div className="flex justify-between text-rose-500">
-                      <span>Provident Fund (PF)</span>
-                      <span className="font-mono">৳{printRecord.providentFund.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="flex justify-between text-rose-500">
-                      <span>Tax Withholding</span>
-                      <span className="font-mono">৳{printRecord.taxDeduction.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="flex justify-between text-rose-500">
-                      <span>Other Deductions</span>
-                      <span className="font-mono">৳{printRecord.otherDeductions.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t font-bold text-rose-600">
-                      <span>Total Deductions</span>
-                      <span className="font-mono">-৳{getDeductions(printRecord).toLocaleString("en-IN")}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                  <span>Attendance & Recorded Leaves:</span>
-                  <strong className="font-mono">{printRecord.leaveDays || 0} Day(s) Taken</strong>
-                </div>
-
-                <div className="flex items-center justify-between rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm font-bold text-slate-900">
-                  <span className="text-emerald-900 font-extrabold">NET REMUNERATION PAYABLE:</span>
-                  <span className="font-mono text-lg font-black text-emerald-700">
-                    ৳{getNet(printRecord).toLocaleString("en-IN")}
-                  </span>
-                </div>
-
-                <div className="flex justify-between border-t pt-8 text-[11px] text-slate-400">
-                  <span>Authorized Signature (HR & Finance)</span>
-                  <span>Employee Signature</span>
-                </div>
+            <div className="space-y-6 pt-2">
+              <div id="print-standalone-payslip">
+                <SalaryPayslipSheet record={printRecord} />
               </div>
 
-              <div className="flex justify-end gap-2 print:hidden">
+              <div className="flex justify-end gap-2 print:hidden pt-4 border-t border-slate-100">
                 <Button variant="outline" onClick={() => setIsPrintOpen(false)} className="text-xs">
                   Close
                 </Button>
                 <Button
-                  onClick={handleTriggerPrint}
-                  className="gap-1.5 bg-[#0090FF] text-xs font-semibold text-white hover:bg-[#0080e5]"
+                  onClick={() => window.print()}
+                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
                 >
                   <Printer className="h-4 w-4" /> Print Official Payslip
                 </Button>

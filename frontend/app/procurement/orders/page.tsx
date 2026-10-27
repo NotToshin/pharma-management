@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
 import { apiFetch } from "@/lib/api"
+import { PurchaseOrderSheet } from "@/components/procurement/purchase-order-sheet"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -1340,8 +1341,11 @@ export default function WholesalerPurchaseOrdersPage() {
             top: 0 !important;
             width: 100% !important;
             box-sizing: border-box !important;
-            padding: 10px !important;
+            padding: 0 !important;
+            margin: 0 !important;
             background: white !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
       `}</style>
@@ -2407,185 +2411,46 @@ export default function WholesalerPurchaseOrdersPage() {
         <DialogContent className="w-full sm:max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 print:p-0 shadow-2xl">
           <DialogHeader className="print:hidden">
             <div className="flex items-center justify-between">
-              <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <FileText className="h-5 w-5 text-blue-600" />
-                Formal Purchase Order Voucher
-              </DialogTitle>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-black" />
+                  Official Purchase Order
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Commercial Purchase Order #{voucherOrder?.poNumber} ({voucherOrder?.wholesalerName})
+                </DialogDescription>
+              </div>
               <Button
                 size="sm"
                 onClick={() => window.print()}
-                className="h-8 gap-1.5 bg-[#0090FF] hover:bg-[#0080e5] text-xs font-semibold text-white"
+                className="h-8 gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
               >
                 <Printer className="h-3.5 w-3.5" />
-                Print Voucher
+                Print Order
               </Button>
             </div>
           </DialogHeader>
 
           {voucherOrder && (
-            <div id="print-standalone-voucher" className="p-6 bg-white border border-slate-200 rounded-xl space-y-6 text-slate-900 font-sans print:border-none print:p-0">
-              {/* Header Letterhead */}
-              <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
-                <div className="flex flex-col items-start gap-1.5 max-w-[340px]">
-                  <img
-                    src="/logo-2.png"
-                    alt="AK Pharma"
-                    className="h-12 w-auto max-w-[320px] object-contain"
-                  />
-                  <div className="text-xs text-slate-600 leading-tight">
-                    <p className="font-semibold text-slate-700">
-                      Central Distribution & Supply Chain Operations
-                    </p>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      10/26, Rupnagar R/A, Mirpur, Dhaka 1216 | Tel: 01712611074, 01798112763
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      Drug License: DA-DL-1998-00412 | Email: akpharmabd@gmail.com
-                    </p>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <span className="inline-block px-3 py-1 bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded">
-                    PURCHASE ORDER
-                  </span>
-                  <p className="text-base font-mono font-extrabold text-[#0090FF] mt-1.5">{voucherOrder.poNumber}</p>
-                  <p className="text-xs text-slate-500">Date: {voucherOrder.poDate}</p>
-                </div>
+            <div className="space-y-6 pt-2">
+              <div id="print-standalone-voucher">
+                <PurchaseOrderSheet order={voucherOrder} />
               </div>
 
-              {/* Vendor & Delivery Details */}
-              <div className="grid grid-cols-2 gap-6 text-xs">
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 space-y-1">
-                  <span className="font-bold text-slate-800 uppercase tracking-wider text-[10px]">
-                    Vendor / Wholesaler:
-                  </span>
-                  <p className="font-bold text-sm text-slate-900">{voucherOrder.wholesalerName}</p>
-                  <p className="text-slate-600">{voucherOrder.wholesalerAddress || "Tejgaon Commercial Depot"}</p>
-                  <p className="text-slate-600">Contact: {voucherOrder.contactPerson || "Commercial Sales Manager"}</p>
-                  <p className="text-slate-600">Phone: {voucherOrder.phone || "+880 1711-000000"}</p>
-                  <p className="text-slate-600">Supplier Code: {voucherOrder.wholesalerCode || "N/A"}</p>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 space-y-1">
-                  <span className="font-bold text-slate-800 uppercase tracking-wider text-[10px]">
-                    Shipping & Delivery Destination:
-                  </span>
-                  <p className="font-bold text-sm text-slate-900">{voucherOrder.deliveryWarehouse}</p>
-                  <p className="text-slate-600">Payment Terms: {voucherOrder.paymentTerms}</p>
-                  <p className="text-slate-600">Expected Delivery: {voucherOrder.expectedDeliveryDate || "Immediate"}</p>
-                  <p className="text-slate-600">Shipping Terms: {voucherOrder.shippingTerms || "FOB Central Depot"}</p>
-                  <p className="text-slate-600">Requisition Ref: {voucherOrder.requisitionRef || "N/A"}</p>
-                </div>
-              </div>
-
-              {/* Itemized Table */}
-              <div className="border border-slate-300 rounded-lg overflow-x-auto print:overflow-visible">
-                <table className="w-full min-w-[650px] print:min-w-full text-xs">
-                  <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
-                    <tr>
-                      <th className="py-2 px-2 text-center w-10">S/N</th>
-                      <th className="py-2 px-3 text-left">Product Name & Generic</th>
-                      <th className="py-2 px-2 text-left">Pack Size</th>
-                      <th className="py-2 px-2 text-left">Storage</th>
-                      <th className="py-2 px-2 text-right">Qty</th>
-                      <th className="py-2 px-3 text-right">Rate (৳)</th>
-                      <th className="py-2 px-3 text-right">Total (৳)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {voucherOrder.items?.map((it, i) => (
-                      <tr key={i}>
-                        <td className="py-2 px-2 text-center text-slate-500">{i + 1}</td>
-                        <td className="py-2 px-3 font-semibold text-slate-900">
-                          {it.drugName}
-                          {it.genericName && (
-                            <span className="block text-[10px] text-slate-500 font-normal">{it.genericName}</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-2 text-slate-600">{it.packSize || "Standard"}</td>
-                        <td className="py-2 px-2 text-slate-600">{it.storageRequirement || "Ambient"}</td>
-                        <td className="py-2 px-2 text-right font-mono font-bold text-slate-900">
-                          {it.quantityOrdered.toLocaleString()}
-                        </td>
-                        <td className="py-2 px-3 text-right font-mono text-slate-700">
-                          ৳{it.unitCostBDT.toLocaleString("en-IN")}
-                        </td>
-                        <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
-                          ৳{it.totalCostBDT.toLocaleString("en-IN")}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Financial Summary */}
-              <div className="flex justify-end">
-                <div className="w-64 space-y-1.5 text-xs">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Subtotal:</span>
-                    <span className="font-mono font-semibold text-slate-800">
-                      ৳{voucherOrder.subtotalBDT.toLocaleString("en-IN")}
-                    </span>
-                  </div>
-                  {voucherOrder.discountBDT > 0 && (
-                    <div className="flex justify-between text-slate-600">
-                      <span>Trade Discount:</span>
-                      <span className="font-mono text-rose-600 font-semibold">
-                        - ৳{voucherOrder.discountBDT.toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                  )}
-                  {voucherOrder.taxBDT > 0 && (
-                    <div className="flex justify-between text-slate-600">
-                      <span>VAT / Statutory Tax:</span>
-                      <span className="font-mono font-semibold text-slate-800">
-                        + ৳{voucherOrder.taxBDT.toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                  )}
-                  <div className="border-t-2 border-slate-900 pt-1.5 flex justify-between font-extrabold text-sm text-slate-900">
-                    <span>Net Amount:</span>
-                    <span className="font-mono text-[#0090FF]">
-                      ৳{voucherOrder.totalAmountBDT.toLocaleString("en-IN")}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Commercial Terms & Notes */}
-              <div className="p-3 bg-slate-50 rounded-lg text-[11px] text-slate-600 space-y-1">
-                <span className="font-bold text-slate-800 uppercase tracking-wider text-[10px]">
-                  Special Instructions & Standard Pharma Terms:
-                </span>
-                <p>1. Consignments must carry certificates of analysis (CoA) with minimum 75% remaining shelf life.</p>
-                <p>2. Cold-chain items must be shipped with calibrated data loggers. Temp breaches will void acceptance.</p>
-                {voucherOrder.notes && <p className="font-medium text-slate-800 mt-1">Note: {voucherOrder.notes}</p>}
-              </div>
-
-              {/* Statutory Signature Blocks */}
-              <div className="pt-8 grid grid-cols-3 gap-6 text-center text-xs">
-                <div>
-                  <div className="border-t border-slate-400 pt-1">
-                    <p className="font-bold text-slate-800">{voucherOrder.createdBy || "Procurement Officer"}</p>
-                    <p className="text-[10px] text-slate-500">Prepared By</p>
-                  </div>
-                </div>
-                <div>
-                  <div className="border-t border-slate-400 pt-1">
-                    <p className="font-bold text-slate-800">QA Pharmacist</p>
-                    <p className="text-[10px] text-slate-500">Verified & Inspected</p>
-                  </div>
-                </div>
-                <div>
-                  <div className="border-t border-slate-400 pt-1">
-                    <p className="font-bold text-slate-800">
-                      {voucherOrder.approvedBy || "Mahbubur Rashid (Director)"}
-                    </p>
-                    <p className="text-[10px] text-slate-500">Authorized & Signed</p>
-                  </div>
-                </div>
+              <div className="flex justify-end gap-2 pb-2 print:hidden pt-4 border-t border-slate-100">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsVoucherModalOpen(false)}
+                  className="text-xs"
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => window.print()}
+                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+                >
+                  <Printer className="h-4 w-4" /> Print Purchase Order
+                </Button>
               </div>
             </div>
           )}

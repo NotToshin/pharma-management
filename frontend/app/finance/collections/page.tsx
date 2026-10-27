@@ -68,6 +68,23 @@ import {
   FileText,
 } from "lucide-react"
 
+import { MoneyReceiptSheet } from "@/components/finance/money-receipt-sheet"
+
+const PRINT_STYLES = `
+@page { size: A4 portrait; margin: 10mm; }
+@media print {
+  html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; }
+  body * { visibility: hidden !important; }
+  #print-standalone-money-receipt, #print-standalone-money-receipt * { visibility: visible !important; }
+  #print-standalone-money-receipt {
+    position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print\\:hidden, button { display: none !important; }
+}
+`
+
 export interface DeliveryCollection {
   id: string
   receiptNo: string
@@ -841,6 +858,7 @@ export default function DeliveryCashCollectionsPage() {
 
   return (
     <div className="mx-auto max-w-[1420px] space-y-6 pb-20 font-sans text-neutral-900">
+      <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
       {/* 1. Header Toolbar */}
       <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -1478,7 +1496,7 @@ export default function DeliveryCashCollectionsPage() {
 
       {/* 5. Record New Collection Modal */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white sm:max-w-[620px] shadow-2xl">
+        <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white sm:max-w-155 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
@@ -1929,103 +1947,35 @@ export default function DeliveryCashCollectionsPage() {
 
       {/* 7. Screen Receipt Preview Modal */}
       <Dialog open={isPrintOpen} onOpenChange={setIsPrintOpen}>
-        <DialogContent className="max-h-[95vh] overflow-y-auto rounded-xl bg-white sm:max-w-[680px]">
+        <DialogContent className="max-h-[95vh] overflow-y-auto rounded-2xl bg-white sm:max-w-[760px] p-6 print:p-0">
+          <DialogHeader className="print:hidden">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Official Delivery Money Receipt
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Money receipt for #{printTarget?.receiptNo} ({printTarget?.chemistName})
+                </DialogDescription>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => window.print()}
+                className="h-8 gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Print Receipt
+              </Button>
+            </div>
+          </DialogHeader>
+
           {printTarget && (
-            <div className="space-y-6">
-              <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-6 text-xs text-neutral-900">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-                  <div>
-                    <h2 className="text-lg font-extrabold text-slate-900 uppercase">
-                      AK PHARMA
-                    </h2>
-                    <p className="text-[11px] text-slate-500">
-                      Official Delivery Cash Collection Receipt & Vault Clearance
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="block font-mono text-xs font-bold text-[#0090FF]">
-                      {printTarget.receiptNo}
-                    </span>
-                    <span className="font-mono text-[10px] text-slate-400">
-                      Date: {printTarget.collectionDate}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-4 text-xs">
-                  <div>
-                    <p className="font-medium text-slate-500">Chemist / Pharmacy:</p>
-                    <p className="mt-0.5 text-sm font-bold text-slate-900">
-                      {printTarget.chemistName}
-                    </p>
-                    <p className="mt-2 font-medium text-slate-500">Invoice Reference:</p>
-                    <p className="font-mono font-bold text-blue-700">
-                      Invoice #{printTarget.invoiceNo}
-                    </p>
-                    <p className="mt-2 font-medium text-slate-500">Territory:</p>
-                    <p className="font-semibold text-slate-800">{printTarget.territory}</p>
-                  </div>
-
-                  <div>
-                    <p className="font-medium text-slate-500">Collecting Sales Rep (MIO):</p>
-                    <p className="mt-0.5 text-sm font-bold text-slate-900">
-                      {printTarget.salesRepName}
-                    </p>
-                    <p className="mt-2 font-medium text-slate-500">Payment Instrument:</p>
-                    <p className="font-mono font-semibold text-slate-800">
-                      {printTarget.paymentMethod} {printTarget.chequeNumber ? `• Ref: ${printTarget.chequeNumber}` : ""}
-                    </p>
-                    <p className="mt-2 font-medium text-slate-500">Clearance Status:</p>
-                    <p className="font-bold text-emerald-600">{printTarget.status}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2 rounded-lg border border-slate-200 p-4">
-                  <p className="border-b border-slate-100 pb-2 font-bold text-slate-900">
-                    Collection Particulars
-                  </p>
-                  <div className="flex justify-between py-1">
-                    <span className="text-slate-600 italic">
-                      "{printTarget.notes || "Official delivery collection receipt."}"
-                    </span>
-                    <span className="font-mono text-base font-extrabold text-emerald-700">
-                      ৳{printTarget.amountCollected.toLocaleString("en-IN")}
-                    </span>
-                  </div>
-
-                  <div className="border-t border-slate-100 pt-2 flex justify-between text-[11px] text-slate-500 font-mono">
-                    <span>Total Invoice: ৳{printTarget.totalInvoiceAmount.toLocaleString("en-IN")}</span>
-                    <span>Remaining Due: ৳{printTarget.dueAmountRemaining.toLocaleString("en-IN")}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
-                  <span className="font-medium text-slate-500">Amount in Words:</span>
-                  <strong className="text-slate-900 italic">
-                    {numberToWordsBDT(printTarget.amountCollected)}
-                  </strong>
-                </div>
-
-                <div className="flex justify-between border-t border-slate-200 pt-10 text-[11px] text-slate-500">
-                  <div className="text-center">
-                    <div className="mx-auto mb-1 w-32 border-b border-slate-400" />
-                    <strong className="block text-slate-900">{printTarget.salesRepName}</strong>
-                    <span className="text-[9px]">Collecting Agent (MIO)</span>
-                  </div>
-                  <div className="text-center">
-                    <div className="mx-auto mb-1 w-32 border-b border-slate-400" />
-                    <strong className="block text-slate-900">{printTarget.clearedBy || "Cashier & Vault Officer"}</strong>
-                    <span className="text-[9px]">Treasury Verification</span>
-                  </div>
-                  <div className="text-center">
-                    <div className="mx-auto mb-1 w-32 border-b border-slate-400" />
-                    <strong className="block text-slate-900">Finance Controller</strong>
-                    <span className="text-[9px]">General Ledger Sign-off</span>
-                  </div>
-                </div>
+            <div className="space-y-6 pt-2">
+              <div id="print-standalone-money-receipt">
+                <MoneyReceiptSheet record={printTarget} />
               </div>
 
-              <div className="flex justify-end gap-2 pb-2">
+              <div className="flex justify-end gap-2 pb-2 print:hidden pt-4 border-t border-slate-100">
                 <Button
                   variant="outline"
                   onClick={() => setIsPrintOpen(false)}
@@ -2034,8 +1984,8 @@ export default function DeliveryCashCollectionsPage() {
                   Close
                 </Button>
                 <Button
-                  onClick={() => handlePrint(printTarget)}
-                  className="gap-1.5 bg-[#0090FF] text-xs font-semibold text-white hover:bg-[#0080e5]"
+                  onClick={() => window.print()}
+                  className="gap-1.5 bg-black hover:bg-neutral-800 text-xs font-semibold text-white"
                 >
                   <Printer className="h-4 w-4" /> Print Receipt
                 </Button>
