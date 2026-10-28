@@ -203,7 +203,7 @@ export const clientService = {
             ? Number(data.creditLimitBDT)
             : 0,
         outstandingBalanceBDT: Number(data.outstandingBalanceBDT) || 0,
-        creditTermDays: Number(data.creditTermDays) || 30,
+        creditTermDays: Number(data.creditTermDays ?? 30),
         status: data.status || "Active / Healthy",
         lastBilledDate: formatDate(data.lastBilledDate),
       },
@@ -359,7 +359,7 @@ export const clientService = {
           ? Number(item.creditLimitBDT)
           : 0;
       const outstandingBalanceBDT = Number(item.outstandingBalanceBDT) || 0;
-      const creditTermDays = Number(item.creditTermDays) || 30;
+      const creditTermDays = Number(item.creditTermDays ?? 30);
       const status = item.status?.trim() || "Active / Healthy";
       const lastBilledDate = formatDate(item.lastBilledDate);
 

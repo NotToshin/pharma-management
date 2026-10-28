@@ -3,6 +3,7 @@ import { AppError } from "../errors";
 import { mirrorBatchQuantity } from "./productBatchService";
 import { auditLogService } from "./auditLogService";
 import { loadOrderAttributionSources, resolveOrderMio } from "./orderAttributionService";
+import type { UpdateOrderInvoiceInput } from "../validations/orderValidation";
 
 const generateUniqueOrderNumber = async (tx: any): Promise<string> => {
   const count = await tx.order.count();
@@ -38,7 +39,7 @@ interface LineItem {
 
 export const orderService = {
   async getAllOrders() {
-    const [orders, collections] = await Promise.all([
+    const [orders, collections, attribution] = await Promise.all([
       prisma.order.findMany({
         orderBy: { createdAt: "desc" },
       }),
@@ -46,6 +47,7 @@ export const orderService = {
         where: { status: { not: "Bounced / Rejected" } },
         select: { orderId: true, invoiceNo: true, amountCollected: true },
       }),
+      loadOrderAttributionSources(),
     ]);
 
     const collectedByOrderId = new Map<string, number>();
@@ -77,7 +79,7 @@ export const orderService = {
       const directPaid = Number(order.paidAmount) || 0;
       const paid = Math.min(total, Math.max(directPaid, collectionPaid));
       const paymentStatus = paid <= 0.009 ? "UNPAID" : paid + 0.009 >= total ? "PAID" : "PARTIALLY_PAID";
-      return { ...order, paidAmount: paid, paymentStatus };
+      return { ...order, assignedMio: resolveOrderMio(order, attribution) || "Unassigned", paidAmount: paid, paymentStatus };
     });
   },
 
@@ -99,6 +101,7 @@ export const orderService = {
     status?: string;
     challanNumber?: string;
     invoiceNumber?: string;
+    paymentTerms?: string;
   }) {
     if (!data.pharmacyName?.trim()) {
       throw new AppError("Pharmacy name is required", 400);
@@ -125,11 +128,15 @@ export const orderService = {
           }))
         : [];
 
-      const finalTerritory = data.territory?.trim() || "Dhaka North";
+      const attribution = await loadOrderAttributionSources(tx);
+      const matchingClients = attribution.clients.filter((client) =>
+        client.pharmacyName.trim().toLowerCase() === data.pharmacyName.trim().toLowerCase());
+      const finalTerritory = data.territory?.trim() ||
+        (matchingClients.length === 1 ? matchingClients[0].territory?.trim() : "") || "Unassigned";
       const assignedMio = resolveOrderMio(
         { ...data, territory: finalTerritory },
-        await loadOrderAttributionSources(tx)
-      ) || "General MIO";
+        attribution
+      ) || "Unassigned";
 
       const newOrder = await tx.order.create({
         data: {
@@ -157,6 +164,7 @@ export const orderService = {
           status: data.status || "FEFO Allocated",
           challanNumber: data.challanNumber || generateChallanNumber(),
           invoiceNumber: data.invoiceNumber || `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+          paymentTerms: data.paymentTerms?.trim() || null,
         },
       });
 
@@ -237,7 +245,9 @@ export const orderService = {
     }
 
     const isDelivered = status === "Delivered & Invoiced";
-    const invoiceNum = isDelivered ? `INV-2026-${Math.floor(9020 + Math.random() * 80)}` : undefined;
+    const invoiceNum = isDelivered && !existing.invoiceNumber
+      ? `INV-${new Date().getFullYear()}-${Math.floor(9020 + Math.random() * 80)}`
+      : undefined;
 
     // If order was cancelled, restore allocated units to inventory and adjust client dues
     if (status === "Cancelled" && existing.status !== "Cancelled") {
@@ -296,6 +306,32 @@ export const orderService = {
       reasonForChange: "Order lifecycle delivery and fulfillment update.",
     });
 
+    return updated;
+  },
+
+  async updateOrderInvoice(id: string, data: UpdateOrderInvoiceInput) {
+    const existing = await prisma.order.findUnique({ where: { id } });
+    if (!existing) throw new AppError("Order not found", 404);
+
+    const updated = await prisma.order.update({
+      where: { id },
+      data: {
+        ...data,
+        ...(data.paymentTerms !== undefined ? { paymentTerms: data.paymentTerms?.trim() || null } : {}),
+      },
+    });
+    await auditLogService.recordAuditEvent({
+      module: "Sales & Deliveries",
+      actionType: "Invoice Details Updated",
+      severity: "Routine",
+      entityTarget: `${updated.orderNumber} (${updated.pharmacyName})`,
+      entityType: "Order",
+      entityId: updated.id,
+      changeSummary: `Invoice details updated for ${updated.invoiceNumber || updated.orderNumber}.`,
+      priorPayload: existing,
+      newPayload: updated,
+      reasonForChange: "Correction of invoice date, terms, territory or sales representative.",
+    });
     return updated;
   },
 

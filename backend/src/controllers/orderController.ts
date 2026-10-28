@@ -26,3 +26,8 @@ export const deleteOrder = catchAsync(async (req: Request, res: Response) => {
   await orderService.deleteOrder(id);
   sendResponse(res, 200, "Order deleted successfully");
 });
+
+export const updateOrderInvoice = catchAsync(async (req: Request, res: Response) => {
+  const order = await orderService.updateOrderInvoice(req.params.id, req.body);
+  sendResponse(res, 200, "Invoice details updated successfully", order);
+});

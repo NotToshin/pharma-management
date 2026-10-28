@@ -18,6 +18,7 @@ export interface OrderInvoiceData {
   territory: string
   assignedMio: string
   invoiceNumber: string
+  paymentTerms?: string | null
   status: string
   comments?: string
   itemsDetail?: InvoiceItem[]
@@ -41,12 +42,11 @@ export interface ClientInvoiceData {
 
 export function formatInvoiceDate(dateInput?: string): string {
   if (!dateInput) {
-    const now = new Date()
-    const d = String(now.getDate()).padStart(2, "0")
-    const m = String(now.getMonth() + 1).padStart(2, "0")
-    const y = now.getFullYear()
-    return `${d}/${m}/${y}`
+    return "Not recorded"
   }
+
+  const isoDate = /^(\d{4})-(\d{2})-(\d{2})(?:T|$)/.exec(dateInput)
+  if (isoDate) return `${isoDate[3]}/${isoDate[2]}/${isoDate[1]}`
 
   // If already DD/MM/YYYY
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateInput)) return dateInput
@@ -168,7 +168,11 @@ export function OrderInvoiceSheet({
   grandTotal: number
 }) {
   const formattedDate = formatInvoiceDate(order.orderDate)
-  const creditDays = client?.creditTermDays || 30
+  const creditDays = client?.creditTermDays
+  const paymentTerms = order.paymentTerms?.trim() || (
+    creditDays === 0 ? "Due on Receipt" :
+    creditDays != null ? `Credit (${creditDays} Days)` : "Not recorded"
+  )
 
   return (
     <div className="w-full bg-white text-black font-sans text-xs selection:bg-none print:p-0">
@@ -226,7 +230,7 @@ export function OrderInvoiceSheet({
         {/* Right Box: Invoice Details */}
         <div className="border border-black">
           <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
-            Invoice No: {order.invoiceNumber || "INV-2026-XXXX"}
+            Invoice No: {order.invoiceNumber || "Not issued"}
           </div>
           <div className="p-2.5 text-xs text-black space-y-1">
             <p>
@@ -235,7 +239,7 @@ export function OrderInvoiceSheet({
             </p>
             <p>
               <span className="font-normal">Payment Terms: </span>
-              <span className="font-semibold">Due on Receipt / Credit ({creditDays} Days)</span>
+              <span className="font-semibold">{paymentTerms}</span>
             </p>
             <p>
               <span className="font-normal">MIO/SR Name: </span>
@@ -325,6 +329,9 @@ export function OrderInvoiceSheet({
       </div>
 
       {/* 5. Payment & Bank Details */}
+      {order.comments && (
+        <p className="mt-4 whitespace-pre-wrap text-xs"><span className="font-semibold">Comments: </span>{order.comments}</p>
+      )}
       <div className="mt-6 border border-black">
         <div className="bg-black text-white font-bold text-xs px-2.5 py-1 tracking-wider uppercase">
           PAYMENT & BANK DETAILS:

@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { API_URL } from "@/lib/api"
+import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
@@ -64,6 +64,7 @@ import {
   Wallet,
 } from "lucide-react"
 import { OrderInvoiceSheet } from "@/components/logistics/order-invoice"
+import { InvoiceDetailsForm, type InvoiceDetailsInput } from "@/components/logistics/invoice-details-form"
 
 interface InvoiceItem {
   no: number
@@ -100,6 +101,7 @@ interface SalesOrder {
     | "Delivered & Invoiced"
     | "Cancelled"
   invoiceNumber: string
+  paymentTerms?: string | null
 }
 
 interface ClientOption {
@@ -113,6 +115,8 @@ interface ClientOption {
   outstandingBalanceBDT: number
   address?: string
   phone?: string
+  proprietor?: string
+  creditTermDays?: number
 }
 
 interface StaffOption {
@@ -278,7 +282,7 @@ function LogisticsOrdersContent() {
   >(null)
 
   const [isNewOrderOpen, setIsNewOrderOpen] = React.useState(false)
-  const [territory, setTerritory] = React.useState("Dhaka North")
+  const [territory, setTerritory] = React.useState("")
   const [assignedMio, setAssignedMio] = React.useState("")
   const [deliveryMethod, setDeliveryMethod] = React.useState<
     SalesOrder["deliveryMethod"]
@@ -294,32 +298,34 @@ function LogisticsOrdersContent() {
     status: string
     avail: string
   } | null>(null)
-  const [selectedOrder, setSelectedOrder] = React.useState<SalesOrder | null>(
-    null
-  )
+  const [selectedOrderId, setSelectedOrderId] = React.useState<string | null>(null)
+  const selectedOrder = orders.find((order) => order.id === selectedOrderId) || null
+  const [isSavingInvoice, setIsSavingInvoice] = React.useState(false)
   const [isInspectOpen, setIsInspectOpen] = React.useState(false)
 
   const fetchBackendData = React.useCallback(async () => {
     try {
       const [ordRes, clientRes, staffRes, invRes] = await Promise.all([
-        fetch(`${API_URL}/orders`).catch(() => ({
+        apiFetch(`${API_URL}/orders`, { cache: "no-store" }).catch(() => ({
           ok: false,
           json: async () => [],
         })),
-        fetch(`${API_URL}/clients`).catch(() => ({
+        apiFetch(`${API_URL}/clients`, { cache: "no-store" }).catch(() => ({
           ok: false,
           json: async () => [],
         })),
-        fetch(`${API_URL}/staff`).catch(() => ({
+        apiFetch(`${API_URL}/staff`).catch(() => ({
           ok: false,
           json: async () => [],
         })),
         // Connected directly to the live inventory batch ledger
-        fetch(`${API_URL}/inventory`).catch(() => ({
+        apiFetch(`${API_URL}/inventory`).catch(() => ({
           ok: false,
           json: async () => [],
         })),
       ])
+
+      if (!ordRes.ok || !clientRes.ok) throw new Error("Unable to load current orders and client details")
 
       // Dynamic Product Catalog mapped from live inventory batches
       if (invRes.ok) {
@@ -390,43 +396,33 @@ function LogisticsOrdersContent() {
               )
             }
 
-            const sequentialInvoiceNo =
-              item.invoiceNumber ||
-              `INV-2026-${String(idx + 1).padStart(4, "0")}`
-            const rawDiscount = Number(
-              item.discountPercent ?? item.discount ?? 0
-            )
+            const sequentialInvoiceNo = item.invoiceNumber || ""
             const computedSubtotal = parsedItems.reduce(
               (acc, curr) => acc + (curr.total || 0),
               0
             )
 
-            const pct =
-              item.discountPercent !== undefined
-                ? rawDiscount
-                : computedSubtotal > 0 && rawDiscount <= 100
-                  ? rawDiscount
-                  : computedSubtotal > 0
-                    ? Math.round((rawDiscount / computedSubtotal) * 100)
-                    : 0
-
-            const monetaryDiscount = Math.round((computedSubtotal * pct) / 100)
+            // The backend's discount field stores a monetary amount.
+            const monetaryDiscount = Number(item.discountAmount ?? item.discount ??
+              Math.round((computedSubtotal * Number(item.discountPercent ?? 0)) / 100))
+            const pct = Number(item.discountPercent ??
+              (computedSubtotal > 0 ? (monetaryDiscount / computedSubtotal) * 100 : 0))
 
             return {
               id: item.id,
               orderNumber:
                 item.orderNumber ||
                 `SO-2026-${String(idx + 1).padStart(4, "0")}`,
-              orderDate: item.orderDate || "28 Sep 2026",
+              orderDate: item.orderDate || "",
               pharmacyName: item.pharmacyName,
-              territory: item.territory || "Dhaka North",
-              assignedMio: item.assignedMio || "General MIO",
+              territory: item.territory || "",
+              assignedMio: item.assignedMio || "",
+              paymentTerms: item.paymentTerms ?? null,
               itemsSummary: item.itemsSummary || "General Formulations",
               itemsDetail: parsedItems,
               totalBoxes: Number(item.totalBoxes) || 1,
               orderValue:
-                Number(item.orderValue) ||
-                Math.max(0, computedSubtotal - monetaryDiscount),
+                Number(item.orderValue ?? Math.max(0, computedSubtotal - monetaryDiscount)),
               paidAmount: Number(item.paidAmount) || 0,
               paymentStatus: item.paymentStatus || "UNPAID",
               discountPercent: pct,
@@ -453,9 +449,11 @@ function LogisticsOrdersContent() {
       }
 
       setLoading(false)
+      return true
     } catch (err) {
       console.error("Error loading logistics records:", err)
       setLoading(false)
+      return false
     }
   }, [])
 
@@ -501,10 +499,8 @@ function LogisticsOrdersContent() {
 
   const handleSelectPharmacy = (client: ClientOption) => {
     setPharmacyInput(client.pharmacyName)
-    if (client.territory) setTerritory(client.territory)
-    if (client.assignedMio && !assignedMio) {
-      setAssignedMio(client.assignedMio)
-    }
+    setTerritory(client.territory || "")
+    setAssignedMio(client.assignedMio || "")
     const avail = Math.max(
       0,
       client.creditLimitBDT - client.outstandingBalanceBDT
@@ -679,7 +675,7 @@ function LogisticsOrdersContent() {
         }),
         pharmacyName: pharmacyInput.trim(),
         territory,
-        assignedMio: assignedMio || "General MIO",
+        assignedMio,
         itemsSummary: itemsSummaryString,
         itemsDetail: validLineItems,
         totalBoxes: totalBoxesCalculated,
@@ -692,7 +688,7 @@ function LogisticsOrdersContent() {
         invoiceNumber: nextSerialInvoiceNo,
       }
 
-      const res = await fetch(`${API_URL}/orders`, {
+      const res = await apiFetch(`${API_URL}/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -707,7 +703,7 @@ function LogisticsOrdersContent() {
       setIsNewOrderOpen(false)
       setPharmacyInput("")
       setAssignedMio("")
-      setTerritory("Dhaka North")
+      setTerritory("")
       setLineItems([
         { no: 1, description: "", quantity: 1, unitCost: 0, total: 0 },
       ])
@@ -727,7 +723,7 @@ function LogisticsOrdersContent() {
   ) => {
     const toastId = toast.loading(`Updating order status to ${newStatus}...`)
     try {
-      const res = await fetch(`${API_URL}/orders/${id}`, {
+      const res = await apiFetch(`${API_URL}/orders/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
@@ -746,29 +742,49 @@ function LogisticsOrdersContent() {
     }
   }
 
-  const handleUpdateOrderMio = async (id: string, newMio: string) => {
-    setSelectedOrder((prev) => (prev && prev.id === id ? { ...prev, assignedMio: newMio } : prev))
-    setOrders((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, assignedMio: newMio } : o))
-    )
-
+  const handleSaveInvoiceDetails = async (details: InvoiceDetailsInput) => {
+    if (!selectedOrder || isSavingInvoice) return
+    const id = selectedOrder.id
+    const toastId = toast.loading("Saving invoice details...")
+    setIsSavingInvoice(true)
     try {
-      const res = await fetch(`${API_URL}/orders/${id}`, {
-        method: "PUT",
+      const res = await apiFetch(`${API_URL}/orders/${id}/invoice`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignedMio: newMio }),
+        body: JSON.stringify(details),
       })
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}))
-        throw new Error(errJson.message || "Failed to update sales representative")
+        throw new Error(errJson.message || "Failed to save invoice details")
       }
 
-      toast.success(`Sales representative updated to ${newMio}`)
-    } catch (error: any) {
-      console.error("Error updating sales representative:", error)
-      toast.error(error.message || "Failed to update sales rep on server.")
-      fetchBackendData()
+      const { data: saved } = await res.json()
+      setOrders((previous) => previous.map((order) => order.id === id ? {
+        ...order,
+        orderDate: saved.orderDate,
+        territory: saved.territory,
+        assignedMio: saved.assignedMio,
+        paymentTerms: saved.paymentTerms,
+        comments: saved.comments || "",
+        invoiceNumber: saved.invoiceNumber || "",
+      } : order))
+      toast.success("Invoice details saved", { id: toastId })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save invoice details", { id: toastId })
+    } finally {
+      setIsSavingInvoice(false)
+    }
+  }
+
+  const handleOpenInvoice = async (order: SalesOrder) => {
+    const toastId = toast.loading("Loading current invoice details...")
+    if (await fetchBackendData()) {
+      setSelectedOrderId(order.id)
+      setIsInspectOpen(true)
+      toast.dismiss(toastId)
+    } else {
+      toast.error("Unable to load current invoice details. Please try again.", { id: toastId })
     }
   }
 
@@ -782,7 +798,7 @@ function LogisticsOrdersContent() {
     const toastId = toast.loading(`Deleting sales order ${orderToDelete.orderNumber}...`)
     try {
       setIsDeletingOrder(true)
-      const res = await fetch(`${API_URL}/orders/${orderToDelete.id}`, {
+      const res = await apiFetch(`${API_URL}/orders/${orderToDelete.id}`, {
         method: "DELETE",
       })
 
@@ -889,7 +905,7 @@ function LogisticsOrdersContent() {
   const matchedClient = React.useMemo(
     () =>
       selectedOrder
-        ? clientList.find((c) => c.pharmacyName === selectedOrder.pharmacyName)
+        ? clientList.find((c) => c.pharmacyName.trim().toLowerCase() === selectedOrder.pharmacyName.trim().toLowerCase())
         : null,
     [clientList, selectedOrder]
   )
@@ -923,7 +939,7 @@ function LogisticsOrdersContent() {
     selectedOrder?.discountAmount ??
     Math.round((inspectSubtotal * inspectDiscountPercent) / 100)
   const inspectGrandTotal =
-    selectedOrder?.orderValue ||
+    selectedOrder?.orderValue ??
     Math.max(0, inspectSubtotal - inspectDiscountAmount)
 
   return (
@@ -1714,14 +1730,11 @@ function LogisticsOrdersContent() {
                   <TableCell className="py-3 text-xs">
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedOrder(ord)
-                        setIsInspectOpen(true)
-                      }}
+                      onClick={() => void handleOpenInvoice(ord)}
                       className="block font-mono text-xs font-bold text-emerald-700 hover:text-emerald-900 hover:underline cursor-pointer text-left"
                       title="Click to view / print invoice"
                     >
-                      {ord.invoiceNumber}
+                      {ord.invoiceNumber || "View invoice"}
                     </button>
                   </TableCell>
 
@@ -1760,10 +1773,7 @@ function LogisticsOrdersContent() {
                           Workflow Transitions
                         </DropdownMenuLabel>
                         <DropdownMenuItem
-                          onClick={() => {
-                            setSelectedOrder(ord)
-                            setIsInspectOpen(true)
-                          }}
+                          onClick={() => void handleOpenInvoice(ord)}
                           className="cursor-pointer text-xs font-semibold text-slate-700"
                         >
                           <FileText className="mr-2 h-3.5 w-3.5 text-slate-500" />
@@ -1858,29 +1868,9 @@ function LogisticsOrdersContent() {
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
-                      Sales Rep (MIO):
-                    </span>
-                    <Select
-                      value={selectedOrder.assignedMio || ""}
-                      onValueChange={(val) => handleUpdateOrderMio(selectedOrder.id, val)}
-                    >
-                      <SelectTrigger className="h-8 w-44 border-slate-300 bg-white text-xs font-semibold text-slate-800">
-                        <SelectValue placeholder="Select Sales Rep" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-48 text-xs">
-                        {staffList.map((staff) => (
-                          <SelectItem key={staff.id} value={staff.fullName}>
-                            {staff.fullName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
                   <Button
                     size="sm"
+                    disabled={isSavingInvoice}
                     onClick={() => window.print()}
                     className="h-8 gap-1.5 bg-[#0090FF] text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
                   >
@@ -1899,8 +1889,12 @@ function LogisticsOrdersContent() {
               </div>
 
               {/* On-screen Preview */}
-              <div className="flex max-h-[78vh] justify-center overflow-y-auto bg-slate-100/90 p-6">
-                <div className="w-full max-w-[760px] border border-slate-300 bg-white p-8 text-black shadow-md">
+              <div className="flex max-h-[78vh] flex-col items-center overflow-y-auto bg-slate-100/90 p-6">
+                <details className="mb-4 w-full max-w-[760px] shrink-0 rounded-lg border border-slate-200 bg-white p-4 print:hidden">
+                  <summary className="mb-3 cursor-pointer text-sm font-semibold">Edit invoice details</summary>
+                  <InvoiceDetailsForm order={selectedOrder} staff={staffList} saving={isSavingInvoice} onSave={handleSaveInvoiceDetails} />
+                </details>
+                <div className="w-full max-w-[760px] shrink-0 border border-slate-300 bg-white p-8 text-black shadow-md">
                   <OrderInvoiceSheet
                     order={selectedOrder}
                     client={matchedClient}

@@ -176,7 +176,8 @@ function parseClientRow(row: any): ParsedClientRow {
   const rawBalance = getCol("Outstanding Balance (BDT)", "Outstanding Balance", "Balance", "Due")
   const outstandingBalanceBDT = parseFloat(rawBalance) || 0
   const rawTerms = getCol("Credit Terms (Days)", "Credit Terms", "Terms (Days)", "Terms")
-  const creditTermDays = parseInt(rawTerms, 10) || 30
+  const parsedCreditTerms = parseInt(rawTerms, 10)
+  const creditTermDays = Number.isNaN(parsedCreditTerms) ? 30 : parsedCreditTerms
   const status = getCol("Account Status", "Status") || "Active / Healthy"
 
   let isValid = true
@@ -335,7 +336,7 @@ export default function ClientsDirectoryPage() {
               ? Number(item.creditLimitBDT)
               : 0,
           outstandingBalanceBDT: Number(item.outstandingBalanceBDT) || 0,
-          creditTermDays: Number(item.creditTermDays) || 30,
+          creditTermDays: Number(item.creditTermDays ?? 30),
           status: item.status || "Active / Healthy",
           lastBilledDate: item.lastBilledDate || "Recent",
         }))
@@ -557,7 +558,7 @@ export default function ClientsDirectoryPage() {
               ? Number(item.creditLimitBDT)
               : 0,
           outstandingBalanceBDT: Number(item.outstandingBalanceBDT) || 0,
-          creditTermDays: Number(item.creditTermDays) || 30,
+          creditTermDays: Number(item.creditTermDays ?? 30),
           status: item.status || "Active / Healthy",
           lastBilledDate: item.lastBilledDate || "N/A",
         }))
