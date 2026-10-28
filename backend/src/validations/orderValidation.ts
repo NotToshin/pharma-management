@@ -27,6 +27,7 @@ export const createOrderSchema = z.object({
     status: z.string().optional().default("FEFO Allocated"),
     challanNumber: z.string().optional().or(z.literal("")),
     invoiceNumber: z.string().optional().or(z.literal("")),
+    paymentTerms: z.string().trim().max(200).optional(),
   }),
 });
 
@@ -44,6 +45,19 @@ export const orderIdParamSchema = z.object({
     id: z.string().min(1, "Order ID is required"),
   }),
 });
+
+export const updateOrderInvoiceSchema = z.object({
+  params: orderIdParamSchema.shape.params,
+  body: z.object({
+    orderDate: z.iso.date().optional(),
+    territory: z.string().trim().min(1).max(200).optional(),
+    assignedMio: z.string().trim().min(1).max(200).optional(),
+    paymentTerms: z.string().trim().max(200).nullable().optional(),
+    comments: z.string().trim().max(2000).optional(),
+  }).strict().refine((value) => Object.keys(value).length > 0, "Provide invoice details to update"),
+});
+
+export type UpdateOrderInvoiceInput = z.infer<typeof updateOrderInvoiceSchema>["body"];
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>["body"];
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>["body"];

@@ -228,6 +228,7 @@ model Order {
   paymentStatus  String      @default("UNPAID") // UNPAID | PARTIALLY_PAID | PAID
   challanNumber  String?
   invoiceNumber  String?
+  paymentTerms   String?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 }

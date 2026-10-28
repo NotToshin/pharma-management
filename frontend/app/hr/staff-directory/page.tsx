@@ -72,8 +72,8 @@ const PRINT_STYLES = `
 }
 
 @media print {
-  html,
-  body {
+  html:has(#staff-dossier-print-dialog),
+  body:has(#staff-dossier-print-dialog) {
     height: auto !important;
     overflow: visible !important;
     background: #ffffff !important;
@@ -81,28 +81,43 @@ const PRINT_STYLES = `
     print-color-adjust: exact;
   }
 
-  body * {
-    visibility: hidden !important;
+  body:has(#staff-dossier-print-dialog) > :not(#staff-dossier-print-dialog) {
+    display: none !important;
   }
 
-  #staff-dossier-printable,
-  #staff-dossier-printable * {
-    visibility: visible !important;
+  #staff-dossier-print-dialog {
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+    translate: none !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    animation: none !important;
   }
 
   #staff-dossier-printable {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
     width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
     margin: 0 !important;
-    padding: 10px !important;
+    padding: 0 !important;
     background: #ffffff !important;
   }
 
-  .print\\:hidden,
-  button,
-  [data-radix-popper-content-wrapper] {
+  #staff-dossier-printable > div {
+    break-inside: avoid;
+  }
+
+  #staff-dossier-print-dialog .print\\:hidden {
     display: none !important;
   }
 }
@@ -1538,14 +1553,19 @@ export default function StaffDirectoryPage() {
 
       {/* 6. Printable Dossier Modal */}
       <Dialog open={isPrintOpen} onOpenChange={setIsPrintOpen}>
-        <DialogContent className="flex max-h-[92vh] flex-col overflow-hidden rounded-xl bg-white p-0 sm:max-w-[680px]">
+        <DialogContent
+          id="staff-dossier-print-dialog"
+          aria-describedby={undefined}
+          showCloseButton={false}
+          className="flex max-h-[92vh] flex-col overflow-hidden rounded-xl bg-white p-0 sm:max-w-[680px]"
+        >
           {printProfile && (
             <div>
               {/* Header Toolbar (Hidden while printing) */}
               <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4 print:hidden">
-                <span className="text-xs font-bold text-slate-700">
+                <DialogTitle className="text-xs font-bold text-slate-700">
                   Official Personnel Dossier Preview
-                </span>
+                </DialogTitle>
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"

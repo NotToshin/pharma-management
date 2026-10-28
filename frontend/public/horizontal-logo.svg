@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 342.27 57.81">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #3e799f;
+      }
+
+      .cls-1, .cls-2 {
+        stroke-width: 0px;
+      }
+
+      .cls-3 {
+        font-family: NeueJune-Bold, 'Neue June';
+        font-size: 35px;
+        font-weight: 700;
+      }
+
+      .cls-3, .cls-2 {
+        fill: #264f6e;
+      }
+    </style>
+  </defs>
+  <g>
+    <g>
+      <polygon class="cls-2" points="49.4 31.82 49.39 57.51 30.61 57.51 49.4 31.82"/>
+      <path class="cls-2" d="M67.37,0h-8.32s-16.42,0-16.42,0L0,57.51h22.5L59.05,7.05v39.23c4.76-5.89,7.46-10.62,7.46-10.62,11.14-21.91,6.28-31.51.86-35.66Z"/>
+    </g>
+    <path class="cls-1" d="M111.38,0h-18.66l-17.2,26.94s-15.31,27.28-19.87,30.57l15.85.29,4.02-27.23,17.2,26.94h18.66l-18.66-29.09L111.38,0Z"/>
+  </g>
+  <text class="cls-3" transform="translate(115.82 41.26)"><tspan x="0" y="0">AK PHARMA</tspan></text>
+</svg>

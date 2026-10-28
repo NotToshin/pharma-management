@@ -99,13 +99,12 @@ function LoginForm() {
   return (
     <div className="flex w-full max-w-[440px] flex-col items-center">
       {/* AK Pharma Brand Header */}
-      <div className="mb-6 flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-black text-white">
-          <span className="text-[11px] font-bold tracking-tighter">AK</span>
-        </div>
-        <span className="text-sm font-bold tracking-tight text-slate-900">
-          AK Pharma ERP
-        </span>
+      <div className="mb-8 flex items-center justify-center">
+        <img
+          src="/horizontal-logo.svg"
+          alt="AK Pharma"
+          className="h-12 w-auto object-contain"
+        />
       </div>
 
       {/* Card Component */}
