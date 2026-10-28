@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { API_URL, apiFetch } from "@/lib/api"
+import { API_URL } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
@@ -63,6 +63,7 @@ import {
   PackageCheck,
   Wallet,
 } from "lucide-react"
+import { OrderInvoiceSheet } from "@/components/logistics/order-invoice"
 
 interface InvoiceItem {
   no: number
@@ -184,6 +185,76 @@ function parseSummaryToRows(
   return parsed
 }
 
+function numberToWordsBDT(num: number): string {
+  if (num === 0) return "Zero Taka Only"
+  const a = [
+    "",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Eleven",
+    "Twelve",
+    "Thirteen",
+    "Fourteen",
+    "Fifteen",
+    "Sixteen",
+    "Seventeen",
+    "Eighteen",
+    "Nineteen",
+  ]
+  const b = [
+    "",
+    "",
+    "Twenty",
+    "Thirty",
+    "Forty",
+    "Fifty",
+    "Sixty",
+    "Seventy",
+    "Eighty",
+    "Ninety",
+  ]
+
+  function inWords(n: number): string {
+    if (n < 20) return a[n]
+    if (n < 100)
+      return b[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + a[n % 10] : "")
+    if (n < 1000)
+      return (
+        a[Math.floor(n / 100)] +
+        " Hundred" +
+        (n % 100 !== 0 ? " and " + inWords(n % 100) : "")
+      )
+    if (n < 100000)
+      return (
+        inWords(Math.floor(n / 1000)) +
+        " Thousand" +
+        (n % 1000 !== 0 ? " " + inWords(n % 1000) : "")
+      )
+    if (n < 10000000)
+      return (
+        inWords(Math.floor(n / 100000)) +
+        " Lakh" +
+        (n % 100000 !== 0 ? " " + inWords(n % 100000) : "")
+      )
+    return (
+      inWords(Math.floor(n / 10000000)) +
+      " Crore" +
+      (n % 10000000 !== 0 ? " " + inWords(n % 10000000) : "")
+    )
+  }
+
+  const rounded = Math.round(Math.abs(num))
+  return inWords(rounded).trim() + " Taka Only"
+}
+
 function LogisticsOrdersContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -231,24 +302,24 @@ function LogisticsOrdersContent() {
   const fetchBackendData = React.useCallback(async () => {
     try {
       const [ordRes, clientRes, staffRes, invRes] = await Promise.all([
-        apiFetch(`${API_URL}/orders`).catch(() => ({
+        fetch(`${API_URL}/orders`).catch(() => ({
           ok: false,
           json: async () => [],
         })),
-        apiFetch(`${API_URL}/clients`).catch(() => ({
+        fetch(`${API_URL}/clients`).catch(() => ({
           ok: false,
           json: async () => [],
         })),
-        apiFetch(`${API_URL}/staff`).catch(() => ({
+        fetch(`${API_URL}/staff`).catch(() => ({
           ok: false,
           json: async () => [],
         })),
         // Connected directly to the live inventory batch ledger
-        apiFetch(`${API_URL}/inventory`).catch(() => ({
+        fetch(`${API_URL}/inventory`).catch(() => ({
           ok: false,
           json: async () => [],
         })),
-      ]) as [Response, Response, Response, Response]
+      ])
 
       // Dynamic Product Catalog mapped from live inventory batches
       if (invRes.ok) {
@@ -294,7 +365,13 @@ function LogisticsOrdersContent() {
               Array.isArray(item.itemsDetail) &&
               item.itemsDetail.length > 0
             ) {
-              parsedItems = item.itemsDetail
+              parsedItems = item.itemsDetail.map((it: any) => ({
+                no: Number(it.no) || 1,
+                description: it.description,
+                quantity: Number(it.quantity) || 1,
+                unitCost: Number(it.unitCost) || 0,
+                total: Number(it.total) || 0,
+              }))
             } else if (typeof item.itemsDetail === "string") {
               try {
                 parsedItems = JSON.parse(item.itemsDetail)
@@ -424,8 +501,10 @@ function LogisticsOrdersContent() {
 
   const handleSelectPharmacy = (client: ClientOption) => {
     setPharmacyInput(client.pharmacyName)
-    setTerritory(client.territory || territory)
-    setAssignedMio(client.assignedMio || assignedMio)
+    if (client.territory) setTerritory(client.territory)
+    if (client.assignedMio && !assignedMio) {
+      setAssignedMio(client.assignedMio)
+    }
     const avail = Math.max(
       0,
       client.creditLimitBDT - client.outstandingBalanceBDT
@@ -613,7 +692,7 @@ function LogisticsOrdersContent() {
         invoiceNumber: nextSerialInvoiceNo,
       }
 
-      const res = await apiFetch(`${API_URL}/orders`, {
+      const res = await fetch(`${API_URL}/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -627,6 +706,8 @@ function LogisticsOrdersContent() {
       toast.success("Sales order submitted successfully!", { id: toastId })
       setIsNewOrderOpen(false)
       setPharmacyInput("")
+      setAssignedMio("")
+      setTerritory("Dhaka North")
       setLineItems([
         { no: 1, description: "", quantity: 1, unitCost: 0, total: 0 },
       ])
@@ -646,7 +727,7 @@ function LogisticsOrdersContent() {
   ) => {
     const toastId = toast.loading(`Updating order status to ${newStatus}...`)
     try {
-      const res = await apiFetch(`${API_URL}/orders/${id}`, {
+      const res = await fetch(`${API_URL}/orders/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
@@ -665,6 +746,32 @@ function LogisticsOrdersContent() {
     }
   }
 
+  const handleUpdateOrderMio = async (id: string, newMio: string) => {
+    setSelectedOrder((prev) => (prev && prev.id === id ? { ...prev, assignedMio: newMio } : prev))
+    setOrders((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, assignedMio: newMio } : o))
+    )
+
+    try {
+      const res = await fetch(`${API_URL}/orders/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignedMio: newMio }),
+      })
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}))
+        throw new Error(errJson.message || "Failed to update sales representative")
+      }
+
+      toast.success(`Sales representative updated to ${newMio}`)
+    } catch (error: any) {
+      console.error("Error updating sales representative:", error)
+      toast.error(error.message || "Failed to update sales rep on server.")
+      fetchBackendData()
+    }
+  }
+
   const handleOpenDeleteModal = (order: SalesOrder) => {
     setOrderToDelete(order)
     setIsDeleteModalOpen(true)
@@ -675,7 +782,7 @@ function LogisticsOrdersContent() {
     const toastId = toast.loading(`Deleting sales order ${orderToDelete.orderNumber}...`)
     try {
       setIsDeletingOrder(true)
-      const res = await apiFetch(`${API_URL}/orders/${orderToDelete.id}`, {
+      const res = await fetch(`${API_URL}/orders/${orderToDelete.id}`, {
         method: "DELETE",
       })
 
@@ -825,15 +932,29 @@ function LogisticsOrdersContent() {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 10mm;
+            margin: 8mm;
           }
           html,
           body {
             margin: 0 !important;
             padding: 0 !important;
-            background: #fff !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           body * {
+            visibility: hidden !important;
+          }
+          [data-slot="dialog-portal"],
+          [data-slot="dialog-overlay"],
+          [data-slot="dialog-content"],
+          [data-sidebar="sidebar"],
+          aside,
+          header,
+          nav,
+          button,
+          .print\\:hidden {
+            display: none !important;
             visibility: hidden !important;
           }
           #print-standalone-invoice,
@@ -847,8 +968,22 @@ function LogisticsOrdersContent() {
             top: 0 !important;
             width: 100% !important;
             box-sizing: border-box !important;
-            padding: 10px !important;
-            background: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            z-index: 999999 !important;
+          }
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          thead {
+            display: table-header-group !important;
+          }
+          tr {
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -1577,9 +1712,17 @@ function LogisticsOrdersContent() {
                   </TableCell>
 
                   <TableCell className="py-3 text-xs">
-                    <span className="block font-mono text-xs font-bold text-emerald-700">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedOrder(ord)
+                        setIsInspectOpen(true)
+                      }}
+                      className="block font-mono text-xs font-bold text-emerald-700 hover:text-emerald-900 hover:underline cursor-pointer text-left"
+                      title="Click to view / print invoice"
+                    >
                       {ord.invoiceNumber}
-                    </span>
+                    </button>
                   </TableCell>
 
                   <TableCell className="py-3 text-xs">
@@ -1704,30 +1847,51 @@ function LogisticsOrdersContent() {
 
       {/* 5. Invoice Preview & Actions Dialog */}
       <Dialog open={isInspectOpen} onOpenChange={setIsInspectOpen}>
-        <DialogContent className="flex max-h-[95vh] flex-col overflow-hidden rounded-2xl bg-white p-0 sm:max-w-[760px]">
+        <DialogContent className="flex max-h-[96vh] flex-col overflow-hidden rounded-2xl bg-white p-0 sm:max-w-[840px]">
           {selectedOrder && (
             <div>
-              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4 print:hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 p-4 print:hidden">
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 text-[#0090FF]" />
                   <span className="text-xs font-bold text-slate-800">
                     Invoice Preview — {selectedOrder.invoiceNumber}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                      Sales Rep (MIO):
+                    </span>
+                    <Select
+                      value={selectedOrder.assignedMio || ""}
+                      onValueChange={(val) => handleUpdateOrderMio(selectedOrder.id, val)}
+                    >
+                      <SelectTrigger className="h-8 w-44 border-slate-300 bg-white text-xs font-semibold text-slate-800">
+                        <SelectValue placeholder="Select Sales Rep" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-48 text-xs">
+                        {staffList.map((staff) => (
+                          <SelectItem key={staff.id} value={staff.fullName}>
+                            {staff.fullName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <Button
                     size="sm"
                     onClick={() => window.print()}
-                    className="h-8 gap-1.5 bg-[#0090FF] text-xs text-white shadow-none hover:bg-[#0080e5]"
+                    className="h-8 gap-1.5 bg-[#0090FF] text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
                   >
                     <Printer className="h-3.5 w-3.5" />
-                    Print Invoice
+                    Print / Save PDF
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => setIsInspectOpen(false)}
-                    className="h-8 text-xs"
+                    className="h-8 text-xs font-semibold text-slate-700"
                   >
                     Close
                   </Button>
@@ -1735,149 +1899,16 @@ function LogisticsOrdersContent() {
               </div>
 
               {/* On-screen Preview */}
-              <div className="flex max-h-[75vh] justify-center overflow-y-auto bg-neutral-100 p-8">
-                <div className="w-full max-w-[620px] border-2 border-black bg-white p-6 font-sans text-xs text-black">
-                  <div className="flex items-start justify-between">
-                    <h1 className="font-serif text-3xl font-black tracking-wider uppercase">
-                      INVOICE
-                    </h1>
-                    <div className="space-y-0.5 text-right text-[11px] leading-tight font-medium">
-                      <strong className="block font-serif text-sm font-black tracking-wide uppercase">
-                        AK Pharma
-                      </strong>
-                      <p>10/26, Rupnagar R/A, Mirpur, Dhaka 1216</p>
-                      <p>01712611074, 01798112763</p>
-                      <p>akpharmabd@gmail.com</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 w-64 border border-black text-left">
-                    <div className="bg-black px-2 py-0.5 text-[10px] font-bold tracking-wider text-white uppercase">
-                      BILL TO:
-                    </div>
-                    <div className="space-y-0.5 p-2 text-[11px]">
-                      <strong className="block font-bold">
-                        {selectedOrder.pharmacyName}
-                      </strong>
-                      <p className="text-neutral-700">
-                        {matchedClient?.address || selectedOrder.territory}
-                      </p>
-                      <p className="text-neutral-700">
-                        {matchedClient?.phone || "Phone: On File"}
-                      </p>
-                      <p className="text-[10px] text-neutral-500">
-                        Territory: {selectedOrder.territory}
-                      </p>
-                    </div>
-                  </div>
-
-                  <table className="mt-6 w-full border-collapse border border-black text-center text-xs">
-                    <thead>
-                      <tr className="bg-black text-[10px] font-bold tracking-wider text-white uppercase">
-                        <th className="w-10 border border-black py-1.5">No.</th>
-                        <th className="border border-black px-2 py-1.5 text-left">
-                          Description
-                        </th>
-                        <th className="w-16 border border-black py-1.5">
-                          Boxes
-                        </th>
-                        <th className="w-24 border border-black py-1.5">
-                          Unit Cost
-                        </th>
-                        <th className="w-24 border border-black py-1.5">
-                          Total
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activeInvoiceRows.map((row, idx) => (
-                        <tr key={idx} className="border-b border-black">
-                          <td className="border-r border-black py-2 font-mono font-medium">
-                            {row.no || idx + 1}
-                          </td>
-                          <td className="border-r border-black px-2 py-2 text-left font-medium">
-                            {row.description}
-                          </td>
-                          <td className="border-r border-black py-2 font-mono">
-                            {row.quantity}
-                          </td>
-                          <td className="border-r border-black py-2 font-mono">
-                            ৳{row.unitCost.toLocaleString("en-IN")}
-                          </td>
-                          <td className="py-2 font-mono font-bold">
-                            ৳{row.total.toLocaleString("en-IN")}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  <div className="mt-4 flex items-start gap-4">
-                    <div className="min-h-[90px] flex-1 border border-black">
-                      <div className="bg-black px-2 py-0.5 text-center text-[10px] font-bold tracking-wider text-white uppercase">
-                        COMMENTS
-                      </div>
-                      <div className="space-y-1 p-2 text-[11px] text-neutral-700">
-                        <p>
-                          • Invoice No:{" "}
-                          <strong>{selectedOrder.invoiceNumber}</strong>
-                        </p>
-                        <p>• Assigned MIO: {selectedOrder.assignedMio}</p>
-                        <p>• Delivery Fleet: {selectedOrder.deliveryMethod}</p>
-                        {selectedOrder.comments && (
-                          <p>• Notes: {selectedOrder.comments}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="w-64 border border-black">
-                      <div className="flex border-b border-black">
-                        <div className="flex w-28 items-center bg-black px-2 py-1 text-[10px] font-bold text-white uppercase">
-                          SUBTOTAL
-                        </div>
-                        <div className="flex-1 p-1 text-right font-mono font-medium">
-                          ৳{inspectSubtotal.toLocaleString("en-IN")}
-                        </div>
-                      </div>
-                      <div className="flex border-b border-black">
-                        <div className="flex w-28 items-center bg-black px-2 py-1 text-[10px] font-bold text-white uppercase">
-                          DISCOUNT ({inspectDiscountPercent}%)
-                        </div>
-                        <div className="flex-1 p-1 text-right font-mono">
-                          -৳{inspectDiscountAmount.toLocaleString("en-IN")}
-                        </div>
-                      </div>
-                      <div className="flex bg-neutral-50">
-                        <div className="flex w-28 items-center bg-black px-2 py-1 text-[10px] font-bold text-white uppercase">
-                          GRAND TOTAL
-                        </div>
-                        <div className="flex-1 p-1 text-right font-mono text-sm font-bold text-[#0090FF]">
-                          ৳{inspectGrandTotal.toLocaleString("en-IN")}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-12 grid grid-cols-2 gap-8 border-t-2 border-slate-200 pt-6 text-center text-[10px]">
-                    <div>
-                      <div className="mx-auto mb-1 w-32 border-b border-slate-400" />
-                      <strong className="block text-[11px] text-slate-900">
-                        Authorized Signature
-                      </strong>
-                      <span className="text-slate-500"></span>
-                    </div>
-                    <div>
-                      <div className="mx-auto mb-1 w-32 border-b border-slate-400" />
-                      <strong className="block text-[11px] text-slate-900">
-                        MIO/SR Signature
-                      </strong>
-                      <span className="text-slate-500"></span>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 text-center font-serif text-xs font-bold tracking-wider uppercase">
-                    THANK YOU FOR YOUR BUSINESS
-                  </div>
+              <div className="flex max-h-[78vh] justify-center overflow-y-auto bg-slate-100/90 p-6">
+                <div className="w-full max-w-[760px] border border-slate-300 bg-white p-8 text-black shadow-md">
+                  <OrderInvoiceSheet
+                    order={selectedOrder}
+                    client={matchedClient}
+                    items={activeInvoiceRows}
+                    subtotal={inspectSubtotal}
+                    discountAmount={inspectDiscountAmount}
+                    grandTotal={inspectGrandTotal}
+                  />
                 </div>
               </div>
 
@@ -1907,139 +1938,17 @@ function LogisticsOrdersContent() {
       {selectedOrder && (
         <div
           id="print-standalone-invoice"
-          className="hidden bg-white font-sans text-black"
+          className="hidden bg-white p-0 font-sans text-black"
         >
-          <div className="mx-auto w-full max-w-[760px] border-2 border-black p-8 text-xs">
-            <div className="flex items-start justify-between">
-              <h1 className="font-serif text-4xl font-black tracking-wider uppercase">
-                INVOICE
-              </h1>
-              <div className="space-y-0.5 text-right text-xs leading-snug">
-                <strong className="block font-serif text-base font-black tracking-wide uppercase">
-                  AK Pharma
-                </strong>
-                <p>10/26, Rupnagar R/A, Mirpur, Dhaka 1216</p>
-                <p>01712611074, 01798112763</p>
-                <p>akpharmabd@gmail.com</p>
-              </div>
-            </div>
-
-            <div className="mt-8 w-72 border border-black text-left">
-              <div className="bg-black px-2.5 py-1 text-[11px] font-bold tracking-wider text-white uppercase">
-                BILL TO:
-              </div>
-              <div className="space-y-1 p-2.5 text-xs">
-                <strong className="block text-sm font-bold">
-                  {selectedOrder.pharmacyName}
-                </strong>
-                <p>{matchedClient?.address || selectedOrder.territory}</p>
-                <p>{matchedClient?.phone || "Phone: On Record"}</p>
-                <p className="text-[10px] text-neutral-600">
-                  Territory: {selectedOrder.territory}
-                </p>
-              </div>
-            </div>
-
-            <table className="mt-8 w-full border-collapse border border-black text-center text-xs">
-              <thead>
-                <tr className="bg-black text-[11px] font-bold tracking-wider text-white uppercase">
-                  <th className="w-12 border border-black py-2">No.</th>
-                  <th className="border border-black px-3 py-2 text-left">
-                    Description
-                  </th>
-                  <th className="w-20 border border-black py-2">Boxes</th>
-                  <th className="w-28 border border-black py-2">Unit Cost</th>
-                  <th className="w-28 border border-black py-2">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeInvoiceRows.map((row, idx) => (
-                  <tr key={idx} className="border-b border-black">
-                    <td className="border-r border-black py-2.5 font-mono font-medium">
-                      {row.no || idx + 1}
-                    </td>
-                    <td className="border-r border-black px-3 py-2.5 text-left font-medium">
-                      {row.description}
-                    </td>
-                    <td className="border-r border-black py-2.5 font-mono">
-                      {row.quantity}
-                    </td>
-                    <td className="border-r border-black py-2.5 font-mono">
-                      ৳{row.unitCost.toLocaleString("en-IN")}
-                    </td>
-                    <td className="py-2.5 font-mono font-bold">
-                      ৳{row.total.toLocaleString("en-IN")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="mt-6 flex items-start gap-6">
-              <div className="min-h-[110px] flex-1 border border-black">
-                <div className="bg-black px-3 py-1 text-center text-[11px] font-bold tracking-wider text-white uppercase">
-                  COMMENTS
-                </div>
-                <div className="space-y-1 p-3 text-xs text-neutral-800">
-                  <p>
-                    • Invoice No: <strong>{selectedOrder.invoiceNumber}</strong>
-                  </p>
-                  <p>• Assigned MIO: {selectedOrder.assignedMio}</p>
-                  <p>• Delivery Fleet: {selectedOrder.deliveryMethod}</p>
-                  {selectedOrder.comments && (
-                    <p>• Notes: {selectedOrder.comments}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="w-72 border border-black">
-                <div className="flex border-b border-black">
-                  <div className="flex w-32 items-center bg-black px-2.5 py-1.5 text-[11px] font-bold text-white uppercase">
-                    SUBTOTAL
-                  </div>
-                  <div className="flex-1 p-1.5 text-right font-mono text-xs font-medium">
-                    ৳{inspectSubtotal.toLocaleString("en-IN")}
-                  </div>
-                </div>
-                <div className="flex border-b border-black">
-                  <div className="flex w-32 items-center bg-black px-2.5 py-1.5 text-[11px] font-bold text-white uppercase">
-                    DISCOUNT ({inspectDiscountPercent}%)
-                  </div>
-                  <div className="flex-1 p-1.5 text-right font-mono text-xs">
-                    -৳{inspectDiscountAmount.toLocaleString("en-IN")}
-                  </div>
-                </div>
-                <div className="flex">
-                  <div className="flex w-32 items-center bg-black px-2.5 py-1.5 text-[11px] font-bold text-white uppercase">
-                    GRAND TOTAL
-                  </div>
-                  <div className="flex-1 p-1.5 text-right font-mono text-sm font-bold">
-                    ৳{inspectGrandTotal.toLocaleString("en-IN")}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-16 grid grid-cols-2 gap-12 border-t-2 border-slate-200 pt-8 text-center text-[10px]">
-              <div>
-                <div className="mx-auto mb-1.5 w-48 border-b border-slate-400" />
-                <strong className="block text-xs text-slate-900">
-                  Authorized Signature
-                </strong>
-                <span className="text-slate-500"></span>
-              </div>
-              <div>
-                <div className="mx-auto mb-1.5 w-48 border-b border-slate-400" />
-                <strong className="block text-xs text-slate-900">
-                  MIO/SR Signature
-                </strong>
-                <span className="text-slate-500"></span>
-              </div>
-            </div>
-
-            <div className="mt-10 text-center font-serif text-sm font-bold tracking-widest uppercase">
-              THANK YOU FOR YOUR BUSINESS
-            </div>
+          <div className="mx-auto w-full max-w-[760px] bg-white p-6 text-xs">
+            <OrderInvoiceSheet
+              order={selectedOrder}
+              client={matchedClient}
+              items={activeInvoiceRows}
+              subtotal={inspectSubtotal}
+              discountAmount={inspectDiscountAmount}
+              grandTotal={inspectGrandTotal}
+            />
           </div>
         </div>
       )}
