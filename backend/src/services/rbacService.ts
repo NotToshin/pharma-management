@@ -16,27 +16,19 @@ export const ALL_SYSTEM_MODULES = [
   // 2. Field Force (MIO)
   { module: "MIO Zone Allocations", route: "/field-force/zones", category: "Field Force", specialAction: "Re-assign Territory Boundaries" },
   { module: "Doctor Visit Logs", route: "/field-force/visit-logs", category: "Field Force", specialAction: "Audit MIO Geo-stamp" },
-  { module: "All Tour Plans", route: "/field-force/tour-plans", category: "Field Force", specialAction: "Approve Tour Programme" },
   { module: "Pending Approvals", route: "/field-force/approvals", category: "Field Force", specialAction: "Batch Sign-off Approvals" },
-  { module: "Sample & Gift Distribution", route: "/field-force/samples", category: "Field Force", specialAction: "Authorize High-Value Samples" },
-  { module: "Route Optimization", route: "/field-force/routes", category: "Field Force", specialAction: "Modify Beat Sequence" },
 
   // 3. Doctor Registry
   { module: "Master Doctor Database", route: "/doctors/database", category: "Doctor Registry", specialAction: "BMDC Verification Bypass" },
-  { module: "Add New Doctor", route: "/doctors/new", category: "Doctor Registry", specialAction: "Fast-track Registration" },
-  { module: "Prescription Category Ranking", route: "/doctors/ranking", category: "Doctor Registry", specialAction: "Re-rank Category Tiers" },
   { module: "Visit History Timeline", route: "/doctors/timeline", category: "Doctor Registry", specialAction: "Purge Inactive Profiles" },
 
   // 4. Inventory & Warehouse
   { module: "Active Inventory Ledger (FEFO)", route: "/inventory/ledger", category: "Inventory & Warehouse", specialAction: "Quarantine / Write-off Batch" },
   { module: "Wholesaler Purchase Orders", route: "/procurement/orders", category: "Inventory & Warehouse", specialAction: "Approve Multi-tier PO" },
   { module: "Stock Adjustments", route: "/inventory/adjustments", category: "Inventory & Warehouse", specialAction: "Authorize Discrepancy Write-offs" },
-  { module: "Expiry Watchlist", route: "/inventory/expiry", category: "Inventory & Warehouse", specialAction: "Authorize Early-Dump Return" },
-  { module: "Receive Stock Batch Log", route: "/procurement/batch-logs", category: "Inventory & Warehouse", specialAction: "Override Quality Inspection" },
 
   // 5. Sales & Deliveries
   { module: "Delivery Logistics & Orders", route: "/logistics/orders", category: "Sales & Deliveries", specialAction: "Override Credit Hold" },
-  { module: "Receive Stock Delivery Log", route: "/logistics/batch-log", category: "Sales & Deliveries", specialAction: "Bypass Dispatch Gate Pass" },
   { module: "Pharmacy Clients", route: "/sales/clients", category: "Sales & Deliveries", specialAction: "Approve Credit Line Expansion" },
 
   // 6. Finance & Treasury
@@ -45,13 +37,24 @@ export const ALL_SYSTEM_MODULES = [
   { module: "Delivery Cash Collections", route: "/finance/collections", category: "Finance & Treasury", specialAction: "Force Cash Vault Clearance" },
   { module: "Expense & Vendor Payments", route: "/finance/payments", category: "Finance & Treasury", specialAction: "Authorize Cheque Sign-off" },
   { module: "Supplier Payments", route: "/finance/supplier-payments", category: "Finance & Treasury", specialAction: "Disburse Supplier Settlement" },
-  { module: "Buyer Payments", route: "/finance/buyer-payments", category: "Finance & Treasury", specialAction: "Collect Buyer Receipt" },
 
   // 7. HR & System Control
   { module: "Staff Directory & Roles", route: "/hr/staff-directory", category: "HR & System Control", specialAction: "Issue Appointment Letters" },
   { module: "Payroll & Salary", route: "/hr/salary", category: "HR & System Control", specialAction: "Authorize Salary Advice" },
   { module: "Role Permissions (RBAC)", route: "/settings/rbac", category: "HR & System Control", specialAction: "Modify Master Security Matrix" },
   { module: "Audit Logs (21 CFR Part 11)", route: "/settings/audit-logs", category: "HR & System Control", specialAction: "Cryptographic Ledger Export" },
+];
+
+const DEPRECATED_MODULES = [
+  "Buyer Payments",
+  "Receive Stock Batch Log",
+  "Receive Stock Delivery Log",
+  "Route Optimization",
+  "Sample & Gift Distribution",
+  "Expiry Watchlist",
+  "Add New Doctor",
+  "Prescription Category Ranking",
+  "All Tour Plans",
 ];
 
 export function generateCode(name: string): string {
@@ -75,6 +78,11 @@ export const rbacService = {
     });
 
     // 2. Fetch all system roles with permissions and system users
+    // Clean up any deprecated permissions from database
+    await prisma.rolePermission.deleteMany({
+      where: { module: { in: DEPRECATED_MODULES } },
+    }).catch(() => null);
+
     const systemRoles = await prisma.systemRole.findMany({
       include: {
         permissions: true,
@@ -139,7 +147,7 @@ export const rbacService = {
         isSystemDefault: sysRole.isSystemDefault || sysRole.code === "SUPERADMIN" || sysRole.name === "Super Administrator",
         userCount: (sysRole._count?.users || 0) + (corpRole._count?.staff || 0),
         staffCount: corpRole._count?.staff || 0,
-        permissions: sysRole.permissions,
+        permissions: (sysRole.permissions || []).filter((p) => !DEPRECATED_MODULES.includes(p.module)),
       });
     }
 
@@ -251,7 +259,14 @@ export const rbacService = {
 
     const targetRoleId = sysRole.id;
 
-    for (const p of permissions) {
+    // Purge any deprecated permissions
+    await prisma.rolePermission.deleteMany({
+      where: { module: { in: DEPRECATED_MODULES } },
+    }).catch(() => null);
+
+    const activePermissions = permissions.filter((p) => !DEPRECATED_MODULES.includes(p.module));
+
+    for (const p of activePermissions) {
       await prisma.rolePermission.upsert({
         where: {
           roleId_module: {

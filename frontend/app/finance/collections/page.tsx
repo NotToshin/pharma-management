@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useSearchParams } from "next/navigation"
 import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
@@ -199,7 +200,12 @@ function numberToWordsBDT(num: number): string {
   return inWords(Math.floor(num)).trim() + " Taka Only"
 }
 
-export default function DeliveryCashCollectionsPage() {
+function DeliveryCashCollectionsContent() {
+  const searchParams = useSearchParams()
+  const targetOrderId = searchParams.get("orderId") || searchParams.get("id")
+  const targetInvoiceNo = searchParams.get("invoiceNo") || searchParams.get("invoice")
+  const hasAutoOpenedRef = React.useRef(false)
+
   const [collections, setCollections] = React.useState<DeliveryCollection[]>([])
   const [metrics, setMetrics] = React.useState<CollectionMetrics | null>(null)
   const [accounts, setAccounts] = React.useState<FinancialAccount[]>([])
@@ -320,6 +326,76 @@ export default function DeliveryCashCollectionsPage() {
   React.useEffect(() => {
     loadData()
   }, [loadData])
+
+  // Automatically trigger create modal with order prefilled when navigated with ?orderId= or ?invoiceNo=
+  React.useEffect(() => {
+    if (hasAutoOpenedRef.current) return
+    if (!targetOrderId && !targetInvoiceNo) return
+    if (deliveredOrders.length === 0) return
+
+    const matched = deliveredOrders.find(
+      (o) =>
+        (targetOrderId && o.id === targetOrderId) ||
+        (targetInvoiceNo && (o.invoiceNumber === targetInvoiceNo || o.orderNumber === targetInvoiceNo))
+    )
+
+    if (matched) {
+      hasAutoOpenedRef.current = true
+      const total = Number(matched.orderValue) || 0
+      const paid = Number(matched.paidAmount) || 0
+      const remainingDue = Math.max(0, total - paid)
+      const invoiceAmt = remainingDue > 0 ? remainingDue : total
+
+      const defaultAcc = accounts.find((a) => a.category === "CASH") || accounts[0]
+
+      apiFetch("/collections/next-number")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => {
+          const nextNum = json?.data?.nextReceiptNo || `AKP-COL-2026-${String(collections.length + 1).padStart(4, "0")}`
+          setEditingId(null)
+          setFormData({
+            receiptNo: nextNum,
+            invoiceNo: matched.invoiceNumber || matched.orderNumber,
+            orderId: matched.id,
+            chemistName: matched.pharmacyName,
+            territory: matched.territory || "Dhaka North",
+            salesRepName: matched.assignedMio || "General MIO",
+            totalInvoiceAmount: invoiceAmt,
+            amountCollected: invoiceAmt,
+            dueAmountRemaining: 0,
+            collectionDate: new Date().toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            }),
+            paymentMethod: "Cash",
+            chequeNumber: "",
+            status: "Pending Vault Clearance",
+            destinationType: defaultAcc?.category === "BANK" ? "Bank Account" : "Cash Drawer",
+            destinationName: defaultAcc?.accountTitle || "Head Office Cash Safe",
+            financialAccountId: defaultAcc?.id || "",
+            notes: `Collection linked to Sales Order #${matched.orderNumber}`,
+          })
+          setIsCreateOpen(true)
+        })
+        .catch(() => {
+          setEditingId(null)
+          setFormData((prev) => ({
+            ...prev,
+            orderId: matched.id,
+            invoiceNo: matched.invoiceNumber || matched.orderNumber,
+            chemistName: matched.pharmacyName,
+            territory: matched.territory || "Dhaka North",
+            salesRepName: matched.assignedMio || "General MIO",
+            totalInvoiceAmount: invoiceAmt,
+            amountCollected: invoiceAmt,
+            dueAmountRemaining: 0,
+            notes: `Collection linked to Sales Order #${matched.orderNumber}`,
+          }))
+          setIsCreateOpen(true)
+        })
+    }
+  }, [targetOrderId, targetInvoiceNo, deliveredOrders, accounts, collections.length])
 
   // Filtered collections
   const filteredCollections = React.useMemo(() => {
@@ -1539,6 +1615,7 @@ export default function DeliveryCashCollectionsPage() {
                     </SelectItem>
                     {deliveredOrders
                       .filter((ord) => {
+                        if (ord.id === formData.orderId) return true
                         const total = Number(ord.orderValue) || 0
                         const paid = Number(ord.paidAmount) || 0
                         const due = Math.max(0, total - paid)
@@ -2302,5 +2379,13 @@ export default function DeliveryCashCollectionsPage() {
         isDeleting={isDeleting}
       />
     </div>
+  )
+}
+
+export default function DeliveryCashCollectionsPage() {
+  return (
+    <React.Suspense fallback={<div className="p-6 text-xs text-slate-400">Loading delivery collections...</div>}>
+      <DeliveryCashCollectionsContent />
+    </React.Suspense>
   )
 }
