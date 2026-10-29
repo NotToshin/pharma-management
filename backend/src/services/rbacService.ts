@@ -8,42 +8,52 @@ import { auditLogService } from "./auditLogService";
 
 
 export const ALL_SYSTEM_MODULES = [
-  // 1. Overview & Analytics
-  { module: "Executive Dashboard", route: "/dashboard", category: "Overview & Analytics", specialAction: "View Real-Time Financials" },
-  { module: "Target vs. Achievement", route: "/analytics/targets", category: "Overview & Analytics", specialAction: "Re-allocate Quotas" },
+  // Overview & Analytics
+  { module: "Dashboard", route: "/dashboard", category: "Overview & Analytics", specialAction: "View Real-Time Financials" },
+  { module: "Target Vs Achievement", route: "/analytics/targets", category: "Overview & Analytics", specialAction: "Re-allocate Quotas" },
   { module: "Territory Sales Breakdown", route: "/analytics/territories", category: "Overview & Analytics", specialAction: "Export Analytical Raw Data" },
+  { module: "MIO Zone Allocation", route: "/field-force/zones", category: "Overview & Analytics", specialAction: "Re-assign Territory Boundaries" },
 
-  // 2. Field Force (MIO)
-  { module: "MIO Zone Allocations", route: "/field-force/zones", category: "Field Force", specialAction: "Re-assign Territory Boundaries" },
-  { module: "Doctor Visit Logs", route: "/field-force/visit-logs", category: "Field Force", specialAction: "Audit MIO Geo-stamp" },
-  { module: "Pending Approvals", route: "/field-force/approvals", category: "Field Force", specialAction: "Batch Sign-off Approvals" },
+  // Doctor Management
+  { module: "Doctors List", route: "/doctors/database", category: "Doctor Management", specialAction: "BMDC Verification Bypass" },
+  { module: "Doctor Visit Logs", route: "/field-force/visit-logs", category: "Doctor Management", specialAction: "Audit MIO Geo-stamp" },
 
-  // 3. Doctor Registry
-  { module: "Master Doctor Database", route: "/doctors/database", category: "Doctor Registry", specialAction: "BMDC Verification Bypass" },
-  { module: "Visit History Timeline", route: "/doctors/timeline", category: "Doctor Registry", specialAction: "Purge Inactive Profiles" },
-
-  // 4. Inventory & Warehouse
-  { module: "Active Inventory Ledger (FEFO)", route: "/inventory/ledger", category: "Inventory & Warehouse", specialAction: "Quarantine / Write-off Batch" },
-  { module: "Wholesaler Purchase Orders", route: "/procurement/orders", category: "Inventory & Warehouse", specialAction: "Approve Multi-tier PO" },
+  // Inventory & Warehouse
+  { module: "Stock Inventory", route: "/inventory/ledger", category: "Inventory & Warehouse", specialAction: "Quarantine / Write-off Batch" },
   { module: "Stock Adjustments", route: "/inventory/adjustments", category: "Inventory & Warehouse", specialAction: "Authorize Discrepancy Write-offs" },
 
-  // 5. Sales & Deliveries
-  { module: "Delivery Logistics & Orders", route: "/logistics/orders", category: "Sales & Deliveries", specialAction: "Override Credit Hold" },
+  // Sales & Deliveries
+  { module: "Sales Orders", route: "/logistics/orders", category: "Sales & Deliveries", specialAction: "Override Credit Hold" },
   { module: "Pharmacy Clients", route: "/sales/clients", category: "Sales & Deliveries", specialAction: "Approve Credit Line Expansion" },
 
-  // 6. Finance & Treasury
-  { module: "Treasury & Finance Overview", route: "/finance/overview", category: "Finance & Treasury", specialAction: "Authorize Bank Release" },
+  // Finance & Treasury
+  { module: "Treasury Overview", route: "/finance/overview", category: "Finance & Treasury", specialAction: "Authorize Bank Release" },
   { module: "Bank Accounts Ledger", route: "/finance/bank-ledger", category: "Finance & Treasury", specialAction: "Electronic Fund Transfer" },
   { module: "Delivery Cash Collections", route: "/finance/collections", category: "Finance & Treasury", specialAction: "Force Cash Vault Clearance" },
-  { module: "Expense & Vendor Payments", route: "/finance/payments", category: "Finance & Treasury", specialAction: "Authorize Cheque Sign-off" },
   { module: "Supplier Payments", route: "/finance/supplier-payments", category: "Finance & Treasury", specialAction: "Disburse Supplier Settlement" },
+  { module: "Wholesale Purchase Orders", route: "/procurement/orders", category: "Finance & Treasury", specialAction: "Approve Multi-tier PO" },
+  { module: "Payments", route: "/finance/payments", category: "Finance & Treasury", specialAction: "Authorize Cheque Sign-off" },
 
-  // 7. HR & System Control
+  // HR & System Control
   { module: "Staff Directory & Roles", route: "/hr/staff-directory", category: "HR & System Control", specialAction: "Issue Appointment Letters" },
-  { module: "Payroll & Salary", route: "/hr/salary", category: "HR & System Control", specialAction: "Authorize Salary Advice" },
+  { module: "Salary", route: "/hr/salary", category: "HR & System Control", specialAction: "Authorize Salary Advice" },
   { module: "Role Permissions (RBAC)", route: "/settings/rbac", category: "HR & System Control", specialAction: "Modify Master Security Matrix" },
-  { module: "Audit Logs (21 CFR Part 11)", route: "/settings/audit-logs", category: "HR & System Control", specialAction: "Cryptographic Ledger Export" },
+  { module: "Audit Logs (21 CFR Compliant)", route: "/settings/audit-logs", category: "HR & System Control", specialAction: "Cryptographic Ledger Export" },
 ];
+
+const MODULE_RENAMES: Record<string, string> = {
+  "Executive Dashboard": "Dashboard",
+  "Target vs. Achievement": "Target Vs Achievement",
+  "MIO Zone Allocations": "MIO Zone Allocation",
+  "Master Doctor Database": "Doctors List",
+  "Active Inventory Ledger (FEFO)": "Stock Inventory",
+  "Wholesaler Purchase Orders": "Wholesale Purchase Orders",
+  "Delivery Logistics & Orders": "Sales Orders",
+  "Treasury & Finance Overview": "Treasury Overview",
+  "Expense & Vendor Payments": "Payments",
+  "Payroll & Salary": "Salary",
+  "Audit Logs (21 CFR Part 11)": "Audit Logs (21 CFR Compliant)",
+};
 
 const DEPRECATED_MODULES = [
   "Buyer Payments",
@@ -55,7 +65,83 @@ const DEPRECATED_MODULES = [
   "Add New Doctor",
   "Prescription Category Ranking",
   "All Tour Plans",
+  "Pending Approvals",
+  "Visit History Timeline",
 ];
+
+const MODULE_ORDER = new Map(ALL_SYSTEM_MODULES.map((mod, index) => [mod.module, index]));
+
+function sortModules<T extends { module: string }>(permissions: T[]) {
+  return [...permissions].sort(
+    (a, b) => (MODULE_ORDER.get(a.module) ?? 999) - (MODULE_ORDER.get(b.module) ?? 999)
+  );
+}
+
+async function syncModuleCatalog() {
+  for (const [oldName, newName] of Object.entries(MODULE_RENAMES)) {
+    const canonical = ALL_SYSTEM_MODULES.find((mod) => mod.module === newName);
+    const oldRows = await prisma.rolePermission.findMany({ where: { module: oldName } });
+    for (const row of oldRows) {
+      const existing = await prisma.rolePermission.findFirst({
+        where: { roleId: row.roleId, module: newName },
+      });
+      if (existing) {
+        await prisma.rolePermission.delete({ where: { id: row.id } });
+      } else {
+        await prisma.rolePermission.update({
+          where: { id: row.id },
+          data: {
+            module: newName,
+            category: canonical?.category || row.category,
+            specialAction: canonical?.specialAction || row.specialAction,
+          },
+        });
+      }
+    }
+  }
+
+  for (const mod of ALL_SYSTEM_MODULES) {
+    await prisma.rolePermission.updateMany({
+      where: { module: mod.module },
+      data: {
+        category: mod.category,
+        specialAction: mod.specialAction,
+      },
+    });
+  }
+
+  await prisma.rolePermission.deleteMany({
+    where: { module: { in: DEPRECATED_MODULES } },
+  }).catch(() => null);
+
+  const roles = await prisma.systemRole.findMany({
+    include: { permissions: { select: { module: true } } },
+  });
+
+  for (const role of roles) {
+    const isSuper =
+      role.code === "SUPERADMIN" ||
+      role.code === "SUPER_ADMIN" ||
+      role.name === "Super Administrator";
+    const present = new Set(role.permissions.map((permission) => permission.module));
+    for (const mod of ALL_SYSTEM_MODULES) {
+      if (present.has(mod.module)) continue;
+      await prisma.rolePermission.create({
+        data: {
+          roleId: role.id,
+          module: mod.module,
+          category: mod.category,
+          read: isSuper ? true : mod.module === "Dashboard",
+          create: isSuper,
+          edit: isSuper,
+          delete: isSuper,
+          specialAction: mod.specialAction,
+          specialGranted: isSuper,
+        },
+      });
+    }
+  }
+}
 
 export function generateCode(name: string): string {
   const upper = name.trim().toUpperCase();
@@ -69,6 +155,8 @@ export function generateCode(name: string): string {
 
 export const rbacService = {
   async getRoles() {
+    await syncModuleCatalog();
+
     // 1. Fetch ALL roles directly from the database Role collection
     const corporateRoles = await prisma.role.findMany({
       include: {
@@ -76,12 +164,6 @@ export const rbacService = {
       },
       orderBy: { createdAt: "asc" },
     });
-
-    // 2. Fetch all system roles with permissions and system users
-    // Clean up any deprecated permissions from database
-    await prisma.rolePermission.deleteMany({
-      where: { module: { in: DEPRECATED_MODULES } },
-    }).catch(() => null);
 
     const systemRoles = await prisma.systemRole.findMany({
       include: {
@@ -112,14 +194,13 @@ export const rbacService = {
           },
         });
 
-        // Initialize default permissions for all 29 modules
         for (const mod of ALL_SYSTEM_MODULES) {
           await prisma.rolePermission.create({
             data: {
               roleId: newSysRole.id,
               module: mod.module,
               category: mod.category,
-              read: isSuper ? true : mod.module === "Executive Dashboard",
+              read: isSuper ? true : mod.module === "Dashboard",
               create: isSuper,
               edit: isSuper,
               delete: isSuper,
@@ -147,7 +228,9 @@ export const rbacService = {
         isSystemDefault: sysRole.isSystemDefault || sysRole.code === "SUPERADMIN" || sysRole.name === "Super Administrator",
         userCount: (sysRole._count?.users || 0) + (corpRole._count?.staff || 0),
         staffCount: corpRole._count?.staff || 0,
-        permissions: (sysRole.permissions || []).filter((p) => !DEPRECATED_MODULES.includes(p.module)),
+        permissions: sortModules(
+          (sysRole.permissions || []).filter((p) => !DEPRECATED_MODULES.includes(p.module) && MODULE_ORDER.has(p.module))
+        ),
       });
     }
 
@@ -205,7 +288,7 @@ export const rbacService = {
             roleId: sysRole.id,
             module: mod.module,
             category: mod.category,
-            read: isSuper ? true : mod.module === "Executive Dashboard",
+            read: isSuper ? true : mod.module === "Dashboard",
             create: isSuper,
             edit: isSuper,
             delete: isSuper,

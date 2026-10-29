@@ -76,7 +76,6 @@ interface NavItem {
   title: string
   icon: any
   href?: string
-  defaultOpen?: boolean
   subItems?: NavSubItem[]
   badge?: string
 }
@@ -88,7 +87,7 @@ interface NavSection {
 
 const navSections: NavSection[] = [
   {
-    group: "OVERVIEW & ANALYTICS",
+    group: "Overview & Analytics",
     items: [
       {
         title: "Dashboard",
@@ -98,7 +97,6 @@ const navSections: NavSection[] = [
       {
         title: "Target & Territory Management",
         icon: LineChart,
-        defaultOpen: true,
         subItems: [
           { title: "Target Vs Achievement", href: "/analytics/targets" },
           {
@@ -111,7 +109,7 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    group: "DOCTOR MANAGEMENT",
+    group: "Doctor Management",
     items: [
       {
         title: "Doctors List",
@@ -126,7 +124,7 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    group: "INVENTORY & WAREHOUSE",
+    group: "Inventory & Warehouse",
     items: [
       {
         title: "Stock Inventory",
@@ -141,7 +139,7 @@ const navSections: NavSection[] = [
     ],
   },
     {
-    group: "SALES & DELIVERIES",
+    group: "Sales & Deliveries",
     items: [
       {
         title: "Sales Orders",
@@ -157,12 +155,11 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    group: "FINANCE & TREASURY",
+    group: "Finance & Treasury",
     items: [
       {
         title: "Accounts & Cash",
         icon: Wallet,
-        defaultOpen: true,
         subItems: [
           { title: "Treasury Overview", href: "/finance/overview" },
           { title: "Bank Accounts Ledger", href: "/finance/bank-ledger" },
@@ -171,7 +168,6 @@ const navSections: NavSection[] = [
       {
         title: "Transactions",
         icon: Receipt,
-        defaultOpen: true,
         subItems: [
           { title: "Delivery Cash Collections", href: "/finance/collections" },
           { title: "Supplier Payments", href: "/finance/supplier-payments" },
@@ -182,12 +178,11 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    group: "HR & SYSTEM CONTROL",
+    group: "HR & System Control",
     items: [
       {
         title: "Team & Payroll",
         icon: Users2,
-        defaultOpen: true,
         subItems: [
           { title: "Staff Directory & Roles", href: "/hr/staff-directory" },
           { title: "Salary", href: "/hr/salary" },
@@ -196,7 +191,6 @@ const navSections: NavSection[] = [
       {
         title: "System Settings",
         icon: Settings,
-        defaultOpen: true,
         subItems: [
           {
             title: "Role Permissions (RBAC)",
@@ -212,6 +206,54 @@ const navSections: NavSection[] = [
   },
 ]
 
+function routeModuleAliases(href: string, title?: string) {
+  const names = new Set<string>()
+  if (title) names.add(title.toLowerCase())
+
+  const legacy: Record<string, string[]> = {
+    "/dashboard": ["dashboard", "executive dashboard"],
+    "/analytics/targets": ["target vs achievement", "target vs. achievement"],
+    "/analytics/territories": ["territory sales breakdown"],
+    "/field-force/zones": ["mio zone allocation", "mio zone allocations"],
+    "/doctors/database": ["doctors list", "master doctor database"],
+    "/field-force/visit-logs": ["doctor visit logs"],
+    "/inventory/ledger": ["stock inventory", "active inventory ledger (fefo)"],
+    "/inventory/adjustments": ["stock adjustments"],
+    "/logistics/orders": ["sales orders", "delivery logistics & orders"],
+    "/sales/clients": ["pharmacy clients"],
+    "/finance/overview": ["treasury overview", "treasury & finance overview"],
+    "/finance/bank-ledger": ["bank accounts ledger"],
+    "/finance/collections": ["delivery cash collections"],
+    "/finance/supplier-payments": ["supplier payments"],
+    "/procurement/orders": ["wholesale purchase orders", "wholesaler purchase orders"],
+    "/finance/payments": ["payments", "expense & vendor payments"],
+    "/hr/staff-directory": ["staff directory & roles"],
+    "/hr/salary": ["salary", "payroll & salary"],
+    "/settings/audit-logs": ["audit logs (21 cfr compliant)", "audit logs (21 cfr part 11)"],
+  }
+
+  const match = Object.keys(legacy)
+    .sort((a, b) => b.length - a.length)
+    .find((route) => href === route || href.startsWith(`${route}/`))
+  if (match) legacy[match].forEach((name) => names.add(name))
+  return Array.from(names)
+}
+
+function menuKey(group: string, title: string) {
+  return `${group}::${title}`
+}
+
+function activeMenuKey(pathname: string) {
+  for (const section of navSections) {
+    for (const item of section.items) {
+      if (item.subItems?.some((sub) => pathname === sub.href)) {
+        return menuKey(section.group, item.title)
+      }
+    }
+  }
+  return null
+}
+
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onOpenAccount?: () => void
   onOpenPrivileges?: () => void
@@ -221,6 +263,13 @@ export function AppSidebar({ onOpenAccount, onOpenPrivileges, ...props }: AppSid
   const pathname = usePathname()
   const { state, isMobile, setOpenMobile } = useSidebar()
   const isCollapsed = state === "collapsed" && !isMobile
+  const [openMenuKey, setOpenMenuKey] = React.useState<string | null>(() =>
+    activeMenuKey(pathname)
+  )
+
+  React.useEffect(() => {
+    setOpenMenuKey(activeMenuKey(pathname))
+  }, [pathname])
   const [currentUser, setCurrentUser] = React.useState<{
     name: string
     email: string
@@ -275,35 +324,11 @@ export function AppSidebar({ onOpenAccount, onOpenPrivileges, ...props }: AppSid
       const permissions = currentUser?.permissions || []
       if (permissions.length === 0) return true // default allow if permissions not yet loaded
 
+      const aliases = routeModuleAliases(href, title)
       const perm = permissions.find((p: any) => {
         if (!p) return false
         const modTitle = (p.module || "").toLowerCase()
-        const checkTitle = (title || "").toLowerCase()
-        if (checkTitle && modTitle.includes(checkTitle)) return true
-        if (checkTitle && checkTitle.includes(modTitle)) return true
-
-        if (href === "/dashboard" && modTitle.includes("dashboard")) return true
-        if (href.startsWith("/analytics/targets") && (modTitle.includes("target") || modTitle.includes("territory"))) return true
-        if (href.startsWith("/analytics/territories") && (modTitle.includes("territory") || modTitle.includes("target"))) return true
-        if (href.startsWith("/field-force/zones") && (modTitle.includes("zone") || modTitle.includes("territory") || modTitle.includes("target") || modTitle.includes("mio"))) return true
-        if (href.startsWith("/doctors/database") && (modTitle.includes("doctor") || modTitle.includes("database") || modTitle.includes("list"))) return true
-        if (href.startsWith("/doctors/timeline") && modTitle.includes("timeline")) return true
-        if (href.startsWith("/field-force/visit-logs") && (modTitle.includes("visit") || modTitle.includes("dcr") || modTitle.includes("call"))) return true
-        if (href.startsWith("/field-force/approvals") && modTitle.includes("approval")) return true
-        if (href.startsWith("/inventory/ledger") && (modTitle.includes("inventory") || modTitle.includes("stock") || modTitle.includes("fefo") || modTitle.includes("ledger"))) return true
-        if (href.startsWith("/inventory/adjustments") && (modTitle.includes("adjustment") || modTitle.includes("stock"))) return true
-        if (href.startsWith("/procurement/orders") && (modTitle.includes("purchase") || modTitle.includes("procurement") || modTitle.includes("order") || modTitle.includes("wholesale") || modTitle.includes("transaction"))) return true
-        if (href.startsWith("/logistics/orders") && modTitle.includes("delivery logistics")) return true
-        if (href.startsWith("/sales/clients") && modTitle.includes("pharmacy clients")) return true
-        if (href.startsWith("/finance/overview") && modTitle.includes("treasury")) return true
-        if (href.startsWith("/finance/bank-ledger") && modTitle.includes("bank accounts")) return true
-        if (href.startsWith("/finance/collections") && modTitle.includes("cash collections")) return true
-        if (href.startsWith("/finance/payments") && modTitle.includes("payments") && !modTitle.includes("supplier")) return true
-        if (href.startsWith("/finance/supplier-payments") && modTitle.includes("supplier payment")) return true
-        if (href.startsWith("/hr/staff-directory") && modTitle.includes("staff directory")) return true
-        if (href.startsWith("/hr/salary") && modTitle.includes("salary")) return true
-        if (href.startsWith("/settings/audit-logs") && modTitle.includes("audit logs")) return true
-        return false
+        return aliases.includes(modTitle)
       })
 
       if (perm) {
@@ -433,7 +458,7 @@ export function AppSidebar({ onOpenAccount, onOpenPrivileges, ...props }: AppSid
 
           return (
             <SidebarGroup key={section.group} className="py-1">
-              <SidebarGroupLabel className="mb-1 px-2 text-[10px] font-semibold tracking-wider text-slate-400 uppercase group-data-[collapsible=icon]:hidden">
+              <SidebarGroupLabel className="mb-0.5 h-auto px-2 py-1 text-[13px] font-semibold leading-snug normal-case tracking-normal text-slate-950 group-data-[collapsible=icon]:hidden">
                 {section.group}
               </SidebarGroupLabel>
               <SidebarMenu className="gap-1">
@@ -507,17 +532,27 @@ export function AppSidebar({ onOpenAccount, onOpenPrivileges, ...props }: AppSid
                   }
 
                   if (hasSub) {
+                    const key = menuKey(section.group, item.title)
+                    const isOpen = openMenuKey === key
                     return (
                       <Collapsible
                         key={item.title}
-                        defaultOpen={item.defaultOpen || isSubActive}
+                        open={isOpen}
+                        onOpenChange={(open) => {
+                          setOpenMenuKey(open ? key : null)
+                        }}
                         className="group/collapsible"
                       >
                         <SidebarMenuItem>
                           <CollapsibleTrigger asChild>
                             <SidebarMenuButton
                               tooltip={item.title}
-                              className="min-h-[42px] sm:min-h-[36px] w-full justify-between px-3 sm:px-2 text-sm sm:text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900 cursor-pointer rounded-lg"
+                              isActive={isSubActive}
+                              className={`min-h-[42px] sm:min-h-[36px] w-full justify-between px-3 sm:px-2 text-sm sm:text-xs font-medium transition-colors cursor-pointer rounded-lg ${
+                                isSubActive
+                                  ? "bg-slate-100 font-semibold text-slate-900"
+                                  : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                              }`}
                             >
                               <div className="flex items-center gap-2.5 truncate">
                                 <item.icon className="h-4 w-4 shrink-0 text-slate-600" />

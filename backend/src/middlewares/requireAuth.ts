@@ -17,23 +17,31 @@ import { requestContextStorage } from "../utils/requestContext";
 export const requireAuth = (...allowedRoles: string[]) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Extract Access Token from HttpOnly cookie or Authorization header
-      const token =
-        req.cookies?.accessToken ||
-        (req.headers.authorization?.startsWith("Bearer ")
-          ? req.headers.authorization.split(" ")[1]
-          : null);
+      // Prefer the Authorization header. A stale access-token cookie must not
+      // override a freshly refreshed bearer token.
+      const headerToken = req.headers.authorization?.startsWith("Bearer ")
+        ? req.headers.authorization.split(" ")[1]
+        : null;
+      const cookieToken = req.cookies?.accessToken;
+      const tokens = [...new Set([headerToken, cookieToken].filter((token): token is string => Boolean(token)))];
 
-      if (!token) {
+      if (tokens.length === 0) {
         throw new AppError("Authentication required. Access token missing.", 401);
       }
 
-      // Verify Access Token (Throws 401 if expired or invalid)
-      let decoded: { userId: string; email: string; role: string };
-      try {
-        decoded = verifyAccessToken(token);
-      } catch (err: any) {
-        if (err?.name === "TokenExpiredError") {
+      let decoded: { userId: string; email: string; role: string } | null = null;
+      let lastVerifyError: any = null;
+      for (const token of tokens) {
+        try {
+          decoded = verifyAccessToken(token);
+          break;
+        } catch (err: any) {
+          lastVerifyError = err;
+        }
+      }
+
+      if (!decoded) {
+        if (lastVerifyError?.name === "TokenExpiredError") {
           throw new AppError("Access token expired. Please refresh your session.", 401);
         }
         throw new AppError("Invalid access token. Please log in again.", 401);

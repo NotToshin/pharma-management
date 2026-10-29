@@ -187,21 +187,23 @@ export function isUserSuperAdmin(user?: AuthUser | null): boolean {
 }
 
 /**
- * Retrieves the current access token from cookies or localStorage (legacy fallback)
+ * Retrieves the current access token, preferring one that has not expired.
+ * An expired cookie must not hide a newer token stored after a silent refresh.
  */
 export function getAccessToken(): string | null {
+  const candidates: string[] = []
   const cookieToken =
     getCookie(COOKIE_ACCESS_TOKEN) || getCookie(COOKIE_TOKEN_ALIAS)
-  if (cookieToken) return cookieToken
+  if (cookieToken) candidates.push(cookieToken)
 
   if (typeof window !== "undefined") {
-    return (
+    const stored =
       localStorage.getItem(STORAGE_TOKEN) ||
-      localStorage.getItem(STORAGE_AK_TOKEN) ||
-      null
-    )
+      localStorage.getItem(STORAGE_AK_TOKEN)
+    if (stored) candidates.push(stored)
   }
-  return null
+
+  return candidates.find((token) => !isTokenExpired(token)) || candidates[0] || null
 }
 
 /**
@@ -236,17 +238,19 @@ export function isAuthenticated(): boolean {
  * Retrieves the current refresh token from cookies or localStorage
  */
 export function getStoredRefreshToken(): string | null {
-  const cookieToken = getCookie(COOKIE_REFRESH_TOKEN)
-  if (cookieToken) return cookieToken
+  const candidates: string[] = []
 
   if (typeof window !== "undefined") {
-    return (
+    const stored =
       localStorage.getItem("refreshToken") ||
-      localStorage.getItem("ak_refreshToken") ||
-      null
-    )
+      localStorage.getItem("ak_refreshToken")
+    if (stored) candidates.push(stored)
   }
-  return null
+
+  const cookieToken = getCookie(COOKIE_REFRESH_TOKEN)
+  if (cookieToken) candidates.push(cookieToken)
+
+  return candidates.find((token) => !isTokenExpired(token)) || null
 }
 
 /**

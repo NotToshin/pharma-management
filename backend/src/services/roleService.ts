@@ -65,7 +65,7 @@ export const roleService = {
             roleId: sysRole.id,
             module: mod.module,
             category: mod.category,
-            read: isSuper ? true : mod.module === "Executive Dashboard",
+            read: isSuper ? true : mod.module === "Dashboard",
             create: isSuper,
             edit: isSuper,
             delete: isSuper,

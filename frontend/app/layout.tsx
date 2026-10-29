@@ -52,27 +52,47 @@ const geistMono = Geist_Mono({
 
 const routeTitleMap: Record<string, string> = {
   "/dashboard": "Dashboard",
-  "/analytics/targets": "Target vs. Achievement",
+  "/analytics/targets": "Target Vs Achievement",
   "/analytics/territories": "Territory Sales Breakdown",
-  "/field-force/approvals": "Pending Approvals",
   "/field-force/visit-logs": "Doctor Visit Logs",
-  "/field-force/zones": "MIO Zone Allocations",
-  "/doctors/database": "Master Doctor Database",
-  "/doctors/timeline": "Visit History Timeline",
-  "/inventory/ledger": "Active Inventory Ledger (FEFO)",
+  "/field-force/zones": "MIO Zone Allocation",
+  "/doctors/database": "Doctors List",
+  "/inventory/ledger": "Stock Inventory",
   "/inventory/adjustments": "Stock Adjustments",
-  "/procurement/orders": "Wholesaler Purchase Orders",
-  "/logistics/orders": "Delivery Logistics & Orders",
+  "/procurement/orders": "Wholesale Purchase Orders",
+  "/logistics/orders": "Sales Orders",
   "/sales/clients": "Pharmacy Clients",
-  "/finance/overview": "Treasury & Finance Overview",
+  "/finance/overview": "Treasury Overview",
   "/finance/bank-ledger": "Bank Accounts Ledger",
   "/finance/collections": "Delivery Cash Collections",
-  "/finance/payments": "Expense & Vendor Payments",
+  "/finance/payments": "Payments",
   "/finance/supplier-payments": "Supplier Payments",
   "/hr/staff-directory": "Staff Directory & Roles",
-  "/hr/salary": "Payroll & Salary",
+  "/hr/salary": "Salary",
   "/settings/rbac": "Role Permissions (RBAC)",
-  "/settings/audit-logs": "Audit Logs (21 CFR Part 11)",
+  "/settings/audit-logs": "Audit Logs (21 CFR Compliant)",
+}
+
+const routeModuleAliases: Record<string, string[]> = {
+  "/dashboard": ["dashboard", "executive dashboard"],
+  "/analytics/targets": ["target vs achievement", "target vs. achievement"],
+  "/analytics/territories": ["territory sales breakdown"],
+  "/field-force/zones": ["mio zone allocation", "mio zone allocations"],
+  "/doctors/database": ["doctors list", "master doctor database"],
+  "/field-force/visit-logs": ["doctor visit logs"],
+  "/inventory/ledger": ["stock inventory", "active inventory ledger (fefo)"],
+  "/inventory/adjustments": ["stock adjustments"],
+  "/procurement/orders": ["wholesale purchase orders", "wholesaler purchase orders"],
+  "/logistics/orders": ["sales orders", "delivery logistics & orders"],
+  "/sales/clients": ["pharmacy clients"],
+  "/finance/overview": ["treasury overview", "treasury & finance overview"],
+  "/finance/bank-ledger": ["bank accounts ledger"],
+  "/finance/collections": ["delivery cash collections"],
+  "/finance/payments": ["payments", "expense & vendor payments"],
+  "/finance/supplier-payments": ["supplier payments"],
+  "/hr/staff-directory": ["staff directory & roles"],
+  "/hr/salary": ["salary", "payroll & salary"],
+  "/settings/audit-logs": ["audit logs (21 cfr compliant)", "audit logs (21 cfr part 11)"],
 }
 
 function getPageTitle(pathname: string): string {
@@ -164,30 +184,13 @@ export default function RootLayout({
     const permissions = userData.permissions || []
     if (permissions.length === 0) return true // fallback allow
 
+    const routeKey = Object.keys(routeModuleAliases)
+      .sort((a, b) => b.length - a.length)
+      .find((route) => pathname === route || pathname.startsWith(`${route}/`))
+    const aliases = routeKey ? routeModuleAliases[routeKey] : []
     const perm = permissions.find((p: any) => {
       if (!p) return false
-      const modTitle = (p.module || "").toLowerCase()
-      if (pathname.startsWith("/analytics/targets") && modTitle.includes("target")) return true
-      if (pathname.startsWith("/analytics/territories") && modTitle.includes("territory")) return true
-      if (pathname.startsWith("/field-force/zones") && modTitle.includes("zone")) return true
-      if (pathname.startsWith("/field-force/visit-logs") && modTitle.includes("visit")) return true
-      if (pathname.startsWith("/field-force/approvals") && modTitle.includes("approval")) return true
-      if (pathname.startsWith("/doctors/database") && modTitle.includes("doctor database")) return true
-      if (pathname.startsWith("/doctors/timeline") && modTitle.includes("timeline")) return true
-      if (pathname.startsWith("/inventory/ledger") && modTitle.includes("inventory ledger")) return true
-      if (pathname.startsWith("/procurement/orders") && modTitle.includes("purchase orders")) return true
-      if (pathname.startsWith("/inventory/adjustments") && modTitle.includes("adjustments")) return true
-      if (pathname.startsWith("/logistics/orders") && modTitle.includes("delivery logistics")) return true
-      if (pathname.startsWith("/sales/clients") && modTitle.includes("pharmacy clients")) return true
-      if (pathname.startsWith("/finance/overview") && modTitle.includes("treasury")) return true
-      if (pathname.startsWith("/finance/bank-ledger") && modTitle.includes("bank accounts")) return true
-      if (pathname.startsWith("/finance/collections") && modTitle.includes("cash collections")) return true
-      if (pathname.startsWith("/finance/payments") && modTitle.includes("payments") && !modTitle.includes("supplier")) return true
-      if (pathname.startsWith("/finance/supplier-payments") && modTitle.includes("supplier payment")) return true
-      if (pathname.startsWith("/hr/staff-directory") && modTitle.includes("staff directory")) return true
-      if (pathname.startsWith("/hr/salary") && modTitle.includes("salary")) return true
-      if (pathname.startsWith("/settings/audit-logs") && modTitle.includes("audit logs")) return true
-      return false
+      return aliases.includes((p.module || "").toLowerCase())
     })
 
     if (perm) {
