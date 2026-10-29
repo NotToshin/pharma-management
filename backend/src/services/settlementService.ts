@@ -359,6 +359,9 @@ export const settlementService = {
   },
 
   async createSettlement(data: CreateSettlementInput, actorName?: string) {
+    if (data.direction === "INCOMING") {
+      throw new AppError("Buyer payments are handled through Delivery Cash Collections (/finance/collections).", 400);
+    }
     const direction = data.direction;
     const partyName = data.partyName.trim();
     const amount = round2(Number(data.amount));
@@ -460,17 +463,14 @@ export const settlementService = {
         await tx.journalTransaction.create({
           data: {
             entryDate: paymentDate,
-            refCode: direction === "OUTGOING" ? `JRN-SPAY-${stamp}` : `JRN-BPAY-${stamp}`,
-            flowType: direction === "OUTGOING" ? "OUTFLOW" : "INFLOW",
-            particulars:
-              direction === "OUTGOING"
-                ? `Supplier payment to ${partyName}${planned.length ? ` (${planned.map((p) => p.documentNumber).join(", ")})` : " (advance)"}`
-                : `Buyer receipt from ${partyName}${planned.length ? ` (${planned.map((p) => p.documentNumber).join(", ")})` : " (advance)"}`,
+            refCode: `JRN-SPAY-${stamp}`,
+            flowType: "OUTFLOW",
+            particulars: `Supplier payment to ${partyName}${planned.length ? ` (${planned.map((p) => p.documentNumber).join(", ")})` : " (advance)"}`,
             fundingEntity: partyName,
             method: data.paymentMethod,
             amount,
-            sourceAccountId: direction === "OUTGOING" ? account.id : null,
-            destinationAccountId: direction === "INCOMING" ? account.id : null,
+            sourceAccountId: account.id,
+            destinationAccountId: null,
             reconciliationStatus: "Reconciled",
           },
         });
@@ -478,13 +478,6 @@ export const settlementService = {
 
       for (const line of planned) {
         await applyDocumentPaid(tx as typeof prisma, direction, line.documentId, line.amount);
-      }
-
-      if (direction === "INCOMING") {
-        await tx.client.updateMany({
-          where: { pharmacyName: { equals: partyName, mode: "insensitive" } },
-          data: { outstandingBalanceBDT: { decrement: amount } },
-        });
       }
 
       return tx.partySettlement.create({
@@ -516,7 +509,7 @@ export const settlementService = {
 
     await auditLogService.recordAuditEvent({
       module: "Finance & Accounts",
-      actionType: direction === "OUTGOING" ? "Supplier Payment Recorded" : "Buyer Payment Recorded",
+      actionType: "Supplier Payment Recorded",
       severity: created.amount >= 100000 ? "Critical" : "Routine",
       entityTarget: `${created.paymentNumber} (${created.partyName})`,
       entityType: "PartySettlement",

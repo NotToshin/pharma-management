@@ -54,30 +54,21 @@ const routeTitleMap: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/analytics/targets": "Target vs. Achievement",
   "/analytics/territories": "Territory Sales Breakdown",
-  "/field-force/tour-plans": "All Tour Plans",
   "/field-force/approvals": "Pending Approvals",
   "/field-force/visit-logs": "Doctor Visit Logs",
-  "/field-force/samples": "Sample & Gift Distribution",
   "/field-force/zones": "MIO Zone Allocations",
-  "/field-force/routes": "Route Optimization",
   "/doctors/database": "Master Doctor Database",
-  "/doctors/new": "Add New Doctor",
-  "/doctors/ranking": "Prescription Category Ranking",
   "/doctors/timeline": "Visit History Timeline",
   "/inventory/ledger": "Active Inventory Ledger (FEFO)",
-  "/inventory/expiry": "Expiry Watchlist",
   "/inventory/adjustments": "Stock Adjustments",
   "/procurement/orders": "Wholesaler Purchase Orders",
-  "/procurement/batch-logs": "Receive Stock Batch Log",
   "/logistics/orders": "Delivery Logistics & Orders",
-  "/logistics/batch-log": "Receive Stock Batch Log",
   "/sales/clients": "Pharmacy Clients",
   "/finance/overview": "Treasury & Finance Overview",
   "/finance/bank-ledger": "Bank Accounts Ledger",
   "/finance/collections": "Delivery Cash Collections",
   "/finance/payments": "Expense & Vendor Payments",
   "/finance/supplier-payments": "Supplier Payments",
-  "/finance/buyer-payments": "Buyer Payments",
   "/hr/staff-directory": "Staff Directory & Roles",
   "/hr/salary": "Payroll & Salary",
   "/settings/rbac": "Role Permissions (RBAC)",
@@ -180,28 +171,19 @@ export default function RootLayout({
       if (pathname.startsWith("/analytics/territories") && modTitle.includes("territory")) return true
       if (pathname.startsWith("/field-force/zones") && modTitle.includes("zone")) return true
       if (pathname.startsWith("/field-force/visit-logs") && modTitle.includes("visit")) return true
-      if (pathname.startsWith("/field-force/tour-plans") && modTitle.includes("tour")) return true
       if (pathname.startsWith("/field-force/approvals") && modTitle.includes("approval")) return true
-      if (pathname.startsWith("/field-force/samples") && modTitle.includes("sample")) return true
-      if (pathname.startsWith("/field-force/routes") && modTitle.includes("route")) return true
       if (pathname.startsWith("/doctors/database") && modTitle.includes("doctor database")) return true
-      if (pathname.startsWith("/doctors/new") && modTitle.includes("add new doctor")) return true
-      if (pathname.startsWith("/doctors/ranking") && modTitle.includes("ranking")) return true
       if (pathname.startsWith("/doctors/timeline") && modTitle.includes("timeline")) return true
       if (pathname.startsWith("/inventory/ledger") && modTitle.includes("inventory ledger")) return true
       if (pathname.startsWith("/procurement/orders") && modTitle.includes("purchase orders")) return true
       if (pathname.startsWith("/inventory/adjustments") && modTitle.includes("adjustments")) return true
-      if (pathname.startsWith("/inventory/expiry") && modTitle.includes("expiry")) return true
-      if (pathname.startsWith("/procurement/batch-logs") && modTitle.includes("batch log")) return true
       if (pathname.startsWith("/logistics/orders") && modTitle.includes("delivery logistics")) return true
-      if (pathname.startsWith("/logistics/batch-log") && modTitle.includes("stock delivery log")) return true
       if (pathname.startsWith("/sales/clients") && modTitle.includes("pharmacy clients")) return true
       if (pathname.startsWith("/finance/overview") && modTitle.includes("treasury")) return true
       if (pathname.startsWith("/finance/bank-ledger") && modTitle.includes("bank accounts")) return true
       if (pathname.startsWith("/finance/collections") && modTitle.includes("cash collections")) return true
-      if (pathname.startsWith("/finance/payments") && modTitle.includes("payments") && !modTitle.includes("supplier") && !modTitle.includes("buyer")) return true
+      if (pathname.startsWith("/finance/payments") && modTitle.includes("payments") && !modTitle.includes("supplier")) return true
       if (pathname.startsWith("/finance/supplier-payments") && modTitle.includes("supplier payment")) return true
-      if (pathname.startsWith("/finance/buyer-payments") && modTitle.includes("buyer payment")) return true
       if (pathname.startsWith("/hr/staff-directory") && modTitle.includes("staff directory")) return true
       if (pathname.startsWith("/hr/salary") && modTitle.includes("salary")) return true
       if (pathname.startsWith("/settings/audit-logs") && modTitle.includes("audit logs")) return true

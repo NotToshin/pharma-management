@@ -175,7 +175,6 @@ const navSections: NavSection[] = [
         subItems: [
           { title: "Delivery Cash Collections", href: "/finance/collections" },
           { title: "Supplier Payments", href: "/finance/supplier-payments" },
-          { title: "Buyer Payments", href: "/finance/buyer-payments" },
           { title: "Wholesale Purchase Orders", href: "/procurement/orders" },
           { title: "Payments", href: "/finance/payments" },
         ],
@@ -288,28 +287,19 @@ export function AppSidebar({ onOpenAccount, onOpenPrivileges, ...props }: AppSid
         if (href.startsWith("/analytics/territories") && (modTitle.includes("territory") || modTitle.includes("target"))) return true
         if (href.startsWith("/field-force/zones") && (modTitle.includes("zone") || modTitle.includes("territory") || modTitle.includes("target") || modTitle.includes("mio"))) return true
         if (href.startsWith("/doctors/database") && (modTitle.includes("doctor") || modTitle.includes("database") || modTitle.includes("list"))) return true
-        if (href.startsWith("/doctors/new") && modTitle.includes("add new doctor")) return true
-        if (href.startsWith("/doctors/ranking") && modTitle.includes("ranking")) return true
         if (href.startsWith("/doctors/timeline") && modTitle.includes("timeline")) return true
         if (href.startsWith("/field-force/visit-logs") && (modTitle.includes("visit") || modTitle.includes("dcr") || modTitle.includes("call"))) return true
-        if (href.startsWith("/field-force/tour-plans") && modTitle.includes("tour")) return true
         if (href.startsWith("/field-force/approvals") && modTitle.includes("approval")) return true
-        if (href.startsWith("/field-force/samples") && modTitle.includes("sample")) return true
-        if (href.startsWith("/field-force/routes") && modTitle.includes("route")) return true
         if (href.startsWith("/inventory/ledger") && (modTitle.includes("inventory") || modTitle.includes("stock") || modTitle.includes("fefo") || modTitle.includes("ledger"))) return true
         if (href.startsWith("/inventory/adjustments") && (modTitle.includes("adjustment") || modTitle.includes("stock"))) return true
         if (href.startsWith("/procurement/orders") && (modTitle.includes("purchase") || modTitle.includes("procurement") || modTitle.includes("order") || modTitle.includes("wholesale") || modTitle.includes("transaction"))) return true
-        if (href.startsWith("/inventory/expiry") && modTitle.includes("expiry")) return true
-        if (href.startsWith("/procurement/batch-logs") && modTitle.includes("batch log")) return true
         if (href.startsWith("/logistics/orders") && modTitle.includes("delivery logistics")) return true
-        if (href.startsWith("/logistics/batch-log") && modTitle.includes("stock delivery log")) return true
         if (href.startsWith("/sales/clients") && modTitle.includes("pharmacy clients")) return true
         if (href.startsWith("/finance/overview") && modTitle.includes("treasury")) return true
         if (href.startsWith("/finance/bank-ledger") && modTitle.includes("bank accounts")) return true
         if (href.startsWith("/finance/collections") && modTitle.includes("cash collections")) return true
-        if (href.startsWith("/finance/payments") && modTitle.includes("payments") && !modTitle.includes("supplier") && !modTitle.includes("buyer")) return true
+        if (href.startsWith("/finance/payments") && modTitle.includes("payments") && !modTitle.includes("supplier")) return true
         if (href.startsWith("/finance/supplier-payments") && modTitle.includes("supplier payment")) return true
-        if (href.startsWith("/finance/buyer-payments") && modTitle.includes("buyer payment")) return true
         if (href.startsWith("/hr/staff-directory") && modTitle.includes("staff directory")) return true
         if (href.startsWith("/hr/salary") && modTitle.includes("salary")) return true
         if (href.startsWith("/settings/audit-logs") && modTitle.includes("audit logs")) return true

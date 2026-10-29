@@ -32,7 +32,7 @@ export const getSettlements = catchAsync(async (req: Request, res: Response) => 
 
 export const createSettlement = catchAsync(async (req: Request, res: Response) => {
   const created = await settlementService.createSettlement(req.body, actorNameFrom(req));
-  const label = req.body.direction === "OUTGOING" ? "Supplier payment recorded" : "Buyer payment recorded";
+  const label = req.body.direction === "OUTGOING" ? "Supplier payment recorded" : "Payment recorded";
   sendResponse(res, 201, label, created);
 });
 

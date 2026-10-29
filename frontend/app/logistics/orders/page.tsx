@@ -1033,9 +1033,9 @@ function LogisticsOrdersContent() {
             variant="outline"
             className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
           >
-            <Link href="/finance/buyer-payments">
+            <Link href="/finance/collections">
               <Wallet className="h-3.5 w-3.5 text-emerald-600" />
-              Buyer Payments
+              Delivery Collections
             </Link>
           </Button>
 
@@ -1783,11 +1783,11 @@ function LogisticsOrdersContent() {
 
                         {ord.status !== "Cancelled" && (
                           <DropdownMenuItem
-                            onClick={() => router.push(`/finance/buyer-payments?orderId=${ord.id}`)}
+                            onClick={() => router.push(`/finance/collections?orderId=${ord.id}`)}
                             className="cursor-pointer text-xs font-semibold text-emerald-700"
                           >
                             <Wallet className="mr-2 h-3.5 w-3.5 text-emerald-600" />
-                            Collect Buyer Payment
+                            Record Cash Collection
                           </DropdownMenuItem>
                         )}
 

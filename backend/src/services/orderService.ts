@@ -344,7 +344,7 @@ export const orderService = {
     const alreadyPaid = Number(existing.paidAmount) || 0;
     if (alreadyPaid > 0.009) {
       throw new AppError(
-        "This sales order has buyer payments. Reverse those payments before deleting it.",
+        "This sales order has delivery collections recorded against it. Remove or reverse those collections before deleting it.",
         400
       );
     }

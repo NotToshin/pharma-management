@@ -128,17 +128,15 @@ export function PartySettlementPage({
   direction,
   presetDocumentId,
 }: {
-  direction: Direction
+  direction?: Direction
   presetDocumentId?: string | null
 }) {
-  const outgoing = direction === "OUTGOING"
-  const title = outgoing ? "Supplier Payments" : "Buyer Payments"
-  const partyLabel = outgoing ? "Supplier" : "Buyer"
-  const orderHref = outgoing ? "/procurement/orders" : "/logistics/orders"
-  const orderLabel = outgoing ? "Purchase Orders" : "Sales Orders"
-  const methods = outgoing
-    ? ["Cash", "Cheque", "BEFTN / RTGS", "bKash / Nagad", "Advance Adjustment"]
-    : ["Cash", "Cheque", "BEFTN / RTGS", "Card", "bKash / Nagad", "Advance Adjustment"]
+  const outgoing = direction !== "INCOMING"
+  const title = "Supplier Payments"
+  const partyLabel = "Supplier"
+  const orderHref = "/procurement/orders"
+  const orderLabel = "Purchase Orders"
+  const methods = ["Cash", "Cheque", "BEFTN / RTGS", "bKash / Nagad", "Advance Adjustment"]
 
   const [bills, setBills] = React.useState<OpenBill[]>([])
   const [parties, setParties] = React.useState<PartyOption[]>([])
@@ -618,9 +616,9 @@ export function PartySettlementPage({
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl bg-white sm:max-w-[680px]">
           <DialogHeader>
-            <DialogTitle className="text-base">{outgoing ? "Pay supplier" : "Collect buyer payment"}</DialogTitle>
+            <DialogTitle className="text-base">Pay supplier</DialogTitle>
             <DialogDescription className="text-xs">
-              Money is applied to the oldest open {outgoing ? "purchase orders" : "sales orders"} first. Anything left over stays as an advance for the next bill.
+              Money is applied to the oldest open purchase orders first. Anything left over stays as an advance for the next bill.
             </DialogDescription>
           </DialogHeader>
 
