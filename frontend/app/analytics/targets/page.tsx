@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import {
   Card,
@@ -652,15 +654,17 @@ export default function TargetVsAchievementPage() {
 
           {/* Add MIO Target Modal */}
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0080e5] transition-all"
-              >
-                <Plus className="h-4 w-4" />
-                Add MIO Target
-              </Button>
-            </DialogTrigger>
+            <PermissionGate feature="Target Vs Achievement" action="create">
+<DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0080e5] transition-all"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add MIO Target
+                </Button>
+              </DialogTrigger>
+</PermissionGate>
             <DialogContent className="rounded-2xl border border-slate-200 bg-white sm:max-w-[480px] shadow-xl">
               <DialogHeader>
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#0090FF]">
@@ -1439,21 +1443,25 @@ export default function TargetVsAchievementPage() {
                           <DropdownMenuLabel className="text-[11px] text-slate-500">
                             Quota Actions
                           </DropdownMenuLabel>
-                          <DropdownMenuItem
-                            onClick={() => openEditModal(row)}
-                            className="cursor-pointer gap-2 text-xs"
-                          >
-                            <Pencil className="h-3.5 w-3.5 text-slate-600" />
-                            Edit Quota
-                          </DropdownMenuItem>
+                          <PermissionGate feature="Target Vs Achievement" action="edit" also="special">
+<DropdownMenuItem
+                              onClick={() => openEditModal(row)}
+                              className="cursor-pointer gap-2 text-xs"
+                            >
+                              <Pencil className="h-3.5 w-3.5 text-slate-600" />
+                              Edit Quota
+                            </DropdownMenuItem>
+</PermissionGate>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => openDeleteModal(row)}
-                            className="cursor-pointer gap-2 text-xs text-rose-600 focus:text-rose-600"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Delete Target
-                          </DropdownMenuItem>
+                          <PermissionGate feature="Target Vs Achievement" action="delete">
+<DropdownMenuItem
+                              onClick={() => openDeleteModal(row)}
+                              className="cursor-pointer gap-2 text-xs text-rose-600 focus:text-rose-600"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete Target
+                            </DropdownMenuItem>
+</PermissionGate>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

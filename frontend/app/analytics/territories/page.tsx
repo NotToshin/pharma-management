@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import {
   Card,
@@ -413,14 +415,16 @@ export default function TerritorySalesBreakdownPage() {
           </Button>
 
           {/* Baseline Sync Action */}
-          <Button
-            size="sm"
-            onClick={handleSyncBaseline}
-            className="h-9 gap-1.5 bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-600"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-blue-100" />
-            <span>Sync Baseline Data</span>
-          </Button>
+          <PermissionGate feature="Territory Sales Breakdown" action="special">
+<Button
+              size="sm"
+              onClick={handleSyncBaseline}
+              className="h-9 gap-1.5 bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-600"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-blue-100" />
+              <span>Sync Baseline Data</span>
+            </Button>
+</PermissionGate>
         </div>
       </div>
 

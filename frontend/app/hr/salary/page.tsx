@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -955,38 +957,42 @@ export default function SalaryManagementPage() {
           )}
 
           {/* Quick Auto-Generate Batch Button */}
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={isGeneratingBatch || metrics.unassignedCount === 0}
-            onClick={handleAutoGeneratePayroll}
-            className="h-9 gap-1.5 rounded-lg border-emerald-200 bg-emerald-50/50 text-xs font-semibold text-emerald-700 hover:bg-emerald-100/70"
-            title="Generate payroll for all active unassigned staff using their default salary"
-          >
-            {isGeneratingBatch ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Zap className="h-3.5 w-3.5 text-emerald-600" />
-            )}
-            Auto-Generate ({metrics.unassignedCount})
-          </Button>
+          <PermissionGate feature="Salary" action="create">
+<Button
+              size="sm"
+              variant="outline"
+              disabled={isGeneratingBatch || metrics.unassignedCount === 0}
+              onClick={handleAutoGeneratePayroll}
+              className="h-9 gap-1.5 rounded-lg border-emerald-200 bg-emerald-50/50 text-xs font-semibold text-emerald-700 hover:bg-emerald-100/70"
+              title="Generate payroll for all active unassigned staff using their default salary"
+            >
+              {isGeneratingBatch ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Zap className="h-3.5 w-3.5 text-emerald-600" />
+              )}
+              Auto-Generate ({metrics.unassignedCount})
+            </Button>
+</PermissionGate>
 
           {/* Assign Salary Dialog Trigger */}
           <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setSelectedStaff(null)
-                  setStaffPickerSearch("")
-                  setStaffPickerFilter("unassigned")
-                }}
-                className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0080e5]"
-              >
-                <UserPlus className="h-3.5 w-3.5" />
-                Assign Salary Structure
-              </Button>
-            </DialogTrigger>
+            <PermissionGate feature="Salary" action="create">
+<DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setSelectedStaff(null)
+                    setStaffPickerSearch("")
+                    setStaffPickerFilter("unassigned")
+                  }}
+                  className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0080e5]"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Assign Salary Structure
+                </Button>
+              </DialogTrigger>
+</PermissionGate>
 
             <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 sm:max-w-[640px]">
               <DialogHeader>
@@ -1714,39 +1720,43 @@ export default function SalaryManagementPage() {
                       <TableCell className="pr-0 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Treasury Pay Button */}
-                          <Button
-                            size="sm"
-                            disabled={isPaid}
-                            onClick={() => {
-                              setPayingRecord(emp)
-                              if (treasuryAccounts.length > 0) {
-                                setSelectedTreasuryAccountId(treasuryAccounts[0].id)
-                              }
-                              setIsPayOpen(true)
-                            }}
-                            className={`h-7 gap-1 rounded-md px-2.5 text-[11px] font-bold shadow-none ${
-                              isPaid
-                                ? "cursor-not-allowed bg-emerald-100 text-emerald-800 opacity-60"
-                                : "bg-emerald-600 text-white hover:bg-emerald-700"
-                            }`}
-                          >
-                            <CreditCard className="h-3 w-3" />
-                            {isPaid ? "Paid" : "Pay via Treasury"}
-                          </Button>
+                          <PermissionGate feature="Salary" action="special">
+<Button
+                              size="sm"
+                              disabled={isPaid}
+                              onClick={() => {
+                                setPayingRecord(emp)
+                                if (treasuryAccounts.length > 0) {
+                                  setSelectedTreasuryAccountId(treasuryAccounts[0].id)
+                                }
+                                setIsPayOpen(true)
+                              }}
+                              className={`h-7 gap-1 rounded-md px-2.5 text-[11px] font-bold shadow-none ${
+                                isPaid
+                                  ? "cursor-not-allowed bg-emerald-100 text-emerald-800 opacity-60"
+                                  : "bg-emerald-600 text-white hover:bg-emerald-700"
+                              }`}
+                            >
+                              <CreditCard className="h-3 w-3" />
+                              {isPaid ? "Paid" : "Pay via Treasury"}
+                            </Button>
+</PermissionGate>
 
                           {/* Edit Remuneration */}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setEditingRecord({ ...emp })
-                              setIsEditOpen(true)
-                            }}
-                            className="h-7 px-2 text-[11px] text-slate-700"
-                            title="Edit remuneration numbers"
-                          >
-                            <Pencil className="mr-1 h-3 w-3" /> Edit
-                          </Button>
+                          <PermissionGate feature="Salary" action="edit">
+<Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEditingRecord({ ...emp })
+                                setIsEditOpen(true)
+                              }}
+                              className="h-7 px-2 text-[11px] text-slate-700"
+                              title="Edit remuneration numbers"
+                            >
+                              <Pencil className="mr-1 h-3 w-3" /> Edit
+                            </Button>
+</PermissionGate>
 
                           {/* Payslip Print */}
                           <Button
@@ -1763,15 +1773,17 @@ export default function SalaryManagementPage() {
                           </Button>
 
                           {/* Delete Record */}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleOpenDeleteModal(emp)}
-                            className="h-7 px-2 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                            title="Delete salary record"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <PermissionGate feature="Salary" action="delete">
+<Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenDeleteModal(emp)}
+                              className="h-7 px-2 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                              title="Delete salary record"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+</PermissionGate>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1882,14 +1894,16 @@ export default function SalaryManagementPage() {
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={disbursing || !selectedTreasuryAccountId}
-                  className="h-9 gap-2 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
-                >
-                  {disbursing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  {disbursing ? "Disbursing & Updating..." : "Confirm & Post to Treasury"}
-                </Button>
+                <PermissionGate feature="Salary" action="special">
+<Button
+                    type="submit"
+                    disabled={disbursing || !selectedTreasuryAccountId}
+                    className="h-9 gap-2 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
+                  >
+                    {disbursing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    {disbursing ? "Disbursing & Updating..." : "Confirm & Post to Treasury"}
+                  </Button>
+</PermissionGate>
               </DialogFooter>
             </form>
           )}

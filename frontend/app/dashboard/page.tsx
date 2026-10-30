@@ -6,6 +6,7 @@ import { API_URL } from "@/lib/api"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import PermissionGate from "@/components/permission-gate"
 import {
   ResponsiveContainer,
   AreaChart,
@@ -103,6 +104,15 @@ export default function MasterExecutiveDashboardPage() {
 
   return (
     <div className="mx-auto max-w-[1380px] space-y-6 pb-16 font-sans text-slate-900">
+      <PermissionGate
+        feature="Dashboard"
+        action="special"
+        fallback={
+          <Card className="rounded-xl border border-slate-200 bg-white p-5 text-xs text-slate-500">
+            Real-time financial figures are not included in this role.
+          </Card>
+        }
+      >
       {/* 1. Top-Level Operational KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-[#23496D]/30 hover:shadow-md">
@@ -371,6 +381,7 @@ export default function MasterExecutiveDashboardPage() {
           </div>
         </Card>
       </div>
+      </PermissionGate>
 
       {/* 3. Real-Time Operational Activity Feeds */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">

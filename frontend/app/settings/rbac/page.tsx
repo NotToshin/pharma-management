@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -357,6 +359,19 @@ export default function RBACManagementPage() {
       }
 
       setHasUnsavedChanges(false)
+      const stored = getStoredUser()
+      const sameRole = Boolean(
+        stored &&
+          (stored.role === selectedRole.code ||
+            stored.roleName === selectedRole.name ||
+            (stored as { roleCode?: string }).roleCode === selectedRole.code)
+      )
+      if (sameRole && stored) {
+        const nextUser = { ...stored, permissions: selectedRole.permissions }
+        localStorage.setItem("user", JSON.stringify(nextUser))
+        localStorage.setItem("ak_user", JSON.stringify(nextUser))
+        window.dispatchEvent(new Event("ak-permissions-updated"))
+      }
       toast.success(`Permission matrix for "${selectedRole.name}" persisted to database.`, {
         id: toastId,
       })
@@ -742,14 +757,16 @@ export default function RBACManagementPage() {
             Export Audit
           </Button>
 
-          <Button
-            size="sm"
-            onClick={() => setIsProvisionOpen(true)}
-            className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-          >
-            <Plus className="h-4 w-4" />
-            Provision Operator Account
-          </Button>
+          <PermissionGate feature="Role Permissions (RBAC)" action="create">
+<Button
+              size="sm"
+              onClick={() => setIsProvisionOpen(true)}
+              className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+            >
+              <Plus className="h-4 w-4" />
+              Provision Operator Account
+            </Button>
+</PermissionGate>
         </div>
       </div>
 
@@ -913,35 +930,41 @@ export default function RBACManagementPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleGrantAll}
-                    className="h-8 gap-1 rounded-md border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    <Check className="h-3 w-3 text-emerald-600" />
-                    Grant All
-                  </Button>
+                  <PermissionGate feature="Role Permissions (RBAC)" action="special">
+<Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleGrantAll}
+                      className="h-8 gap-1 rounded-md border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <Check className="h-3 w-3 text-emerald-600" />
+                      Grant All
+                    </Button>
+</PermissionGate>
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleRevokeAll}
-                    className="h-8 gap-1 rounded-md border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    <X className="h-3 w-3 text-rose-600" />
-                    Clear Write
-                  </Button>
+                  <PermissionGate feature="Role Permissions (RBAC)" action="special">
+<Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleRevokeAll}
+                      className="h-8 gap-1 rounded-md border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <X className="h-3 w-3 text-rose-600" />
+                      Clear Write
+                    </Button>
+</PermissionGate>
 
-                  <Button
-                    size="sm"
-                    disabled={!hasUnsavedChanges || isSaving}
-                    onClick={handleSaveRolePermissions}
-                    className="h-8 gap-1.5 rounded-md bg-[#0090FF] text-xs font-semibold text-white shadow-none hover:bg-[#0080e5] disabled:opacity-50"
-                  >
-                    <Save className="h-3.5 w-3.5" />
-                    {isSaving ? "Saving..." : "Save Permissions"}
-                  </Button>
+                  <PermissionGate feature="Role Permissions (RBAC)" action="special">
+<Button
+                      size="sm"
+                      disabled={!hasUnsavedChanges || isSaving}
+                      onClick={handleSaveRolePermissions}
+                      className="h-8 gap-1.5 rounded-md bg-[#0090FF] text-xs font-semibold text-white shadow-none hover:bg-[#0080e5] disabled:opacity-50"
+                    >
+                      <Save className="h-3.5 w-3.5" />
+                      {isSaving ? "Saving..." : "Save Permissions"}
+                    </Button>
+</PermissionGate>
                 </div>
               </div>
 
@@ -1247,20 +1270,22 @@ export default function RBACManagementPage() {
                     <TableCell className="py-3 pr-0 text-right text-xs">
                       <div className="flex items-center justify-end gap-1">
                         {/* Edit & Reassign Role Button */}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={!canEditOperator}
-                          onClick={() => canEditOperator && handleOpenEditUser(user)}
-                          className="h-7 w-7 p-0 text-slate-500 hover:bg-slate-100 hover:text-blue-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                          title={
-                            !canEditOperator
-                              ? "Super Administrator credentials can only be edited by a Super Administrator"
-                              : "Edit Operator Credentials & Role"
-                          }
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <PermissionGate feature="Role Permissions (RBAC)" action="edit">
+<Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={!canEditOperator}
+                            onClick={() => canEditOperator && handleOpenEditUser(user)}
+                            className="h-7 w-7 p-0 text-slate-500 hover:bg-slate-100 hover:text-blue-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                            title={
+                              !canEditOperator
+                                ? "Super Administrator credentials can only be edited by a Super Administrator"
+                                : "Edit Operator Credentials & Role"
+                            }
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </Button>
+</PermissionGate>
 
                         {/* Toggle Account Status */}
                         <Button
@@ -1285,20 +1310,22 @@ export default function RBACManagementPage() {
                         </Button>
 
                         {/* Delete / Revoke Account */}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={isUserSuperAdminRole}
-                          onClick={() => !isUserSuperAdminRole && handleOpenDeleteModal(user.id, user.name)}
-                          className="h-7 w-7 p-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                          title={
-                            isUserSuperAdminRole
-                              ? "Super Administrator credentials cannot be deleted or revoked"
-                              : "Revoke Database Account"
-                          }
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <PermissionGate feature="Role Permissions (RBAC)" action="delete">
+<Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={isUserSuperAdminRole}
+                            onClick={() => !isUserSuperAdminRole && handleOpenDeleteModal(user.id, user.name)}
+                            className="h-7 w-7 p-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                            title={
+                              isUserSuperAdminRole
+                                ? "Super Administrator credentials cannot be deleted or revoked"
+                                : "Revoke Database Account"
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+</PermissionGate>
                       </div>
                     </TableCell>
                   </TableRow>

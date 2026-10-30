@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -1401,14 +1403,16 @@ export default function WholesalerPurchaseOrdersPage() {
             </Link>
           </Button>
 
-          <Button
-            size="sm"
-            onClick={handleOpenCreateModal}
-            className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-          >
-            <Plus className="h-4 w-4" />
-            Create Purchase Order
-          </Button>
+          <PermissionGate feature="Wholesale Purchase Orders" action="create">
+<Button
+              size="sm"
+              onClick={handleOpenCreateModal}
+              className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+            >
+              <Plus className="h-4 w-4" />
+              Create Purchase Order
+            </Button>
+</PermissionGate>
         </div>
       </div>
 
@@ -1760,13 +1764,15 @@ export default function WholesalerPurchaseOrdersPage() {
                         )}
 
                         {ord.status !== "Approved" && ord.status !== "Received" && ord.status !== "Cancelled" && (
-                          <DropdownMenuItem
-                            onClick={() => handleOpenApprovalModal(ord)}
-                            className="cursor-pointer text-xs font-semibold text-purple-700"
-                          >
-                            <ShieldCheck className="mr-2 h-3.5 w-3.5 text-purple-600" />
-                            Authorize PO
-                          </DropdownMenuItem>
+                          <PermissionGate feature="Wholesale Purchase Orders" action="special">
+<DropdownMenuItem
+                              onClick={() => handleOpenApprovalModal(ord)}
+                              className="cursor-pointer text-xs font-semibold text-purple-700"
+                            >
+                              <ShieldCheck className="mr-2 h-3.5 w-3.5 text-purple-600" />
+                              Authorize PO
+                            </DropdownMenuItem>
+</PermissionGate>
                         )}
 
                         {(ord.status === "Approved" || ord.status === "Partially Received") && (
@@ -1809,21 +1815,25 @@ export default function WholesalerPurchaseOrdersPage() {
                           </DropdownMenuItem>
                         )}
 
-                        <DropdownMenuItem
-                          onClick={() => handleOpenEditModal(ord)}
-                          className="cursor-pointer text-xs text-slate-700"
-                        >
-                          <Pencil className="mr-2 h-3.5 w-3.5 text-slate-500" />
-                          Edit Order
-                        </DropdownMenuItem>
+                        <PermissionGate feature="Wholesale Purchase Orders" action="edit">
+<DropdownMenuItem
+                            onClick={() => handleOpenEditModal(ord)}
+                            className="cursor-pointer text-xs text-slate-700"
+                          >
+                            <Pencil className="mr-2 h-3.5 w-3.5 text-slate-500" />
+                            Edit Order
+                          </DropdownMenuItem>
+</PermissionGate>
 
-                        <DropdownMenuItem
-                          onClick={() => handleDeleteOrder(ord)}
-                          className="cursor-pointer text-xs font-semibold text-rose-600 focus:text-rose-600"
-                        >
-                          <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-600" />
-                          Delete Order
-                        </DropdownMenuItem>
+                        <PermissionGate feature="Wholesale Purchase Orders" action="delete">
+<DropdownMenuItem
+                            onClick={() => handleDeleteOrder(ord)}
+                            className="cursor-pointer text-xs font-semibold text-rose-600 focus:text-rose-600"
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-600" />
+                            Delete Order
+                          </DropdownMenuItem>
+</PermissionGate>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -2054,15 +2064,15 @@ export default function WholesalerPurchaseOrdersPage() {
                         </td>
                         <td className="p-1.5 text-center">
                           <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveItemRow(idx)}
-                            disabled={formData.items.length === 1}
-                            className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveItemRow(idx)}
+                              disabled={formData.items.length === 1}
+                              className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                         </td>
                       </tr>
                     ))}
@@ -2221,14 +2231,16 @@ export default function WholesalerPurchaseOrdersPage() {
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              onClick={handleConfirmApproval}
-              disabled={isApproving}
-              className="h-8 bg-purple-600 hover:bg-purple-700 text-xs font-semibold text-white"
-            >
-              {isApproving ? "Authorizing..." : "Sign & Authorize PO"}
-            </Button>
+            <PermissionGate feature="Wholesale Purchase Orders" action="special">
+<Button
+                type="button"
+                onClick={handleConfirmApproval}
+                disabled={isApproving}
+                className="h-8 bg-purple-600 hover:bg-purple-700 text-xs font-semibold text-white"
+              >
+                {isApproving ? "Authorizing..." : "Sign & Authorize PO"}
+              </Button>
+</PermissionGate>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2999,26 +3011,30 @@ export default function WholesalerPurchaseOrdersPage() {
                           </Button>
 
                           {/* Edit Wholesaler */}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenEditWholesaler(w)}
-                            title="Edit wholesaler profile"
-                            className="h-7 w-7 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
+                          <PermissionGate feature="Wholesale Purchase Orders" action="edit">
+<Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenEditWholesaler(w)}
+                              title="Edit wholesaler profile"
+                              className="h-7 w-7 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+</PermissionGate>
 
                           {/* Delete Wholesaler */}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenDeleteWholesaler(w)}
-                            title="Deregister wholesaler"
-                            className="h-7 w-7 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          <PermissionGate feature="Wholesale Purchase Orders" action="delete">
+<Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenDeleteWholesaler(w)}
+                              title="Deregister wholesaler"
+                              className="h-7 w-7 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+</PermissionGate>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -3482,18 +3498,20 @@ export default function WholesalerPurchaseOrdersPage() {
                   )}
 
                   {detailsOrder.status === "Submitted" && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => {
-                        setIsDetailsModalOpen(false)
-                        handleOpenApprovalModal(detailsOrder)
-                      }}
-                      className="h-8 gap-1.5 bg-purple-600 hover:bg-purple-700 text-xs font-semibold text-white"
-                    >
-                      <ShieldCheck className="h-3.5 w-3.5" />
-                      Authorize PO
-                    </Button>
+                    <PermissionGate feature="Wholesale Purchase Orders" action="special">
+<Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          setIsDetailsModalOpen(false)
+                          handleOpenApprovalModal(detailsOrder)
+                        }}
+                        className="h-8 gap-1.5 bg-purple-600 hover:bg-purple-700 text-xs font-semibold text-white"
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Authorize PO
+                      </Button>
+</PermissionGate>
                   )}
 
                   {(detailsOrder.status === "Approved" || detailsOrder.status === "Partially Received") && (
@@ -3527,19 +3545,21 @@ export default function WholesalerPurchaseOrdersPage() {
                   )}
 
                   {detailsOrder.status !== "Cancelled" && detailsOrder.status !== "Received" && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setIsDetailsModalOpen(false)
-                        handleOpenEditModal(detailsOrder)
-                      }}
-                      className="h-8 gap-1.5 text-xs"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Edit
-                    </Button>
+                    <PermissionGate feature="Wholesale Purchase Orders" action="edit">
+<Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setIsDetailsModalOpen(false)
+                          handleOpenEditModal(detailsOrder)
+                        }}
+                        className="h-8 gap-1.5 text-xs"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Button>
+</PermissionGate>
                   )}
 
                   <Button

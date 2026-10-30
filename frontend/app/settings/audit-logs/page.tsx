@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
@@ -472,24 +474,28 @@ export default function AuditLogsPage() {
             Verify Chain
           </Button>
 
-          <Button
-            size="sm"
-            onClick={() => setIsCreateModalOpen(true)}
-            className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-          >
-            <PlusCircle className="h-3.5 w-3.5" />
-            Record Statutory Event
-          </Button>
+          <PermissionGate feature="Audit Logs (21 CFR Compliant)" action="create">
+<Button
+              size="sm"
+              onClick={() => setIsCreateModalOpen(true)}
+              className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+            >
+              <PlusCircle className="h-3.5 w-3.5" />
+              Record Statutory Event
+            </Button>
+</PermissionGate>
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleExportExcel}
-            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
-          >
-            <Download className="h-3.5 w-3.5 text-emerald-600" />
-            Export Certified Trail
-          </Button>
+          <PermissionGate feature="Audit Logs (21 CFR Compliant)" action="special">
+<Button
+              size="sm"
+              variant="outline"
+              onClick={handleExportExcel}
+              className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
+            >
+              <Download className="h-3.5 w-3.5 text-emerald-600" />
+              Export Certified Trail
+            </Button>
+</PermissionGate>
         </div>
       </div>
 

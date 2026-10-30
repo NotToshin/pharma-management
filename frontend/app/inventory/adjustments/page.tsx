@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
@@ -436,15 +438,17 @@ export default function StockAdjustmentsPage() {
 
           {/* New Stock Adjustment Dialog */}
           <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-              >
-                <Plus className="h-4 w-4" />
-                New Stock Adjustment
-              </Button>
-            </DialogTrigger>
+            <PermissionGate feature="Stock Adjustments" action="create">
+<DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+                >
+                  <Plus className="h-4 w-4" />
+                  New Stock Adjustment
+                </Button>
+              </DialogTrigger>
+</PermissionGate>
             <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white sm:max-w-[600px]">
               <DialogHeader>
                 <DialogTitle className="text-base font-bold text-slate-900">
@@ -1033,18 +1037,20 @@ export default function StockAdjustmentsPage() {
                           Inspect Slip
                         </Button>
 
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setAdjustmentToDelete(adj)
-                            setIsDeleteOpen(true)
-                          }}
-                          className="h-7 w-7 p-0 border-rose-200 text-rose-600 hover:bg-rose-50"
-                          title="Delete Record"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        <PermissionGate feature="Stock Adjustments" action="delete">
+<Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setAdjustmentToDelete(adj)
+                              setIsDeleteOpen(true)
+                            }}
+                            className="h-7 w-7 p-0 border-rose-200 text-rose-600 hover:bg-rose-50"
+                            title="Delete Record"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+</PermissionGate>
                       </div>
                     </TableCell>
                   </TableRow>

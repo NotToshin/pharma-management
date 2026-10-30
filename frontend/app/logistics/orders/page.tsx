@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -1040,15 +1042,17 @@ function LogisticsOrdersContent() {
           </Button>
 
           <Dialog open={isNewOrderOpen} onOpenChange={setIsNewOrderOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-              >
-                <Plus className="h-4 w-4" />
-                Create Sales Order
-              </Button>
-            </DialogTrigger>
+            <PermissionGate feature="Sales Orders" action="create">
+<DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Sales Order
+                </Button>
+              </DialogTrigger>
+</PermissionGate>
             <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 sm:max-w-[800px]">
               <DialogHeader>
                 <DialogTitle className="text-base font-bold text-slate-900">
@@ -1366,15 +1370,15 @@ function LogisticsOrdersContent() {
                             </td>
                             <td className="px-1 py-1.5">
                               <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveLineItem(idx)}
-                                disabled={lineItems.length === 1}
-                                className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRemoveLineItem(idx)}
+                                  disabled={lineItems.length === 1}
+                                  className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
                             </td>
                           </tr>
                         ))}
@@ -1792,15 +1796,17 @@ function LogisticsOrdersContent() {
                         )}
 
                         {ord.status === "Pending Credit Check" && (
-                          <DropdownMenuItem
-                            onClick={() =>
-                              handleUpdateStatus(ord.id, "FEFO Allocated")
-                            }
-                            className="cursor-pointer text-xs text-emerald-600"
-                          >
-                            <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
-                            Approve Credit & Allocate Batches
-                          </DropdownMenuItem>
+                          <PermissionGate feature="Sales Orders" action="special">
+<DropdownMenuItem
+                              onClick={() =>
+                                handleUpdateStatus(ord.id, "FEFO Allocated")
+                              }
+                              className="cursor-pointer text-xs text-emerald-600"
+                            >
+                              <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
+                              Approve Credit & Allocate Batches
+                            </DropdownMenuItem>
+</PermissionGate>
                         )}
 
                         {ord.status === "FEFO Allocated" && (
@@ -1838,13 +1844,15 @@ function LogisticsOrdersContent() {
                         </DropdownMenuItem>
 
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleOpenDeleteModal(ord)}
-                          className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
-                        >
-                          <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-600" />
-                          Delete Order Record
-                        </DropdownMenuItem>
+                        <PermissionGate feature="Sales Orders" action="delete">
+<DropdownMenuItem
+                            onClick={() => handleOpenDeleteModal(ord)}
+                            className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-600" />
+                            Delete Order Record
+                          </DropdownMenuItem>
+</PermissionGate>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

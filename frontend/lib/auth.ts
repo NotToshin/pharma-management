@@ -160,6 +160,7 @@ export function setAuthSession({
       const userJson = JSON.stringify(user)
       localStorage.setItem(STORAGE_USER, userJson)
       localStorage.setItem(STORAGE_AK_USER, userJson)
+      window.dispatchEvent(new Event("ak-permissions-updated"))
     }
   }
 }

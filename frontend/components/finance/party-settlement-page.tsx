@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -423,14 +425,16 @@ export function PartySettlementPage({
               {orderLabel}
             </Link>
           </Button>
-          <Button
-            size="sm"
-            onClick={() => openDialogFor()}
-            className="h-9 bg-[#0090FF] text-xs font-semibold text-white hover:bg-[#0080e5]"
-          >
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            {outgoing ? "Pay Supplier" : "Collect Payment"}
-          </Button>
+          <PermissionGate feature="Supplier Payments" action="create" also="special">
+<Button
+              size="sm"
+              onClick={() => openDialogFor()}
+              className="h-9 bg-[#0090FF] text-xs font-semibold text-white hover:bg-[#0080e5]"
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              {outgoing ? "Pay Supplier" : "Collect Payment"}
+            </Button>
+</PermissionGate>
         </div>
       </div>
 
@@ -601,9 +605,11 @@ export function PartySettlementPage({
                           Reverse
                         </Button>
                       )}
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-rose-600" onClick={() => setDeleteTarget(payment)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <PermissionGate feature="Supplier Payments" action="delete">
+<Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-rose-600" onClick={() => setDeleteTarget(payment)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+</PermissionGate>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -731,10 +737,12 @@ export function PartySettlementPage({
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} className="text-xs">Cancel</Button>
-            <Button onClick={submit} disabled={saving} className="bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]">
-              <Banknote className="mr-1.5 h-3.5 w-3.5" />
-              {saving ? "Saving..." : outgoing ? "Record payment" : "Record receipt"}
-            </Button>
+            <PermissionGate feature="Supplier Payments" action="create" also="special">
+<Button onClick={submit} disabled={saving} className="bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]">
+                <Banknote className="mr-1.5 h-3.5 w-3.5" />
+                {saving ? "Saving..." : outgoing ? "Record payment" : "Record receipt"}
+              </Button>
+</PermissionGate>
           </DialogFooter>
         </DialogContent>
       </Dialog>

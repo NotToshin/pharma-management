@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import { apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -711,24 +713,28 @@ export default function AccountLedgerPage() {
             Export Ledger
           </Button>
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleOpenAddAccount}
-            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-none hover:bg-slate-50"
-          >
-            <Building2 className="h-3.5 w-3.5 text-slate-600" />
-            Add Account / Drawer
-          </Button>
+          <PermissionGate feature="Bank Accounts Ledger" action="create">
+<Button
+              size="sm"
+              variant="outline"
+              onClick={handleOpenAddAccount}
+              className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-none hover:bg-slate-50"
+            >
+              <Building2 className="h-3.5 w-3.5 text-slate-600" />
+              Add Account / Drawer
+            </Button>
+</PermissionGate>
 
-          <Button
-            size="sm"
-            onClick={handleOpenPostTx}
-            className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-          >
-            <Plus className="h-4 w-4" />
-            Post Money / Transfer / Loan
-          </Button>
+          <PermissionGate feature="Bank Accounts Ledger" action="special">
+<Button
+              size="sm"
+              onClick={handleOpenPostTx}
+              className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+            >
+              <Plus className="h-4 w-4" />
+              Post Money / Transfer / Loan
+            </Button>
+</PermissionGate>
         </div>
       </div>
 
@@ -857,24 +863,28 @@ export default function AccountLedgerPage() {
                   </div>
 
                   <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleOpenEditAccount(acc)}
-                      className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
-                      title="Edit Account"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleOpenDeleteAccount(acc)}
-                      className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
-                      title="Delete Account"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    <PermissionGate feature="Bank Accounts Ledger" action="edit">
+<Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleOpenEditAccount(acc)}
+                        className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
+                        title="Edit Account"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+</PermissionGate>
+                    <PermissionGate feature="Bank Accounts Ledger" action="delete">
+<Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleOpenDeleteAccount(acc)}
+                        className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                        title="Delete Account"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+</PermissionGate>
                   </div>
                 </div>
 
@@ -1169,15 +1179,17 @@ export default function AccountLedgerPage() {
                         >
                           <Printer className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleOpenDeleteTransaction(row)}
-                          className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
-                          title="Reverse & Delete Entry"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <PermissionGate feature="Bank Accounts Ledger" action="delete">
+<Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleOpenDeleteTransaction(row)}
+                            className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
+                            title="Reverse & Delete Entry"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+</PermissionGate>
                       </div>
                     </TableCell>
                   </TableRow>

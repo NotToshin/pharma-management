@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -1151,13 +1153,15 @@ export default function GeneralPaymentsPage() {
             <Download className="h-3.5 w-3.5 text-emerald-600" /> Export Excel
           </Button>
 
-          <Button
-            size="sm"
-            onClick={handleOpenCreate}
-            className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-          >
-            <Plus className="h-4 w-4" /> Record Payment Voucher
-          </Button>
+          <PermissionGate feature="Payments" action="create">
+<Button
+              size="sm"
+              onClick={handleOpenCreate}
+              className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+            >
+              <Plus className="h-4 w-4" /> Record Payment Voucher
+            </Button>
+</PermissionGate>
         </div>
       </div>
 
@@ -1567,14 +1571,16 @@ export default function GeneralPaymentsPage() {
                       <TableCell className="py-3.5 pr-4 text-right align-top">
                         <div className="flex items-center justify-end gap-1.5">
                           {(v.status === "Pending Approval" || v.status === "Approved") && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleOpenAuthModal(v)}
-                              className="h-7 border-amber-300 bg-amber-50/50 px-2 text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
-                            >
-                              <ShieldCheck className="mr-1 h-3 w-3 text-amber-600" /> Release
-                            </Button>
+                            <PermissionGate feature="Payments" action="special">
+<Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenAuthModal(v)}
+                                className="h-7 border-amber-300 bg-amber-50/50 px-2 text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
+                              >
+                                <ShieldCheck className="mr-1 h-3 w-3 text-amber-600" /> Release
+                              </Button>
+</PermissionGate>
                           )}
 
                           <Button
@@ -1598,23 +1604,27 @@ export default function GeneralPaymentsPage() {
                             <Printer className="mr-1 h-3 w-3 text-slate-500" /> Print
                           </Button>
 
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleOpenEdit(v)}
-                            className="h-7 px-2 text-[11px] text-slate-700 hover:bg-slate-50"
-                          >
-                            <Pencil className="h-3 w-3 text-slate-400" />
-                          </Button>
+                          <PermissionGate feature="Payments" action="edit">
+<Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenEdit(v)}
+                              className="h-7 px-2 text-[11px] text-slate-700 hover:bg-slate-50"
+                            >
+                              <Pencil className="h-3 w-3 text-slate-400" />
+                            </Button>
+</PermissionGate>
 
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleOpenDeleteModal(v)}
-                            className="h-7 w-7 border-rose-100 p-0 text-rose-600 hover:bg-rose-50"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <PermissionGate feature="Payments" action="delete">
+<Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenDeleteModal(v)}
+                              className="h-7 w-7 border-rose-100 p-0 text-rose-600 hover:bg-rose-50"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+</PermissionGate>
                         </div>
                       </TableCell>
                     </TableRow>
