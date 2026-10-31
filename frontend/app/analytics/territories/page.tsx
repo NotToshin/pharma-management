@@ -431,7 +431,8 @@ export default function TerritorySalesBreakdownPage() {
       {/* 2. Key Performance Metric Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Gross Regional Sales */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-xs transition-all hover:border-slate-300">
+        <PermissionGate feature="Territory Sales Breakdown" action="overview:grossRegional">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-xs transition-all hover:border-slate-300">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Gross Regional Sales
@@ -459,9 +460,11 @@ export default function TerritorySalesBreakdownPage() {
             </span>
           </div>
         </Card>
+</PermissionGate>
 
         {/* Territory Count */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-xs transition-all hover:border-slate-300">
+<PermissionGate feature="Territory Sales Breakdown" action="overview:activeHubs">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-xs transition-all hover:border-slate-300">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Active Operational Hubs
@@ -486,9 +489,11 @@ export default function TerritorySalesBreakdownPage() {
             Covering {data?.kpis?.divisionsCoveredCount || 0} administrative divisions
           </p>
         </Card>
+</PermissionGate>
 
         {/* Retail Outlets Penetration */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-xs transition-all hover:border-slate-300">
+<PermissionGate feature="Territory Sales Breakdown" action="overview:pharmacies">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-xs transition-all hover:border-slate-300">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Subscribed Pharmacies
@@ -510,9 +515,11 @@ export default function TerritorySalesBreakdownPage() {
             Avg. {data?.kpis?.avgClientsPerZone || 0} client pharmacies per hub
           </p>
         </Card>
+</PermissionGate>
 
         {/* MIO Workforce Density */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-xs transition-all hover:border-slate-300">
+<PermissionGate feature="Territory Sales Breakdown" action="overview:fieldForce">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-xs transition-all hover:border-slate-300">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Field Force (MIOs)
@@ -534,12 +541,14 @@ export default function TerritorySalesBreakdownPage() {
             {data?.kpis?.avgTurnoverPerMioFormatted || "৳0 monthly turnover per MIO"}
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Middle Visualizations Grid: Bar Chart & Market Share Pie */}
       <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
         {/* Zone Bar Chart */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-xs lg:col-span-8 flex flex-col justify-between">
+<PermissionGate feature="Territory Sales Breakdown" action="overview:regionalVolume">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-xs lg:col-span-8 flex flex-col justify-between">
           <div>
             <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -624,9 +633,11 @@ export default function TerritorySalesBreakdownPage() {
             <span className="font-mono text-slate-600">Source: Real-time Order Ledger</span>
           </div>
         </Card>
+</PermissionGate>
 
         {/* Division Market Share Pie */}
-        <Card className="flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-6 shadow-xs lg:col-span-4">
+<PermissionGate feature="Territory Sales Breakdown" action="overview:marketShare">
+<Card className="flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-6 shadow-xs lg:col-span-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
               Territory Market Share
@@ -705,6 +716,7 @@ export default function TerritorySalesBreakdownPage() {
             ))}
           </div>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Filter Bar (Matching Doctor Registry — Master Database) */}

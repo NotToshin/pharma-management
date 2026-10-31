@@ -1418,7 +1418,8 @@ export default function WholesalerPurchaseOrdersPage() {
 
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Wholesale Purchase Orders" action="overview:pipeline">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Pipeline Procurement Volume
@@ -1434,8 +1435,10 @@ export default function WholesalerPurchaseOrdersPage() {
             ৳{(metrics?.totalSpendBDT || 0).toLocaleString("en-IN")} Gross Procurement Value
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Wholesale Purchase Orders" action="overview:pendingApproval">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Pending Multi-Tier Approval
@@ -1451,8 +1454,10 @@ export default function WholesalerPurchaseOrdersPage() {
             ৳{(metrics?.pendingApprovalValueBDT || 0).toLocaleString("en-IN")} awaiting clearance
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Wholesale Purchase Orders" action="overview:inbound">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Approved & Inbound Fleet
@@ -1468,8 +1473,10 @@ export default function WholesalerPurchaseOrdersPage() {
             ৳{(metrics?.inTransitValueBDT || 0).toLocaleString("en-IN")} transit intake
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Wholesale Purchase Orders" action="overview:otif">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Fulfillment Efficiency (OTIF)
@@ -1488,6 +1495,7 @@ export default function WholesalerPurchaseOrdersPage() {
             {metrics?.coldChainPOCount || 0} cold-chain sensitive (2-8°C)
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Filter Bar */}

@@ -704,7 +704,8 @@ export default function StockAdjustmentsPage() {
 
       {/* 2. Top Summary KPI Cards (Synchronized with real database records) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
+<PermissionGate feature="Stock Adjustments" action="overview:netImpact">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Net Adjustments Impact
@@ -730,8 +731,10 @@ export default function StockAdjustmentsPage() {
             Real-time value variance across {adjustments.length} adjustment records
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
+<PermissionGate feature="Stock Adjustments" action="overview:writeOffs">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Physical Write-Offs
@@ -747,8 +750,10 @@ export default function StockAdjustmentsPage() {
             {writeOffTotalUnits} damaged or compromised units removed
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
+<PermissionGate feature="Stock Adjustments" action="overview:auditCompliance">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Audit Compliance
@@ -771,8 +776,10 @@ export default function StockAdjustmentsPage() {
             {approvedCount} of {adjustments.length} adjustments holds authorized sign-off
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
+<PermissionGate feature="Stock Adjustments" action="overview:quarantineValue">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Quarantined Stock Value
@@ -788,6 +795,7 @@ export default function StockAdjustmentsPage() {
             Isolated in Quarantine Bay Q-01 for QA testing
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Filters */}

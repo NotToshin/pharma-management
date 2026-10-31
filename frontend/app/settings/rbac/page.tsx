@@ -65,6 +65,11 @@ import {
   AlertTriangle,
 } from "lucide-react"
 
+interface ModuleOverview {
+  key: string
+  label: string
+}
+
 interface RolePermission {
   module: string
   category: string
@@ -74,6 +79,9 @@ interface RolePermission {
   delete: boolean
   specialAction?: string | null
   specialGranted: boolean
+  actions?: Array<"read" | "create" | "edit" | "delete">
+  overviews?: ModuleOverview[]
+  overviewGrants?: Record<string, boolean>
 }
 
 interface SystemRole {
@@ -266,6 +274,43 @@ export default function RBACManagementPage() {
   }, [selectedRole, matrixCategoryFilter])
 
   // 3. Matrix Permission Handlers
+  const allowsAction = (
+    perm: RolePermission,
+    action: "read" | "create" | "edit" | "delete"
+  ) => {
+    const actions = perm.actions ?? ["read", "create", "edit", "delete"]
+    return actions.includes(action)
+  }
+
+  const moduleOverviewAllowed = (perm: RolePermission) => {
+    const overviews = perm.overviews || []
+    if (overviews.length === 0) return false
+    return overviews.every((view) => Boolean(perm.overviewGrants?.[view.key]))
+  }
+
+  const handleToggleModuleOverview = (moduleName: string) => {
+    if (!selectedRole) return
+    setRoles((prevRoles) =>
+      prevRoles.map((role) => {
+        if (role.id !== selectedRole.id) return role
+        return {
+          ...role,
+          permissions: (role.permissions || []).map((perm) => {
+            if (perm.module !== moduleName) return perm
+            const granted = !moduleOverviewAllowed(perm)
+            const overviewGrants = Object.fromEntries(
+              (perm.overviews || []).map((view) => [view.key, granted])
+            )
+            const actions = perm.actions ?? ["read", "create", "edit", "delete"]
+            const read = actions.length === 0 ? granted : perm.read
+            return { ...perm, overviewGrants, read }
+          }),
+        }
+      })
+    )
+    setHasUnsavedChanges(true)
+  }
+
   const handleTogglePermission = (
     moduleName: string,
     action: "read" | "create" | "edit" | "delete" | "specialGranted"
@@ -299,14 +344,21 @@ export default function RBACManagementPage() {
         if (role.id === selectedRole.id) {
           return {
             ...role,
-            permissions: (role.permissions || []).map((p) => ({
-              ...p,
-              read: true,
-              create: true,
-              edit: true,
-              delete: true,
-              specialGranted: p.specialAction ? true : false,
-            })),
+            permissions: (role.permissions || []).map((p) => {
+              const actions = p.actions ?? ["read", "create", "edit", "delete"]
+              const overviewGrants = Object.fromEntries(
+                (p.overviews || []).map((view) => [view.key, true])
+              )
+              return {
+                ...p,
+                read: actions.includes("read") || actions.length === 0,
+                create: actions.includes("create"),
+                edit: actions.includes("edit"),
+                delete: actions.includes("delete"),
+                specialGranted: Boolean(p.specialAction),
+                overviewGrants,
+              }
+            }),
           }
         }
         return role
@@ -772,7 +824,8 @@ export default function RBACManagementPage() {
 
       {/* 2. Top Summary Metrics */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<PermissionGate feature="Role Permissions (RBAC)" action="overview:roleClasses">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Configured Role Classes
@@ -788,8 +841,10 @@ export default function RBACManagementPage() {
             Database permission tiers with statutory limits
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<PermissionGate feature="Role Permissions (RBAC)" action="overview:accounts">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Provisioned Accounts
@@ -806,8 +861,10 @@ export default function RBACManagementPage() {
             {assignments.filter((a) => a.status === "Restricted").length} restricted
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<PermissionGate feature="Role Permissions (RBAC)" action="overview:clearance">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Master Clearance
@@ -823,8 +880,10 @@ export default function RBACManagementPage() {
             Elevated maker-checker bypass authorized
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<PermissionGate feature="Role Permissions (RBAC)" action="overview:credentialSecurity">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Credential Security
@@ -843,6 +902,7 @@ export default function RBACManagementPage() {
             21 CFR Part 11 compliant tamper logging
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Role Selector & Scope Matrix */}
@@ -1020,7 +1080,7 @@ export default function RBACManagementPage() {
                       <TableHead className="w-14 text-center">Create</TableHead>
                       <TableHead className="w-14 text-center">Edit</TableHead>
                       <TableHead className="w-14 text-center">Delete</TableHead>
-                      <TableHead className="pr-0">Statutory Special Action</TableHead>
+                      <TableHead className="pr-0">Analytics View</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1040,61 +1100,55 @@ export default function RBACManagementPage() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(perm.read)}
-                            onChange={() => handleTogglePermission(perm.module, "read")}
-                            className="h-3.5 w-3.5 cursor-pointer rounded border-slate-300 text-[#0090FF] focus:ring-0"
-                          />
-                        </TableCell>
-
-                        <TableCell className="py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(perm.create)}
-                            onChange={() => handleTogglePermission(perm.module, "create")}
-                            className="h-3.5 w-3.5 cursor-pointer rounded border-slate-300 text-[#0090FF] focus:ring-0"
-                          />
-                        </TableCell>
-
-                        <TableCell className="py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(perm.edit)}
-                            onChange={() => handleTogglePermission(perm.module, "edit")}
-                            className="h-3.5 w-3.5 cursor-pointer rounded border-slate-300 text-[#0090FF] focus:ring-0"
-                          />
-                        </TableCell>
-
-                        <TableCell className="py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(perm.delete)}
-                            onChange={() => handleTogglePermission(perm.module, "delete")}
-                            className="h-3.5 w-3.5 cursor-pointer rounded border-slate-300 text-[#0090FF] focus:ring-0"
-                          />
-                        </TableCell>
+                        {(["read", "create", "edit", "delete"] as const).map((action) => (
+                          <TableCell key={action} className="py-3 text-center">
+                            {allowsAction(perm, action) ? (
+                              <input
+                                type="checkbox"
+                                checked={Boolean(perm[action])}
+                                onChange={() => handleTogglePermission(perm.module, action)}
+                                className="h-3.5 w-3.5 cursor-pointer rounded border-slate-300 text-[#0090FF] focus:ring-0"
+                              />
+                            ) : (
+                              <span className="text-[10px] text-slate-300">—</span>
+                            )}
+                          </TableCell>
+                        ))}
 
                         <TableCell className="py-3 pr-0">
-                          {perm.specialAction ? (
-                            <div className="flex items-center justify-between rounded-md border border-slate-100 bg-slate-50 px-2.5 py-1">
-                              <span className="max-w-[210px] truncate text-[11px] font-medium text-slate-700">
-                                {perm.specialAction}
+                          <div className="flex min-w-[220px] flex-col gap-1.5">
+                            {(perm.overviews || []).length > 0 ? (
+                              <div className="flex items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50 px-2.5 py-1">
+                                <span className="text-[11px] font-medium text-slate-700">
+                                  Page Overview
+                                </span>
+                                <Switch
+                                  checked={moduleOverviewAllowed(perm)}
+                                  onCheckedChange={() => handleToggleModuleOverview(perm.module)}
+                                  className="scale-75"
+                                />
+                              </div>
+                            ) : null}
+                            {perm.specialAction ? (
+                              <div className="flex items-center justify-between gap-2 rounded-md border border-amber-100 bg-amber-50/70 px-2.5 py-1">
+                                <span className="text-[11px] font-medium text-slate-700">
+                                  {perm.specialAction}
+                                </span>
+                                <Switch
+                                  checked={Boolean(perm.specialGranted)}
+                                  onCheckedChange={() =>
+                                    handleTogglePermission(perm.module, "specialGranted")
+                                  }
+                                  className="scale-75"
+                                />
+                              </div>
+                            ) : null}
+                            {!perm.specialAction && (perm.overviews || []).length === 0 ? (
+                              <span className="text-[10px] text-slate-400 italic">
+                                Standard role tier
                               </span>
-                              <Switch
-                                checked={Boolean(perm.specialGranted)}
-                                onCheckedChange={() =>
-                                  handleTogglePermission(perm.module, "specialGranted")
-                                }
-                                className="scale-75"
-                              />
-                            </div>
-                          ) : (
-                            <span className="text-[10px] text-slate-400 italic">
-                              Standard role tier
-                            </span>
-                          )}
+                            ) : null}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

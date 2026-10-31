@@ -1068,7 +1068,8 @@ export default function StaffDirectoryPage() {
 
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Staff Directory & Roles" action="overview:headcount">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Total Enrolled Headcount
@@ -1081,8 +1082,10 @@ export default function StaffDirectoryPage() {
             {employees.length} Staff
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Staff Directory & Roles" action="overview:activeRatio">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Active Operational Ratio
@@ -1095,8 +1098,10 @@ export default function StaffDirectoryPage() {
             {activeStaffCount} Active
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Staff Directory & Roles" action="overview:payrollLiability">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Monthly Payroll Liability
@@ -1109,8 +1114,10 @@ export default function StaffDirectoryPage() {
             ৳{totalPayrollLiability.toLocaleString("en-IN")}
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Staff Directory & Roles" action="overview:roles">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Configured DB Roles
@@ -1126,6 +1133,7 @@ export default function StaffDirectoryPage() {
             Active
           </div>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Filters Bar */}

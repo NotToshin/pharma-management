@@ -502,7 +502,8 @@ export default function AuditLogsPage() {
       {/* 2. Top Metric Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 print:grid-cols-4">
         {/* Total Events */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-all hover:border-slate-300">
+<PermissionGate feature="Audit Logs (21 CFR Compliant)" action="overview:loggedEvents">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-all hover:border-slate-300">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Total Logged Events
@@ -519,9 +520,11 @@ export default function AuditLogsPage() {
             Append-only write ledger active
           </p>
         </Card>
+</PermissionGate>
 
         {/* Critical Statutory Overrides */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-all hover:border-rose-200">
+        <PermissionGate feature="Audit Logs (21 CFR Compliant)" action="overview:overrides">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-all hover:border-rose-200">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Critical Statutory Overrides
@@ -537,9 +540,11 @@ export default function AuditLogsPage() {
             Includes quarantines & revocations
           </p>
         </Card>
+</PermissionGate>
 
         {/* Security & Price Warnings */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-all hover:border-amber-200">
+<PermissionGate feature="Audit Logs (21 CFR Compliant)" action="overview:warnings">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-all hover:border-amber-200">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Security & Policy Warnings
@@ -555,9 +560,11 @@ export default function AuditLogsPage() {
             RBAC permissions & price variances
           </p>
         </Card>
+</PermissionGate>
 
         {/* Cryptographic Integrity */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-all hover:border-emerald-300">
+        <PermissionGate feature="Audit Logs (21 CFR Compliant)" action="overview:integrity">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-all hover:border-emerald-300">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Cryptographic Integrity
@@ -582,6 +589,7 @@ export default function AuditLogsPage() {
               : `Tampered block: ${stats?.brokenAtRef || "Unknown"}`}
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Filter Bar */}

@@ -98,6 +98,23 @@ export function userCan(
   )
   if (!row) return false
 
-  const field = ACTION_FIELD[String(action || "").toLowerCase()] || "read"
+  const rawAction = String(action || "")
+  if (rawAction.toLowerCase().startsWith("overview:")) {
+    const key = rawAction.slice("overview:".length)
+    const grants = row.overviewGrants
+    if (!grants || typeof grants !== "object" || Array.isArray(grants) || !(key in grants)) {
+      return Boolean(row.read || row.specialGranted)
+    }
+    return Boolean(grants[key])
+  }
+
+  const field = ACTION_FIELD[rawAction.toLowerCase()] || "read"
+  if (field === "read" && normalizeModuleName(feature) === "dashboard") {
+    const grants = row.overviewGrants
+    if (grants && typeof grants === "object" && !Array.isArray(grants)) {
+      const values = Object.values(grants as Record<string, boolean>)
+      if (values.length > 0) return values.some(Boolean)
+    }
+  }
   return Boolean(row[field])
 }

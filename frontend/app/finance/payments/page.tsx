@@ -1167,7 +1167,8 @@ export default function GeneralPaymentsPage() {
 
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Payments" action="overview:grossBill">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
               Total Gross Bill
@@ -1181,8 +1182,10 @@ export default function GeneralPaymentsPage() {
             {vouchers.length} Total vouchers recorded
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Payments" action="overview:disbursed">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-emerald-600 uppercase">
               Disbursed & Settled
@@ -1196,8 +1199,10 @@ export default function GeneralPaymentsPage() {
             Debited from Treasury accounts
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-amber-200 bg-amber-50/30 p-5 shadow-xs">
+<PermissionGate feature="Payments" action="overview:pending">
+<Card className="rounded-xl border border-amber-200 bg-amber-50/30 p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-amber-700 uppercase">
               Pending Clearance
@@ -1211,8 +1216,10 @@ export default function GeneralPaymentsPage() {
             {pendingCount} Vouchers awaiting release
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Payments" action="overview:withheld">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
               Statutory Withheld
@@ -1226,8 +1233,10 @@ export default function GeneralPaymentsPage() {
             VDS: <span className="text-purple-600">৳{totalVds.toLocaleString("en-IN")}</span> (NBR)
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Payments" action="overview:safes">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
               Active Funding Safes
@@ -1245,6 +1254,7 @@ export default function GeneralPaymentsPage() {
             </span>
           </div>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Quick Tabs & Filter Bar */}

@@ -1554,7 +1554,8 @@ export default function DoctorMasterDatabasePage() {
 
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctors List" action="overview:registered">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Total Registered Doctors
@@ -1570,8 +1571,10 @@ export default function DoctorMasterDatabasePage() {
             Total active practitioners in database
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctors List" action="overview:tierA">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Tier A & A+ High Yield
@@ -1587,8 +1590,10 @@ export default function DoctorMasterDatabasePage() {
             Priority call targets for field force
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctors List" action="overview:footfall">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Daily Patient Footfall
@@ -1604,8 +1609,10 @@ export default function DoctorMasterDatabasePage() {
             Cumulative consultation reach
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctors List" action="overview:exportBackup">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Export & Backup
@@ -1624,6 +1631,7 @@ export default function DoctorMasterDatabasePage() {
             Direct table export ready
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Filter Bar */}

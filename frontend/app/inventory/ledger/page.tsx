@@ -823,7 +823,8 @@ export default function ActiveInventoryLedgerPage() {
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Card 1: Valuation */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+<PermissionGate feature="Stock Inventory" action="overview:valuation">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
               Gross Batch Valuation
@@ -840,9 +841,11 @@ export default function ActiveInventoryLedgerPage() {
             <span className="font-semibold text-emerald-600">Audited Basis</span>
           </div>
         </Card>
+</PermissionGate>
 
         {/* Card 2: Stock Units */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+<PermissionGate feature="Stock Inventory" action="overview:volume">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
               Available Stock Volume
@@ -861,9 +864,11 @@ export default function ActiveInventoryLedgerPage() {
             <span>{(totalPacks - coldChainUnits).toLocaleString()} Ambient</span>
           </div>
         </Card>
+</PermissionGate>
 
         {/* Card 3: FEFO Dispatch Priority */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+<PermissionGate feature="Stock Inventory" action="overview:fefoPriority">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
               FEFO Priority Dispatch
@@ -883,9 +888,11 @@ export default function ActiveInventoryLedgerPage() {
             <span className="text-slate-400">FEFO #1 Priority</span>
           </div>
         </Card>
+</PermissionGate>
 
         {/* Card 4: Quality & Quarantine */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+<PermissionGate feature="Stock Inventory" action="overview:quarantineAlert">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
               Quarantine & Expiry Alert
@@ -909,6 +916,7 @@ export default function ActiveInventoryLedgerPage() {
             <span className="text-rose-600 font-semibold">{expiredCount} Expired</span>
           </div>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Comprehensive Filter Toolbars */}

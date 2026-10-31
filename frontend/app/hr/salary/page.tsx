@@ -1436,7 +1436,8 @@ export default function SalaryManagementPage() {
       {/* KPI METRICS OVERVIEW CARDS */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 print:hidden">
         {/* Total Net Payroll */}
-        <Card className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+<PermissionGate feature="Salary" action="overview:netPay">
+<Card className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Total Net Remuneration</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#0090FF]">
@@ -1451,9 +1452,11 @@ export default function SalaryManagementPage() {
             <span className="text-rose-500">-৳{metrics.totalDeductions.toLocaleString("en-IN")} ded.</span>
           </div>
         </Card>
+</PermissionGate>
 
         {/* Headcount & Coverage */}
-        <Card className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+<PermissionGate feature="Salary" action="overview:coverage">
+<Card className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Payroll Staff Coverage</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
@@ -1478,9 +1481,11 @@ export default function SalaryManagementPage() {
             />
           </div>
         </Card>
+</PermissionGate>
 
         {/* Disbursement Progress */}
-        <Card className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+<PermissionGate feature="Salary" action="overview:disbursed">
+<Card className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Treasury Disbursed</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
@@ -1495,9 +1500,11 @@ export default function SalaryManagementPage() {
             <span className="text-amber-600">{metrics.draftCount} Pending Pay</span>
           </div>
         </Card>
+</PermissionGate>
 
         {/* Total Deductions Withheld */}
-        <Card className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+<PermissionGate feature="Salary" action="overview:withholdings">
+<Card className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Provident & Tax Withholdings</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
@@ -1511,6 +1518,7 @@ export default function SalaryManagementPage() {
             Statutory deductions preserved for accounts ledger
           </div>
         </Card>
+</PermissionGate>
       </div>
 
       {/* FILTER CONTROLS & TABLE ACTIONS */}

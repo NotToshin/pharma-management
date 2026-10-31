@@ -741,7 +741,8 @@ export default function AccountLedgerPage() {
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Combined Liquidity */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Bank Accounts Ledger" action="overview:liquidity">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
               Total Central Liquidity
@@ -757,9 +758,11 @@ export default function AccountLedgerPage() {
             Across {accounts.length} active banks & physical drawers
           </p>
         </Card>
+</PermissionGate>
 
         {/* Card 2: Bank Liquidity */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Bank Accounts Ledger" action="overview:bankBalances">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
               Corporate Bank Balances
@@ -775,9 +778,11 @@ export default function AccountLedgerPage() {
             In {accounts.filter((a) => a.category === "BANK").length} corporate banking accounts
           </p>
         </Card>
+</PermissionGate>
 
         {/* Card 3: Physical Cash Safe */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Bank Accounts Ledger" action="overview:cashDrawers">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
               Physical Cash Drawers
@@ -793,9 +798,11 @@ export default function AccountLedgerPage() {
             In {accounts.filter((a) => a.category === "CASH").length} vaults, retail desks & petty safes
           </p>
         </Card>
+</PermissionGate>
 
         {/* Card 4: Total Inflows & Outflows */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Bank Accounts Ledger" action="overview:flows">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
               Total Inflows vs Outflows
@@ -817,6 +824,7 @@ export default function AccountLedgerPage() {
             {metrics?.totalTransactionCount || ledger.length} recorded journal transactions
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Dynamic Cash Counters & Banks Strip */}

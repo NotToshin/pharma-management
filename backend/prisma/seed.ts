@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { ALL_SYSTEM_MODULES } from "../src/services/rbacService";
+import { ALL_SYSTEM_MODULES, overviewGrantMap, packOverviewGrants } from "../src/constants/moduleCatalog";
 
 const prisma = new PrismaClient();
 
@@ -63,11 +63,11 @@ async function seed() {
           module: mod.module,
           category: mod.category,
           read: true,
-          create: true,
-          edit: true,
-          delete: true,
-          specialAction: mod.specialAction,
-          specialGranted: true,
+          create: mod.actions.includes("create"),
+          edit: mod.actions.includes("edit"),
+          delete: mod.actions.includes("delete"),
+          specialAction: packOverviewGrants(overviewGrantMap(mod, true)),
+          specialGranted: Boolean(mod.specialAction),
         },
       });
     } else {
@@ -76,11 +76,11 @@ async function seed() {
         data: {
           category: mod.category,
           read: true,
-          create: true,
-          edit: true,
-          delete: true,
-          specialAction: mod.specialAction,
-          specialGranted: true,
+          create: mod.actions.includes("create"),
+          edit: mod.actions.includes("edit"),
+          delete: mod.actions.includes("delete"),
+          specialAction: packOverviewGrants(overviewGrantMap(mod, true)),
+          specialGranted: Boolean(mod.specialAction),
         },
       });
     }

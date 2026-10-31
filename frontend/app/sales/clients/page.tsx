@@ -836,7 +836,8 @@ export default function ClientsDirectoryPage() {
 
       {/* KPI Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Pharmacy Clients" action="overview:enrolled">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Total Enrolled Chemists</span>
             <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
@@ -850,8 +851,10 @@ export default function ClientsDirectoryPage() {
             Active retail dispensing accounts in network
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Pharmacy Clients" action="overview:creditHealth">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Credit Health Rate</span>
             <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
@@ -865,8 +868,10 @@ export default function ClientsDirectoryPage() {
             {activeHealthyCount} of {clients.length} accounts in good standing
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Pharmacy Clients" action="overview:creditLimit">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Extended Credit Limit</span>
             <div className="rounded-lg bg-purple-50 p-2 text-purple-600">
@@ -880,8 +885,10 @@ export default function ClientsDirectoryPage() {
             Total distributor authorized credit line
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Pharmacy Clients" action="overview:receivable">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Outstanding Receivable</span>
             <div className="rounded-lg bg-amber-50 p-2 text-amber-600">
@@ -895,6 +902,7 @@ export default function ClientsDirectoryPage() {
             Pending field realization and collection
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* Main Table Card */}

@@ -5,41 +5,34 @@ import config from "../config";
 import prisma from "../utils/prisma";
 import { generateAccessToken } from "../middlewares/token";
 import { auditLogService } from "./auditLogService";
+import {
+  ALL_SYSTEM_MODULES,
+  normalizeOverviewGrants,
+  overviewGrantMap,
+  packOverviewGrants,
+  unpackOverviewGrants,
+  type SystemModule,
+} from "../constants/moduleCatalog";
 
+export { ALL_SYSTEM_MODULES };
 
-export const ALL_SYSTEM_MODULES = [
-  // Overview & Analytics
-  { module: "Dashboard", route: "/dashboard", category: "Overview & Analytics", specialAction: "View Real-Time Financials" },
-  { module: "Target Vs Achievement", route: "/analytics/targets", category: "Overview & Analytics", specialAction: "Re-allocate Quotas" },
-  { module: "Territory Sales Breakdown", route: "/analytics/territories", category: "Overview & Analytics", specialAction: "Export Analytical Raw Data" },
-  { module: "MIO Zone Allocation", route: "/field-force/zones", category: "Overview & Analytics", specialAction: "Re-assign Territory Boundaries" },
+function moduleByName(name: string): SystemModule | undefined {
+  return ALL_SYSTEM_MODULES.find((mod) => mod.module === name);
+}
 
-  // Doctor Management
-  { module: "Doctors List", route: "/doctors/database", category: "Doctor Management", specialAction: "BMDC Verification Bypass" },
-  { module: "Doctor Visit Logs", route: "/field-force/visit-logs", category: "Doctor Management", specialAction: "Audit MIO Geo-stamp" },
-
-  // Inventory & Warehouse
-  { module: "Stock Inventory", route: "/inventory/ledger", category: "Inventory & Warehouse", specialAction: "Quarantine / Write-off Batch" },
-  { module: "Stock Adjustments", route: "/inventory/adjustments", category: "Inventory & Warehouse", specialAction: "Authorize Discrepancy Write-offs" },
-
-  // Sales & Deliveries
-  { module: "Sales Orders", route: "/logistics/orders", category: "Sales & Deliveries", specialAction: "Override Credit Hold" },
-  { module: "Pharmacy Clients", route: "/sales/clients", category: "Sales & Deliveries", specialAction: "Approve Credit Line Expansion" },
-
-  // Finance & Treasury
-  { module: "Treasury Overview", route: "/finance/overview", category: "Finance & Treasury", specialAction: "Authorize Bank Release" },
-  { module: "Bank Accounts Ledger", route: "/finance/bank-ledger", category: "Finance & Treasury", specialAction: "Electronic Fund Transfer" },
-  { module: "Delivery Cash Collections", route: "/finance/collections", category: "Finance & Treasury", specialAction: "Force Cash Vault Clearance" },
-  { module: "Supplier Payments", route: "/finance/supplier-payments", category: "Finance & Treasury", specialAction: "Disburse Supplier Settlement" },
-  { module: "Wholesale Purchase Orders", route: "/procurement/orders", category: "Finance & Treasury", specialAction: "Approve Multi-tier PO" },
-  { module: "Payments", route: "/finance/payments", category: "Finance & Treasury", specialAction: "Authorize Cheque Sign-off" },
-
-  // HR & System Control
-  { module: "Staff Directory & Roles", route: "/hr/staff-directory", category: "HR & System Control", specialAction: "Issue Appointment Letters" },
-  { module: "Salary", route: "/hr/salary", category: "HR & System Control", specialAction: "Authorize Salary Advice" },
-  { module: "Role Permissions (RBAC)", route: "/settings/rbac", category: "HR & System Control", specialAction: "Modify Master Security Matrix" },
-  { module: "Audit Logs (21 CFR Compliant)", route: "/settings/audit-logs", category: "HR & System Control", specialAction: "Cryptographic Ledger Export" },
-];
+function enrichPermission(row: any) {
+  const mod = moduleByName(row.module);
+  const fallback = Boolean(row.read || row.specialGranted);
+  const unpacked = unpackOverviewGrants(row.specialAction);
+  return {
+    ...row,
+    category: mod?.category || row.category,
+    specialAction: mod ? mod.specialAction : unpacked ? null : row.specialAction,
+    actions: mod?.actions ?? ["read", "create", "edit", "delete"],
+    overviews: mod?.overviews ?? [],
+    overviewGrants: normalizeOverviewGrants(mod, unpacked ?? row.overviewGrants, fallback),
+  };
+}
 
 const MODULE_RENAMES: Record<string, string> = {
   "Executive Dashboard": "Dashboard",
@@ -105,9 +98,40 @@ async function syncModuleCatalog() {
       where: { module: mod.module },
       data: {
         category: mod.category,
-        specialAction: mod.specialAction,
       },
     });
+  }
+
+  const catalogRows = await prisma.rolePermission.findMany({
+    where: { module: { in: ALL_SYSTEM_MODULES.map((mod) => mod.module) } },
+  });
+  for (const row of catalogRows) {
+    const mod = moduleByName(row.module);
+    if (!mod) continue;
+    const stored = unpackOverviewGrants(row.specialAction);
+    const storedEmpty = !stored || Object.keys(stored).length === 0;
+    const grants =
+      mod.module === "Dashboard" && storedEmpty
+        ? {
+            grossTurnover: Boolean(row.specialGranted),
+            realizedCash: Boolean(row.specialGranted),
+            expiryExposure: Boolean(row.specialGranted),
+            liquidVault: Boolean(row.specialGranted),
+            cashFlow: Boolean(row.specialGranted),
+            therapeuticShare: Boolean(row.specialGranted),
+            fefoSurveillance: Boolean(row.read || row.specialGranted),
+            logisticsStream: Boolean(row.read || row.specialGranted),
+            bankBalances: Boolean(row.read || row.specialGranted),
+            keyOpinionLeaders: Boolean(row.read || row.specialGranted),
+          }
+        : normalizeOverviewGrants(mod, stored, Boolean(row.read || row.specialGranted));
+    const packed = packOverviewGrants(grants);
+    if (row.specialAction !== packed) {
+      await prisma.rolePermission.update({
+        where: { id: row.id },
+        data: { specialAction: packed },
+      });
+    }
   }
 
   await prisma.rolePermission.deleteMany({
@@ -131,12 +155,12 @@ async function syncModuleCatalog() {
           roleId: role.id,
           module: mod.module,
           category: mod.category,
-          read: isSuper ? true : mod.module === "Dashboard",
-          create: isSuper,
-          edit: isSuper,
-          delete: isSuper,
-          specialAction: mod.specialAction,
-          specialGranted: isSuper,
+          read: isSuper || mod.module === "Dashboard",
+          create: isSuper && mod.actions.includes("create"),
+          edit: isSuper && mod.actions.includes("edit"),
+          delete: isSuper && mod.actions.includes("delete"),
+          specialAction: packOverviewGrants(overviewGrantMap(mod, isSuper || mod.module === "Dashboard")),
+          specialGranted: isSuper && Boolean(mod.specialAction),
         },
       });
     }
@@ -200,12 +224,12 @@ export const rbacService = {
               roleId: newSysRole.id,
               module: mod.module,
               category: mod.category,
-              read: isSuper ? true : mod.module === "Dashboard",
-              create: isSuper,
-              edit: isSuper,
-              delete: isSuper,
-              specialAction: mod.specialAction,
-              specialGranted: isSuper,
+              read: isSuper || mod.module === "Dashboard",
+              create: isSuper && mod.actions.includes("create"),
+              edit: isSuper && mod.actions.includes("edit"),
+              delete: isSuper && mod.actions.includes("delete"),
+              specialAction: packOverviewGrants(overviewGrantMap(mod, isSuper || mod.module === "Dashboard")),
+              specialGranted: isSuper && Boolean(mod.specialAction),
             },
           });
         }
@@ -229,7 +253,9 @@ export const rbacService = {
         userCount: (sysRole._count?.users || 0) + (corpRole._count?.staff || 0),
         staffCount: corpRole._count?.staff || 0,
         permissions: sortModules(
-          (sysRole.permissions || []).filter((p) => !DEPRECATED_MODULES.includes(p.module) && MODULE_ORDER.has(p.module))
+          (sysRole.permissions || [])
+            .filter((p) => !DEPRECATED_MODULES.includes(p.module) && MODULE_ORDER.has(p.module))
+            .map(enrichPermission)
         ),
       });
     }
@@ -288,12 +314,12 @@ export const rbacService = {
             roleId: sysRole.id,
             module: mod.module,
             category: mod.category,
-            read: isSuper ? true : mod.module === "Dashboard",
-            create: isSuper,
-            edit: isSuper,
-            delete: isSuper,
-            specialAction: mod.specialAction,
-            specialGranted: isSuper,
+            read: isSuper || mod.module === "Dashboard",
+            create: isSuper && mod.actions.includes("create"),
+            edit: isSuper && mod.actions.includes("edit"),
+            delete: isSuper && mod.actions.includes("delete"),
+            specialAction: packOverviewGrants(overviewGrantMap(mod, isSuper || mod.module === "Dashboard")),
+            specialGranted: isSuper && Boolean(mod.specialAction),
           },
         });
       }
@@ -315,7 +341,11 @@ export const rbacService = {
       description: sysRole.description,
       isSystemDefault: sysRole.isSystemDefault,
       userCount: sysRole._count.users,
-      permissions: sysRole.permissions,
+      permissions: sortModules(
+        (sysRole.permissions || [])
+          .filter((p) => !DEPRECATED_MODULES.includes(p.module) && MODULE_ORDER.has(p.module))
+          .map(enrichPermission)
+      ),
     };
   },
 
@@ -350,6 +380,14 @@ export const rbacService = {
     const activePermissions = permissions.filter((p) => !DEPRECATED_MODULES.includes(p.module));
 
     for (const p of activePermissions) {
+      const mod = moduleByName(p.module);
+      const grants = normalizeOverviewGrants(
+        mod,
+        p.overviewGrants,
+        Boolean(p.read || p.specialGranted)
+      );
+      const anyOverview = Object.values(grants).some(Boolean);
+      const read = mod && mod.actions.length === 0 ? anyOverview : Boolean(p.read);
       await prisma.rolePermission.upsert({
         where: {
           roleId_module: {
@@ -358,28 +396,35 @@ export const rbacService = {
           },
         },
         update: {
-          read: Boolean(p.read),
-          create: Boolean(p.create),
-          edit: Boolean(p.edit),
-          delete: Boolean(p.delete),
-          specialGranted: Boolean(p.specialGranted),
+          read,
+          create: Boolean(p.create) && (!mod || mod.actions.includes("create")),
+          edit: Boolean(p.edit) && (!mod || mod.actions.includes("edit")),
+          delete: Boolean(p.delete) && (!mod || mod.actions.includes("delete")),
+          specialAction: packOverviewGrants(grants),
+          specialGranted: Boolean(p.specialGranted) && Boolean(mod ? mod.specialAction : p.specialAction),
         },
         create: {
           roleId: targetRoleId,
           module: p.module,
-          category: p.category || "General",
-          read: Boolean(p.read),
-          create: Boolean(p.create),
-          edit: Boolean(p.edit),
-          delete: Boolean(p.delete),
-          specialAction: p.specialAction || null,
-          specialGranted: Boolean(p.specialGranted),
+          category: mod?.category || p.category || "General",
+          read,
+          create: Boolean(p.create) && (!mod || mod.actions.includes("create")),
+          edit: Boolean(p.edit) && (!mod || mod.actions.includes("edit")),
+          delete: Boolean(p.delete) && (!mod || mod.actions.includes("delete")),
+          specialAction: packOverviewGrants(grants),
+          specialGranted: Boolean(p.specialGranted) && Boolean(mod ? mod.specialAction : p.specialAction),
         },
       });
     }
 
     // Sync to Role collection
-    const grantedModules = permissions.filter((p: any) => p.read).map((p: any) => p.module);
+    const grantedModules = activePermissions
+      .filter((p: any) => {
+        const mod = moduleByName(p.module);
+        const grants = normalizeOverviewGrants(mod, p.overviewGrants, Boolean(p.read));
+        return Boolean(p.read) || Object.values(grants).some(Boolean);
+      })
+      .map((p: any) => p.module);
     await prisma.role.updateMany({
       where: {
         name: { equals: sysRole.name, mode: "insensitive" },
@@ -675,7 +720,7 @@ export const rbacService = {
         roleCode: user.role.code,
         roleName: user.role.name,
         territory: user.territory,
-        permissions: user.role.permissions,
+        permissions: (user.role.permissions || []).map(enrichPermission),
       },
     };
   },

@@ -987,7 +987,8 @@ export default function DoctorVisitLogsPage() {
 
       {/* 2. Top Metric Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctor Visit Logs" action="overview:visits">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Total Visits Logged
@@ -1003,8 +1004,10 @@ export default function DoctorVisitLogsPage() {
             Physicians visited across territories
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctor Visit Logs" action="overview:highPotential">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               High Potential Calls
@@ -1020,8 +1023,10 @@ export default function DoctorVisitLogsPage() {
             Committed to active prescription
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctor Visit Logs" action="overview:successRate">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Call Success Rate
@@ -1040,8 +1045,10 @@ export default function DoctorVisitLogsPage() {
             Positive conversion index
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctor Visit Logs" action="overview:samples">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Samples Handed Out
@@ -1057,6 +1064,7 @@ export default function DoctorVisitLogsPage() {
             Sample reconciliation verified
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Filter Bar */}

@@ -439,23 +439,29 @@ export function PartySettlementPage({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Card className="border-slate-200 p-4 shadow-none">
+<PermissionGate feature="Supplier Payments" action="overview:openBills">
+<Card className="border-slate-200 p-4 shadow-none">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Open {outgoing ? "bills" : "invoices"}</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">{summary.openCount}</p>
         </Card>
-        <Card className="border-slate-200 p-4 shadow-none">
+</PermissionGate>
+<PermissionGate feature="Supplier Payments" action="overview:payable">
+<Card className="border-slate-200 p-4 shadow-none">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
             {outgoing ? "Accounts payable" : "Accounts receivable"}
           </p>
           <p className="mt-1 text-2xl font-bold text-slate-900">{money(summary.outstanding)}</p>
         </Card>
-        <Card className="border-slate-200 p-4 shadow-none">
+</PermissionGate>
+<PermissionGate feature="Supplier Payments" action="overview:paid">
+<Card className="border-slate-200 p-4 shadow-none">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
             {outgoing ? "Paid to suppliers" : "Collected from buyers"}
           </p>
           <p className="mt-1 text-2xl font-bold text-slate-900">{money(settledTotal)}</p>
           <p className="mt-1 text-[11px] text-slate-400">Unapplied advance {money(summary.advanceBalance)}</p>
         </Card>
+</PermissionGate>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row">

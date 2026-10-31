@@ -28,6 +28,7 @@ export const updateRolePermissionsSchema = z.object({
       delete: z.boolean().optional().default(false),
       specialAction: z.string().optional().nullable(),
       specialGranted: z.boolean().optional().default(false),
+      overviewGrants: z.record(z.string(), z.boolean()).optional(),
     })).min(1, "At least one permission is required"),
   }),
   params: z.object({

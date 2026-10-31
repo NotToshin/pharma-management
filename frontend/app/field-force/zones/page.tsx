@@ -660,7 +660,8 @@ export default function MioZoneAllocationsPage() {
 
       {/* KPI Stats Strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
+<PermissionGate feature="MIO Zone Allocation" action="overview:allocations">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
               Total Allocations
@@ -672,8 +673,10 @@ export default function MioZoneAllocationsPage() {
             <span className="text-[11px] text-slate-500">Officers</span>
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
+<PermissionGate feature="MIO Zone Allocation" action="overview:activeCoverage">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
               Active Coverage
@@ -685,8 +688,10 @@ export default function MioZoneAllocationsPage() {
             <span className="text-[11px] text-slate-500">HR Active Officers</span>
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
+<PermissionGate feature="MIO Zone Allocation" action="overview:connectedDoctors">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
               Connected Doctors
@@ -698,8 +703,10 @@ export default function MioZoneAllocationsPage() {
             <span className="text-[11px] text-slate-500">Auto-Linked Docs</span>
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
+<PermissionGate feature="MIO Zone Allocation" action="overview:coveredStores">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
               Covered Stores
@@ -711,6 +718,7 @@ export default function MioZoneAllocationsPage() {
             <span className="text-[11px] text-slate-500">Auto-Linked Clients</span>
           </div>
         </Card>
+</PermissionGate>
       </div>
 
       {/* ─────────────────────────────────────────────

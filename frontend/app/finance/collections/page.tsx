@@ -985,7 +985,8 @@ function DeliveryCashCollectionsContent() {
 
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Card className="rounded-xl border border-emerald-200 bg-emerald-50/20 p-5 shadow-xs">
+<PermissionGate feature="Delivery Cash Collections" action="overview:realized">
+<Card className="rounded-xl border border-emerald-200 bg-emerald-50/20 p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-emerald-700 uppercase">
               Realized & Deposited
@@ -999,8 +1000,10 @@ function DeliveryCashCollectionsContent() {
             {metrics?.realizedCount || collections.filter((c) => c.status === "Cleared & Deposited").length} Receipts cleared into vault
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-amber-200 bg-amber-50/30 p-5 shadow-xs">
+<PermissionGate feature="Delivery Cash Collections" action="overview:pending">
+<Card className="rounded-xl border border-amber-200 bg-amber-50/30 p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-amber-700 uppercase">
               Pending Clearance
@@ -1014,8 +1017,10 @@ function DeliveryCashCollectionsContent() {
             {pendingCollections.length} Handover receipts ready for vault
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Delivery Cash Collections" action="overview:invoiced">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
               Total Invoiced BDT
@@ -1029,8 +1034,10 @@ function DeliveryCashCollectionsContent() {
             {collections.length} Delivery invoices tracked
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Delivery Cash Collections" action="overview:dues">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
               Chemist Dues Uncollected
@@ -1044,8 +1051,10 @@ function DeliveryCashCollectionsContent() {
             Outstanding receivables across territories
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Delivery Cash Collections" action="overview:destinations">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
               Deposit Destinations
@@ -1063,6 +1072,7 @@ function DeliveryCashCollectionsContent() {
             </span>
           </div>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Tabs & Multi-Action Floating Bar */}

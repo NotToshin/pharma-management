@@ -1476,7 +1476,8 @@ function LogisticsOrdersContent() {
 
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Sales Orders" action="overview:pipeline">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Pipeline Order Volume
@@ -1492,7 +1493,9 @@ function LogisticsOrdersContent() {
             ৳{totalRevenue.toLocaleString("en-IN")} Gross Billed Value
           </p>
         </Card>
+</PermissionGate>
 
+        <PermissionGate feature="Sales Orders" action="overview:salesReps">
         <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
@@ -1509,8 +1512,10 @@ function LogisticsOrdersContent() {
             Assigned across territorial field routes
           </p>
         </Card>
+        </PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Sales Orders" action="overview:creditHold">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Credit Hold Approvals
@@ -1526,9 +1531,11 @@ function LogisticsOrdersContent() {
             Awaiting credit clearance from Finance
           </p>
         </Card>
+</PermissionGate>
 
         {/* Dynamic Fulfillment Efficiency (OTIF) */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+        <PermissionGate feature="Sales Orders" action="overview:otif">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Fulfillment Efficiency (OTIF)
@@ -1551,6 +1558,7 @@ function LogisticsOrdersContent() {
             On-Time & In-Full delivery index
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Filter Bar */}
