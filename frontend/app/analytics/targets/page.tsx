@@ -83,9 +83,24 @@ import {
 import { getEndpoint, apiFetch } from "@/lib/api"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { TerritorySearchSelect } from "@/components/territory-search-select"
+
+export interface MasterTerritoryItem {
+  id: string
+  name: string
+  division?: string | null
+  status?: string
+}
 
 export interface MioTargetItem {
   id: string
+  territoryId?: string | null
+  territoryRef?: {
+    id: string
+    name: string
+    division?: string | null
+    status?: string
+  } | null
   territory: string
   mio: string
   empId?: string | null
@@ -125,6 +140,8 @@ export interface MioOption {
 
 export interface TargetOptions {
   territories: string[]
+  territoryList?: MasterTerritoryItem[]
+  territoryIdMap?: Record<string, string>
   mios: MioOption[]
   territoryMioMap: Record<string, string>
 }
@@ -144,6 +161,8 @@ export default function TargetVsAchievementPage() {
   })
   const [options, setOptions] = React.useState<TargetOptions>({
     territories: [],
+    territoryList: [],
+    territoryIdMap: {},
     mios: [],
     territoryMioMap: {},
   })
@@ -164,6 +183,7 @@ export default function TargetVsAchievementPage() {
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [newTerritory, setNewTerritory] = React.useState("")
+  const [newTerritoryId, setNewTerritoryId] = React.useState("")
   const [customTerritory, setCustomTerritory] = React.useState("")
   const [isCustomTerritory, setIsCustomTerritory] = React.useState(false)
 
@@ -179,6 +199,9 @@ export default function TargetVsAchievementPage() {
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [editingTarget, setEditingTarget] = React.useState<MioTargetItem | null>(null)
   const [editTerritory, setEditTerritory] = React.useState("")
+  const [editTerritoryId, setEditTerritoryId] = React.useState("")
+  const [isEditCustomTerritory, setIsEditCustomTerritory] = React.useState(false)
+  const [editCustomTerritory, setEditCustomTerritory] = React.useState("")
   const [editMio, setEditMio] = React.useState("")
   const [editTargetAmount, setEditTargetAmount] = React.useState("")
   const [editAchievedAmount, setEditAchievedAmount] = React.useState("")
@@ -237,6 +260,8 @@ export default function TargetVsAchievementPage() {
         const optData = optJson.data || optJson
         setOptions({
           territories: optData.territories || [],
+          territoryList: optData.territoryList || [],
+          territoryIdMap: optData.territoryIdMap || {},
           mios: optData.mios || [],
           territoryMioMap: optData.territoryMioMap || {},
         })
@@ -273,15 +298,20 @@ export default function TargetVsAchievementPage() {
     }
   }, [fetchData, isAddOpen, isEditOpen, deleteModal.isOpen])
 
-  // Handle Territory selection in Add Modal
+  // Handle Territory selection in Add Modal (from Master Territory Collection)
   const handleTerritorySelection = (val: string) => {
     if (val === "CUSTOM_ENTRY") {
       setIsCustomTerritory(true)
       setNewTerritory("")
+      setNewTerritoryId("")
     } else {
       setIsCustomTerritory(false)
-      setNewTerritory(val)
-      const suggestedMio = options.territoryMioMap[val]
+      const matched = options.territoryList?.find((t) => t.id === val || t.name === val)
+      const terrName = matched ? matched.name : val
+      const terrId = matched ? matched.id : (options.territoryIdMap?.[val] || "")
+      setNewTerritory(terrName)
+      setNewTerritoryId(terrId)
+      const suggestedMio = options.territoryMioMap[terrName]
       if (suggestedMio) {
         setIsCustomMio(false)
         setNewMio(suggestedMio)
@@ -300,7 +330,10 @@ export default function TargetVsAchievementPage() {
       if (!newTerritory && !isCustomTerritory) {
         const foundMio = options.mios.find((m) => m.name === val)
         if (foundMio && foundMio.territory) {
-          setNewTerritory(foundMio.territory)
+          const terrName = foundMio.territory
+          const matched = options.territoryList?.find((t) => t.name.toLowerCase() === terrName.toLowerCase())
+          setNewTerritory(terrName)
+          if (matched) setNewTerritoryId(matched.id)
         }
       }
     }
@@ -354,6 +387,7 @@ export default function TargetVsAchievementPage() {
       const res = await apiFetch(getEndpoint("/targets"), {
         method: "POST",
         body: JSON.stringify({
+          territoryId: isCustomTerritory ? undefined : (newTerritoryId || undefined),
           territory: targetTerritoryName,
           mioName: targetMioName,
           targetAmount: targetNum,
@@ -371,6 +405,7 @@ export default function TargetVsAchievementPage() {
         })
         setIsAddOpen(false)
         setNewTerritory("")
+        setNewTerritoryId("")
         setCustomTerritory("")
         setIsCustomTerritory(false)
         setNewMio("")
@@ -399,6 +434,10 @@ export default function TargetVsAchievementPage() {
   const openEditModal = (target: MioTargetItem) => {
     setEditingTarget(target)
     setEditTerritory(target.territory)
+    const terrId = target.territoryId || target.territoryRef?.id || options.territoryIdMap?.[target.territory] || ""
+    setEditTerritoryId(terrId)
+    setIsEditCustomTerritory(false)
+    setEditCustomTerritory("")
     setEditMio(target.mio)
     setEditTargetAmount(String(target.targetRaw))
     setEditAchievedAmount(String(target.baselineAchievedRaw ?? target.achievedRaw))
@@ -413,12 +452,13 @@ export default function TargetVsAchievementPage() {
 
     const targetNum = parseFloat(editTargetAmount) || 0
     const achievedNum = parseFloat(editAchievedAmount) || 0
+    const finalTerritory = isEditCustomTerritory ? editCustomTerritory.trim() : editTerritory.trim()
 
     if (!editMio.trim()) {
       toast.error("MIO Name is required.")
       return
     }
-    if (!editTerritory.trim()) {
+    if (!finalTerritory) {
       toast.error("Territory Name is required.")
       return
     }
@@ -434,7 +474,8 @@ export default function TargetVsAchievementPage() {
       const res = await apiFetch(getEndpoint(`/targets/${editingTarget.id}`), {
         method: "PUT",
         body: JSON.stringify({
-          territory: editTerritory.trim(),
+          territoryId: isEditCustomTerritory ? undefined : (editTerritoryId || undefined),
+          territory: finalTerritory,
           mioName: editMio.trim(),
           targetAmount: targetNum,
           achievedAmount: achievedNum,
@@ -746,65 +787,28 @@ export default function TargetVsAchievementPage() {
                   )}
                 </div>
 
-                {/* Territory Select (From DB) */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label
-                      htmlFor="territory-select"
-                      className="text-xs font-semibold text-slate-700"
-                    >
-                      Assigned Territory *
-                    </Label>
-                    <button
-                      type="button"
-                      onClick={() => setIsCustomTerritory(!isCustomTerritory)}
-                      className="text-[11px] font-semibold text-[#0090FF] hover:underline"
-                    >
-                      {isCustomTerritory ? "Pick from DB List" : "+ Enter Custom"}
-                    </button>
-                  </div>
-
-                  {isCustomTerritory ? (
-                    <Input
-                      id="custom-territory"
-                      placeholder="e.g. Mymensingh Sadar"
-                      value={customTerritory}
-                      onChange={(e) => setCustomTerritory(e.target.value)}
-                      required
-                      className="h-9 text-xs"
-                    />
-                  ) : (
-                    <Select
-                      value={newTerritory}
-                      onValueChange={handleTerritorySelection}
-                    >
-                      <SelectTrigger id="territory-select" className="h-9 text-xs bg-white">
-                        <SelectValue placeholder="Select territory from DB..." />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-56 text-xs">
-                        {options.territories.map((terr) => (
-                          <SelectItem key={terr} value={terr}>
-                            <div className="flex items-center gap-2">
-                              <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                              <span className="font-medium text-slate-900">{terr}</span>
-                              {options.territoryMioMap[terr] && (
-                                <span className="text-[10px] text-slate-400">
-                                  ({options.territoryMioMap[terr]})
-                                </span>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                        <SelectItem
-                          value="CUSTOM_ENTRY"
-                          className="font-semibold text-[#0090FF]"
-                        >
-                          + Other (Type Custom Territory)
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
+                {/* Search & Selectable Territory Field (From Master Territory Collection) */}
+                <TerritorySearchSelect
+                  label="Assigned Territory"
+                  required
+                  selectedTerritoryName={newTerritory}
+                  selectedTerritoryId={newTerritoryId}
+                  territories={options.territoryList || []}
+                  territoryMioMap={options.territoryMioMap}
+                  isCustom={isCustomTerritory}
+                  customValue={customTerritory}
+                  onCustomToggle={(custom) => {
+                    setIsCustomTerritory(custom)
+                    if (custom) {
+                      setNewTerritoryId("")
+                    }
+                  }}
+                  onCustomChange={setCustomTerritory}
+                  onSelect={(terr) => {
+                    handleTerritorySelection(terr.id || terr.name)
+                  }}
+                  placeholder="Search & select territory from Master Collection..."
+                />
 
                 {/* Quota Target & Baseline Achieved */}
                 <div className="grid grid-cols-2 gap-3">
@@ -1365,9 +1369,19 @@ export default function TargetVsAchievementPage() {
                       <div className="flex items-center gap-1.5">
                         <MapPin className="h-3.5 w-3.5 text-[#0090FF] shrink-0" />
                         <div>
-                          <span className="font-medium text-slate-900">
-                            {row.territory}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-slate-900">
+                              {row.territory}
+                            </span>
+                            {row.division && (
+                              <Badge
+                                variant="outline"
+                                className="border-slate-200 bg-slate-50 px-1 py-0 text-[9px] text-slate-500 font-normal"
+                              >
+                                {row.division}
+                              </Badge>
+                            )}
+                          </div>
                           {row.zone && (
                             <div className="text-[10px] text-slate-400 truncate max-w-[150px]">
                               {row.zone}
@@ -1512,18 +1526,30 @@ export default function TargetVsAchievementPage() {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-territory" className="text-xs font-semibold text-slate-700">
-                Territory Name *
-              </Label>
-              <Input
-                id="edit-territory"
-                value={editTerritory}
-                onChange={(e) => setEditTerritory(e.target.value)}
-                required
-                className="h-9 text-xs"
-              />
-            </div>
+            {/* Search & Selectable Territory Field in Edit Modal */}
+            <TerritorySearchSelect
+              label="Assigned Territory"
+              required
+              selectedTerritoryName={isEditCustomTerritory ? editCustomTerritory : editTerritory}
+              selectedTerritoryId={editTerritoryId}
+              territories={options.territoryList || []}
+              territoryMioMap={options.territoryMioMap}
+              isCustom={isEditCustomTerritory}
+              customValue={editCustomTerritory}
+              onCustomToggle={(custom) => {
+                setIsEditCustomTerritory(custom)
+                if (custom) {
+                  setEditTerritoryId("")
+                }
+              }}
+              onCustomChange={setEditCustomTerritory}
+              onSelect={(terr) => {
+                setIsEditCustomTerritory(false)
+                setEditTerritory(terr.name)
+                setEditTerritoryId(terr.id)
+              }}
+              placeholder="Search & select territory from Master Collection..."
+            />
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">

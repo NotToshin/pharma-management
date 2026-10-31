@@ -1,4 +1,5 @@
 import prisma from "../utils/prisma";
+import { territoryService } from "./territoryService";
 
 // Standard mapping of Bangladesh Territories to Administrative Divisions
 export const STANDARD_TERRITORY_DIVISION_MAP: Record<string, string> = {
