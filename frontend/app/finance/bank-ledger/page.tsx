@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import { apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -711,31 +713,36 @@ export default function AccountLedgerPage() {
             Export Ledger
           </Button>
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleOpenAddAccount}
-            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-none hover:bg-slate-50"
-          >
-            <Building2 className="h-3.5 w-3.5 text-slate-600" />
-            Add Account / Drawer
-          </Button>
+          <PermissionGate feature="Bank Accounts Ledger" action="create">
+<Button
+              size="sm"
+              variant="outline"
+              onClick={handleOpenAddAccount}
+              className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-none hover:bg-slate-50"
+            >
+              <Building2 className="h-3.5 w-3.5 text-slate-600" />
+              Add Account / Drawer
+            </Button>
+</PermissionGate>
 
-          <Button
-            size="sm"
-            onClick={handleOpenPostTx}
-            className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-          >
-            <Plus className="h-4 w-4" />
-            Post Money / Transfer / Loan
-          </Button>
+          <PermissionGate feature="Bank Accounts Ledger" action="special">
+<Button
+              size="sm"
+              onClick={handleOpenPostTx}
+              className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+            >
+              <Plus className="h-4 w-4" />
+              Post Money / Transfer / Loan
+            </Button>
+</PermissionGate>
         </div>
       </div>
 
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Combined Liquidity */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Bank Accounts Ledger" action="overview:liquidity">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
               Total Central Liquidity
@@ -751,9 +758,11 @@ export default function AccountLedgerPage() {
             Across {accounts.length} active banks & physical drawers
           </p>
         </Card>
+</PermissionGate>
 
         {/* Card 2: Bank Liquidity */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Bank Accounts Ledger" action="overview:bankBalances">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
               Corporate Bank Balances
@@ -769,9 +778,11 @@ export default function AccountLedgerPage() {
             In {accounts.filter((a) => a.category === "BANK").length} corporate banking accounts
           </p>
         </Card>
+</PermissionGate>
 
         {/* Card 3: Physical Cash Safe */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Bank Accounts Ledger" action="overview:cashDrawers">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
               Physical Cash Drawers
@@ -787,9 +798,11 @@ export default function AccountLedgerPage() {
             In {accounts.filter((a) => a.category === "CASH").length} vaults, retail desks & petty safes
           </p>
         </Card>
+</PermissionGate>
 
         {/* Card 4: Total Inflows & Outflows */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Bank Accounts Ledger" action="overview:flows">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
               Total Inflows vs Outflows
@@ -811,6 +824,7 @@ export default function AccountLedgerPage() {
             {metrics?.totalTransactionCount || ledger.length} recorded journal transactions
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Dynamic Cash Counters & Banks Strip */}
@@ -857,24 +871,28 @@ export default function AccountLedgerPage() {
                   </div>
 
                   <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleOpenEditAccount(acc)}
-                      className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
-                      title="Edit Account"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleOpenDeleteAccount(acc)}
-                      className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
-                      title="Delete Account"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    <PermissionGate feature="Bank Accounts Ledger" action="edit">
+<Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleOpenEditAccount(acc)}
+                        className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
+                        title="Edit Account"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+</PermissionGate>
+                    <PermissionGate feature="Bank Accounts Ledger" action="delete">
+<Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleOpenDeleteAccount(acc)}
+                        className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                        title="Delete Account"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+</PermissionGate>
                   </div>
                 </div>
 
@@ -1169,15 +1187,17 @@ export default function AccountLedgerPage() {
                         >
                           <Printer className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleOpenDeleteTransaction(row)}
-                          className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
-                          title="Reverse & Delete Entry"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <PermissionGate feature="Bank Accounts Ledger" action="delete">
+<Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleOpenDeleteTransaction(row)}
+                            className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
+                            title="Reverse & Delete Entry"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+</PermissionGate>
                       </div>
                     </TableCell>
                   </TableRow>

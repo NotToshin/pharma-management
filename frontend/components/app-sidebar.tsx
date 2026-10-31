@@ -31,7 +31,8 @@ import {
   X,
   ShoppingCart,
 } from "lucide-react"
-import { logout, getStoredUser, isUserSuperAdmin } from "@/lib/auth"
+import { logout, getStoredUser } from "@/lib/auth"
+import { featureForPath, userCan } from "@/lib/permissions"
 import { getEndpoint } from "@/lib/api"
 
 import {
@@ -206,39 +207,6 @@ const navSections: NavSection[] = [
   },
 ]
 
-function routeModuleAliases(href: string, title?: string) {
-  const names = new Set<string>()
-  if (title) names.add(title.toLowerCase())
-
-  const legacy: Record<string, string[]> = {
-    "/dashboard": ["dashboard", "executive dashboard"],
-    "/analytics/targets": ["target vs achievement", "target vs. achievement"],
-    "/analytics/territories": ["territory sales breakdown"],
-    "/field-force/zones": ["mio zone allocation", "mio zone allocations"],
-    "/doctors/database": ["doctors list", "master doctor database"],
-    "/field-force/visit-logs": ["doctor visit logs"],
-    "/inventory/ledger": ["stock inventory", "active inventory ledger (fefo)"],
-    "/inventory/adjustments": ["stock adjustments"],
-    "/logistics/orders": ["sales orders", "delivery logistics & orders"],
-    "/sales/clients": ["pharmacy clients"],
-    "/finance/overview": ["treasury overview", "treasury & finance overview"],
-    "/finance/bank-ledger": ["bank accounts ledger"],
-    "/finance/collections": ["delivery cash collections"],
-    "/finance/supplier-payments": ["supplier payments"],
-    "/procurement/orders": ["wholesale purchase orders", "wholesaler purchase orders"],
-    "/finance/payments": ["payments", "expense & vendor payments"],
-    "/hr/staff-directory": ["staff directory & roles"],
-    "/hr/salary": ["salary", "payroll & salary"],
-    "/settings/audit-logs": ["audit logs (21 cfr compliant)", "audit logs (21 cfr part 11)"],
-  }
-
-  const match = Object.keys(legacy)
-    .sort((a, b) => b.length - a.length)
-    .find((route) => href === route || href.startsWith(`${route}/`))
-  if (match) legacy[match].forEach((name) => names.add(name))
-  return Array.from(names)
-}
-
 function menuKey(group: string, title: string) {
   return `${group}::${title}`
 }
@@ -289,55 +257,42 @@ export function AppSidebar({ onOpenAccount, onOpenPrivileges, ...props }: AppSid
     closeMobileNav()
   }, [pathname, closeMobileNav])
 
-  const isSuperAdmin = React.useMemo(() => {
+  const hasRbacPermission = React.useMemo(() => {
     if (!currentUser) return false
-    return isUserSuperAdmin({
-      id: "",
-      name: currentUser.name,
-      email: currentUser.email,
-      role: currentUser.role || "",
-      roleName: currentUser.role || "",
-    })
+    return userCan(
+      {
+        id: "",
+        name: currentUser.name,
+        email: currentUser.email,
+        role: currentUser.role || "",
+        roleName: currentUser.role || "",
+        permissions: currentUser.permissions || [],
+      },
+      "Role Permissions (RBAC)",
+      "view"
+    )
   }, [currentUser])
 
-  const hasRbacPermission = React.useMemo(() => {
-    if (isSuperAdmin) return true
-    if (!currentUser?.permissions || !Array.isArray(currentUser.permissions)) return false
-    const rbacPerm = currentUser.permissions.find((p: any) => {
-      if (!p) return false
-      const mod = (p.module || "").toLowerCase()
-      return mod.includes("role permission") || mod.includes("rbac")
-    })
-    return Boolean(rbacPerm && (rbacPerm.read || rbacPerm.create || rbacPerm.edit))
-  }, [isSuperAdmin, currentUser])
-
   const canAccessRoute = React.useCallback(
-    (href?: string, title?: string) => {
-      if (isSuperAdmin) return true
+    (href?: string, _title?: string) => {
       if (!href) return true
-
-      // RBAC route permission check: only super admin OR users with explicit RBAC permission
-      if (href === "/settings/rbac" || href.startsWith("/settings/rbac")) {
-        return hasRbacPermission
-      }
-
-      const permissions = currentUser?.permissions || []
-      if (permissions.length === 0) return true // default allow if permissions not yet loaded
-
-      const aliases = routeModuleAliases(href, title)
-      const perm = permissions.find((p: any) => {
-        if (!p) return false
-        const modTitle = (p.module || "").toLowerCase()
-        return aliases.includes(modTitle)
-      })
-
-      if (perm) {
-        return Boolean(perm.read)
-      }
-
-      return true
+      if (!currentUser) return false
+      const feature = featureForPath(href)
+      if (!feature) return true
+      return userCan(
+        {
+          id: "",
+          name: currentUser.name,
+          email: currentUser.email,
+          role: currentUser.role || "",
+          roleName: currentUser.role || "",
+          permissions: currentUser.permissions || [],
+        },
+        feature,
+        "view"
+      )
     },
-    [isSuperAdmin, currentUser, hasRbacPermission]
+    [currentUser]
   )
 
   const fetchClientCount = React.useCallback(async () => {

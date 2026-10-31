@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -604,7 +606,8 @@ export default function FinanceOverviewPage() {
 
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<PermissionGate feature="Treasury Overview" action="overview:billedTurnover">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Gross Billed Turnover
@@ -623,8 +626,10 @@ export default function FinanceOverviewPage() {
             </span>
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<PermissionGate feature="Treasury Overview" action="overview:collections">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Realized Collections
@@ -640,8 +645,10 @@ export default function FinanceOverviewPage() {
             {collectionRatio}% collection recovery rate
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<PermissionGate feature="Treasury Overview" action="overview:receivable">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Accounts Receivable (A/R)
@@ -657,8 +664,10 @@ export default function FinanceOverviewPage() {
             Outstanding chemist clearance for this period
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<PermissionGate feature="Treasury Overview" action="overview:burn">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               TA/DA & Operational Burn
@@ -674,11 +683,13 @@ export default function FinanceOverviewPage() {
             Disbursed field force allowances & operational expenses
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Middle Area Chart & Clean 4-Item Margin Breakdown */}
       <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
-        <Card className="rounded-xl border border-slate-200 bg-white p-6 shadow-none lg:col-span-8">
+<PermissionGate feature="Treasury Overview" action="overview:cashFlow">
+<Card className="rounded-xl border border-slate-200 bg-white p-6 shadow-none lg:col-span-8">
           <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-sm font-bold text-slate-900">
@@ -772,9 +783,11 @@ export default function FinanceOverviewPage() {
             </ResponsiveContainer>
           </div>
         </Card>
+</PermissionGate>
 
         {/* 100% Dynamic Commercial Margin Breakdown: COGS, TA/DA, Profit, Net Operating Margin */}
-        <Card className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-6 shadow-none lg:col-span-4">
+        <PermissionGate feature="Treasury Overview" action="overview:margin">
+<Card className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-6 shadow-none lg:col-span-4">
           <div>
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-900">
@@ -870,6 +883,7 @@ export default function FinanceOverviewPage() {
             </span>
           </div>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 4. Live Transactions Ledger Table */}

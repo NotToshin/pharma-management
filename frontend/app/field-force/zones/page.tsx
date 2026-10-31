@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import Link from "next/link"
 import { apiFetch, getEndpoint } from "@/lib/api"
@@ -643,20 +645,23 @@ export default function MioZoneAllocationsPage() {
             <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${isRefreshing ? "animate-spin" : ""}`} />
             Sync Network
           </Button>
-          <Button
-            size="sm"
-            onClick={handleOpenCreate}
-            className="h-8 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0080e5]"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Allocate Zone
-          </Button>
+          <PermissionGate feature="MIO Zone Allocation" action="create">
+<Button
+              size="sm"
+              onClick={handleOpenCreate}
+              className="h-8 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0080e5]"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Allocate Zone
+            </Button>
+</PermissionGate>
         </div>
       </div>
 
       {/* KPI Stats Strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
+<PermissionGate feature="MIO Zone Allocation" action="overview:allocations">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
               Total Allocations
@@ -668,8 +673,10 @@ export default function MioZoneAllocationsPage() {
             <span className="text-[11px] text-slate-500">Officers</span>
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
+<PermissionGate feature="MIO Zone Allocation" action="overview:activeCoverage">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
               Active Coverage
@@ -681,8 +688,10 @@ export default function MioZoneAllocationsPage() {
             <span className="text-[11px] text-slate-500">HR Active Officers</span>
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
+<PermissionGate feature="MIO Zone Allocation" action="overview:connectedDoctors">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
               Connected Doctors
@@ -694,8 +703,10 @@ export default function MioZoneAllocationsPage() {
             <span className="text-[11px] text-slate-500">Auto-Linked Docs</span>
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
+<PermissionGate feature="MIO Zone Allocation" action="overview:coveredStores">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
               Covered Stores
@@ -707,6 +718,7 @@ export default function MioZoneAllocationsPage() {
             <span className="text-[11px] text-slate-500">Auto-Linked Clients</span>
           </div>
         </Card>
+</PermissionGate>
       </div>
 
       {/* ─────────────────────────────────────────────
@@ -802,14 +814,16 @@ export default function MioZoneAllocationsPage() {
             <p className="max-w-sm text-xs text-slate-400">
               No matching field officer zone allocations match your criteria. Click "Allocate Zone" to assign an MIO to a new territory.
             </p>
-            <Button
-              size="sm"
-              onClick={handleOpenCreate}
-              className="mt-2 h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
-            >
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              Allocate Zone Now
-            </Button>
+            <PermissionGate feature="MIO Zone Allocation" action="create">
+<Button
+                size="sm"
+                onClick={handleOpenCreate}
+                className="mt-2 h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Allocate Zone Now
+              </Button>
+</PermissionGate>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -948,21 +962,25 @@ export default function MioZoneAllocationsPage() {
                             <Stethoscope className="mr-2 h-3.5 w-3.5 text-blue-600" />
                             View Connected Network
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleOpenEdit(item)}
-                            className="cursor-pointer text-xs text-slate-700 hover:bg-slate-50"
-                          >
-                            <Pencil className="mr-2 h-3.5 w-3.5 text-slate-500" />
-                            Edit Allocation
-                          </DropdownMenuItem>
+                          <PermissionGate feature="MIO Zone Allocation" action="edit" also="special">
+<DropdownMenuItem
+                              onClick={() => handleOpenEdit(item)}
+                              className="cursor-pointer text-xs text-slate-700 hover:bg-slate-50"
+                            >
+                              <Pencil className="mr-2 h-3.5 w-3.5 text-slate-500" />
+                              Edit Allocation
+                            </DropdownMenuItem>
+</PermissionGate>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => promptDeleteAllocation(item)}
-                            className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
-                          >
-                            <Trash2 className="mr-2 h-3.5 w-3.5" />
-                            Remove Allocation
-                          </DropdownMenuItem>
+                          <PermissionGate feature="MIO Zone Allocation" action="delete">
+<DropdownMenuItem
+                              onClick={() => promptDeleteAllocation(item)}
+                              className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
+                            >
+                              <Trash2 className="mr-2 h-3.5 w-3.5" />
+                              Remove Allocation
+                            </DropdownMenuItem>
+</PermissionGate>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

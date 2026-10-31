@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -8,6 +10,7 @@ import { getStoredUser, isUserSuperAdmin, AuthUser } from "@/lib/auth"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { ServerListPagination } from "@/components/server-list-controls"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -63,6 +66,11 @@ import {
   AlertTriangle,
 } from "lucide-react"
 
+interface ModuleOverview {
+  key: string
+  label: string
+}
+
 interface RolePermission {
   module: string
   category: string
@@ -72,6 +80,9 @@ interface RolePermission {
   delete: boolean
   specialAction?: string | null
   specialGranted: boolean
+  actions?: Array<"read" | "create" | "edit" | "delete">
+  overviews?: ModuleOverview[]
+  overviewGrants?: Record<string, boolean>
 }
 
 interface SystemRole {
@@ -145,6 +156,16 @@ export default function RBACManagementPage() {
   const [statusFilter, setStatusFilter] = React.useState<string>("ALL")
   const [matrixCategoryFilter, setMatrixCategoryFilter] = React.useState<string>("ALL")
 
+  // Server-side Pagination & Stats for Provisioned Users
+  const [debouncedSearch, setDebouncedSearch] = React.useState("")
+  const [usersPage, setUsersPage] = React.useState(1)
+  const [usersLimit, setUsersLimit] = React.useState(10)
+  const [usersTotal, setUsersTotal] = React.useState(0)
+  const [usersTotalPages, setUsersTotalPages] = React.useState(1)
+  const [totalActiveCount, setTotalActiveCount] = React.useState(0)
+  const [totalRestrictedCount, setTotalRestrictedCount] = React.useState(0)
+  const [isUsersLoading, setIsUsersLoading] = React.useState(false)
+
   // Matrix edit tracking
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
@@ -193,54 +214,121 @@ export default function RBACManagementPage() {
     }
   }, [])
 
+  // Debounce search query to trigger backend filtering
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchUserQuery)
+      setUsersPage(1)
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [searchUserQuery])
+
   // 2. Data Fetching via apiFetch with unwrap
+  const fetchRoles = React.useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_URL}/rbac/roles`)
+      if (res && res.ok) {
+        const raw = await res.json()
+        const rolesData: SystemRole[] = Array.isArray(raw) ? raw : raw?.data || []
+        if (Array.isArray(rolesData) && rolesData.length > 0) {
+          setRoles(rolesData)
+          setSelectedRoleId((curr) => {
+            if (curr && rolesData.some((r) => r.id === curr)) return curr
+            return rolesData[0].id
+          })
+        }
+      } else if (res && res.status === 403) {
+        setIsAuthorized(false)
+      }
+    } catch (err) {
+      console.error("Error loading roles:", err)
+    }
+  }, [])
+
+  const fetchUsers = React.useCallback(
+    async (targetPage = usersPage, targetLimit = usersLimit) => {
+      try {
+        setIsUsersLoading(true)
+        const params = new URLSearchParams()
+        params.set("page", String(targetPage))
+        params.set("limit", String(targetLimit))
+
+        if (debouncedSearch.trim()) {
+          params.set("searchTerm", debouncedSearch.trim())
+        }
+        if (roleFilter !== "ALL") {
+          params.set("role", roleFilter)
+        }
+        if (statusFilter !== "ALL") {
+          params.set("status", statusFilter)
+        }
+
+        const res = await apiFetch(`${API_URL}/rbac/users?${params.toString()}`)
+        if (res && res.ok) {
+          const json = await res.json()
+          const usersData: UserAssignment[] = Array.isArray(json)
+            ? json
+            : json?.data || []
+          setAssignments(usersData)
+
+          const meta = json?.meta || {}
+          const total = meta.total !== undefined ? meta.total : usersData.length
+          setUsersTotal(total)
+          setUsersTotalPages(
+            meta.totalPage ||
+              (targetLimit > 0 ? Math.max(1, Math.ceil(total / targetLimit)) : 1) ||
+              1
+          )
+
+          if (meta.totalActive !== undefined) {
+            setTotalActiveCount(meta.totalActive)
+          } else {
+            setTotalActiveCount(usersData.filter((u) => u.status === "Active").length)
+          }
+
+          if (meta.totalRestricted !== undefined) {
+            setTotalRestrictedCount(meta.totalRestricted)
+          } else {
+            setTotalRestrictedCount(usersData.filter((u) => u.status === "Restricted").length)
+          }
+        }
+      } catch (err) {
+        console.error("Error loading provisioned users:", err)
+      } finally {
+        setIsUsersLoading(false)
+      }
+    },
+    [usersPage, usersLimit, debouncedSearch, roleFilter, statusFilter]
+  )
+
   const fetchRBACData = React.useCallback(
     async (isManualRefresh = false) => {
       try {
         if (isManualRefresh) setLoading(true)
-
-        const [rolesRes, usersRes] = await Promise.all([
-          apiFetch(`${API_URL}/rbac/roles`).catch(() => null),
-          apiFetch(`${API_URL}/rbac/users`).catch(() => null),
+        await Promise.all([
+          fetchRoles(),
+          fetchUsers(usersPage, usersLimit),
         ])
-
-        if (rolesRes && rolesRes.ok) {
-          const raw = await rolesRes.json()
-          const rolesData: SystemRole[] = Array.isArray(raw) ? raw : raw?.data || []
-          if (Array.isArray(rolesData) && rolesData.length > 0) {
-            setRoles(rolesData)
-            setSelectedRoleId((curr) => {
-              if (curr && rolesData.some((r) => r.id === curr)) return curr
-              return rolesData[0].id
-            })
-          }
-        } else if (rolesRes && rolesRes.status === 403) {
-          setIsAuthorized(false)
-        }
-
-        if (usersRes && usersRes.ok) {
-          const raw = await usersRes.json()
-          const usersData: UserAssignment[] = Array.isArray(raw) ? raw : raw?.data || []
-          if (Array.isArray(usersData)) {
-            setAssignments(usersData)
-          }
-        }
-      } catch (err) {
-        console.error("Error loading RBAC settings:", err)
       } finally {
         setLoading(false)
       }
     },
-    []
+    [fetchRoles, fetchUsers, usersPage, usersLimit]
   )
 
   React.useEffect(() => {
     if (isAuthorized) {
-      fetchRBACData(false)
+      fetchRoles()
     } else if (isAuthorized === false) {
       setLoading(false)
     }
-  }, [isAuthorized, fetchRBACData])
+  }, [isAuthorized, fetchRoles])
+
+  React.useEffect(() => {
+    if (isAuthorized) {
+      fetchUsers(usersPage, usersLimit)
+    }
+  }, [isAuthorized, fetchUsers, debouncedSearch, roleFilter, statusFilter, usersPage, usersLimit])
 
   const selectedRole = React.useMemo(() => {
     return roles.find((r) => r.id === selectedRoleId) || roles[0] || null
@@ -264,6 +352,43 @@ export default function RBACManagementPage() {
   }, [selectedRole, matrixCategoryFilter])
 
   // 3. Matrix Permission Handlers
+  const allowsAction = (
+    perm: RolePermission,
+    action: "read" | "create" | "edit" | "delete"
+  ) => {
+    const actions = perm.actions ?? ["read", "create", "edit", "delete"]
+    return actions.includes(action)
+  }
+
+  const moduleOverviewAllowed = (perm: RolePermission) => {
+    const overviews = perm.overviews || []
+    if (overviews.length === 0) return false
+    return overviews.every((view) => Boolean(perm.overviewGrants?.[view.key]))
+  }
+
+  const handleToggleModuleOverview = (moduleName: string) => {
+    if (!selectedRole) return
+    setRoles((prevRoles) =>
+      prevRoles.map((role) => {
+        if (role.id !== selectedRole.id) return role
+        return {
+          ...role,
+          permissions: (role.permissions || []).map((perm) => {
+            if (perm.module !== moduleName) return perm
+            const granted = !moduleOverviewAllowed(perm)
+            const overviewGrants = Object.fromEntries(
+              (perm.overviews || []).map((view) => [view.key, granted])
+            )
+            const actions = perm.actions ?? ["read", "create", "edit", "delete"]
+            const read = actions.length === 0 ? granted : perm.read
+            return { ...perm, overviewGrants, read }
+          }),
+        }
+      })
+    )
+    setHasUnsavedChanges(true)
+  }
+
   const handleTogglePermission = (
     moduleName: string,
     action: "read" | "create" | "edit" | "delete" | "specialGranted"
@@ -297,14 +422,21 @@ export default function RBACManagementPage() {
         if (role.id === selectedRole.id) {
           return {
             ...role,
-            permissions: (role.permissions || []).map((p) => ({
-              ...p,
-              read: true,
-              create: true,
-              edit: true,
-              delete: true,
-              specialGranted: p.specialAction ? true : false,
-            })),
+            permissions: (role.permissions || []).map((p) => {
+              const actions = p.actions ?? ["read", "create", "edit", "delete"]
+              const overviewGrants = Object.fromEntries(
+                (p.overviews || []).map((view) => [view.key, true])
+              )
+              return {
+                ...p,
+                read: actions.includes("read") || actions.length === 0,
+                create: actions.includes("create"),
+                edit: actions.includes("edit"),
+                delete: actions.includes("delete"),
+                specialGranted: Boolean(p.specialAction),
+                overviewGrants,
+              }
+            }),
           }
         }
         return role
@@ -357,6 +489,19 @@ export default function RBACManagementPage() {
       }
 
       setHasUnsavedChanges(false)
+      const stored = getStoredUser()
+      const sameRole = Boolean(
+        stored &&
+          (stored.role === selectedRole.code ||
+            stored.roleName === selectedRole.name ||
+            (stored as { roleCode?: string }).roleCode === selectedRole.code)
+      )
+      if (sameRole && stored) {
+        const nextUser = { ...stored, permissions: selectedRole.permissions }
+        localStorage.setItem("user", JSON.stringify(nextUser))
+        localStorage.setItem("ak_user", JSON.stringify(nextUser))
+        window.dispatchEvent(new Event("ak-permissions-updated"))
+      }
       toast.success(`Permission matrix for "${selectedRole.name}" persisted to database.`, {
         id: toastId,
       })
@@ -411,7 +556,7 @@ export default function RBACManagementPage() {
       setProvPassword("")
       setShowProvPassword(false)
       setIsProvisionOpen(false)
-      fetchRBACData(false)
+      fetchUsers(usersPage, usersLimit)
     } catch (err: any) {
       toast.error(err.message || "Failed to provision user in database.", { id: toastId })
     } finally {
@@ -481,7 +626,7 @@ export default function RBACManagementPage() {
         setCurrentUser(updatedUser)
       }
 
-      fetchRBACData(false)
+      fetchUsers(usersPage, usersLimit)
     } catch (err: any) {
       toast.error(err.message || "Could not update operator credentials.", { id: toastId })
     } finally {
@@ -512,6 +657,7 @@ export default function RBACManagementPage() {
       }
 
       toast.success(`Operator ${user.name} is now ${nextStatus}.`, { id: toastId })
+      fetchUsers(usersPage, usersLimit)
       setAssignments((prev) =>
         prev.map((u) =>
           u.id === user.id
@@ -558,6 +704,7 @@ export default function RBACManagementPage() {
       setAssignments((prev) => prev.filter((u) => u.id !== userToDelete.id))
       setIsDeleteModalOpen(false)
       setUserToDelete(null)
+      fetchUsers(usersPage, usersLimit)
     } catch (error: any) {
       console.error("Error deleting user:", error)
       toast.error(error.message || "Could not revoke user account.", { id: toastId })
@@ -567,44 +714,44 @@ export default function RBACManagementPage() {
   }
 
   // 9. Export Audit Ledger
-  const handleExportAudit = () => {
-    const data = assignments.map((u) => ({
-      "Operator Name": u.name,
-      "Database Email": u.email,
-      "Role Code": u.roleCode,
-      "Assigned Role": u.roleName,
-      "Territory Station": u.territory,
-      "Account Status": u.status,
-      "Last Active Session (UTC+06:00 Dhaka)": formatLastActiveSession(u.lastLogin),
-    }))
+  const handleExportAudit = async () => {
+    const toastId = toast.loading("Preparing security audit ledger export...")
+    try {
+      const params = new URLSearchParams()
+      params.set("limit", "0")
+      if (debouncedSearch.trim()) params.set("searchTerm", debouncedSearch.trim())
+      if (roleFilter !== "ALL") params.set("role", roleFilter)
+      if (statusFilter !== "ALL") params.set("status", statusFilter)
 
-    const worksheet = XLSX.utils.json_to_sheet(data)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "RBAC Security Audit")
-    XLSX.writeFile(
-      workbook,
-      `AK_Pharma_RBAC_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`
-    )
-    toast.success("Security audit ledger exported successfully.")
+      const res = await apiFetch(`${API_URL}/rbac/users?${params.toString()}`)
+      const json = await res.json()
+      const dataToExport: UserAssignment[] = Array.isArray(json?.data) ? json.data : assignments
+
+      const data = dataToExport.map((u) => ({
+        "Operator Name": u.name,
+        "Database Email": u.email,
+        "Role Code": u.roleCode,
+        "Assigned Role": u.roleName,
+        "Territory Station": u.territory,
+        "Account Status": u.status,
+        "Last Active Session (UTC+06:00 Dhaka)": formatLastActiveSession(u.lastLogin),
+      }))
+
+      const worksheet = XLSX.utils.json_to_sheet(data)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, "RBAC Security Audit")
+      XLSX.writeFile(
+        workbook,
+        `AK_Pharma_RBAC_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`
+      )
+      toast.success("Security audit ledger exported successfully.", { id: toastId })
+    } catch (err: any) {
+      console.error("Export audit error:", err)
+      toast.error(err.message || "Failed to export audit ledger.", { id: toastId })
+    }
   }
 
-  // 10. Filtered Users
-  const filteredUsers = React.useMemo(() => {
-    return assignments.filter((u) => {
-      const q = searchUserQuery.toLowerCase().trim()
-      const matchesQuery =
-        !q ||
-        (u.name || "").toLowerCase().includes(q) ||
-        (u.email || "").toLowerCase().includes(q) ||
-        (u.roleCode || "").toLowerCase().includes(q) ||
-        (u.territory || "").toLowerCase().includes(q)
-
-      const matchesRole = roleFilter === "ALL" || u.roleCode === roleFilter
-      const matchesStatus = statusFilter === "ALL" || u.status === statusFilter
-
-      return matchesQuery && matchesRole && matchesStatus
-    })
-  }, [assignments, searchUserQuery, roleFilter, statusFilter])
+  const filteredUsers = assignments
 
   // Get color for role badges
   const getRoleBadgeStyle = (code: string) => {
@@ -742,20 +889,23 @@ export default function RBACManagementPage() {
             Export Audit
           </Button>
 
-          <Button
-            size="sm"
-            onClick={() => setIsProvisionOpen(true)}
-            className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-          >
-            <Plus className="h-4 w-4" />
-            Provision Operator Account
-          </Button>
+          <PermissionGate feature="Role Permissions (RBAC)" action="create">
+<Button
+              size="sm"
+              onClick={() => setIsProvisionOpen(true)}
+              className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+            >
+              <Plus className="h-4 w-4" />
+              Provision Operator Account
+            </Button>
+</PermissionGate>
         </div>
       </div>
 
       {/* 2. Top Summary Metrics */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<PermissionGate feature="Role Permissions (RBAC)" action="overview:roleClasses">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Configured Role Classes
@@ -771,8 +921,10 @@ export default function RBACManagementPage() {
             Database permission tiers with statutory limits
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<PermissionGate feature="Role Permissions (RBAC)" action="overview:accounts">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Provisioned Accounts
@@ -789,8 +941,10 @@ export default function RBACManagementPage() {
             {assignments.filter((a) => a.status === "Restricted").length} restricted
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<PermissionGate feature="Role Permissions (RBAC)" action="overview:clearance">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Master Clearance
@@ -806,8 +960,10 @@ export default function RBACManagementPage() {
             Elevated maker-checker bypass authorized
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<PermissionGate feature="Role Permissions (RBAC)" action="overview:credentialSecurity">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Credential Security
@@ -826,6 +982,7 @@ export default function RBACManagementPage() {
             21 CFR Part 11 compliant tamper logging
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Role Selector & Scope Matrix */}
@@ -913,35 +1070,41 @@ export default function RBACManagementPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleGrantAll}
-                    className="h-8 gap-1 rounded-md border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    <Check className="h-3 w-3 text-emerald-600" />
-                    Grant All
-                  </Button>
+                  <PermissionGate feature="Role Permissions (RBAC)" action="special">
+<Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleGrantAll}
+                      className="h-8 gap-1 rounded-md border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <Check className="h-3 w-3 text-emerald-600" />
+                      Grant All
+                    </Button>
+</PermissionGate>
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleRevokeAll}
-                    className="h-8 gap-1 rounded-md border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    <X className="h-3 w-3 text-rose-600" />
-                    Clear Write
-                  </Button>
+                  <PermissionGate feature="Role Permissions (RBAC)" action="special">
+<Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleRevokeAll}
+                      className="h-8 gap-1 rounded-md border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <X className="h-3 w-3 text-rose-600" />
+                      Clear Write
+                    </Button>
+</PermissionGate>
 
-                  <Button
-                    size="sm"
-                    disabled={!hasUnsavedChanges || isSaving}
-                    onClick={handleSaveRolePermissions}
-                    className="h-8 gap-1.5 rounded-md bg-[#0090FF] text-xs font-semibold text-white shadow-none hover:bg-[#0080e5] disabled:opacity-50"
-                  >
-                    <Save className="h-3.5 w-3.5" />
-                    {isSaving ? "Saving..." : "Save Permissions"}
-                  </Button>
+                  <PermissionGate feature="Role Permissions (RBAC)" action="special">
+<Button
+                      size="sm"
+                      disabled={!hasUnsavedChanges || isSaving}
+                      onClick={handleSaveRolePermissions}
+                      className="h-8 gap-1.5 rounded-md bg-[#0090FF] text-xs font-semibold text-white shadow-none hover:bg-[#0080e5] disabled:opacity-50"
+                    >
+                      <Save className="h-3.5 w-3.5" />
+                      {isSaving ? "Saving..." : "Save Permissions"}
+                    </Button>
+</PermissionGate>
                 </div>
               </div>
 
@@ -997,7 +1160,7 @@ export default function RBACManagementPage() {
                       <TableHead className="w-14 text-center">Create</TableHead>
                       <TableHead className="w-14 text-center">Edit</TableHead>
                       <TableHead className="w-14 text-center">Delete</TableHead>
-                      <TableHead className="pr-0">Statutory Special Action</TableHead>
+                      <TableHead className="pr-0">Analytics View</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1017,61 +1180,55 @@ export default function RBACManagementPage() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(perm.read)}
-                            onChange={() => handleTogglePermission(perm.module, "read")}
-                            className="h-3.5 w-3.5 cursor-pointer rounded border-slate-300 text-[#0090FF] focus:ring-0"
-                          />
-                        </TableCell>
-
-                        <TableCell className="py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(perm.create)}
-                            onChange={() => handleTogglePermission(perm.module, "create")}
-                            className="h-3.5 w-3.5 cursor-pointer rounded border-slate-300 text-[#0090FF] focus:ring-0"
-                          />
-                        </TableCell>
-
-                        <TableCell className="py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(perm.edit)}
-                            onChange={() => handleTogglePermission(perm.module, "edit")}
-                            className="h-3.5 w-3.5 cursor-pointer rounded border-slate-300 text-[#0090FF] focus:ring-0"
-                          />
-                        </TableCell>
-
-                        <TableCell className="py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(perm.delete)}
-                            onChange={() => handleTogglePermission(perm.module, "delete")}
-                            className="h-3.5 w-3.5 cursor-pointer rounded border-slate-300 text-[#0090FF] focus:ring-0"
-                          />
-                        </TableCell>
+                        {(["read", "create", "edit", "delete"] as const).map((action) => (
+                          <TableCell key={action} className="py-3 text-center">
+                            {allowsAction(perm, action) ? (
+                              <input
+                                type="checkbox"
+                                checked={Boolean(perm[action])}
+                                onChange={() => handleTogglePermission(perm.module, action)}
+                                className="h-3.5 w-3.5 cursor-pointer rounded border-slate-300 text-[#0090FF] focus:ring-0"
+                              />
+                            ) : (
+                              <span className="text-[10px] text-slate-300">—</span>
+                            )}
+                          </TableCell>
+                        ))}
 
                         <TableCell className="py-3 pr-0">
-                          {perm.specialAction ? (
-                            <div className="flex items-center justify-between rounded-md border border-slate-100 bg-slate-50 px-2.5 py-1">
-                              <span className="max-w-[210px] truncate text-[11px] font-medium text-slate-700">
-                                {perm.specialAction}
+                          <div className="flex min-w-[220px] flex-col gap-1.5">
+                            {(perm.overviews || []).length > 0 ? (
+                              <div className="flex items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50 px-2.5 py-1">
+                                <span className="text-[11px] font-medium text-slate-700">
+                                  Page Overview
+                                </span>
+                                <Switch
+                                  checked={moduleOverviewAllowed(perm)}
+                                  onCheckedChange={() => handleToggleModuleOverview(perm.module)}
+                                  className="scale-75"
+                                />
+                              </div>
+                            ) : null}
+                            {perm.specialAction ? (
+                              <div className="flex items-center justify-between gap-2 rounded-md border border-amber-100 bg-amber-50/70 px-2.5 py-1">
+                                <span className="text-[11px] font-medium text-slate-700">
+                                  {perm.specialAction}
+                                </span>
+                                <Switch
+                                  checked={Boolean(perm.specialGranted)}
+                                  onCheckedChange={() =>
+                                    handleTogglePermission(perm.module, "specialGranted")
+                                  }
+                                  className="scale-75"
+                                />
+                              </div>
+                            ) : null}
+                            {!perm.specialAction && (perm.overviews || []).length === 0 ? (
+                              <span className="text-[10px] text-slate-400 italic">
+                                Standard role tier
                               </span>
-                              <Switch
-                                checked={Boolean(perm.specialGranted)}
-                                onCheckedChange={() =>
-                                  handleTogglePermission(perm.module, "specialGranted")
-                                }
-                                className="scale-75"
-                              />
-                            </div>
-                          ) : (
-                            <span className="text-[10px] text-slate-400 italic">
-                              Standard role tier
-                            </span>
-                          )}
+                            ) : null}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1096,7 +1253,7 @@ export default function RBACManagementPage() {
                 PROVISIONED DATABASE CREDENTIALS & OPERATOR DELEGATIONS
               </span>
               <Badge variant="outline" className="text-[10px] font-semibold text-slate-600">
-                {filteredUsers.length} of {assignments.length} Logins
+                {usersTotal} {usersTotal === 1 ? "Operator" : "Operators"}
               </Badge>
             </div>
             <p className="mt-0.5 text-xs text-slate-400">
@@ -1113,12 +1270,21 @@ export default function RBACManagementPage() {
                 placeholder="Search operator, email, role..."
                 value={searchUserQuery}
                 onChange={(e) => setSearchUserQuery(e.target.value)}
-                className="h-8 w-[220px] border-slate-200 bg-slate-50/50 pl-8 text-xs"
+                className="h-8 w-[220px] border-slate-200 bg-slate-50/50 pl-8 pr-7 text-xs"
               />
+              {isUsersLoading && (
+                <RefreshCw className="absolute top-2.5 right-2.5 h-3 w-3 animate-spin text-slate-400" />
+              )}
             </div>
 
             {/* Role Filter */}
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <Select
+              value={roleFilter}
+              onValueChange={(val) => {
+                setRoleFilter(val)
+                setUsersPage(1)
+              }}
+            >
               <SelectTrigger className="h-8 w-[140px] bg-white text-xs">
                 <SelectValue placeholder="All Roles" />
               </SelectTrigger>
@@ -1133,7 +1299,13 @@ export default function RBACManagementPage() {
             </Select>
 
             {/* Status Filter */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select
+              value={statusFilter}
+              onValueChange={(val) => {
+                setStatusFilter(val)
+                setUsersPage(1)
+              }}
+            >
               <SelectTrigger className="h-8 w-[120px] bg-white text-xs">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
@@ -1143,6 +1315,8 @@ export default function RBACManagementPage() {
                 <SelectItem value="Restricted">Restricted</SelectItem>
               </SelectContent>
             </Select>
+
+
           </div>
         </div>
 
@@ -1168,7 +1342,16 @@ export default function RBACManagementPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredUsers.length === 0 ? (
+            {isUsersLoading && assignments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-xs text-slate-400">
+                  <div className="flex items-center justify-center gap-2">
+                    <RefreshCw className="h-4 w-4 animate-spin text-slate-400" />
+                    <span>Loading provisioned credentials...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : assignments.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="py-8 text-center text-xs text-slate-400">
                   No provisioned users found matching current filters. Click{" "}
@@ -1247,20 +1430,22 @@ export default function RBACManagementPage() {
                     <TableCell className="py-3 pr-0 text-right text-xs">
                       <div className="flex items-center justify-end gap-1">
                         {/* Edit & Reassign Role Button */}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={!canEditOperator}
-                          onClick={() => canEditOperator && handleOpenEditUser(user)}
-                          className="h-7 w-7 p-0 text-slate-500 hover:bg-slate-100 hover:text-blue-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                          title={
-                            !canEditOperator
-                              ? "Super Administrator credentials can only be edited by a Super Administrator"
-                              : "Edit Operator Credentials & Role"
-                          }
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <PermissionGate feature="Role Permissions (RBAC)" action="edit">
+<Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={!canEditOperator}
+                            onClick={() => canEditOperator && handleOpenEditUser(user)}
+                            className="h-7 w-7 p-0 text-slate-500 hover:bg-slate-100 hover:text-blue-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                            title={
+                              !canEditOperator
+                                ? "Super Administrator credentials can only be edited by a Super Administrator"
+                                : "Edit Operator Credentials & Role"
+                            }
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </Button>
+</PermissionGate>
 
                         {/* Toggle Account Status */}
                         <Button
@@ -1285,20 +1470,22 @@ export default function RBACManagementPage() {
                         </Button>
 
                         {/* Delete / Revoke Account */}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={isUserSuperAdminRole}
-                          onClick={() => !isUserSuperAdminRole && handleOpenDeleteModal(user.id, user.name)}
-                          className="h-7 w-7 p-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                          title={
-                            isUserSuperAdminRole
-                              ? "Super Administrator credentials cannot be deleted or revoked"
-                              : "Revoke Database Account"
-                          }
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <PermissionGate feature="Role Permissions (RBAC)" action="delete">
+<Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={isUserSuperAdminRole}
+                            onClick={() => !isUserSuperAdminRole && handleOpenDeleteModal(user.id, user.name)}
+                            className="h-7 w-7 p-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                            title={
+                              isUserSuperAdminRole
+                                ? "Super Administrator credentials cannot be deleted or revoked"
+                                : "Revoke Database Account"
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+</PermissionGate>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1307,6 +1494,19 @@ export default function RBACManagementPage() {
             )}
           </TableBody>
         </Table>
+
+        <ServerListPagination
+          page={usersPage}
+          totalPages={usersTotalPages}
+          total={usersTotal}
+          limit={usersLimit}
+          loading={isUsersLoading}
+          onPageChange={setUsersPage}
+          onLimitChange={(nextLimit) => {
+            setUsersLimit(nextLimit)
+            setUsersPage(1)
+          }}
+        />
       </Card>
 
       {/* 5. Provision Operator Modal */}

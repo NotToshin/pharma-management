@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -804,14 +806,16 @@ export default function ActiveInventoryLedgerPage() {
               Export Excel
             </Button>
 
-            <Button
-              size="sm"
-              onClick={handleOpenAdd}
-              className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-bold text-white shadow-sm hover:bg-[#0080e5] focus:ring-2 focus:ring-[#0090FF]/20"
-            >
-              <Plus className="h-4 w-4" />
-              Receive New Batch
-            </Button>
+            <PermissionGate feature="Stock Inventory" action="create">
+<Button
+                size="sm"
+                onClick={handleOpenAdd}
+                className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-bold text-white shadow-sm hover:bg-[#0080e5] focus:ring-2 focus:ring-[#0090FF]/20"
+              >
+                <Plus className="h-4 w-4" />
+                Receive New Batch
+              </Button>
+</PermissionGate>
           </div>
         </div>
       </div>
@@ -819,7 +823,8 @@ export default function ActiveInventoryLedgerPage() {
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Card 1: Valuation */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+<PermissionGate feature="Stock Inventory" action="overview:valuation">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
               Gross Batch Valuation
@@ -836,9 +841,11 @@ export default function ActiveInventoryLedgerPage() {
             <span className="font-semibold text-emerald-600">Audited Basis</span>
           </div>
         </Card>
+</PermissionGate>
 
         {/* Card 2: Stock Units */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+<PermissionGate feature="Stock Inventory" action="overview:volume">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
               Available Stock Volume
@@ -857,9 +864,11 @@ export default function ActiveInventoryLedgerPage() {
             <span>{(totalPacks - coldChainUnits).toLocaleString()} Ambient</span>
           </div>
         </Card>
+</PermissionGate>
 
         {/* Card 3: FEFO Dispatch Priority */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+<PermissionGate feature="Stock Inventory" action="overview:fefoPriority">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
               FEFO Priority Dispatch
@@ -879,9 +888,11 @@ export default function ActiveInventoryLedgerPage() {
             <span className="text-slate-400">FEFO #1 Priority</span>
           </div>
         </Card>
+</PermissionGate>
 
         {/* Card 4: Quality & Quarantine */}
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+<PermissionGate feature="Stock Inventory" action="overview:quarantineAlert">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
               Quarantine & Expiry Alert
@@ -905,6 +916,7 @@ export default function ActiveInventoryLedgerPage() {
             <span className="text-rose-600 font-semibold">{expiredCount} Expired</span>
           </div>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Comprehensive Filter Toolbars */}
@@ -1204,15 +1216,17 @@ export default function ActiveInventoryLedgerPage() {
                           <span className={batch.availableUnits === 0 ? "text-rose-500 font-extrabold" : ""}>
                             {batch.availableUnits.toLocaleString()}
                           </span>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleOpenStockAdjust(batch, "IN")}
-                            className="h-5 w-5 p-0 text-slate-400 hover:text-emerald-600"
-                            title="Quick Stock Adjustment (+ / -)"
-                          >
-                            <Pencil className="h-2.5 w-2.5" />
-                          </Button>
+                          <PermissionGate feature="Stock Inventory" action="edit">
+<Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleOpenStockAdjust(batch, "IN")}
+                              className="h-5 w-5 p-0 text-slate-400 hover:text-emerald-600"
+                              title="Quick Stock Adjustment (+ / -)"
+                            >
+                              <Pencil className="h-2.5 w-2.5" />
+                            </Button>
+</PermissionGate>
                         </div>
                       </TableCell>
 
@@ -1291,13 +1305,15 @@ export default function ActiveInventoryLedgerPage() {
                               View Batch Passport & Label
                             </DropdownMenuItem>
 
-                            <DropdownMenuItem
-                              onClick={() => handleOpenEdit(batch)}
-                              className="cursor-pointer text-xs text-slate-700"
-                            >
-                              <Pencil className="mr-2 h-3.5 w-3.5 text-slate-500" />
-                              Edit Batch Details
-                            </DropdownMenuItem>
+                            <PermissionGate feature="Stock Inventory" action="edit">
+<DropdownMenuItem
+                                onClick={() => handleOpenEdit(batch)}
+                                className="cursor-pointer text-xs text-slate-700"
+                              >
+                                <Pencil className="mr-2 h-3.5 w-3.5 text-slate-500" />
+                                Edit Batch Details
+                              </DropdownMenuItem>
+</PermissionGate>
 
                             <DropdownMenuSeparator />
 
@@ -1317,35 +1333,41 @@ export default function ActiveInventoryLedgerPage() {
                               Stock Outward / Dispatch (-)
                             </DropdownMenuItem>
 
-                            <DropdownMenuItem
-                              onClick={() => handleOpenStockAdjust(batch, "DAMAGE")}
-                              className="cursor-pointer text-xs text-rose-600 font-medium"
-                            >
-                              <AlertTriangle className="mr-2 h-3.5 w-3.5 text-rose-600" />
-                              Write-off (Damaged/Broken)
-                            </DropdownMenuItem>
+                            <PermissionGate feature="Stock Inventory" action="special">
+<DropdownMenuItem
+                                onClick={() => handleOpenStockAdjust(batch, "DAMAGE")}
+                                className="cursor-pointer text-xs text-rose-600 font-medium"
+                              >
+                                <AlertTriangle className="mr-2 h-3.5 w-3.5 text-rose-600" />
+                                Write-off (Damaged/Broken)
+                              </DropdownMenuItem>
+</PermissionGate>
 
                             <DropdownMenuSeparator />
 
-                            <DropdownMenuItem
-                              onClick={() => handleOpenQuarantine(batch)}
-                              className={`cursor-pointer text-xs font-semibold ${
-                                batch.isQuarantined ? "text-emerald-700" : "text-purple-700"
-                              }`}
-                            >
-                              <ShieldAlert className="mr-2 h-3.5 w-3.5" />
-                              {batch.isQuarantined ? "Release from Quarantine" : "Quarantine Batch (Hold)"}
-                            </DropdownMenuItem>
+                            <PermissionGate feature="Stock Inventory" action="special">
+<DropdownMenuItem
+                                onClick={() => handleOpenQuarantine(batch)}
+                                className={`cursor-pointer text-xs font-semibold ${
+                                  batch.isQuarantined ? "text-emerald-700" : "text-purple-700"
+                                }`}
+                              >
+                                <ShieldAlert className="mr-2 h-3.5 w-3.5" />
+                                {batch.isQuarantined ? "Release from Quarantine" : "Quarantine Batch (Hold)"}
+                              </DropdownMenuItem>
+</PermissionGate>
 
                             <DropdownMenuSeparator />
 
-                            <DropdownMenuItem
-                              onClick={() => handleOpenDeleteModal(batch)}
-                              className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
-                            >
-                              <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-600" />
-                              Delete Batch Record
-                            </DropdownMenuItem>
+                            <PermissionGate feature="Stock Inventory" action="delete">
+<DropdownMenuItem
+                                onClick={() => handleOpenDeleteModal(batch)}
+                                className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
+                              >
+                                <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-600" />
+                                Delete Batch Record
+                              </DropdownMenuItem>
+</PermissionGate>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -1810,29 +1832,31 @@ export default function ActiveInventoryLedgerPage() {
 
             <DialogFooter className="pt-2">
               <Button
-                type="button"
-                variant="outline"
-                onClick={() => setQuarantineTarget(null)}
-                disabled={isQuarantining}
-                className="h-9 text-xs"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isQuarantining}
-                className={`h-9 text-xs font-bold text-white ${
-                  quarantineAction === "QUARANTINE"
-                    ? "bg-purple-700 hover:bg-purple-800"
-                    : "bg-emerald-600 hover:bg-emerald-700"
-                }`}
-              >
-                {isQuarantining
-                  ? "Processing..."
-                  : quarantineAction === "QUARANTINE"
-                  ? "Authorize Quarantine Hold"
-                  : "Authorize QA Release"}
-              </Button>
+                  type="button"
+                  variant="outline"
+                  onClick={() => setQuarantineTarget(null)}
+                  disabled={isQuarantining}
+                  className="h-9 text-xs"
+                >
+                  Cancel
+                </Button>
+              <PermissionGate feature="Stock Inventory" action="special">
+<Button
+                  type="submit"
+                  disabled={isQuarantining}
+                  className={`h-9 text-xs font-bold text-white ${
+                    quarantineAction === "QUARANTINE"
+                      ? "bg-purple-700 hover:bg-purple-800"
+                      : "bg-emerald-600 hover:bg-emerald-700"
+                  }`}
+                >
+                  {isQuarantining
+                    ? "Processing..."
+                    : quarantineAction === "QUARANTINE"
+                    ? "Authorize Quarantine Hold"
+                    : "Authorize QA Release"}
+                </Button>
+</PermissionGate>
             </DialogFooter>
           </form>
         </DialogContent>

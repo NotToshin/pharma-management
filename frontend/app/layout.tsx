@@ -36,7 +36,8 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Shield, User, LogOut, Camera, ShieldAlert, ArrowLeft } from "lucide-react"
 import { Toaster } from "@/components/ui/toaster"
-import { isAuthenticated, getStoredUser, logout, isUserSuperAdmin } from "@/lib/auth"
+import { isAuthenticated, getStoredUser, logout } from "@/lib/auth"
+import { featureForPath, userCan } from "@/lib/permissions"
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -71,28 +72,6 @@ const routeTitleMap: Record<string, string> = {
   "/hr/salary": "Salary",
   "/settings/rbac": "Role Permissions (RBAC)",
   "/settings/audit-logs": "Audit Logs (21 CFR Compliant)",
-}
-
-const routeModuleAliases: Record<string, string[]> = {
-  "/dashboard": ["dashboard", "executive dashboard"],
-  "/analytics/targets": ["target vs achievement", "target vs. achievement"],
-  "/analytics/territories": ["territory sales breakdown"],
-  "/field-force/zones": ["mio zone allocation", "mio zone allocations"],
-  "/doctors/database": ["doctors list", "master doctor database"],
-  "/field-force/visit-logs": ["doctor visit logs"],
-  "/inventory/ledger": ["stock inventory", "active inventory ledger (fefo)"],
-  "/inventory/adjustments": ["stock adjustments"],
-  "/procurement/orders": ["wholesale purchase orders", "wholesaler purchase orders"],
-  "/logistics/orders": ["sales orders", "delivery logistics & orders"],
-  "/sales/clients": ["pharmacy clients"],
-  "/finance/overview": ["treasury overview", "treasury & finance overview"],
-  "/finance/bank-ledger": ["bank accounts ledger"],
-  "/finance/collections": ["delivery cash collections"],
-  "/finance/payments": ["payments", "expense & vendor payments"],
-  "/finance/supplier-payments": ["supplier payments"],
-  "/hr/staff-directory": ["staff directory & roles"],
-  "/hr/salary": ["salary", "payroll & salary"],
-  "/settings/audit-logs": ["audit logs (21 cfr compliant)", "audit logs (21 cfr part 11)"],
 }
 
 function getPageTitle(pathname: string): string {
@@ -166,39 +145,23 @@ export default function RootLayout({
     document.title = `AK-Pharma | ${pageName}`
   }, [pathname])
 
-  const isSuperAdminUser = React.useMemo(() => {
-    return isUserSuperAdmin({
-      id: "",
-      name: userData.name,
-      email: userData.email,
-      role: userData.role || userData.roleName || "",
-      roleName: userData.roleName,
-    })
-  }, [userData.roleName, userData.role, userData.name, userData.email])
-
   const isCurrentPageAllowed = React.useMemo(() => {
-    if (isSuperAdminUser) return true
-    if (pathname === "/dashboard" || pathname === "/login" || pathname === "/") return true
-    if (pathname === "/settings/rbac") return false // Super Admin exclusive
-
-    const permissions = userData.permissions || []
-    if (permissions.length === 0) return true // fallback allow
-
-    const routeKey = Object.keys(routeModuleAliases)
-      .sort((a, b) => b.length - a.length)
-      .find((route) => pathname === route || pathname.startsWith(`${route}/`))
-    const aliases = routeKey ? routeModuleAliases[routeKey] : []
-    const perm = permissions.find((p: any) => {
-      if (!p) return false
-      return aliases.includes((p.module || "").toLowerCase())
-    })
-
-    if (perm) {
-      return Boolean(perm.read)
-    }
-
-    return true
-  }, [isSuperAdminUser, pathname, userData.permissions])
+    if (pathname === "/login" || pathname === "/") return true
+    const feature = featureForPath(pathname)
+    if (!feature) return true
+    return userCan(
+      {
+        id: "",
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        roleName: userData.roleName,
+        permissions: userData.permissions,
+      },
+      feature,
+      "view"
+    )
+  }, [pathname, userData])
 
   const handleLogout = () => {
     logout()

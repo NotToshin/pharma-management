@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import { getEndpoint, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -1066,27 +1068,31 @@ export default function DoctorMasterDatabasePage() {
             Export to Excel
           </Button>
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleOpenImportModal}
-            className="h-9 gap-1.5 rounded-lg border-purple-200 bg-purple-50/70 px-3.5 text-xs font-semibold text-purple-700 shadow-none hover:bg-purple-100 hover:text-purple-800"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5 text-purple-600" />
-            Import Doctor
-          </Button>
+          <PermissionGate feature="Doctors List" action="create">
+<Button
+              size="sm"
+              variant="outline"
+              onClick={handleOpenImportModal}
+              className="h-9 gap-1.5 rounded-lg border-purple-200 bg-purple-50/70 px-3.5 text-xs font-semibold text-purple-700 shadow-none hover:bg-purple-100 hover:text-purple-800"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-purple-600" />
+              Import Doctor
+            </Button>
+</PermissionGate>
 
           {/* Add Doctor Dialog */}
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-              >
-                <Plus className="h-4 w-4" />
-                Add New Doctor
-              </Button>
-            </DialogTrigger>
+            <PermissionGate feature="Doctors List" action="create">
+<DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add New Doctor
+                </Button>
+              </DialogTrigger>
+</PermissionGate>
             <DialogContent className="max-h-[90vh] overflow-y-auto rounded-xl bg-white sm:max-w-[540px]">
               <DialogHeader>
                 <DialogTitle className="text-base font-bold text-slate-900">
@@ -1548,7 +1554,8 @@ export default function DoctorMasterDatabasePage() {
 
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctors List" action="overview:registered">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Total Registered Doctors
@@ -1564,8 +1571,10 @@ export default function DoctorMasterDatabasePage() {
             Total active practitioners in database
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctors List" action="overview:tierA">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Tier A & A+ High Yield
@@ -1581,8 +1590,10 @@ export default function DoctorMasterDatabasePage() {
             Priority call targets for field force
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctors List" action="overview:footfall">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Daily Patient Footfall
@@ -1598,8 +1609,10 @@ export default function DoctorMasterDatabasePage() {
             Cumulative consultation reach
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctors List" action="overview:exportBackup">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Export & Backup
@@ -1618,6 +1631,7 @@ export default function DoctorMasterDatabasePage() {
             Direct table export ready
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Filter Bar */}
@@ -1883,21 +1897,25 @@ export default function DoctorMasterDatabasePage() {
                         <FileText className="mr-2 h-3.5 w-3.5 text-blue-600" />
                         View Full Portfolio
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleOpenEdit(doc)}
-                        className="cursor-pointer text-xs text-slate-700"
-                      >
-                        <Pencil className="mr-2 h-3.5 w-3.5 text-slate-500" />
-                        Edit Profile
-                      </DropdownMenuItem>
+                      <PermissionGate feature="Doctors List" action="edit">
+<DropdownMenuItem
+                          onClick={() => handleOpenEdit(doc)}
+                          className="cursor-pointer text-xs text-slate-700"
+                        >
+                          <Pencil className="mr-2 h-3.5 w-3.5 text-slate-500" />
+                          Edit Profile
+                        </DropdownMenuItem>
+</PermissionGate>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => promptDeleteDoctor(doc)}
-                        className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
-                      >
-                        <Trash2 className="mr-2 h-3.5 w-3.5" />
-                        Delete Doctor
-                      </DropdownMenuItem>
+                      <PermissionGate feature="Doctors List" action="delete">
+<DropdownMenuItem
+                          onClick={() => promptDeleteDoctor(doc)}
+                          className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
+                        >
+                          <Trash2 className="mr-2 h-3.5 w-3.5" />
+                          Delete Doctor
+                        </DropdownMenuItem>
+</PermissionGate>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -2034,14 +2052,16 @@ export default function DoctorMasterDatabasePage() {
                     <Phone className="h-3.5 w-3.5" />
                     Call {selectedDoctor.contactNumber}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                    onClick={() => handleOpenEdit(selectedDoctor)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
+                  <PermissionGate feature="Doctors List" action="edit">
+<Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                      onClick={() => handleOpenEdit(selectedDoctor)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+</PermissionGate>
                 </div>
               </div>
 
@@ -2178,15 +2198,17 @@ export default function DoctorMasterDatabasePage() {
               </div>
 
               <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 p-4">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => promptDeleteDoctor(selectedDoctor)}
-                  className="h-8 text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                >
-                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                  Delete Doctor
-                </Button>
+                <PermissionGate feature="Doctors List" action="delete">
+<Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => promptDeleteDoctor(selectedDoctor)}
+                    className="h-8 text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    Delete Doctor
+                  </Button>
+</PermissionGate>
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"

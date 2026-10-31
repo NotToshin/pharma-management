@@ -79,8 +79,9 @@ export const auditLogService = {
   async getAllLogs(filters?: QueryAuditLogInput) {
     const where: any = {};
 
-    if (filters?.search && filters.search.trim()) {
-      const s = filters.search.trim();
+    const searchValue = (filters?.search || filters?.searchTerm || "").trim();
+    if (searchValue) {
+      const s = searchValue;
       where.OR = [
         { auditRef: { contains: s, mode: "insensitive" } },
         { actorName: { contains: s, mode: "insensitive" } },
@@ -112,14 +113,27 @@ export const auditLogService = {
     }
 
     const page = Math.max(1, parseInt(filters?.page || "1", 10) || 1);
-    const limit = Math.min(200, Math.max(1, parseInt(filters?.limit || "50", 10) || 50));
+    const limit = Math.min(200, Math.max(1, parseInt(filters?.limit || "10", 10) || 10));
     const skip = (page - 1) * limit;
+    const allowedSortFields = [
+      "timestamp",
+      "createdAt",
+      "auditRef",
+      "actorName",
+      "module",
+      "severity",
+      "actionType",
+    ];
+    const sortBy = allowedSortFields.includes(filters?.sortBy || "")
+      ? (filters?.sortBy as string)
+      : "timestamp";
+    const sortOrder = filters?.sortOrder === "asc" ? "asc" : "desc";
 
     const [total, rawLogs] = await Promise.all([
       prisma.auditLog.count({ where }),
       prisma.auditLog.findMany({
         where,
-        orderBy: { timestamp: "desc" },
+        orderBy: { [sortBy]: sortOrder },
         skip,
         take: limit,
       }),
@@ -138,6 +152,7 @@ export const auditLogService = {
         page,
         limit,
         totalPages: Math.ceil(total / limit) || 1,
+        totalPage: Math.ceil(total / limit) || 1,
       },
     };
   },

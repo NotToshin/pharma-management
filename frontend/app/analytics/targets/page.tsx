@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import {
   Card,
@@ -652,15 +654,17 @@ export default function TargetVsAchievementPage() {
 
           {/* Add MIO Target Modal */}
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0080e5] transition-all"
-              >
-                <Plus className="h-4 w-4" />
-                Add MIO Target
-              </Button>
-            </DialogTrigger>
+            <PermissionGate feature="Target Vs Achievement" action="create">
+<DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0080e5] transition-all"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add MIO Target
+                </Button>
+              </DialogTrigger>
+</PermissionGate>
             <DialogContent className="rounded-2xl border border-slate-200 bg-white sm:max-w-[480px] shadow-xl">
               <DialogHeader>
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#0090FF]">
@@ -890,7 +894,8 @@ export default function TargetVsAchievementPage() {
       {/* 2. Dynamic Real Database KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Card 1: Gross Quota Target */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-shadow hover:shadow-sm">
+<PermissionGate feature="Target Vs Achievement" action="overview:grossQuota">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Gross Quota Target
@@ -908,9 +913,11 @@ export default function TargetVsAchievementPage() {
               : `Across ${targets.length} Active MIO Field Quotas`}
           </p>
         </Card>
+</PermissionGate>
 
         {/* Card 2: Total Realized Achieved */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-shadow hover:shadow-sm">
+<PermissionGate feature="Target Vs Achievement" action="overview:realizedAchieved">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Total Realized Achieved
@@ -937,9 +944,11 @@ export default function TargetVsAchievementPage() {
             <ArrowUpRight className="h-3.5 w-3.5 text-slate-600" />
           </div>
         </Card>
+</PermissionGate>
 
         {/* Card 3: Top Performing MIO */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-shadow hover:shadow-sm">
+<PermissionGate feature="Target Vs Achievement" action="overview:topMio">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Top Performing MIO
@@ -957,9 +966,11 @@ export default function TargetVsAchievementPage() {
               : "No quota allocations yet"}
           </p>
         </Card>
+</PermissionGate>
 
         {/* Card 4: Behind Quota Target */}
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-shadow hover:shadow-sm">
+        <PermissionGate feature="Target Vs Achievement" action="overview:behindQuota">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Behind Quota Target
@@ -977,10 +988,12 @@ export default function TargetVsAchievementPage() {
               : `${onTrackCount} on track • ${underperformingCount} tracking below 90%`}
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Bar Chart based on current real database MIO targets */}
-      <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
+<PermissionGate feature="Target Vs Achievement" action="overview:varianceChart">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
         <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
@@ -1093,6 +1106,7 @@ export default function TargetVsAchievementPage() {
           )}
         </div>
       </Card>
+</PermissionGate>
 
       {/* 4. MIO Performance Ledger with Territory Sorting, Filtering & Search */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
@@ -1439,21 +1453,25 @@ export default function TargetVsAchievementPage() {
                           <DropdownMenuLabel className="text-[11px] text-slate-500">
                             Quota Actions
                           </DropdownMenuLabel>
-                          <DropdownMenuItem
-                            onClick={() => openEditModal(row)}
-                            className="cursor-pointer gap-2 text-xs"
-                          >
-                            <Pencil className="h-3.5 w-3.5 text-slate-600" />
-                            Edit Quota
-                          </DropdownMenuItem>
+                          <PermissionGate feature="Target Vs Achievement" action="edit" also="special">
+<DropdownMenuItem
+                              onClick={() => openEditModal(row)}
+                              className="cursor-pointer gap-2 text-xs"
+                            >
+                              <Pencil className="h-3.5 w-3.5 text-slate-600" />
+                              Edit Quota
+                            </DropdownMenuItem>
+</PermissionGate>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => openDeleteModal(row)}
-                            className="cursor-pointer gap-2 text-xs text-rose-600 focus:text-rose-600"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Delete Target
-                          </DropdownMenuItem>
+                          <PermissionGate feature="Target Vs Achievement" action="delete">
+<DropdownMenuItem
+                              onClick={() => openDeleteModal(row)}
+                              className="cursor-pointer gap-2 text-xs text-rose-600 focus:text-rose-600"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete Target
+                            </DropdownMenuItem>
+</PermissionGate>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

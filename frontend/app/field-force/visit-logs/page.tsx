@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -675,15 +677,17 @@ export default function DoctorVisitLogsPage() {
             Export Excel
           </Button>
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
-          >
-            <Upload className="h-3.5 w-3.5 text-blue-600" />
-            Import Excel
-          </Button>
+          <PermissionGate feature="Doctor Visit Logs" action="create">
+<Button
+              size="sm"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
+            >
+              <Upload className="h-3.5 w-3.5 text-blue-600" />
+              Import Excel
+            </Button>
+</PermissionGate>
 
           <Button
             size="sm"
@@ -697,15 +701,17 @@ export default function DoctorVisitLogsPage() {
 
           {/* New Call Log Dialog */}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-              >
-                <Plus className="h-4 w-4" />
-                Log Doctor Call
-              </Button>
-            </DialogTrigger>
+            <PermissionGate feature="Doctor Visit Logs" action="create">
+<DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+                >
+                  <Plus className="h-4 w-4" />
+                  Log Doctor Call
+                </Button>
+              </DialogTrigger>
+</PermissionGate>
             <DialogContent className="rounded-xl bg-white sm:max-w-[480px]">
               <DialogHeader>
                 <DialogTitle className="text-base font-bold text-slate-900">
@@ -981,7 +987,8 @@ export default function DoctorVisitLogsPage() {
 
       {/* 2. Top Metric Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctor Visit Logs" action="overview:visits">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Total Visits Logged
@@ -997,8 +1004,10 @@ export default function DoctorVisitLogsPage() {
             Physicians visited across territories
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctor Visit Logs" action="overview:highPotential">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               High Potential Calls
@@ -1014,8 +1023,10 @@ export default function DoctorVisitLogsPage() {
             Committed to active prescription
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctor Visit Logs" action="overview:successRate">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Call Success Rate
@@ -1034,8 +1045,10 @@ export default function DoctorVisitLogsPage() {
             Positive conversion index
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Doctor Visit Logs" action="overview:samples">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Samples Handed Out
@@ -1051,6 +1064,7 @@ export default function DoctorVisitLogsPage() {
             Sample reconciliation verified
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Filter Bar */}
@@ -1233,21 +1247,25 @@ export default function DoctorVisitLogsPage() {
                             align="end"
                             className="w-36 bg-white"
                           >
-                            <DropdownMenuItem
-                              onClick={() => handleOpenEdit(item)}
-                              className="cursor-pointer text-xs text-slate-700"
-                            >
-                              <Pencil className="mr-2 h-3.5 w-3.5 text-slate-500" />
-                              Edit Call
-                            </DropdownMenuItem>
+                            <PermissionGate feature="Doctor Visit Logs" action="edit">
+<DropdownMenuItem
+                                onClick={() => handleOpenEdit(item)}
+                                className="cursor-pointer text-xs text-slate-700"
+                              >
+                                <Pencil className="mr-2 h-3.5 w-3.5 text-slate-500" />
+                                Edit Call
+                              </DropdownMenuItem>
+</PermissionGate>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => promptDeleteLog(item)}
-                              className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
-                            >
-                              <Trash2 className="mr-2 h-3.5 w-3.5" />
-                              Delete
-                            </DropdownMenuItem>
+                            <PermissionGate feature="Doctor Visit Logs" action="delete">
+<DropdownMenuItem
+                                onClick={() => promptDeleteLog(item)}
+                                className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
+                              >
+                                <Trash2 className="mr-2 h-3.5 w-3.5" />
+                                Delete
+                              </DropdownMenuItem>
+</PermissionGate>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>

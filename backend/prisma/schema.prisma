@@ -564,6 +564,7 @@ model RolePermission {
   delete         Boolean    @default(false)
   specialAction  String?    // e.g. "Override Credit Hold"
   specialGranted Boolean    @default(false)
+  overviewGrants Json?      // per-card analytics visibility, keyed by module catalog
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
