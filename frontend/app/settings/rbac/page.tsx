@@ -10,6 +10,15 @@ import { getStoredUser, isUserSuperAdmin, AuthUser } from "@/lib/auth"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -155,6 +164,16 @@ export default function RBACManagementPage() {
   const [statusFilter, setStatusFilter] = React.useState<string>("ALL")
   const [matrixCategoryFilter, setMatrixCategoryFilter] = React.useState<string>("ALL")
 
+  // Server-side Pagination & Stats for Provisioned Users
+  const [debouncedSearch, setDebouncedSearch] = React.useState("")
+  const [usersPage, setUsersPage] = React.useState(1)
+  const [usersLimit, setUsersLimit] = React.useState(10)
+  const [usersTotal, setUsersTotal] = React.useState(0)
+  const [usersTotalPages, setUsersTotalPages] = React.useState(1)
+  const [totalActiveCount, setTotalActiveCount] = React.useState(0)
+  const [totalRestrictedCount, setTotalRestrictedCount] = React.useState(0)
+  const [isUsersLoading, setIsUsersLoading] = React.useState(false)
+
   // Matrix edit tracking
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
@@ -203,54 +222,121 @@ export default function RBACManagementPage() {
     }
   }, [])
 
+  // Debounce search query to trigger backend filtering
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchUserQuery)
+      setUsersPage(1)
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [searchUserQuery])
+
   // 2. Data Fetching via apiFetch with unwrap
+  const fetchRoles = React.useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_URL}/rbac/roles`)
+      if (res && res.ok) {
+        const raw = await res.json()
+        const rolesData: SystemRole[] = Array.isArray(raw) ? raw : raw?.data || []
+        if (Array.isArray(rolesData) && rolesData.length > 0) {
+          setRoles(rolesData)
+          setSelectedRoleId((curr) => {
+            if (curr && rolesData.some((r) => r.id === curr)) return curr
+            return rolesData[0].id
+          })
+        }
+      } else if (res && res.status === 403) {
+        setIsAuthorized(false)
+      }
+    } catch (err) {
+      console.error("Error loading roles:", err)
+    }
+  }, [])
+
+  const fetchUsers = React.useCallback(
+    async (targetPage = usersPage, targetLimit = usersLimit) => {
+      try {
+        setIsUsersLoading(true)
+        const params = new URLSearchParams()
+        params.set("page", String(targetPage))
+        params.set("limit", String(targetLimit))
+
+        if (debouncedSearch.trim()) {
+          params.set("searchTerm", debouncedSearch.trim())
+        }
+        if (roleFilter !== "ALL") {
+          params.set("role", roleFilter)
+        }
+        if (statusFilter !== "ALL") {
+          params.set("status", statusFilter)
+        }
+
+        const res = await apiFetch(`${API_URL}/rbac/users?${params.toString()}`)
+        if (res && res.ok) {
+          const json = await res.json()
+          const usersData: UserAssignment[] = Array.isArray(json)
+            ? json
+            : json?.data || []
+          setAssignments(usersData)
+
+          const meta = json?.meta || {}
+          const total = meta.total !== undefined ? meta.total : usersData.length
+          setUsersTotal(total)
+          setUsersTotalPages(
+            meta.totalPage ||
+              (targetLimit > 0 ? Math.max(1, Math.ceil(total / targetLimit)) : 1) ||
+              1
+          )
+
+          if (meta.totalActive !== undefined) {
+            setTotalActiveCount(meta.totalActive)
+          } else {
+            setTotalActiveCount(usersData.filter((u) => u.status === "Active").length)
+          }
+
+          if (meta.totalRestricted !== undefined) {
+            setTotalRestrictedCount(meta.totalRestricted)
+          } else {
+            setTotalRestrictedCount(usersData.filter((u) => u.status === "Restricted").length)
+          }
+        }
+      } catch (err) {
+        console.error("Error loading provisioned users:", err)
+      } finally {
+        setIsUsersLoading(false)
+      }
+    },
+    [usersPage, usersLimit, debouncedSearch, roleFilter, statusFilter]
+  )
+
   const fetchRBACData = React.useCallback(
     async (isManualRefresh = false) => {
       try {
         if (isManualRefresh) setLoading(true)
-
-        const [rolesRes, usersRes] = await Promise.all([
-          apiFetch(`${API_URL}/rbac/roles`).catch(() => null),
-          apiFetch(`${API_URL}/rbac/users`).catch(() => null),
+        await Promise.all([
+          fetchRoles(),
+          fetchUsers(usersPage, usersLimit),
         ])
-
-        if (rolesRes && rolesRes.ok) {
-          const raw = await rolesRes.json()
-          const rolesData: SystemRole[] = Array.isArray(raw) ? raw : raw?.data || []
-          if (Array.isArray(rolesData) && rolesData.length > 0) {
-            setRoles(rolesData)
-            setSelectedRoleId((curr) => {
-              if (curr && rolesData.some((r) => r.id === curr)) return curr
-              return rolesData[0].id
-            })
-          }
-        } else if (rolesRes && rolesRes.status === 403) {
-          setIsAuthorized(false)
-        }
-
-        if (usersRes && usersRes.ok) {
-          const raw = await usersRes.json()
-          const usersData: UserAssignment[] = Array.isArray(raw) ? raw : raw?.data || []
-          if (Array.isArray(usersData)) {
-            setAssignments(usersData)
-          }
-        }
-      } catch (err) {
-        console.error("Error loading RBAC settings:", err)
       } finally {
         setLoading(false)
       }
     },
-    []
+    [fetchRoles, fetchUsers, usersPage, usersLimit]
   )
 
   React.useEffect(() => {
     if (isAuthorized) {
-      fetchRBACData(false)
+      fetchRoles()
     } else if (isAuthorized === false) {
       setLoading(false)
     }
-  }, [isAuthorized, fetchRBACData])
+  }, [isAuthorized, fetchRoles])
+
+  React.useEffect(() => {
+    if (isAuthorized) {
+      fetchUsers(usersPage, usersLimit)
+    }
+  }, [isAuthorized, fetchUsers, debouncedSearch, roleFilter, statusFilter, usersPage, usersLimit])
 
   const selectedRole = React.useMemo(() => {
     return roles.find((r) => r.id === selectedRoleId) || roles[0] || null
@@ -478,7 +564,7 @@ export default function RBACManagementPage() {
       setProvPassword("")
       setShowProvPassword(false)
       setIsProvisionOpen(false)
-      fetchRBACData(false)
+      fetchUsers(usersPage, usersLimit)
     } catch (err: any) {
       toast.error(err.message || "Failed to provision user in database.", { id: toastId })
     } finally {
@@ -548,7 +634,7 @@ export default function RBACManagementPage() {
         setCurrentUser(updatedUser)
       }
 
-      fetchRBACData(false)
+      fetchUsers(usersPage, usersLimit)
     } catch (err: any) {
       toast.error(err.message || "Could not update operator credentials.", { id: toastId })
     } finally {
@@ -579,6 +665,7 @@ export default function RBACManagementPage() {
       }
 
       toast.success(`Operator ${user.name} is now ${nextStatus}.`, { id: toastId })
+      fetchUsers(usersPage, usersLimit)
       setAssignments((prev) =>
         prev.map((u) =>
           u.id === user.id
@@ -625,6 +712,7 @@ export default function RBACManagementPage() {
       setAssignments((prev) => prev.filter((u) => u.id !== userToDelete.id))
       setIsDeleteModalOpen(false)
       setUserToDelete(null)
+      fetchUsers(usersPage, usersLimit)
     } catch (error: any) {
       console.error("Error deleting user:", error)
       toast.error(error.message || "Could not revoke user account.", { id: toastId })
@@ -634,44 +722,71 @@ export default function RBACManagementPage() {
   }
 
   // 9. Export Audit Ledger
-  const handleExportAudit = () => {
-    const data = assignments.map((u) => ({
-      "Operator Name": u.name,
-      "Database Email": u.email,
-      "Role Code": u.roleCode,
-      "Assigned Role": u.roleName,
-      "Territory Station": u.territory,
-      "Account Status": u.status,
-      "Last Active Session (UTC+06:00 Dhaka)": formatLastActiveSession(u.lastLogin),
-    }))
+  const handleExportAudit = async () => {
+    const toastId = toast.loading("Preparing security audit ledger export...")
+    try {
+      const params = new URLSearchParams()
+      params.set("limit", "0")
+      if (debouncedSearch.trim()) params.set("searchTerm", debouncedSearch.trim())
+      if (roleFilter !== "ALL") params.set("role", roleFilter)
+      if (statusFilter !== "ALL") params.set("status", statusFilter)
 
-    const worksheet = XLSX.utils.json_to_sheet(data)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "RBAC Security Audit")
-    XLSX.writeFile(
-      workbook,
-      `AK_Pharma_RBAC_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`
-    )
-    toast.success("Security audit ledger exported successfully.")
+      const res = await apiFetch(`${API_URL}/rbac/users?${params.toString()}`)
+      const json = await res.json()
+      const dataToExport: UserAssignment[] = Array.isArray(json?.data) ? json.data : assignments
+
+      const data = dataToExport.map((u) => ({
+        "Operator Name": u.name,
+        "Database Email": u.email,
+        "Role Code": u.roleCode,
+        "Assigned Role": u.roleName,
+        "Territory Station": u.territory,
+        "Account Status": u.status,
+        "Last Active Session (UTC+06:00 Dhaka)": formatLastActiveSession(u.lastLogin),
+      }))
+
+      const worksheet = XLSX.utils.json_to_sheet(data)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, "RBAC Security Audit")
+      XLSX.writeFile(
+        workbook,
+        `AK_Pharma_RBAC_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`
+      )
+      toast.success("Security audit ledger exported successfully.", { id: toastId })
+    } catch (err: any) {
+      console.error("Export audit error:", err)
+      toast.error(err.message || "Failed to export audit ledger.", { id: toastId })
+    }
   }
 
-  // 10. Filtered Users
-  const filteredUsers = React.useMemo(() => {
-    return assignments.filter((u) => {
-      const q = searchUserQuery.toLowerCase().trim()
-      const matchesQuery =
-        !q ||
-        (u.name || "").toLowerCase().includes(q) ||
-        (u.email || "").toLowerCase().includes(q) ||
-        (u.roleCode || "").toLowerCase().includes(q) ||
-        (u.territory || "").toLowerCase().includes(q)
+  // 10. Provisioned Users (Server-side paginated & filtered)
+  const filteredUsers = assignments
 
-      const matchesRole = roleFilter === "ALL" || u.roleCode === roleFilter
-      const matchesStatus = statusFilter === "ALL" || u.status === statusFilter
-
-      return matchesQuery && matchesRole && matchesStatus
-    })
-  }, [assignments, searchUserQuery, roleFilter, statusFilter])
+  // Pagination items builder matching Territory Sales Breakdown
+  const getPaginationItems = () => {
+    const items: Array<{ type: "page" | "ellipsis"; page?: number }> = []
+    const total = Math.max(1, usersTotalPages)
+    if (total <= 5) {
+      for (let i = 1; i <= total; i++) {
+        items.push({ type: "page", page: i })
+      }
+    } else {
+      items.push({ type: "page", page: 1 })
+      if (usersPage > 3) {
+        items.push({ type: "ellipsis" })
+      }
+      const start = Math.max(2, usersPage - 1)
+      const end = Math.min(total - 1, usersPage + 1)
+      for (let i = start; i <= end; i++) {
+        items.push({ type: "page", page: i })
+      }
+      if (usersPage < total - 2) {
+        items.push({ type: "ellipsis" })
+      }
+      items.push({ type: "page", page: total })
+    }
+    return items
+  }
 
   // Get color for role badges
   const getRoleBadgeStyle = (code: string) => {
@@ -1173,7 +1288,7 @@ export default function RBACManagementPage() {
                 PROVISIONED DATABASE CREDENTIALS & OPERATOR DELEGATIONS
               </span>
               <Badge variant="outline" className="text-[10px] font-semibold text-slate-600">
-                {filteredUsers.length} of {assignments.length} Logins
+                {usersTotal} {usersTotal === 1 ? "Operator" : "Operators"}
               </Badge>
             </div>
             <p className="mt-0.5 text-xs text-slate-400">
@@ -1190,12 +1305,21 @@ export default function RBACManagementPage() {
                 placeholder="Search operator, email, role..."
                 value={searchUserQuery}
                 onChange={(e) => setSearchUserQuery(e.target.value)}
-                className="h-8 w-[220px] border-slate-200 bg-slate-50/50 pl-8 text-xs"
+                className="h-8 w-[220px] border-slate-200 bg-slate-50/50 pl-8 pr-7 text-xs"
               />
+              {isUsersLoading && (
+                <RefreshCw className="absolute top-2.5 right-2.5 h-3 w-3 animate-spin text-slate-400" />
+              )}
             </div>
 
             {/* Role Filter */}
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <Select
+              value={roleFilter}
+              onValueChange={(val) => {
+                setRoleFilter(val)
+                setUsersPage(1)
+              }}
+            >
               <SelectTrigger className="h-8 w-[140px] bg-white text-xs">
                 <SelectValue placeholder="All Roles" />
               </SelectTrigger>
@@ -1210,7 +1334,13 @@ export default function RBACManagementPage() {
             </Select>
 
             {/* Status Filter */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select
+              value={statusFilter}
+              onValueChange={(val) => {
+                setStatusFilter(val)
+                setUsersPage(1)
+              }}
+            >
               <SelectTrigger className="h-8 w-[120px] bg-white text-xs">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
@@ -1220,6 +1350,8 @@ export default function RBACManagementPage() {
                 <SelectItem value="Restricted">Restricted</SelectItem>
               </SelectContent>
             </Select>
+
+
           </div>
         </div>
 
@@ -1245,7 +1377,16 @@ export default function RBACManagementPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredUsers.length === 0 ? (
+            {isUsersLoading && assignments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-xs text-slate-400">
+                  <div className="flex items-center justify-center gap-2">
+                    <RefreshCw className="h-4 w-4 animate-spin text-slate-400" />
+                    <span>Loading provisioned credentials...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : assignments.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="py-8 text-center text-xs text-slate-400">
                   No provisioned users found matching current filters. Click{" "}
@@ -1388,6 +1529,82 @@ export default function RBACManagementPage() {
             )}
           </TableBody>
         </Table>
+
+        {/* Shadcn Pagination Controls (matching Territory Sales Breakdown) */}
+        <div className="mt-5 flex flex-col items-center justify-between gap-4 border-t border-slate-100 pt-4 sm:flex-row">
+          <div className="flex items-center gap-3 text-xs text-slate-500">
+            <span>
+              Page {usersPage} of {Math.max(1, usersTotalPages)} ({usersTotal} total)
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span>Rows per page:</span>
+              <Select
+                value={String(usersLimit)}
+                onValueChange={(val) => {
+                  setUsersLimit(Number(val))
+                  setUsersPage(1)
+                }}
+              >
+                <SelectTrigger className="h-7 w-[70px] border-slate-200 bg-white text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="text-xs">
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Pagination className="mx-0 w-auto justify-end">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setUsersPage((p) => Math.max(1, p - 1))}
+                  aria-disabled={usersPage <= 1 || isUsersLoading}
+                  className={
+                    usersPage <= 1 || isUsersLoading
+                      ? "pointer-events-none opacity-40 cursor-not-allowed"
+                      : "cursor-pointer hover:bg-slate-100"
+                  }
+                />
+              </PaginationItem>
+
+              {getPaginationItems().map((item, idx) => (
+                <PaginationItem key={idx}>
+                  {item.type === "page" ? (
+                    <PaginationLink
+                      isActive={item.page === usersPage}
+                      onClick={() => setUsersPage(item.page!)}
+                      disabled={isUsersLoading}
+                      className="cursor-pointer"
+                    >
+                      {item.page}
+                    </PaginationLink>
+                  ) : (
+                    <PaginationEllipsis />
+                  )}
+                </PaginationItem>
+              ))}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() =>
+                    setUsersPage((p) => Math.min(usersTotalPages, p + 1))
+                  }
+                  aria-disabled={usersPage >= usersTotalPages || isUsersLoading}
+                  className={
+                    usersPage >= usersTotalPages || isUsersLoading
+                      ? "pointer-events-none opacity-40 cursor-not-allowed"
+                      : "cursor-pointer hover:bg-slate-100"
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
       </Card>
 
       {/* 5. Provision Operator Modal */}

@@ -2,6 +2,12 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { AppError } from "../errors";
 import config from "../config";
+import { Prisma } from "@prisma/client";
+import {
+  paginationHelper,
+  IPaginationOptions,
+  IPaginatedResult,
+} from "../utils/paginationHelper";
 import prisma from "../utils/prisma";
 import { generateAccessToken } from "../middlewares/token";
 import { auditLogService } from "./auditLogService";
@@ -15,6 +21,33 @@ import {
 } from "../constants/moduleCatalog";
 
 export { ALL_SYSTEM_MODULES };
+
+export interface IUserFilterOptions {
+  searchTerm?: string;
+  search?: string;
+  q?: string;
+  role?: string;
+  roleCode?: string;
+  status?: string;
+  territory?: string;
+  [key: string]: any;
+}
+
+export const userSearchableFields = [
+  "name",
+  "email",
+  "territory",
+] as const;
+
+export const userFilterableFields = [
+  "searchTerm",
+  "search",
+  "q",
+  "role",
+  "roleCode",
+  "status",
+  "territory",
+] as const;
 
 function moduleByName(name: string): SystemModule | undefined {
   return ALL_SYSTEM_MODULES.find((mod) => mod.module === name);
@@ -449,26 +482,193 @@ export const rbacService = {
     return { message: "Role permissions saved successfully" };
   },
 
-  async getUsers() {
-    const users = await prisma.systemUser.findMany({
+  async getUsers(
+    filters?: IUserFilterOptions,
+    paginationOptions?: IPaginationOptions
+  ): Promise<IPaginatedResult<any[]>> {
+    if (
+      !paginationOptions &&
+      filters &&
+      ("page" in filters ||
+        "limit" in filters ||
+        "sortBy" in filters ||
+        "sortOrder" in filters)
+    ) {
+      paginationOptions = filters as IPaginationOptions;
+      filters = {};
+    }
+
+    const { page, limit, skip, sortBy, sortOrder } =
+      paginationHelper.calculatePagination(paginationOptions, {
+        sortBy: "createdAt",
+        sortOrder: "desc",
+      });
+
+    const {
+      searchTerm,
+      search,
+      q,
+      role,
+      roleCode,
+      status,
+      territory,
+      ...filterData
+    } = filters || {};
+
+    const effectiveSearch = (searchTerm || search || q || "").trim();
+    const effectiveRole = (role || roleCode || "").trim();
+    const effectiveStatus = (status || "").trim();
+    const effectiveTerritory = (territory || "").trim();
+
+    const andConditions: Prisma.SystemUserWhereInput[] = [];
+
+    // Search across searchable fields + role relation
+    if (effectiveSearch) {
+      andConditions.push({
+        OR: [
+          ...userSearchableFields.map((field) => ({
+            [field]: {
+              contains: effectiveSearch,
+              mode: "insensitive" as const,
+            },
+          })),
+          {
+            role: {
+              is: {
+                name: {
+                  contains: effectiveSearch,
+                  mode: "insensitive" as const,
+                },
+              },
+            },
+          },
+          {
+            role: {
+              is: {
+                code: {
+                  contains: effectiveSearch,
+                  mode: "insensitive" as const,
+                },
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    // Role filter
+    if (effectiveRole && effectiveRole !== "ALL") {
+      const cleanRole = effectiveRole.toUpperCase();
+      const roleCodes = [cleanRole, cleanRole.replace(/_/g, "")];
+      const roleOrConditions: Prisma.SystemRoleWhereInput[] = [
+        { code: { in: roleCodes } },
+        { name: { equals: effectiveRole, mode: "insensitive" as const } },
+      ];
+      if (/^[0-9a-fA-F]{24}$/.test(effectiveRole)) {
+        roleOrConditions.unshift({ id: effectiveRole });
+      }
+
+      andConditions.push({
+        role: {
+          is: {
+            OR: roleOrConditions,
+          },
+        },
+      });
+    }
+
+    // Status filter
+    if (effectiveStatus && effectiveStatus !== "ALL") {
+      andConditions.push({
+        status: {
+          equals: effectiveStatus,
+          mode: "insensitive" as const,
+        },
+      });
+    }
+
+    // Territory filter
+    if (effectiveTerritory && effectiveTerritory !== "ALL") {
+      andConditions.push({
+        territory: {
+          contains: effectiveTerritory,
+          mode: "insensitive" as const,
+        },
+      });
+    }
+
+    // Additional specific field filters if provided
+    for (const [key, val] of Object.entries(filterData)) {
+      if (val !== undefined && val !== null && String(val).trim() !== "") {
+        andConditions.push({
+          [key]: {
+            contains: String(val).trim(),
+            mode: "insensitive" as const,
+          },
+        });
+      }
+    }
+
+    const whereConditions: Prisma.SystemUserWhereInput =
+      andConditions.length > 0 ? { AND: andConditions } : {};
+
+    const allowedSortFields = [
+      "createdAt",
+      "updatedAt",
+      "name",
+      "email",
+      "territory",
+      "status",
+      "lastLogin",
+    ];
+    const safeSortBy = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : "createdAt";
+
+    const findArgs: Prisma.SystemUserFindManyArgs = {
+      where: whereConditions,
       include: {
         role: { select: { name: true, code: true } },
       },
-      orderBy: { createdAt: "desc" },
-    });
+      orderBy: { [safeSortBy]: sortOrder },
+    };
 
-    return users.map((u) => ({
+    if (limit > 0) {
+      findArgs.skip = skip;
+      findArgs.take = limit;
+    }
+
+    const [users, total, totalActive, totalRestricted] = await Promise.all([
+      prisma.systemUser.findMany(findArgs),
+      prisma.systemUser.count({ where: whereConditions }),
+      prisma.systemUser.count({ where: { status: "Active" } }),
+      prisma.systemUser.count({ where: { status: "Restricted" } }),
+    ]);
+
+    const baseMeta = paginationHelper.createPaginationMeta(total, { page, limit });
+    const meta = {
+      ...baseMeta,
+      totalActive,
+      totalRestricted,
+    };
+
+    const formattedUsers = (users as any[]).map((u) => ({
       id: u.id,
       name: u.name,
       email: u.email,
-      roleCode: u.role.code,
-      roleName: u.role.name,
+      roleCode: u.role?.code || "",
+      roleName: u.role?.name || "",
       roleId: u.roleId,
       territory: u.territory,
       status: u.status,
       lastLogin: u.lastLogin,
       passwordHash: `${u.passwordHash.slice(0, 10)}...${u.passwordHash.slice(-5)}`,
     }));
+
+    return {
+      meta,
+      data: formattedUsers,
+    };
   },
 
   async provisionUser(data: { name: string; email: string; password: string; roleCode: string; territory?: string }) {
