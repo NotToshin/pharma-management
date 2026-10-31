@@ -300,9 +300,11 @@ The health route does not use `sendResponse`.
 
 ## Error handling
 
+All rejected work ends in `globalErrorHandler` (`backend/src/errors/globalErrorHandler.ts`), which is mounted after the routes in `backend/src/app.ts`. `catchAsync` forwards a rejected controller promise to that handler. Zod middleware calls `next(error)` with the `ZodError`.
+
 | Piece | File | Behavior |
 |---|---|---|
-| `AppError` | `errors/AppError.ts` | `statusCode`, `status` (`fail` for 4xx, `error` otherwise), `isOperational` |
+| `AppError` | `errors/AppError.ts` | `statusCode`, `status` (`fail` for 4xx, `error` otherwise), `isOperational` default `true` |
 | `handleZodError` | `errors/handleZodError.ts` | 400, message lists `field (message)`, plus `errors[]` |
 | `handlePrismaError` | `errors/handlePrismaError.ts` | P2002 → 400 duplicate, P2025 → 404, P2003/P2014/P2000/P2023 → 400, connection errors → 500 |
 | `notFoundHandler` | `errors/globalErrorHandler.ts` | 404 `Cannot find <url> on this server` |
@@ -321,9 +323,38 @@ Error JSON:
 }
 ```
 
-Non-operational 500s hide the message outside development (`"Something went wrong on the server"`). The handler `console.error`s non-operational errors and any 5xx.
+`status` is `fail` for 4xx and `error` for 5xx. `errors` is present only for Zod failures. `stack` is present only when `NODE_ENV` is `development`. A non-operational 500 outside development replaces `message` with `Something went wrong on the server`. The handler `console.error`s non-operational errors and any 5xx.
 
-Services should throw `AppError` for expected cases (`new AppError("…", 404)`). Let Prisma unique violations bubble so the global mapper can turn them into a 400.
+The frontend reads `message` and shows it in a Sonner toast. Field-level `errors` are not painted back onto inputs.
+
+### Error handling rules
+
+Follow these rules on every new controller, service, and validation schema.
+
+1. **Controllers do not catch errors.** Wrap the handler in `catchAsync`. Do not add `try/catch`, and do not call `res.status(...).json(...)` for a failure. `sendResponse` is for completed work, including `201` creates and `200` deletes.
+2. **Expected failures throw `AppError`.** Throw it from the service: `throw new AppError("Doctor not found", 404)`. `catchAsync` passes it to the global handler. Leave `isOperational` at its default `true` so the message is safe to show.
+3. **Use the status code that matches the case.**
+
+   | Situation | Status |
+   |---|---|
+   | Zod validation failed | 400, produced by `handleZodError`. Do not re-validate with a manual `if` that returns its own JSON |
+   | Duplicate unique field (`P2002`) | 400 from `handlePrismaError`, unless the service already throws a clearer `AppError` |
+   | Missing record, failed lookup the user asked for | 404 |
+   | Missing, expired, or invalid token, or wrong password | 401. Use the same message for unknown email and wrong password |
+   | Signed in but restricted, or the role or module permission does not allow the action | 403 |
+   | Unexpected bug or database connection failure | 500. Do not mark it operational if the message would leak internals |
+
+4. **Do not invent a second error shape.** Clients depend on `success`, `statusCode`, `message`, and optional `errors`. Do not add `error`, `msg`, or a bare string body.
+5. **Let unknown Prisma errors reach the mapper.** Catch a Prisma error in a service only when you are translating it into a specific `AppError`. Otherwise let it throw. `P2002` and `P2025` already become 400 and 404.
+6. **Validation stays in Zod middleware.** `validateBody`, `validateParams`, and `validateQuery` already call `next(error)`. Do not wrap `schema.parse` in a controller.
+7. **Do not leak secrets in messages or logs.** No password, hash, JWT, or connection string in an `AppError` message. Login and refresh failures stay generic. The development `stack` field is already limited to `NODE_ENV=development`. Do not log request bodies that contain passwords.
+8. **Transactions must fail together.** Throw inside the `prisma.$transaction` callback. Do not catch the error, write a partial success response, and leave the other collection updated.
+9. **Unknown URLs stay on `notFoundHandler`.** Do not add a catch-all route that returns `200`.
+10. **Process-level failures stay in `server.ts`.** `unhandledRejection` shuts the process down. Do not swallow a rejected promise in a service with an empty `catch`.
+
+`loginOperator` in `rbacController.ts` returns `sendResponse(res, 400, ...)` when email or password is missing. That is an older exception. New handlers throw `AppError` instead, which `loginSchema` already covers for `/api/auth/login`.
+
+Auth-specific 401 and 403 cases are listed in [AUTHENTICATION.md](./AUTHENTICATION.md).
 
 ## File upload and storage
 

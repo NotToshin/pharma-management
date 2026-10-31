@@ -2,7 +2,7 @@
 
 AK Pharma Management System is an internal pharmaceutical ERP for a distributor or manufacturer. It covers warehouse stock, doctor and field-force activity, pharmacy sales, procurement, treasury, payroll, and role-based access with an audit trail.
 
-This document describes behavior found in the repository. Related detail lives in [FRONTEND_GUIDELINES.md](./FRONTEND_GUIDELINES.md), [BACKEND_ARCHITECTURE.md](./BACKEND_ARCHITECTURE.md), and [UI_UX_GUIDELINES.md](./UI_UX_GUIDELINES.md).
+This document describes behavior found in the repository. Related detail lives in [FRONTEND_GUIDELINES.md](./FRONTEND_GUIDELINES.md), [BACKEND_ARCHITECTURE.md](./BACKEND_ARCHITECTURE.md), [AUTHENTICATION.md](./AUTHENTICATION.md), and [UI_UX_GUIDELINES.md](./UI_UX_GUIDELINES.md).
 
 ## Purpose
 
