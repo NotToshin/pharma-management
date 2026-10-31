@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import { getEndpoint, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -807,30 +809,35 @@ export default function ClientsDirectoryPage() {
             Export Database
           </Button>
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleOpenImportModal}
-            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5 text-blue-600" />
-            Bulk Ingestion
-          </Button>
+          <PermissionGate feature="Pharmacy Clients" action="create">
+<Button
+              size="sm"
+              variant="outline"
+              onClick={handleOpenImportModal}
+              className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-blue-600" />
+              Bulk Ingestion
+            </Button>
+</PermissionGate>
 
-          <Button
-            size="sm"
-            onClick={handleOpenCreate}
-            className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-          >
-            <UserPlus className="h-3.5 w-3.5" />
-            Enroll New Chemist
-          </Button>
+          <PermissionGate feature="Pharmacy Clients" action="create">
+<Button
+              size="sm"
+              onClick={handleOpenCreate}
+              className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              Enroll New Chemist
+            </Button>
+</PermissionGate>
         </div>
       </div>
 
       {/* KPI Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Pharmacy Clients" action="overview:enrolled">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Total Enrolled Chemists</span>
             <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
@@ -844,8 +851,10 @@ export default function ClientsDirectoryPage() {
             Active retail dispensing accounts in network
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Pharmacy Clients" action="overview:creditHealth">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Credit Health Rate</span>
             <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
@@ -859,8 +868,10 @@ export default function ClientsDirectoryPage() {
             {activeHealthyCount} of {clients.length} accounts in good standing
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Pharmacy Clients" action="overview:creditLimit">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Extended Credit Limit</span>
             <div className="rounded-lg bg-purple-50 p-2 text-purple-600">
@@ -874,8 +885,10 @@ export default function ClientsDirectoryPage() {
             Total distributor authorized credit line
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Pharmacy Clients" action="overview:receivable">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Outstanding Receivable</span>
             <div className="rounded-lg bg-amber-50 p-2 text-amber-600">
@@ -889,6 +902,7 @@ export default function ClientsDirectoryPage() {
             Pending field realization and collection
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* Main Table Card */}
@@ -1152,18 +1166,22 @@ export default function ClientsDirectoryPage() {
                               <Truck className="mr-2 h-3.5 w-3.5 text-emerald-600" />
                               Create Sales Order
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenEdit(client)}>
-                              <Pencil className="mr-2 h-3.5 w-3.5 text-amber-600" />
-                              Edit Chemist Profile
-                            </DropdownMenuItem>
+                            <PermissionGate feature="Pharmacy Clients" action="edit">
+<DropdownMenuItem onClick={() => handleOpenEdit(client)}>
+                                <Pencil className="mr-2 h-3.5 w-3.5 text-amber-600" />
+                                Edit Chemist Profile
+                              </DropdownMenuItem>
+</PermissionGate>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => handleOpenDeleteModal(client)}
-                              className="text-rose-600 focus:bg-rose-50 focus:text-rose-600"
-                            >
-                              <Trash2 className="mr-2 h-3.5 w-3.5" />
-                              Delete Client
-                            </DropdownMenuItem>
+                            <PermissionGate feature="Pharmacy Clients" action="delete">
+<DropdownMenuItem
+                                onClick={() => handleOpenDeleteModal(client)}
+                                className="text-rose-600 focus:bg-rose-50 focus:text-rose-600"
+                              >
+                                <Trash2 className="mr-2 h-3.5 w-3.5" />
+                                Delete Client
+                              </DropdownMenuItem>
+</PermissionGate>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -1384,21 +1402,23 @@ export default function ClientsDirectoryPage() {
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              onClick={handleExecuteImport}
-              disabled={isImporting || parsedClients.filter((c) => c.isValid).length === 0}
-              className="h-8 bg-[#0090FF] text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-            >
-              {isImporting ? (
-                <>
-                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                  Ingesting Data...
-                </>
-              ) : (
-                `Execute Bulk Ingestion (${parsedClients.filter((c) => c.isValid).length})`
-              )}
-            </Button>
+            <PermissionGate feature="Pharmacy Clients" action="create">
+<Button
+                type="button"
+                onClick={handleExecuteImport}
+                disabled={isImporting || parsedClients.filter((c) => c.isValid).length === 0}
+                className="h-8 bg-[#0090FF] text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+              >
+                {isImporting ? (
+                  <>
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    Ingesting Data...
+                  </>
+                ) : (
+                  `Execute Bulk Ingestion (${parsedClients.filter((c) => c.isValid).length})`
+                )}
+              </Button>
+</PermissionGate>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1575,6 +1595,7 @@ export default function ClientsDirectoryPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <PermissionGate feature="Pharmacy Clients" action="special">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Credit Facility (BDT) *
@@ -1610,6 +1631,7 @@ export default function ClientsDirectoryPage() {
                   ))}
                 </div>
               </div>
+              </PermissionGate>
 
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">

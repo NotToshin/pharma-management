@@ -10,7 +10,7 @@ import {
   toggleUserStatus,
   loginOperator,
 } from "../controllers/rbacController";
-import { validateBody, validateParams } from "../utils/validate";
+import { validateBody, validateParams, validateQuery } from "../utils/validate";
 import {
   loginOperatorSchema,
   provisionUserSchema,
@@ -18,6 +18,7 @@ import {
   updateRolePermissionsSchema,
   updateUserSchema,
   userIdParamSchema,
+  getUsersQuerySchema,
 } from "../validations/rbacValidation";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -43,7 +44,12 @@ router.put(
 );
 
 // User Provisioning & Delegation (Protected - Super Admin Only)
-router.get("/users", requireAuth("SUPER_ADMIN"), getUsers);
+router.get(
+  "/users",
+  requireAuth("SUPER_ADMIN"),
+  validateQuery(getUsersQuerySchema),
+  getUsers
+);
 router.post(
   "/users",
   requireAuth("SUPER_ADMIN"),

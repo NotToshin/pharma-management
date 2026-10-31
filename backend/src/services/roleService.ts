@@ -1,5 +1,6 @@
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
+import { overviewGrantMap, packOverviewGrants } from "../constants/moduleCatalog";
 import { ALL_SYSTEM_MODULES, generateCode } from "./rbacService";
 import { auditLogService } from "./auditLogService";
 
@@ -65,12 +66,12 @@ export const roleService = {
             roleId: sysRole.id,
             module: mod.module,
             category: mod.category,
-            read: isSuper ? true : mod.module === "Executive Dashboard",
-            create: isSuper,
-            edit: isSuper,
-            delete: isSuper,
-            specialAction: mod.specialAction,
-            specialGranted: isSuper,
+            read: isSuper || mod.module === "Dashboard",
+            create: isSuper && mod.actions.includes("create"),
+            edit: isSuper && mod.actions.includes("edit"),
+            delete: isSuper && mod.actions.includes("delete"),
+            specialAction: packOverviewGrants(overviewGrantMap(mod, isSuper || mod.module === "Dashboard")),
+            specialGranted: isSuper && Boolean(mod.specialAction),
           },
         });
       }

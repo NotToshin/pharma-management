@@ -36,7 +36,8 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Shield, User, LogOut, Camera, ShieldAlert, ArrowLeft } from "lucide-react"
 import { Toaster } from "@/components/ui/toaster"
-import { isAuthenticated, getStoredUser, logout, isUserSuperAdmin } from "@/lib/auth"
+import { isAuthenticated, getStoredUser, logout } from "@/lib/auth"
+import { featureForPath, userCan } from "@/lib/permissions"
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -52,27 +53,25 @@ const geistMono = Geist_Mono({
 
 const routeTitleMap: Record<string, string> = {
   "/dashboard": "Dashboard",
-  "/analytics/targets": "Target vs. Achievement",
+  "/analytics/targets": "Target Vs Achievement",
   "/analytics/territories": "Territory Sales Breakdown",
-  "/field-force/approvals": "Pending Approvals",
   "/field-force/visit-logs": "Doctor Visit Logs",
-  "/field-force/zones": "MIO Zone Allocations",
-  "/doctors/database": "Master Doctor Database",
-  "/doctors/timeline": "Visit History Timeline",
-  "/inventory/ledger": "Active Inventory Ledger (FEFO)",
+  "/field-force/zones": "MIO Zone Allocation",
+  "/doctors/database": "Doctors List",
+  "/inventory/ledger": "Stock Inventory",
   "/inventory/adjustments": "Stock Adjustments",
-  "/procurement/orders": "Wholesaler Purchase Orders",
-  "/logistics/orders": "Delivery Logistics & Orders",
+  "/procurement/orders": "Wholesale Purchase Orders",
+  "/logistics/orders": "Sales Orders",
   "/sales/clients": "Pharmacy Clients",
-  "/finance/overview": "Treasury & Finance Overview",
+  "/finance/overview": "Treasury Overview",
   "/finance/bank-ledger": "Bank Accounts Ledger",
   "/finance/collections": "Delivery Cash Collections",
-  "/finance/payments": "Expense & Vendor Payments",
+  "/finance/payments": "Payments",
   "/finance/supplier-payments": "Supplier Payments",
   "/hr/staff-directory": "Staff Directory & Roles",
-  "/hr/salary": "Payroll & Salary",
+  "/hr/salary": "Salary",
   "/settings/rbac": "Role Permissions (RBAC)",
-  "/settings/audit-logs": "Audit Logs (21 CFR Part 11)",
+  "/settings/audit-logs": "Audit Logs (21 CFR Compliant)",
 }
 
 function getPageTitle(pathname: string): string {
@@ -146,56 +145,23 @@ export default function RootLayout({
     document.title = `AK-Pharma | ${pageName}`
   }, [pathname])
 
-  const isSuperAdminUser = React.useMemo(() => {
-    return isUserSuperAdmin({
-      id: "",
-      name: userData.name,
-      email: userData.email,
-      role: userData.role || userData.roleName || "",
-      roleName: userData.roleName,
-    })
-  }, [userData.roleName, userData.role, userData.name, userData.email])
-
   const isCurrentPageAllowed = React.useMemo(() => {
-    if (isSuperAdminUser) return true
-    if (pathname === "/dashboard" || pathname === "/login" || pathname === "/") return true
-    if (pathname === "/settings/rbac") return false // Super Admin exclusive
-
-    const permissions = userData.permissions || []
-    if (permissions.length === 0) return true // fallback allow
-
-    const perm = permissions.find((p: any) => {
-      if (!p) return false
-      const modTitle = (p.module || "").toLowerCase()
-      if (pathname.startsWith("/analytics/targets") && modTitle.includes("target")) return true
-      if (pathname.startsWith("/analytics/territories") && modTitle.includes("territory")) return true
-      if (pathname.startsWith("/field-force/zones") && modTitle.includes("zone")) return true
-      if (pathname.startsWith("/field-force/visit-logs") && modTitle.includes("visit")) return true
-      if (pathname.startsWith("/field-force/approvals") && modTitle.includes("approval")) return true
-      if (pathname.startsWith("/doctors/database") && modTitle.includes("doctor database")) return true
-      if (pathname.startsWith("/doctors/timeline") && modTitle.includes("timeline")) return true
-      if (pathname.startsWith("/inventory/ledger") && modTitle.includes("inventory ledger")) return true
-      if (pathname.startsWith("/procurement/orders") && modTitle.includes("purchase orders")) return true
-      if (pathname.startsWith("/inventory/adjustments") && modTitle.includes("adjustments")) return true
-      if (pathname.startsWith("/logistics/orders") && modTitle.includes("delivery logistics")) return true
-      if (pathname.startsWith("/sales/clients") && modTitle.includes("pharmacy clients")) return true
-      if (pathname.startsWith("/finance/overview") && modTitle.includes("treasury")) return true
-      if (pathname.startsWith("/finance/bank-ledger") && modTitle.includes("bank accounts")) return true
-      if (pathname.startsWith("/finance/collections") && modTitle.includes("cash collections")) return true
-      if (pathname.startsWith("/finance/payments") && modTitle.includes("payments") && !modTitle.includes("supplier")) return true
-      if (pathname.startsWith("/finance/supplier-payments") && modTitle.includes("supplier payment")) return true
-      if (pathname.startsWith("/hr/staff-directory") && modTitle.includes("staff directory")) return true
-      if (pathname.startsWith("/hr/salary") && modTitle.includes("salary")) return true
-      if (pathname.startsWith("/settings/audit-logs") && modTitle.includes("audit logs")) return true
-      return false
-    })
-
-    if (perm) {
-      return Boolean(perm.read)
-    }
-
-    return true
-  }, [isSuperAdminUser, pathname, userData.permissions])
+    if (pathname === "/login" || pathname === "/") return true
+    const feature = featureForPath(pathname)
+    if (!feature) return true
+    return userCan(
+      {
+        id: "",
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        roleName: userData.roleName,
+        permissions: userData.permissions,
+      },
+      feature,
+      "view"
+    )
+  }, [pathname, userData])
 
   const handleLogout = () => {
     logout()

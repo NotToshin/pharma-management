@@ -28,6 +28,7 @@ export const updateRolePermissionsSchema = z.object({
       delete: z.boolean().optional().default(false),
       specialAction: z.string().optional().nullable(),
       specialGranted: z.boolean().optional().default(false),
+      overviewGrants: z.record(z.string(), z.boolean()).optional(),
     })).min(1, "At least one permission is required"),
   }),
   params: z.object({
@@ -72,3 +73,24 @@ export type LoginOperatorInput = z.infer<typeof loginOperatorSchema>["body"];
 export type ProvisionUserInput = z.infer<typeof provisionUserSchema>["body"];
 export type CreateRoleInput = z.infer<typeof createRoleSchema>["body"];
 export type UpdateUserInput = z.infer<typeof updateUserSchema>["body"];
+
+export const getUsersQuerySchema = z.object({
+  query: z
+    .object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().min(0).optional(),
+      sortBy: z.string().optional(),
+      sortOrder: z.enum(["asc", "desc"]).optional(),
+      searchTerm: z.string().optional(),
+      search: z.string().optional(),
+      q: z.string().optional(),
+      role: z.string().optional(),
+      roleCode: z.string().optional(),
+      status: z.string().optional(),
+      territory: z.string().optional(),
+    })
+    .passthrough()
+    .optional(),
+});
+
+export type GetUsersQueryInput = z.infer<typeof getUsersQuerySchema>["query"];

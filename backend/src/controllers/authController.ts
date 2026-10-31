@@ -25,7 +25,11 @@ export const login = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const refreshToken = catchAsync(async (req: Request, res: Response) => {
-  const incomingRefreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+  const cookieToken = req.cookies?.refreshToken;
+  const bodyToken = req.body?.refreshToken;
+  const incomingRefreshToken = [bodyToken, cookieToken]
+    .flat()
+    .filter((token): token is string => typeof token === "string" && token.length > 0);
 
   const result = await authService.refreshToken(incomingRefreshToken);
 

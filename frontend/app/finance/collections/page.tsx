@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import { useSearchParams } from "next/navigation"
 import { API_URL, apiFetch } from "@/lib/api"
@@ -969,19 +971,22 @@ function DeliveryCashCollectionsContent() {
             <Download className="h-3.5 w-3.5 text-emerald-600" /> Export Excel
           </Button>
 
-          <Button
-            size="sm"
-            onClick={handleOpenCreate}
-            className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-          >
-            <Plus className="h-4 w-4" /> Record New Collection
-          </Button>
+          <PermissionGate feature="Delivery Cash Collections" action="create">
+<Button
+              size="sm"
+              onClick={handleOpenCreate}
+              className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+            >
+              <Plus className="h-4 w-4" /> Record New Collection
+            </Button>
+</PermissionGate>
         </div>
       </div>
 
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Card className="rounded-xl border border-emerald-200 bg-emerald-50/20 p-5 shadow-xs">
+<PermissionGate feature="Delivery Cash Collections" action="overview:realized">
+<Card className="rounded-xl border border-emerald-200 bg-emerald-50/20 p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-emerald-700 uppercase">
               Realized & Deposited
@@ -995,8 +1000,10 @@ function DeliveryCashCollectionsContent() {
             {metrics?.realizedCount || collections.filter((c) => c.status === "Cleared & Deposited").length} Receipts cleared into vault
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-amber-200 bg-amber-50/30 p-5 shadow-xs">
+<PermissionGate feature="Delivery Cash Collections" action="overview:pending">
+<Card className="rounded-xl border border-amber-200 bg-amber-50/30 p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-amber-700 uppercase">
               Pending Clearance
@@ -1010,8 +1017,10 @@ function DeliveryCashCollectionsContent() {
             {pendingCollections.length} Handover receipts ready for vault
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Delivery Cash Collections" action="overview:invoiced">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
               Total Invoiced BDT
@@ -1025,8 +1034,10 @@ function DeliveryCashCollectionsContent() {
             {collections.length} Delivery invoices tracked
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Delivery Cash Collections" action="overview:dues">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
               Chemist Dues Uncollected
@@ -1040,8 +1051,10 @@ function DeliveryCashCollectionsContent() {
             Outstanding receivables across territories
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+<PermissionGate feature="Delivery Cash Collections" action="overview:destinations">
+<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
               Deposit Destinations
@@ -1059,6 +1072,7 @@ function DeliveryCashCollectionsContent() {
             </span>
           </div>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Tabs & Multi-Action Floating Bar */}
@@ -1135,25 +1149,29 @@ function DeliveryCashCollectionsContent() {
 
           {/* Quick Clear to Vault Button */}
           {selectedIds.length > 0 ? (
-            <Button
-              size="sm"
-              onClick={() => handleOpenSettleModal()}
-              className="h-8 gap-1.5 rounded-lg bg-emerald-600 text-xs font-semibold text-white shadow-none hover:bg-emerald-700 animate-pulse"
-            >
-              <Wallet className="h-3.5 w-3.5" />
-              Clear & Deposit {selectedIds.length} Selected (৳{selectedTotalBDT.toLocaleString("en-IN")})
-            </Button>
+            <PermissionGate feature="Delivery Cash Collections" action="special">
+<Button
+                size="sm"
+                onClick={() => handleOpenSettleModal()}
+                className="h-8 gap-1.5 rounded-lg bg-emerald-600 text-xs font-semibold text-white shadow-none hover:bg-emerald-700 animate-pulse"
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                Clear & Deposit {selectedIds.length} Selected (৳{selectedTotalBDT.toLocaleString("en-IN")})
+              </Button>
+</PermissionGate>
           ) : (
             pendingCollections.length > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleOpenSettleModal()}
-                className="h-8 gap-1.5 rounded-lg border-amber-300 bg-amber-50/50 text-xs font-semibold text-amber-800 hover:bg-amber-100"
-              >
-                <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
-                Clear All Pending ({pendingCollections.length})
-              </Button>
+              <PermissionGate feature="Delivery Cash Collections" action="special">
+<Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleOpenSettleModal()}
+                  className="h-8 gap-1.5 rounded-lg border-amber-300 bg-amber-50/50 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
+                  Clear All Pending ({pendingCollections.length})
+                </Button>
+</PermissionGate>
             )
           )}
         </div>
@@ -1439,14 +1457,16 @@ function DeliveryCashCollectionsContent() {
                       <TableCell className="py-3.5 pr-4 text-right align-top">
                         <div className="flex items-center justify-end gap-1.5">
                           {isPending && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleOpenSettleModal(c.id)}
-                              className="h-7 border-emerald-300 bg-emerald-50/60 px-2 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
-                            >
-                              <Wallet className="mr-1 h-3 w-3 text-emerald-600" /> Settle
-                            </Button>
+                            <PermissionGate feature="Delivery Cash Collections" action="special">
+<Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenSettleModal(c.id)}
+                                className="h-7 border-emerald-300 bg-emerald-50/60 px-2 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
+                              >
+                                <Wallet className="mr-1 h-3 w-3 text-emerald-600" /> Settle
+                              </Button>
+</PermissionGate>
                           )}
 
                           <Button
@@ -1467,23 +1487,27 @@ function DeliveryCashCollectionsContent() {
                             <Printer className="mr-1 h-3 w-3 text-slate-500" /> Print
                           </Button>
 
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleOpenEdit(c)}
-                            className="h-7 px-2 text-[11px] text-slate-700 hover:bg-slate-50"
-                          >
-                            <Pencil className="h-3 w-3 text-slate-400" />
-                          </Button>
+                          <PermissionGate feature="Delivery Cash Collections" action="edit">
+<Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenEdit(c)}
+                              className="h-7 px-2 text-[11px] text-slate-700 hover:bg-slate-50"
+                            >
+                              <Pencil className="h-3 w-3 text-slate-400" />
+                            </Button>
+</PermissionGate>
 
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleOpenDelete(c)}
-                            className="h-7 w-7 border-rose-100 p-0 text-rose-600 hover:bg-rose-50"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <PermissionGate feature="Delivery Cash Collections" action="delete">
+<Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenDelete(c)}
+                              className="h-7 w-7 border-rose-100 p-0 text-rose-600 hover:bg-rose-50"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+</PermissionGate>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -2223,19 +2247,23 @@ function DeliveryCashCollectionsContent() {
                 <Button variant="outline" size="sm" onClick={() => handlePrint(detailsTarget)} className="gap-1.5 text-xs">
                   <Printer className="h-3.5 w-3.5" /> Print Receipt
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => {
-                  setDetailsTarget(null)
-                  handleOpenEdit(detailsTarget)
-                }} className="gap-1.5 text-xs">
-                  <Pencil className="h-3.5 w-3.5" /> Edit
-                </Button>
-                {detailsTarget.status === "Pending Vault Clearance" && (
-                  <Button size="sm" onClick={() => {
+                <PermissionGate feature="Delivery Cash Collections" action="edit">
+<Button variant="outline" size="sm" onClick={() => {
                     setDetailsTarget(null)
-                    handleOpenSettleModal(detailsTarget.id)
-                  }} className="gap-1.5 bg-emerald-600 text-xs text-white hover:bg-emerald-700">
-                    <Wallet className="h-3.5 w-3.5" /> Settle Collection
+                    handleOpenEdit(detailsTarget)
+                  }} className="gap-1.5 text-xs">
+                    <Pencil className="h-3.5 w-3.5" /> Edit
                   </Button>
+</PermissionGate>
+                {detailsTarget.status === "Pending Vault Clearance" && (
+                  <PermissionGate feature="Delivery Cash Collections" action="special">
+<Button size="sm" onClick={() => {
+                      setDetailsTarget(null)
+                      handleOpenSettleModal(detailsTarget.id)
+                    }} className="gap-1.5 bg-emerald-600 text-xs text-white hover:bg-emerald-700">
+                      <Wallet className="h-3.5 w-3.5" /> Settle Collection
+                    </Button>
+</PermissionGate>
                 )}
                 <Button variant="outline" size="sm" onClick={() => setDetailsTarget(null)} className="text-xs">Close</Button>
               </DialogFooter>

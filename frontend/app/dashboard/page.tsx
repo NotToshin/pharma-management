@@ -6,6 +6,8 @@ import { API_URL } from "@/lib/api"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import PermissionGate from "@/components/permission-gate"
+import { usePermission } from "@/hooks/usePermission"
 import {
   ResponsiveContainer,
   AreaChart,
@@ -30,6 +32,7 @@ import {
 } from "lucide-react"
 
 export default function MasterExecutiveDashboardPage() {
+  const { can, ready } = usePermission()
   const [loading, setLoading] = React.useState(true)
 
   const [dashboardData, setDashboardData] = React.useState<{
@@ -103,8 +106,26 @@ export default function MasterExecutiveDashboardPage() {
 
   return (
     <div className="mx-auto max-w-[1380px] space-y-6 pb-16 font-sans text-slate-900">
+      {ready &&
+      ![
+        "grossTurnover",
+        "realizedCash",
+        "expiryExposure",
+        "liquidVault",
+        "cashFlow",
+        "therapeuticShare",
+        "fefoSurveillance",
+        "logisticsStream",
+        "bankBalances",
+        "keyOpinionLeaders",
+      ].some((key) => can("Dashboard", `overview:${key}`)) ? (
+        <Card className="rounded-xl border border-slate-200 bg-white p-5 text-xs text-slate-500">
+          This role has no dashboard overview cards assigned.
+        </Card>
+      ) : null}
       {/* 1. Top-Level Operational KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <PermissionGate feature="Dashboard" action="overview:grossTurnover">
         <Card className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-[#23496D]/30 hover:shadow-md">
           <div className="pointer-events-none absolute top-0 right-0 h-24 w-24 rounded-bl-full bg-[#23496D]/5 transition-transform group-hover:scale-110" />
           <div className="flex items-center justify-between">
@@ -127,7 +148,9 @@ export default function MasterExecutiveDashboardPage() {
             </span>
           </div>
         </Card>
+        </PermissionGate>
 
+        <PermissionGate feature="Dashboard" action="overview:realizedCash">
         <Card className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-emerald-300 hover:shadow-md">
           <div className="pointer-events-none absolute top-0 right-0 h-24 w-24 rounded-bl-full bg-emerald-500/5 transition-transform group-hover:scale-110" />
           <div className="flex items-center justify-between">
@@ -153,7 +176,9 @@ export default function MasterExecutiveDashboardPage() {
             </Link>
           </div>
         </Card>
+        </PermissionGate>
 
+        <PermissionGate feature="Dashboard" action="overview:expiryExposure">
         <Card className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-rose-300 hover:shadow-md">
           <div className="pointer-events-none absolute top-0 right-0 h-24 w-24 rounded-bl-full bg-rose-500/5 transition-transform group-hover:scale-110" />
           <div className="flex items-center justify-between">
@@ -179,7 +204,9 @@ export default function MasterExecutiveDashboardPage() {
             </Link>
           </div>
         </Card>
+        </PermissionGate>
 
+        <PermissionGate feature="Dashboard" action="overview:liquidVault">
         <Card className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-purple-300 hover:shadow-md">
           <div className="pointer-events-none absolute top-0 right-0 h-24 w-24 rounded-bl-full bg-purple-500/5 transition-transform group-hover:scale-110" />
           <div className="flex items-center justify-between">
@@ -205,10 +232,12 @@ export default function MasterExecutiveDashboardPage() {
             </Link>
           </div>
         </Card>
+        </PermissionGate>
       </div>
 
       {/* 2. Core Operational Charting Suite */}
       <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
+        <PermissionGate feature="Dashboard" action="overview:cashFlow">
         <Card className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-8">
           <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -309,8 +338,10 @@ export default function MasterExecutiveDashboardPage() {
             </ResponsiveContainer>
           </div>
         </Card>
+        </PermissionGate>
 
         {/* Dynamic Therapeutic Segment Share */}
+        <PermissionGate feature="Dashboard" action="overview:therapeuticShare">
         <Card className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-4">
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -370,10 +401,12 @@ export default function MasterExecutiveDashboardPage() {
             </span>
           </div>
         </Card>
+        </PermissionGate>
       </div>
 
       {/* 3. Real-Time Operational Activity Feeds */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <PermissionGate feature="Dashboard" action="overview:fefoSurveillance">
         <Card className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2.5">
@@ -446,7 +479,9 @@ export default function MasterExecutiveDashboardPage() {
             )}
           </div>
         </Card>
+        </PermissionGate>
 
+        <PermissionGate feature="Dashboard" action="overview:logisticsStream">
         <Card className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2.5">
@@ -523,11 +558,13 @@ export default function MasterExecutiveDashboardPage() {
             )}
           </div>
         </Card>
+        </PermissionGate>
       </div>
 
       {/* 4. Bottom Multi-Deck: Dynamic Liquid Banks & Real Enrolled Doctors */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
         {/* Dynamic Bank Accounts Linking to /finance/bank-ledger */}
+        <PermissionGate feature="Dashboard" action="overview:bankBalances">
         <Card className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-6">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2.5">
@@ -586,8 +623,10 @@ export default function MasterExecutiveDashboardPage() {
             )}
           </div>
         </Card>
+        </PermissionGate>
 
         {/* Dynamic Key Opinion Leaders */}
+        <PermissionGate feature="Dashboard" action="overview:keyOpinionLeaders">
         <Card className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-6">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2.5">
@@ -653,6 +692,7 @@ export default function MasterExecutiveDashboardPage() {
             )}
           </div>
         </Card>
+        </PermissionGate>
       </div>
 
       {/* 5. Institutional Footer Banner */}

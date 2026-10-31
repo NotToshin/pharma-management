@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
@@ -436,15 +438,17 @@ export default function StockAdjustmentsPage() {
 
           {/* New Stock Adjustment Dialog */}
           <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-              >
-                <Plus className="h-4 w-4" />
-                New Stock Adjustment
-              </Button>
-            </DialogTrigger>
+            <PermissionGate feature="Stock Adjustments" action="create">
+<DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+                >
+                  <Plus className="h-4 w-4" />
+                  New Stock Adjustment
+                </Button>
+              </DialogTrigger>
+</PermissionGate>
             <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white sm:max-w-[600px]">
               <DialogHeader>
                 <DialogTitle className="text-base font-bold text-slate-900">
@@ -700,7 +704,8 @@ export default function StockAdjustmentsPage() {
 
       {/* 2. Top Summary KPI Cards (Synchronized with real database records) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
+<PermissionGate feature="Stock Adjustments" action="overview:netImpact">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Net Adjustments Impact
@@ -726,8 +731,10 @@ export default function StockAdjustmentsPage() {
             Real-time value variance across {adjustments.length} adjustment records
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
+<PermissionGate feature="Stock Adjustments" action="overview:writeOffs">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Physical Write-Offs
@@ -743,8 +750,10 @@ export default function StockAdjustmentsPage() {
             {writeOffTotalUnits} damaged or compromised units removed
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
+<PermissionGate feature="Stock Adjustments" action="overview:auditCompliance">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Audit Compliance
@@ -767,8 +776,10 @@ export default function StockAdjustmentsPage() {
             {approvedCount} of {adjustments.length} adjustments holds authorized sign-off
           </p>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
+<PermissionGate feature="Stock Adjustments" action="overview:quarantineValue">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Quarantined Stock Value
@@ -784,6 +795,7 @@ export default function StockAdjustmentsPage() {
             Isolated in Quarantine Bay Q-01 for QA testing
           </p>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Filters */}
@@ -1033,18 +1045,20 @@ export default function StockAdjustmentsPage() {
                           Inspect Slip
                         </Button>
 
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setAdjustmentToDelete(adj)
-                            setIsDeleteOpen(true)
-                          }}
-                          className="h-7 w-7 p-0 border-rose-200 text-rose-600 hover:bg-rose-50"
-                          title="Delete Record"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        <PermissionGate feature="Stock Adjustments" action="delete">
+<Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setAdjustmentToDelete(adj)
+                              setIsDeleteOpen(true)
+                            }}
+                            className="h-7 w-7 p-0 border-rose-200 text-rose-600 hover:bg-rose-50"
+                            title="Delete Record"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+</PermissionGate>
                       </div>
                     </TableCell>
                   </TableRow>

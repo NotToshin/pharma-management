@@ -108,50 +108,51 @@ export const authService = {
     };
   },
 
-  async refreshToken(incomingRefreshToken: string) {
-    if (!incomingRefreshToken) {
+  async refreshToken(incomingRefreshToken: string | string[]) {
+    const tokens = [...new Set(
+      (Array.isArray(incomingRefreshToken) ? incomingRefreshToken : [incomingRefreshToken])
+        .filter((token): token is string => typeof token === "string" && token.split(".").length === 3)
+    )];
+
+    if (tokens.length === 0) {
       throw new AppError("Refresh token is required.", 401);
     }
 
-    let decoded: { userId: string; tokenId: string };
-    try {
-      decoded = verifyRefreshToken(incomingRefreshToken);
-    } catch {
-      throw new AppError("Invalid or expired refresh token. Please log in again.", 401);
-    }
+    for (const candidate of tokens) {
+      let decoded: { userId: string; tokenId: string };
+      try {
+        decoded = verifyRefreshToken(candidate);
+      } catch {
+        continue;
+      }
 
-    const user = await prisma.systemUser.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        role: {
-          include: {
-            permissions: true,
+      const user = await prisma.systemUser.findUnique({
+        where: { id: decoded.userId },
+        include: {
+          role: {
+            include: {
+              permissions: true,
+            },
           },
         },
-      },
-    });
-
-    if (!user) {
-      throw new AppError("User account not found.", 401);
-    }
-
-    if (user.status === "Restricted") {
-      throw new AppError("User account is restricted.", 403);
-    }
-
-    if (!user.refreshTokenHash) {
-      throw new AppError("Session expired or logged out. Please log in again.", 401);
-    }
-
-    const isMatch = compareTokenHash(incomingRefreshToken, user.refreshTokenHash);
-    if (!isMatch) {
-      // Possible token reuse or tampering - revoke existing token family
-      await prisma.systemUser.update({
-        where: { id: user.id },
-        data: { refreshTokenHash: null },
       });
-      throw new AppError("Invalid refresh token. Session invalidated for security.", 401);
-    }
+
+      if (!user) continue;
+
+      if (user.status === "Restricted") {
+        throw new AppError("User account is restricted.", 403);
+      }
+
+      if (!user.refreshTokenHash) {
+        throw new AppError("Session expired or logged out. Please log in again.", 401);
+      }
+
+      const isMatch = compareTokenHash(candidate, user.refreshTokenHash);
+      if (!isMatch) {
+        // A parallel refresh may already have rotated this token. Try the other copy
+        // without destroying the active session.
+        continue;
+      }
 
     // Refresh token rotation: issue new access token AND new refresh token
     const newAccessToken = generateAccessToken({
@@ -174,20 +175,23 @@ export const authService = {
       },
     });
 
-    return {
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role.code,
-        roleName: user.role.name,
-        territory: user.territory,
-        status: user.status,
-        permissions: user.role.permissions,
-      },
-    };
+      return {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role.code,
+          roleName: user.role.name,
+          territory: user.territory,
+          status: user.status,
+          permissions: user.role.permissions,
+        },
+      };
+    }
+
+    throw new AppError("Invalid or expired refresh token. Please log in again.", 401);
   },
 
   // Alias for backward compatibility

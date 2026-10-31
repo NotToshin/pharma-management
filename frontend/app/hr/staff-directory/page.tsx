@@ -1,5 +1,7 @@
 "use client"
 
+import PermissionGate from "@/components/permission-gate"
+
 import * as React from "react"
 import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -698,15 +700,17 @@ export default function StaffDirectoryPage() {
 
         <div className="flex items-center gap-2.5">
           {/* Create Role Button (Super Admin) */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setIsCreateRoleOpen(true)}
-            className="h-9 gap-1.5 rounded-lg border-blue-200 bg-blue-50 px-3.5 text-xs font-semibold text-[#0090FF] shadow-none hover:bg-blue-100"
-          >
-            <Shield className="h-4 w-4" />
-            + Create Role (Super Admin)
-          </Button>
+          <PermissionGate feature="Staff Directory & Roles" action="create">
+<Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsCreateRoleOpen(true)}
+              className="h-9 gap-1.5 rounded-lg border-blue-200 bg-blue-50 px-3.5 text-xs font-semibold text-[#0090FF] shadow-none hover:bg-blue-100"
+            >
+              <Shield className="h-4 w-4" />
+              + Create Role (Super Admin)
+            </Button>
+</PermissionGate>
 
           <Button
             size="sm"
@@ -726,15 +730,17 @@ export default function StaffDirectoryPage() {
               setIsAddOpen(open)
             }}
           >
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-              >
-                <Plus className="h-4 w-4" />
-                Onboard New Staff
-              </Button>
-            </DialogTrigger>
+            <PermissionGate feature="Staff Directory & Roles" action="create">
+<DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+                >
+                  <Plus className="h-4 w-4" />
+                  Onboard New Staff
+                </Button>
+              </DialogTrigger>
+</PermissionGate>
             <DialogContent className="max-h-[90vh] overflow-y-auto rounded-xl bg-white sm:max-w-[620px]">
               <DialogHeader>
                 <DialogTitle className="text-base font-bold text-slate-900">
@@ -1124,7 +1130,8 @@ export default function StaffDirectoryPage() {
 
       {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Staff Directory & Roles" action="overview:headcount">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Total Enrolled Headcount
@@ -1137,8 +1144,10 @@ export default function StaffDirectoryPage() {
             {employees.length} Staff
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Staff Directory & Roles" action="overview:activeRatio">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Active Operational Ratio
@@ -1151,8 +1160,10 @@ export default function StaffDirectoryPage() {
             {activeStaffCount} Active
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Staff Directory & Roles" action="overview:payrollLiability">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Monthly Payroll Liability
@@ -1165,8 +1176,10 @@ export default function StaffDirectoryPage() {
             ৳{totalPayrollLiability.toLocaleString("en-IN")}
           </div>
         </Card>
+</PermissionGate>
 
-        <Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
+<PermissionGate feature="Staff Directory & Roles" action="overview:roles">
+<Card className="rounded-xl border border-slate-200/90 bg-white p-5 shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
               Configured DB Roles
@@ -1182,6 +1195,7 @@ export default function StaffDirectoryPage() {
             Active
           </div>
         </Card>
+</PermissionGate>
       </div>
 
       {/* 3. Search & Filters Bar */}
@@ -1390,6 +1404,7 @@ export default function StaffDirectoryPage() {
 
                   <TableCell className="py-3 pr-0 text-right text-xs">
                     <div className="flex items-center justify-end gap-1">
+                      <PermissionGate feature="Staff Directory & Roles" action="special">
                       <Button
                         size="sm"
                         variant="outline"
@@ -1399,6 +1414,7 @@ export default function StaffDirectoryPage() {
                         <Printer className="h-3 w-3" />
                         Print Dossier
                       </Button>
+                      </PermissionGate>
 
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -1423,21 +1439,25 @@ export default function StaffDirectoryPage() {
                             <FileText className="mr-2 h-3.5 w-3.5 text-blue-600" />
                             View Dossier
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleOpenEdit(emp)}
-                            className="cursor-pointer text-xs text-slate-700"
-                          >
-                            <Pencil className="mr-2 h-3.5 w-3.5 text-emerald-600" />
-                            Edit Staff
-                          </DropdownMenuItem>
+                          <PermissionGate feature="Staff Directory & Roles" action="edit">
+<DropdownMenuItem
+                              onClick={() => handleOpenEdit(emp)}
+                              className="cursor-pointer text-xs text-slate-700"
+                            >
+                              <Pencil className="mr-2 h-3.5 w-3.5 text-emerald-600" />
+                              Edit Staff
+                            </DropdownMenuItem>
+</PermissionGate>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => handleOpenDeleteModal(emp)}
-                            className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
-                          >
-                            <Trash2 className="mr-2 h-3.5 w-3.5" />
-                            Deactivate Staff
-                          </DropdownMenuItem>
+                          <PermissionGate feature="Staff Directory & Roles" action="delete">
+<DropdownMenuItem
+                              onClick={() => handleOpenDeleteModal(emp)}
+                              className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600"
+                            >
+                              <Trash2 className="mr-2 h-3.5 w-3.5" />
+                              Deactivate Staff
+                            </DropdownMenuItem>
+</PermissionGate>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -2208,13 +2228,15 @@ export default function StaffDirectoryPage() {
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={isCreatingRole || !newRoleTitle.trim()}
-                className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
-              >
-                {isCreatingRole ? "Saving..." : "Create & Save Role"}
-              </Button>
+              <PermissionGate feature="Staff Directory & Roles" action="create">
+<Button
+                  type="submit"
+                  disabled={isCreatingRole || !newRoleTitle.trim()}
+                  className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
+                >
+                  {isCreatingRole ? "Saving..." : "Create & Save Role"}
+                </Button>
+</PermissionGate>
             </DialogFooter>
           </form>
         </DialogContent>

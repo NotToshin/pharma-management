@@ -68,8 +68,14 @@ export function middleware(request: NextRequest) {
     request.cookies.get("token")?.value ||
     request.cookies.get("ak_token")?.value
 
+  const refreshTokenCookie = request.cookies.get("refreshToken")?.value
+  const hasRefreshSession = Boolean(
+    refreshTokenCookie && !isTokenExpired(refreshTokenCookie)
+  )
+  // An expired access token is recoverable while the 7-day session or refresh token remains.
   const hasValidSession = Boolean(
     sessionFlag === "true" ||
+    hasRefreshSession ||
     (accessTokenCookie && !isTokenExpired(accessTokenCookie))
   )
   const isLoginPage = pathname === "/login"
@@ -97,7 +103,12 @@ export function middleware(request: NextRequest) {
     if (pathname && pathname !== "/dashboard") {
       loginUrl.searchParams.set("from", pathname)
     }
-    if (accessTokenCookie && isTokenExpired(accessTokenCookie)) {
+    if (
+      accessTokenCookie &&
+      isTokenExpired(accessTokenCookie) &&
+      !hasRefreshSession &&
+      sessionFlag !== "true"
+    ) {
       loginUrl.searchParams.set("expired", "1")
     }
 

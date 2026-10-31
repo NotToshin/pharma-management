@@ -2,6 +2,9 @@ import { Request, Response } from "express";
 import { rbacService } from "../services/rbacService";
 import { sendResponse } from "../utils/response";
 import { catchAsync } from "../utils/catchAsync";
+import { userFilterableFields } from "../services/rbacService";
+import { paginationFields } from "../utils/paginationHelper";
+import { pick } from "../utils/pick";
 import {
   getAccessTokenCookieOptions,
   getRefreshTokenCookieOptions,
@@ -31,8 +34,20 @@ export const updateRolePermissions = catchAsync(async (req: Request, res: Respon
 });
 
 export const getUsers = catchAsync(async (req: Request, res: Response) => {
-  const users = await rbacService.getUsers();
-  sendResponse(res, 200, "Users retrieved successfully", users);
+  const filters = pick(req.query, userFilterableFields);
+  const paginationOptions = pick(req.query, paginationFields);
+
+  const result = await rbacService.getUsers(
+    filters as any,
+    paginationOptions as any
+  );
+  sendResponse(
+    res,
+    200,
+    "Users retrieved successfully",
+    result.data,
+    result.meta
+  );
 });
 
 export const provisionUser = catchAsync(async (req: Request, res: Response) => {
