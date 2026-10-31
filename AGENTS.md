@@ -42,6 +42,7 @@ Established conventions that are easy to miss:
 - New screens that belong in the permission matrix must be added to `backend/src/constants/moduleCatalog.ts` and `frontend/lib/permissions.ts` together.
 - `SystemRole` is login security. `Role` is an HR job title. Do not merge them.
 - Most existing API routes do not call `requireAuth`. That is a gap, not a pattern to copy. New sensitive routes should authenticate and authorize.
+- List search, sort, filter, and pagination come from the backend. The frontend requests a page with `useServerListQuery` and renders `ServerListToolbar` plus `ServerListPagination` from `frontend/components/server-list-controls.tsx`. Do not slice or filter a full list in the browser when adding paging.
 
 ## Validation rules
 

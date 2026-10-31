@@ -10,15 +10,7 @@ import { getStoredUser, isUserSuperAdmin, AuthUser } from "@/lib/auth"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
+import { ServerListPagination } from "@/components/server-list-controls"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -759,34 +751,7 @@ export default function RBACManagementPage() {
     }
   }
 
-  // 10. Provisioned Users (Server-side paginated & filtered)
   const filteredUsers = assignments
-
-  // Pagination items builder matching Territory Sales Breakdown
-  const getPaginationItems = () => {
-    const items: Array<{ type: "page" | "ellipsis"; page?: number }> = []
-    const total = Math.max(1, usersTotalPages)
-    if (total <= 5) {
-      for (let i = 1; i <= total; i++) {
-        items.push({ type: "page", page: i })
-      }
-    } else {
-      items.push({ type: "page", page: 1 })
-      if (usersPage > 3) {
-        items.push({ type: "ellipsis" })
-      }
-      const start = Math.max(2, usersPage - 1)
-      const end = Math.min(total - 1, usersPage + 1)
-      for (let i = start; i <= end; i++) {
-        items.push({ type: "page", page: i })
-      }
-      if (usersPage < total - 2) {
-        items.push({ type: "ellipsis" })
-      }
-      items.push({ type: "page", page: total })
-    }
-    return items
-  }
 
   // Get color for role badges
   const getRoleBadgeStyle = (code: string) => {
@@ -1530,81 +1495,18 @@ export default function RBACManagementPage() {
           </TableBody>
         </Table>
 
-        {/* Shadcn Pagination Controls (matching Territory Sales Breakdown) */}
-        <div className="mt-5 flex flex-col items-center justify-between gap-4 border-t border-slate-100 pt-4 sm:flex-row">
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span>
-              Page {usersPage} of {Math.max(1, usersTotalPages)} ({usersTotal} total)
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span>Rows per page:</span>
-              <Select
-                value={String(usersLimit)}
-                onValueChange={(val) => {
-                  setUsersLimit(Number(val))
-                  setUsersPage(1)
-                }}
-              >
-                <SelectTrigger className="h-7 w-[70px] border-slate-200 bg-white text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="text-xs">
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <Pagination className="mx-0 w-auto justify-end">
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => setUsersPage((p) => Math.max(1, p - 1))}
-                  aria-disabled={usersPage <= 1 || isUsersLoading}
-                  className={
-                    usersPage <= 1 || isUsersLoading
-                      ? "pointer-events-none opacity-40 cursor-not-allowed"
-                      : "cursor-pointer hover:bg-slate-100"
-                  }
-                />
-              </PaginationItem>
-
-              {getPaginationItems().map((item, idx) => (
-                <PaginationItem key={idx}>
-                  {item.type === "page" ? (
-                    <PaginationLink
-                      isActive={item.page === usersPage}
-                      onClick={() => setUsersPage(item.page!)}
-                      disabled={isUsersLoading}
-                      className="cursor-pointer"
-                    >
-                      {item.page}
-                    </PaginationLink>
-                  ) : (
-                    <PaginationEllipsis />
-                  )}
-                </PaginationItem>
-              ))}
-
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() =>
-                    setUsersPage((p) => Math.min(usersTotalPages, p + 1))
-                  }
-                  aria-disabled={usersPage >= usersTotalPages || isUsersLoading}
-                  className={
-                    usersPage >= usersTotalPages || isUsersLoading
-                      ? "pointer-events-none opacity-40 cursor-not-allowed"
-                      : "cursor-pointer hover:bg-slate-100"
-                  }
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        </div>
+        <ServerListPagination
+          page={usersPage}
+          totalPages={usersTotalPages}
+          total={usersTotal}
+          limit={usersLimit}
+          loading={isUsersLoading}
+          onPageChange={setUsersPage}
+          onLimitChange={(nextLimit) => {
+            setUsersLimit(nextLimit)
+            setUsersPage(1)
+          }}
+        />
       </Card>
 
       {/* 5. Provision Operator Modal */}

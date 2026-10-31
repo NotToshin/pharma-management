@@ -42,6 +42,7 @@ export const signAuditLogSchema = z.object({
 
 export const queryAuditLogSchema = z.object({
   search: z.string().optional(),
+  searchTerm: z.string().optional(),
   module: z.string().optional(),
   severity: z.string().optional(),
   actionType: z.string().optional(),
@@ -49,6 +50,8 @@ export const queryAuditLogSchema = z.object({
   endDate: z.string().optional(),
   page: z.string().optional(),
   limit: z.string().optional(),
+  sortBy: z.string().optional(),
+  sortOrder: z.enum(["asc", "desc"]).optional(),
 });
 
 export const auditLogIdParamSchema = z.object({

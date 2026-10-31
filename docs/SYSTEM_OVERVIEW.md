@@ -321,6 +321,8 @@ Controllers use `catchAsync`. Thrown `AppError`, `ZodError`, and Prisma errors r
 6. The service writes Prisma data and, for audited modules, an `AuditLog` row.
 7. The page reads `response.ok` and `message`, then `toast.success` or `toast.error`, and reloads the list.
 
+List screens do not keep the full collection and page it locally. They request `page`, `limit`, search, sort, and filters. Audit Logs and the RBAC operator table use `useServerListQuery`, `ServerListToolbar`, and `ServerListPagination` in `frontend/components/server-list-controls.tsx`. The service returns one page and `meta.total` / `meta.totalPage`.
+
 ## File handling
 
 There is no server upload middleware and no object storage in use.

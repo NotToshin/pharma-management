@@ -7,6 +7,11 @@ import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { API_URL, apiFetch } from "@/lib/api"
 import { getStoredUser, isUserSuperAdmin } from "@/lib/auth"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -46,7 +51,6 @@ import {
   ShieldCheck,
   ShieldAlert,
   Download,
-  Search,
   Filter,
   CheckCircle2,
   AlertTriangle,
@@ -65,8 +69,6 @@ import {
   Copy,
   Check,
   Printer,
-  ChevronLeft,
-  ChevronRight,
   Sparkles,
   Truck,
   MapPin,
@@ -123,12 +125,12 @@ export default function AuditLogsPage() {
   const [loading, setLoading] = React.useState(true)
   const [refreshing, setRefreshing] = React.useState(false)
 
-  // Filters & Search
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [moduleFilter, setModuleFilter] = React.useState("all")
-  const [severityFilter, setSeverityFilter] = React.useState("all")
-  const [page, setPage] = React.useState(1)
-  const [limit] = React.useState(25)
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "timestamp",
+    initialSortOrder: "desc",
+    initialFilters: { module: "all", severity: "all" },
+  })
   const [totalPages, setTotalPages] = React.useState(1)
   const [totalCount, setTotalCount] = React.useState(0)
 
@@ -167,18 +169,10 @@ export default function AuditLogsPage() {
   }, [])
 
   // 1. Fetch Audit Logs from Backend
-  const fetchLogs = React.useCallback(async (targetPage = page) => {
+  const fetchLogs = React.useCallback(async (queryString = listQuery.queryKey) => {
     try {
       setLoading(true)
-      const params = new URLSearchParams()
-      params.set("page", String(targetPage))
-      params.set("limit", String(limit))
-
-      if (searchQuery.trim()) params.set("search", searchQuery.trim())
-      if (moduleFilter !== "all") params.set("module", moduleFilter)
-      if (severityFilter !== "all") params.set("severity", severityFilter)
-
-      const res = await apiFetch(`${API_URL}/audit-logs?${params.toString()}`)
+      const res = await apiFetch(`${API_URL}/audit-logs?${queryString}`)
       if (!res.ok) {
         throw new Error(`Failed to load audit records: ${res.statusText}`)
       }
@@ -187,7 +181,7 @@ export default function AuditLogsPage() {
       const meta = json.meta || {}
 
       setLogs(data)
-      setTotalPages(meta.totalPages || 1)
+      setTotalPages(meta.totalPages || meta.totalPage || 1)
       setTotalCount(meta.total || data.length)
     } catch (err: any) {
       console.error("Audit log fetch error:", err)
@@ -196,7 +190,7 @@ export default function AuditLogsPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [page, limit, searchQuery, moduleFilter, severityFilter])
+  }, [listQuery.queryKey])
 
   // 2. Fetch Stats from Backend
   const fetchStats = React.useCallback(async () => {
@@ -212,14 +206,14 @@ export default function AuditLogsPage() {
   }, [])
 
   React.useEffect(() => {
-    fetchLogs(page)
+    fetchLogs(listQuery.queryKey)
     fetchStats()
-  }, [fetchLogs, fetchStats, page])
+  }, [fetchLogs, fetchStats, listQuery.queryKey])
 
   // Handle manual refresh
   const handleRefresh = async () => {
     setRefreshing(true)
-    await Promise.all([fetchLogs(page), fetchStats()])
+    await Promise.all([fetchLogs(listQuery.queryKey), fetchStats()])
     toast.success("Audit records synchronized with immutable database ledger")
   }
 
@@ -307,7 +301,7 @@ export default function AuditLogsPage() {
         { id: toastId }
       )
       setIsSignModalOpen(false)
-      fetchLogs(page)
+      fetchLogs(listQuery.queryKey)
       fetchStats()
       if (selectedEntry?.id === signingEntry.id) {
         setSelectedEntry(json.data)
@@ -367,7 +361,8 @@ export default function AuditLogsPage() {
         reasonForChange: "",
         signatureMeaning: "Authorship",
       })
-      fetchLogs(1)
+      if (listQuery.page === 1) fetchLogs(listQuery.queryKey)
+      else listQuery.setPage(1)
       fetchStats()
     } catch (err: any) {
       toast.error(err.message || "Failed to create audit record", { id: toastId })
@@ -592,67 +587,63 @@ export default function AuditLogsPage() {
 </PermissionGate>
       </div>
 
-      {/* 3. Search & Filter Bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white p-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Search ref #, operator, lot, action, or SHA-256..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value)
-              setPage(1)
-            }}
-            className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={moduleFilter}
-            onValueChange={(val) => {
-              setModuleFilter(val)
-              setPage(1)
-            }}
-          >
-            <SelectTrigger className="h-8 w-[170px] border-slate-200 bg-white text-xs">
-              <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
-              <SelectValue placeholder="All Subsystems" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Subsystems</SelectItem>
-              <SelectItem value="Field Force">Field Force (MIO)</SelectItem>
-              <SelectItem value="Doctor Registry">Doctor Registry</SelectItem>
-              <SelectItem value="Clinical Registry">Clinical Registry</SelectItem>
-              <SelectItem value="Sales & Deliveries">Sales & Deliveries</SelectItem>
-              <SelectItem value="FEFO Warehouse">FEFO Warehouse</SelectItem>
-              <SelectItem value="Finance & Accounts">Finance & Accounts</SelectItem>
-              <SelectItem value="Workforce & HR">Workforce & HR</SelectItem>
-              <SelectItem value="RBAC Security">RBAC Security</SelectItem>
-              <SelectItem value="Overview & Analytics">Overview & Analytics</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={severityFilter}
-            onValueChange={(val) => {
-              setSeverityFilter(val)
-              setPage(1)
-            }}
-          >
-            <SelectTrigger className="h-8 w-[160px] border-slate-200 bg-white text-xs">
-              <SelectValue placeholder="All Severities" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Severities</SelectItem>
-              <SelectItem value="Critical">Critical Only</SelectItem>
-              <SelectItem value="Security Warning">Security Warnings</SelectItem>
-              <SelectItem value="Statutory Notice">Statutory Notices</SelectItem>
-              <SelectItem value="Routine">Routine Actions</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <ServerListToolbar
+        search={listQuery.search}
+        onSearchChange={listQuery.setSearch}
+        searchPlaceholder="Search ref #, operator, lot, action, or SHA-256..."
+        loading={loading}
+        sort={{
+          value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+          onValueChange: (value) => {
+            const [field, order] = value.split(":")
+            listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+          },
+          widthClassName: "w-[170px]",
+          options: [
+            { value: "timestamp:desc", label: "Newest first" },
+            { value: "timestamp:asc", label: "Oldest first" },
+            { value: "actorName:asc", label: "Operator A–Z" },
+            { value: "module:asc", label: "Subsystem A–Z" },
+            { value: "severity:asc", label: "Severity" },
+          ],
+        }}
+        filters={[
+          {
+            id: "module",
+            value: listQuery.filters.module || "all",
+            onValueChange: (value) => listQuery.setFilter("module", value),
+            placeholder: "All Subsystems",
+            widthClassName: "w-[180px]",
+            icon: <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />,
+            options: [
+              { value: "all", label: "All Subsystems" },
+              { value: "Field Force", label: "Field Force (MIO)" },
+              { value: "Doctor Registry", label: "Doctor Registry" },
+              { value: "Clinical Registry", label: "Clinical Registry" },
+              { value: "Sales & Deliveries", label: "Sales & Deliveries" },
+              { value: "FEFO Warehouse", label: "FEFO Warehouse" },
+              { value: "Finance & Accounts", label: "Finance & Accounts" },
+              { value: "Workforce & HR", label: "Workforce & HR" },
+              { value: "RBAC Security", label: "RBAC Security" },
+              { value: "Overview & Analytics", label: "Overview & Analytics" },
+            ],
+          },
+          {
+            id: "severity",
+            value: listQuery.filters.severity || "all",
+            onValueChange: (value) => listQuery.setFilter("severity", value),
+            placeholder: "All Severities",
+            widthClassName: "w-[170px]",
+            options: [
+              { value: "all", label: "All Severities" },
+              { value: "Critical", label: "Critical Only" },
+              { value: "Security Warning", label: "Security Warnings" },
+              { value: "Statutory Notice", label: "Statutory Notices" },
+              { value: "Routine", label: "Routine Actions" },
+            ],
+          },
+        ]}
+      />
 
       {/* 4. Main Audit Trail Register Table */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
@@ -862,36 +853,15 @@ export default function AuditLogsPage() {
           </div>
         )}
 
-        {/* Pagination Footer */}
-        {totalPages > 1 && (
-          <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500">
-            <span>
-              Page {page} of {totalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={page <= 1 || loading}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="h-8 gap-1 text-xs"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-                Previous
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={page >= totalPages || loading}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="h-8 gap-1 text-xs"
-              >
-                Next
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-        )}
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={loading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* 5. Deep-Dive Audit Event Inspection Drawer (Sheet) */}

@@ -171,8 +171,8 @@ Pattern on list pages:
 1. `loading` state true.
 2. `apiFetch` the collection.
 3. Store `data` in state.
-4. Filter and search in memory on many screens (doctors, clients).
-5. Server query params (`page`, `limit`, `searchTerm`) exist for modules whose backend schema defines them. The doctors list route validates those query fields. Check the matching `*Routes.ts` before assuming every page paginates on the server.
+4. Send `page`, `limit`, `searchTerm` / `search`, `sortBy`, `sortOrder`, and filter fields to the API. Render the returned page. Do not page a full list in the browser.
+5. Use `useServerListQuery`, `ServerListToolbar`, and `ServerListPagination` from `frontend/components/server-list-controls.tsx`. See the pagination section below.
 
 `frontend/components/ui/pagination.tsx` is the shared pager UI. Use it when a screen already slices a list. Do not add a second pager component.
 
@@ -321,9 +321,32 @@ Avatar upload reads an image as a data URL and stores it on the local user objec
 
 ## Pagination, filtering, and search
 
-List pages filter with local state (`search`, territory, status) using `Array.filter` over the fetched rows. Where the backend supports it, pass `searchTerm`, `page`, and `limit` as query parameters instead of downloading every row. Doctors, clients, audit logs, and RBAC users have query schemas. Confirm the route before adding a query key the validator will strip or reject.
+List queries are owned by the backend. The page sends the query and renders `data` plus `meta`. Do not download the full collection and then `filter`, `sort`, or `slice` it in the browser for a table that should page.
 
-Search is case-insensitive substring matching in the page, not a dedicated search engine.
+Shared controls live in `frontend/components/server-list-controls.tsx`:
+
+| Export | Use |
+|---|---|
+| `useServerListQuery` | Holds page, page size, debounced search, sort, and filters. `queryKey` is the query string. |
+| `ServerListToolbar` | Search box, optional sort select, optional filter selects |
+| `ServerListPagination` | Page numbers, ellipsis, previous/next, and rows per page. Same control as Role Permissions |
+
+```tsx
+const listQuery = useServerListQuery({
+  initialLimit: 10,
+  initialSortBy: "timestamp",
+  initialSortOrder: "desc",
+  initialFilters: { module: "all" },
+})
+
+const res = await apiFetch(`${API_URL}/audit-logs?${listQuery.queryKey}`)
+```
+
+The query string always includes `page`, `limit`, and `sortOrder`. It includes `search` and `searchTerm` when the user typed a search, `sortBy` when a sort field is set, and each filter whose value is not `all`. Changing search, sort, filter, or page size returns to page 1.
+
+The API answers with `meta.total` and `meta.totalPage` or `meta.totalPages`. Pass that total into `ServerListPagination`. Audit Logs (`frontend/app/settings/audit-logs/page.tsx`) and the operator table on Role Permissions (`frontend/app/settings/rbac/page.tsx`) both use this pager.
+
+Older screens still filter in memory. When you add paging to one of those screens, extend the backend query schema and service first, then replace the local filter with `useServerListQuery`. Do not add a second pager.
 
 ## Code practices
 

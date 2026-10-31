@@ -123,7 +123,7 @@ Static paths such as `/bulk-import` are registered before `/:id`.
 - Paths are plural nouns: `/doctors`, `/orders`, `/staff`.
 - Create is `POST /`. Update is usually `PUT /:id`. A few workflows use `PATCH` for a single change (`/:id/status`, `/:id/invoice`, `/:id/approve`, `/:id/receive`).
 - Ids are MongoDB ObjectId strings in the path.
-- Query lists use `page`, `limit`, `sortBy`, `sortOrder`, and `searchTerm` where a query schema defines them.
+- Query lists accept `page`, `limit`, `sortBy`, `sortOrder`, and `searchTerm` (audit logs also accept `search`). Filtering and sorting happen in the service. The response `meta` includes `total` and `totalPage` (audit logs also send `totalPages`). The frontend does not re-filter that page.
 
 ## Controllers
 
