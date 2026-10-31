@@ -653,7 +653,9 @@ model MioZoneAllocation {
 // ─────────────────────────────────────────────
 
 model TerritoryTarget {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  id             String     @id @default(auto()) @map("_id") @db.ObjectId
+  territoryId    String?    @db.ObjectId
+  territoryRef   Territory? @relation(fields: [territoryId], references: [id])
   territory      String
   mioName        String
   targetAmount   Float
@@ -670,10 +672,11 @@ model TerritoryTarget {
 // ─────────────────────────────────────────────
 
 model Territory {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String            @id @default(auto()) @map("_id") @db.ObjectId
   name      String
   division  String?
-  status    String   @default("Active")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status    String            @default("Active")
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  targets   TerritoryTarget[]
 }

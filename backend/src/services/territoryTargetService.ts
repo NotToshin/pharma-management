@@ -3,6 +3,8 @@ import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
 import type { Prisma } from "@prisma/client";
 import { loadOrderAttributionSources, normalizeAssignment, resolveOrderMio } from "./orderAttributionService";
+import { territoryService } from "./territoryService";
+import { STANDARD_TERRITORY_DIVISION_MAP } from "./territoryAnalyticsService";
 
 export const territoryTargetService = {
   /**
@@ -20,6 +22,7 @@ export const territoryTargetService = {
     const [targets, orders, staffList, attributionSources] = await Promise.all([
       prisma.territoryTarget.findMany({
         where,
+        include: { territoryRef: true },
         orderBy: { createdAt: "asc" },
       }),
       prisma.order.findMany({
@@ -47,6 +50,29 @@ export const territoryTargetService = {
       }),
       loadOrderAttributionSources(),
     ]);
+
+    // Non-blocking background sync for targets missing territoryId
+    const unlinkedTargets = targets.filter((t) => !t.territoryId && t.territory?.trim());
+    if (unlinkedTargets.length > 0) {
+      void (async () => {
+        try {
+          const masterTerritories = await prisma.territory.findMany({ select: { id: true, name: true } });
+          const terrMap = new Map(masterTerritories.map((m) => [m.name.trim().toLowerCase(), m.id]));
+          for (const ut of unlinkedTargets) {
+            const matchedId = terrMap.get(ut.territory.trim().toLowerCase());
+            if (matchedId) {
+              await prisma.territoryTarget.update({
+                where: { id: ut.id },
+                data: { territoryId: matchedId },
+              }).catch(() => null);
+            }
+          }
+        } catch {
+          // ignore background sync errors
+        }
+      })();
+    }
+
     const { allocations } = attributionSources;
     const attributedOrders = orders.map((order) => ({
       ...order,
@@ -102,11 +128,18 @@ export const territoryTargetService = {
 
       return {
         id: target.id,
+        territoryId: target.territoryId || target.territoryRef?.id || null,
+        territoryRef: target.territoryRef ? {
+          id: target.territoryRef.id,
+          name: target.territoryRef.name,
+          division: target.territoryRef.division,
+          status: target.territoryRef.status,
+        } : null,
         territory: target.territory,
         mio: target.mioName,
         empId: staffInfo?.empId || allocInfo?.employeeId || null,
         phone: staffInfo?.phone || allocInfo?.phone || null,
-        division: allocInfo?.division || null,
+        division: target.territoryRef?.division || allocInfo?.division || null,
         zone: allocInfo?.allocatedZone || null,
         targetRaw,
         achievedRaw,
@@ -149,10 +182,12 @@ export const territoryTargetService = {
   },
 
   /**
-   * Generates dynamic options for dropdowns populated strictly from real database entities
+   * Generates dynamic options for dropdowns populated strictly from real database entities,
+   * with master territories from the Territory collection
    */
   async getTargetOptions() {
-    const [allocations, staffList, clients, orders, targets] = await Promise.all([
+    const [masterTerritories, allocations, staffList, clients, orders, targets] = await Promise.all([
+      territoryService.getAllTerritories(),
       prisma.mioZoneAllocation.findMany({
         orderBy: { territory: "asc" },
       }),
@@ -173,13 +208,16 @@ export const territoryTargetService = {
         select: { territory: true, assignedMio: true },
       }),
       prisma.territoryTarget.findMany({
-        select: { territory: true, mioName: true },
+        select: { territory: true, mioName: true, territoryId: true, territoryRef: true },
       }),
     ]);
 
-    // Build unique territories set strictly from database records
+    // Build unique territories set strictly from database records & master territory collection
     const territorySet = new Set<string>();
 
+    masterTerritories.forEach((t) => {
+      if (t.name?.trim()) territorySet.add(t.name.trim());
+    });
     allocations.forEach((a) => {
       if (a.territory?.trim()) territorySet.add(a.territory.trim());
     });
@@ -197,6 +235,18 @@ export const territoryTargetService = {
     });
 
     const territories = Array.from(territorySet).sort((a, b) => a.localeCompare(b));
+
+    const territoryList = masterTerritories.map((t) => ({
+      id: t.id,
+      name: t.name,
+      division: t.division || null,
+      status: t.status || "Active",
+    }));
+
+    const territoryIdMap: Record<string, string> = {};
+    masterTerritories.forEach((t) => {
+      territoryIdMap[t.name.trim()] = t.id;
+    });
 
     // Build unique MIOs list strictly from database records
     const miosMap = new Map<
@@ -270,15 +320,19 @@ export const territoryTargetService = {
 
     return {
       territories,
+      territoryList,
+      territoryIdMap,
       mios: Array.from(miosMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
       territoryMioMap,
     };
   },
 
   /**
-   * Creates a new MIO sales target quota in the database
+   * Creates a new MIO sales target quota in the database,
+   * establishing a relation with the Territory collection
    */
   async createTarget(data: {
+    territoryId?: string | null;
     territory: string;
     mioName: string;
     targetAmount: number;
@@ -286,7 +340,38 @@ export const territoryTargetService = {
     fiscalYear?: string;
     notes?: string | null;
   }) {
-    const territory = data.territory.trim();
+    let targetTerritoryName = data.territory.trim();
+    let targetTerritoryId = data.territoryId?.trim() || null;
+
+    // Resolve or establish relation with Territory collection
+    if (targetTerritoryId) {
+      const terr = await prisma.territory.findUnique({
+        where: { id: targetTerritoryId },
+      });
+      if (terr) {
+        targetTerritoryName = terr.name;
+        targetTerritoryId = terr.id;
+      }
+    } else {
+      let terr = await prisma.territory.findFirst({
+        where: { name: { equals: targetTerritoryName, mode: "insensitive" } },
+      });
+      if (!terr && targetTerritoryName) {
+        const division = STANDARD_TERRITORY_DIVISION_MAP[targetTerritoryName] || "General Division";
+        terr = await prisma.territory.create({
+          data: {
+            name: targetTerritoryName,
+            division,
+            status: "Active",
+          },
+        });
+      }
+      if (terr) {
+        targetTerritoryId = terr.id;
+        targetTerritoryName = terr.name;
+      }
+    }
+
     const mioName = data.mioName.trim();
     const fiscalYear = data.fiscalYear?.trim() || "Fiscal Year 2026";
     const targetAmount = Number(data.targetAmount);
@@ -297,7 +382,10 @@ export const territoryTargetService = {
     // Check if target for same territory, MIO, and fiscal year already exists
     const existing = await prisma.territoryTarget.findFirst({
       where: {
-        territory: { equals: territory, mode: "insensitive" },
+        OR: [
+          ...(targetTerritoryId ? [{ territoryId: targetTerritoryId }] : []),
+          { territory: { equals: targetTerritoryName, mode: "insensitive" } },
+        ],
         mioName: { equals: mioName, mode: "insensitive" },
         fiscalYear: { equals: fiscalYear, mode: "insensitive" },
       },
@@ -308,9 +396,14 @@ export const territoryTargetService = {
       result = await prisma.territoryTarget.update({
         where: { id: existing.id },
         data: {
+          territoryId: targetTerritoryId,
+          territory: targetTerritoryName,
           targetAmount,
           achievedAmount,
           notes: data.notes?.trim() || existing.notes,
+        },
+        include: {
+          territoryRef: true,
         },
       });
 
@@ -319,10 +412,10 @@ export const territoryTargetService = {
           module: "Target vs. Achievement",
           actionType: "MIO Quota Re-allocated",
           severity: "Routine",
-          entityTarget: `${mioName} - ${territory}`,
+          entityTarget: `${mioName} - ${targetTerritoryName}`,
           entityType: "TerritoryTarget",
           entityId: result.id,
-          changeSummary: `Re-allocated quota target to ৳${targetAmount.toLocaleString()} (Achieved: ৳${achievedAmount.toLocaleString()}) for MIO ${mioName} in ${territory}`,
+          changeSummary: `Re-allocated quota target to ৳${targetAmount.toLocaleString()} (Achieved: ৳${achievedAmount.toLocaleString()}) for MIO ${mioName} in ${targetTerritoryName}`,
           priorPayload: existing,
           newPayload: result,
         })
@@ -330,12 +423,16 @@ export const territoryTargetService = {
     } else {
       result = await prisma.territoryTarget.create({
         data: {
-          territory,
+          territoryId: targetTerritoryId,
+          territory: targetTerritoryName,
           mioName,
           targetAmount,
           achievedAmount,
           fiscalYear,
           notes: data.notes?.trim() || null,
+        },
+        include: {
+          territoryRef: true,
         },
       });
 
@@ -344,10 +441,10 @@ export const territoryTargetService = {
           module: "Target vs. Achievement",
           actionType: "MIO Quota Allocated",
           severity: "Routine",
-          entityTarget: `${mioName} - ${territory}`,
+          entityTarget: `${mioName} - ${targetTerritoryName}`,
           entityType: "TerritoryTarget",
           entityId: result.id,
-          changeSummary: `Created new quota target of ৳${targetAmount.toLocaleString()} for MIO ${mioName} in ${territory}`,
+          changeSummary: `Created new quota target of ৳${targetAmount.toLocaleString()} for MIO ${mioName} in ${targetTerritoryName}`,
           newPayload: result,
         })
         .catch(() => null);
@@ -357,11 +454,12 @@ export const territoryTargetService = {
   },
 
   /**
-   * Updates an existing MIO quota target
+   * Updates an existing MIO quota target, preserving relation with Territory
    */
   async updateTarget(
     id: string,
     data: {
+      territoryId?: string | null;
       territory?: string;
       mioName?: string;
       targetAmount?: number;
@@ -372,13 +470,47 @@ export const territoryTargetService = {
   ) {
     const existing = await prisma.territoryTarget.findUnique({
       where: { id },
+      include: { territoryRef: true },
     });
 
     if (!existing) {
       throw new AppError("Target quota record not found", 404);
     }
 
-    const territory = data.territory ? data.territory.trim() : existing.territory;
+    let targetTerritoryName = data.territory ? data.territory.trim() : existing.territory;
+    let targetTerritoryId =
+      data.territoryId !== undefined
+        ? (data.territoryId?.trim() || null)
+        : existing.territoryId;
+
+    if (data.territoryId?.trim()) {
+      const terr = await prisma.territory.findUnique({
+        where: { id: data.territoryId.trim() },
+      });
+      if (terr) {
+        targetTerritoryName = terr.name;
+        targetTerritoryId = terr.id;
+      }
+    } else if (data.territory?.trim()) {
+      let terr = await prisma.territory.findFirst({
+        where: { name: { equals: data.territory.trim(), mode: "insensitive" } },
+      });
+      if (!terr) {
+        const division = STANDARD_TERRITORY_DIVISION_MAP[data.territory.trim()] || "General Division";
+        terr = await prisma.territory.create({
+          data: {
+            name: data.territory.trim(),
+            division,
+            status: "Active",
+          },
+        });
+      }
+      if (terr) {
+        targetTerritoryId = terr.id;
+        targetTerritoryName = terr.name;
+      }
+    }
+
     const mioName = data.mioName ? data.mioName.trim() : existing.mioName;
 
     const calculatedAchieved =
@@ -389,12 +521,16 @@ export const territoryTargetService = {
     const updated = await prisma.territoryTarget.update({
       where: { id },
       data: {
-        ...(data.territory ? { territory } : {}),
+        territoryId: targetTerritoryId,
+        territory: targetTerritoryName,
         ...(data.mioName ? { mioName } : {}),
         ...(data.targetAmount !== undefined ? { targetAmount: Number(data.targetAmount) } : {}),
         achievedAmount: calculatedAchieved,
         ...(data.fiscalYear ? { fiscalYear: data.fiscalYear.trim() } : {}),
         ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
+      },
+      include: {
+        territoryRef: true,
       },
     });
 
