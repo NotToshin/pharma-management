@@ -110,6 +110,20 @@ interface UserAssignment {
   lastLogin: string
 }
 
+interface StaffDirectoryItem {
+  id: string
+  empId: string
+  fullName: string
+  email?: string | null
+  phone?: string | null
+  department?: string | null
+  territory?: string | null
+  role?: {
+    id: string
+    name: string
+  } | null
+}
+
 /**
  * Formats user's last login timestamp strictly in (UTC+06:00) Dhaka timezone
  */
@@ -202,11 +216,18 @@ export default function RBACManagementPage() {
   const [provName, setProvName] = React.useState("")
   const [provEmail, setProvEmail] = React.useState("")
   const [provPassword, setProvPassword] = React.useState("")
-  const [provRoleCode, setProvRoleCode] = React.useState("MIO_FIELD")
+  const [provRoleCode, setProvRoleCode] = React.useState("")
   const [provDivision, setProvDivision] = React.useState("")
   const [provTerritory, setProvTerritory] = React.useState("")
   const [showProvPassword, setShowProvPassword] = React.useState(false)
   const [dbTerritories, setDbTerritories] = React.useState<MasterTerritory[]>([])
+
+  // Staff directory & search picker state for operator provisioning
+  const [staffList, setStaffList] = React.useState<StaffDirectoryItem[]>([])
+  const [isStaffLoading, setIsStaffLoading] = React.useState(false)
+  const [isStaffDropdownOpen, setIsStaffDropdownOpen] = React.useState(false)
+  const [staffSearchTerm, setStaffSearchTerm] = React.useState("")
+  const staffDropdownRef = React.useRef<HTMLDivElement | null>(null)
 
   // Edit / Reassign User Modal state
   const [isEditUserOpen, setIsEditUserOpen] = React.useState(false)
@@ -346,6 +367,22 @@ export default function RBACManagementPage() {
     }
   }, [])
 
+  const fetchStaffList = React.useCallback(async () => {
+    try {
+      setIsStaffLoading(true)
+      const res = await apiFetch(`${API_URL}/staff`)
+      if (res && res.ok) {
+        const json = await res.json()
+        const data: StaffDirectoryItem[] = Array.isArray(json) ? json : json?.data || []
+        setStaffList(data)
+      }
+    } catch (err) {
+      console.error("Error loading staff list:", err)
+    } finally {
+      setIsStaffLoading(false)
+    }
+  }, [])
+
   const fetchRBACData = React.useCallback(
     async (isManualRefresh = false) => {
       try {
@@ -354,22 +391,24 @@ export default function RBACManagementPage() {
           fetchRoles(),
           fetchUsers(usersPage, usersLimit),
           fetchTerritories(),
+          fetchStaffList(),
         ])
       } finally {
         setLoading(false)
       }
     },
-    [fetchRoles, fetchUsers, fetchTerritories, usersPage, usersLimit]
+    [fetchRoles, fetchUsers, fetchTerritories, fetchStaffList, usersPage, usersLimit]
   )
 
   React.useEffect(() => {
     if (isAuthorized) {
       fetchRoles()
       fetchTerritories()
+      fetchStaffList()
     } else if (isAuthorized === false) {
       setLoading(false)
     }
-  }, [isAuthorized, fetchRoles, fetchTerritories])
+  }, [isAuthorized, fetchRoles, fetchTerritories, fetchStaffList])
 
   React.useEffect(() => {
     if (isAuthorized) {
@@ -377,17 +416,204 @@ export default function RBACManagementPage() {
     }
   }, [isAuthorized, fetchUsers, debouncedSearch, roleFilter, statusFilter, usersPage, usersLimit])
 
+  // Click outside to close staff picker dropdown
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        staffDropdownRef.current &&
+        !staffDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsStaffDropdownOpen(false)
+      }
+    }
+    if (isStaffDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [isStaffDropdownOpen])
+
   const divisionTerritoryMap = React.useMemo(() => groupTerritories(dbTerritories), [dbTerritories])
   const divisionList = Object.keys(divisionTerritoryMap).sort()
+
+  const matchStaffToRole = React.useCallback(
+    (staff: StaffDirectoryItem, availableRoles: SystemRole[]): string => {
+      const staffRoleName = (staff.role?.name || "").toLowerCase().trim()
+      const dept = (staff.department || "").toLowerCase().trim()
+
+      if (!staffRoleName && !dept) return ""
+
+      // 1. Direct name match
+      const direct = availableRoles.find((r) => r.name.toLowerCase() === staffRoleName)
+      if (direct) return direct.code
+
+      // 2. Direct code match
+      const directCode = availableRoles.find((r) => r.code.toLowerCase() === staffRoleName)
+      if (directCode) return directCode.code
+
+      // 3. Known keywords and department mapping
+      if (staffRoleName.includes("super") || staffRoleName.includes("admin")) {
+        const r = availableRoles.find((x) => x.code === "SUPERADMIN" || x.code === "SUPER_ADMIN")
+        if (r) return r.code
+      }
+      if (
+        staffRoleName.includes("mio") ||
+        staffRoleName.includes("medical") ||
+        dept.includes("sales") ||
+        dept.includes("field")
+      ) {
+        const r = availableRoles.find(
+          (x) =>
+            x.code.includes("MIO") ||
+            x.name.toLowerCase().includes("medical") ||
+            x.name.toLowerCase().includes("mio")
+        )
+        if (r) return r.code
+      }
+      if (
+        staffRoleName.includes("area") ||
+        staffRoleName.includes("manager") ||
+        staffRoleName.includes("rsm") ||
+        staffRoleName.includes("dsm")
+      ) {
+        const r = availableRoles.find(
+          (x) =>
+            x.code.includes("AREA") ||
+            x.code.includes("MGR") ||
+            x.name.toLowerCase().includes("area") ||
+            x.name.toLowerCase().includes("manager")
+        )
+        if (r) return r.code
+      }
+      if (
+        staffRoleName.includes("finance") ||
+        staffRoleName.includes("account") ||
+        dept.includes("finance") ||
+        dept.includes("account")
+      ) {
+        const r = availableRoles.find(
+          (x) =>
+            x.code.includes("FINANCE") ||
+            x.name.toLowerCase().includes("finance") ||
+            x.name.toLowerCase().includes("account")
+        )
+        if (r) return r.code
+      }
+      if (
+        staffRoleName.includes("warehouse") ||
+        staffRoleName.includes("inventory") ||
+        dept.includes("warehouse") ||
+        dept.includes("inventory") ||
+        dept.includes("store")
+      ) {
+        const r = availableRoles.find(
+          (x) =>
+            x.code.includes("WH") ||
+            x.code.includes("INV") ||
+            x.name.toLowerCase().includes("warehouse") ||
+            x.name.toLowerCase().includes("inventory")
+        )
+        if (r) return r.code
+      }
+      if (
+        staffRoleName.includes("hr") ||
+        dept.includes("hr") ||
+        staffRoleName.includes("human")
+      ) {
+        const r = availableRoles.find(
+          (x) => x.code.includes("HR") || x.name.toLowerCase().includes("hr")
+        )
+        if (r) return r.code
+      }
+
+      // 4. Substring fallback across available roles
+      for (const r of availableRoles) {
+        if (
+          r.name.toLowerCase().includes(staffRoleName) ||
+          (staffRoleName && staffRoleName.includes(r.name.toLowerCase()))
+        ) {
+          return r.code
+        }
+      }
+
+      return ""
+    },
+    []
+  )
+
+  const handleSelectStaff = (staff: StaffDirectoryItem) => {
+    // 1. Fill Name
+    setProvName(staff.fullName)
+    setStaffSearchTerm(staff.fullName)
+
+    // 2. Fill Email (cleared if staff has no email)
+    if (staff.email?.trim()) {
+      setProvEmail(staff.email.trim())
+    } else {
+      setProvEmail("")
+    }
+
+    // Ensure password remains empty
+    setProvPassword("")
+
+    // 3. Fill Role
+    const matchedRoleCode = matchStaffToRole(staff, roles)
+    if (matchedRoleCode) {
+      setProvRoleCode(matchedRoleCode)
+    }
+
+    // 4. Fill Territory & Division if staff has assigned territory
+    if (staff.territory) {
+      for (const [div, terrs] of Object.entries(divisionTerritoryMap)) {
+        const found = terrs.find(
+          (t) =>
+            t.id === staff.territory ||
+            t.name.toLowerCase() === staff.territory!.toLowerCase()
+        )
+        if (found) {
+          setProvDivision(div)
+          setProvTerritory(found.id)
+          break
+        }
+      }
+    }
+
+    setIsStaffDropdownOpen(false)
+  }
+
+  const filteredStaffList = React.useMemo(() => {
+    const term = (provName || staffSearchTerm || "").toLowerCase().trim()
+    if (!term) return staffList
+    return staffList.filter((s) => {
+      const name = s.fullName?.toLowerCase() || ""
+      const empId = s.empId?.toLowerCase() || ""
+      const email = s.email?.toLowerCase() || ""
+      const dept = s.department?.toLowerCase() || ""
+      const roleName = s.role?.name?.toLowerCase() || ""
+      return (
+        name.includes(term) ||
+        empId.includes(term) ||
+        email.includes(term) ||
+        dept.includes(term) ||
+        roleName.includes(term)
+      )
+    })
+  }, [staffList, provName, staffSearchTerm])
 
   const handleOpenProvisionModal = () => {
     setProvName("")
     setProvEmail("")
     setProvPassword("")
     setShowProvPassword(false)
-    setProvRoleCode(roles[0]?.code || "MIO_FIELD")
+    setProvRoleCode("")
     setProvDivision("")
     setProvTerritory("")
+    setStaffSearchTerm("")
+    setIsStaffDropdownOpen(false)
+    if (staffList.length === 0) {
+      fetchStaffList()
+    }
     setIsProvisionOpen(true)
   }
 
@@ -589,8 +815,8 @@ export default function RBACManagementPage() {
   // 4. Provision Operator Account
   const handleProvisionOperator = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!provEmail.trim() || !provPassword.trim() || !provName.trim() || !provTerritory.trim()) {
-      toast.error("Please fill in operator name, email, territory, and password.")
+    if (!provEmail.trim() || !provPassword.trim() || !provName.trim() || !provRoleCode.trim() || !provTerritory.trim()) {
+      toast.error("Please fill in operator name, email, security role, territory, and password.")
       return
     }
 
@@ -626,6 +852,11 @@ export default function RBACManagementPage() {
       setProvEmail("")
       setProvPassword("")
       setShowProvPassword(false)
+      setProvRoleCode("")
+      setProvDivision("")
+      setProvTerritory("")
+      setStaffSearchTerm("")
+      setIsStaffDropdownOpen(false)
       setIsProvisionOpen(false)
       handleTabChange("operator")
       fetchUsers(usersPage, usersLimit)
@@ -1053,53 +1284,51 @@ export default function RBACManagementPage() {
 
       {/* 3. Main Container Card with Navigation Tabs */}
       <Card className="rounded-xl border border-slate-200 bg-white p-6 shadow-none">
-        {/* Navigation Tabs (Top of the Box) */}
-        <div className="border-b border-slate-100 pb-5">
-          <div className="inline-flex w-full flex-col gap-1 rounded-xl border border-slate-200/80 bg-slate-100 p-1 sm:w-auto sm:flex-row sm:gap-0">
+        {/* Navigation Tabs (Delivery Cash Collections Style) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
             <button
               type="button"
               onClick={() => handleTabChange("operator")}
-              className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all sm:justify-start ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${
                 activeTab === "operator"
-                  ? "bg-white text-slate-900 shadow-xs ring-1 ring-slate-900/5"
-                  : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
-              <Users className={`h-4 w-4 ${activeTab === "operator" ? "text-[#0090FF]" : "text-slate-400"}`} />
+              <Users className="h-3.5 w-3.5" />
               <span>Operator</span>
-              <Badge
-                variant="outline"
-                className={`ml-1 border-none px-1.5 py-0.5 text-[10px] font-bold ${
+              <span
+                className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
                   activeTab === "operator"
-                    ? "bg-blue-50 text-[#0090FF]"
-                    : "bg-slate-200/70 text-slate-600"
+                    ? "bg-white/20 text-white"
+                    : "bg-slate-100 text-slate-700"
                 }`}
               >
                 {usersTotal}
-              </Badge>
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => handleTabChange("permissions")}
-              className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all sm:justify-start ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${
                 activeTab === "permissions"
-                  ? "bg-white text-slate-900 shadow-xs ring-1 ring-slate-900/5"
-                  : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
-              <Shield className={`h-4 w-4 ${activeTab === "permissions" ? "text-[#0090FF]" : "text-slate-400"}`} />
+              <Shield className="h-3.5 w-3.5" />
               <span>Permissions</span>
-              <Badge
-                variant="outline"
-                className={`ml-1 border-none px-1.5 py-0.5 text-[10px] font-bold ${
+              <span
+                className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
                   activeTab === "permissions"
-                    ? "bg-blue-50 text-[#0090FF]"
-                    : "bg-slate-200/70 text-slate-600"
+                    ? "bg-white/20 text-white"
+                    : "bg-slate-100 text-slate-700"
                 }`}
               >
                 {roles.length}
-              </Badge>
+              </span>
               {hasUnsavedChanges && (
                 <span
                   className="h-2 w-2 rounded-full bg-amber-500 animate-pulse"
@@ -1711,15 +1940,84 @@ export default function RBACManagementPage() {
           <form onSubmit={handleProvisionOperator} className="space-y-3.5 py-2 text-xs">
             {/* Row 1: Operator Full Name & Login Email */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-700">Operator Full Name *</Label>
-                <Input
-                  placeholder="e.g. Toshin Bin Azad"
-                  value={provName}
-                  onChange={(e) => setProvName(e.target.value)}
-                  required
-                  className="h-8 text-xs"
-                />
+              <div className="space-y-1.5 relative" ref={staffDropdownRef}>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-slate-700">Operator Full Name *</Label>
+                  <span className="text-[10px] text-slate-400">
+                    {staffList.length > 0 ? `${staffList.length} staff` : "Staff directory"}
+                  </span>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                  <Input
+                    placeholder="Search staff or type name..."
+                    value={provName}
+                    onChange={(e) => {
+                      setProvName(e.target.value)
+                      setStaffSearchTerm(e.target.value)
+                      setIsStaffDropdownOpen(true)
+                    }}
+                    onFocus={() => setIsStaffDropdownOpen(true)}
+                    required
+                    className="h-8 pl-8 pr-7 text-xs"
+                    autoComplete="off"
+                  />
+                  {provName && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProvName("")
+                        setStaffSearchTerm("")
+                        setProvEmail("")
+                        setProvPassword("")
+                        setProvRoleCode("")
+                        setIsStaffDropdownOpen(true)
+                      }}
+                      className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Searchable Staff Dropdown Menu (Name & ID Only) */}
+                {isStaffDropdownOpen && (
+                  <div className="absolute top-[100%] left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg ring-1 ring-black/5 animate-in fade-in-0 zoom-in-95">
+                    {isStaffLoading ? (
+                      <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        <span>Loading staff directory...</span>
+                      </div>
+                    ) : filteredStaffList.length === 0 ? (
+                      <div className="py-4 text-center text-xs text-slate-400">
+                        No matching staff found.
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          You can still use "{provName}" as custom operator name.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-0.5">
+                        <div className="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                          Select Staff ({filteredStaffList.length})
+                        </div>
+                        {filteredStaffList.slice(0, 50).map((staff) => (
+                          <div
+                            key={staff.id}
+                            onClick={() => handleSelectStaff(staff)}
+                            className="flex cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 hover:bg-slate-100 transition-colors text-xs"
+                          >
+                            <span className="font-medium text-slate-800 truncate mr-2">
+                              {staff.fullName}
+                            </span>
+                            <span className="font-mono text-[11px] text-slate-500 shrink-0 font-medium">
+                              {staff.empId}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -1730,6 +2028,7 @@ export default function RBACManagementPage() {
                   value={provEmail}
                   onChange={(e) => setProvEmail(e.target.value)}
                   required
+                  autoComplete="off"
                   className="h-8 font-mono text-xs"
                 />
               </div>
@@ -1755,9 +2054,9 @@ export default function RBACManagementPage() {
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-slate-700">Territory Station (Dropdown) *</Label>
-                <Select value={provTerritory} onValueChange={setProvTerritory}>
+                <Select value={provTerritory} onValueChange={setProvTerritory} disabled={!provDivision}>
                   <SelectTrigger className="h-8 bg-white text-xs">
-                    <SelectValue placeholder="Select Territory" />
+                    <SelectValue placeholder={provDivision ? "Select Territory" : "Choose Division First"} />
                   </SelectTrigger>
                   <SelectContent className="text-xs max-h-56">
                     {(divisionTerritoryMap[provDivision] || []).map((terr) => (
@@ -1778,12 +2077,12 @@ export default function RBACManagementPage() {
                 <Label className="text-xs font-semibold text-slate-700">Assign Security Role *</Label>
                 <Select value={provRoleCode} onValueChange={setProvRoleCode}>
                   <SelectTrigger className="h-8 bg-white text-xs">
-                    <SelectValue placeholder="Select Role" />
+                    <SelectValue placeholder="Select Security Role" />
                   </SelectTrigger>
                   <SelectContent className="text-xs">
                     {roles.map((r) => (
                       <SelectItem key={r.id} value={r.code}>
-                        {r.name}
+                        {r.name} ({r.code})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1801,6 +2100,7 @@ export default function RBACManagementPage() {
                     onChange={(e) => setProvPassword(e.target.value)}
                     required
                     minLength={6}
+                    autoComplete="new-password"
                     className="h-8 pl-8 pr-8 font-mono text-xs"
                   />
                   <button
