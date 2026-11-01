@@ -101,7 +101,7 @@ export default function RootLayout({
     email: "toshin@akpharma.com",
     role: "SUPERADMIN",
     roleName: "Managing Director / Super Admin",
-    territory: "Central HQ",
+    territory: "",
     avatar: "",
     permissions: [] as any[],
   })

@@ -1,3 +1,4 @@
+import { territoryIdField } from "./territoryValidation";
 import { z } from "zod";
 
 export const zoneAllocationFormSchema = z.object({
@@ -6,6 +7,7 @@ export const zoneAllocationFormSchema = z.object({
   employeeId: z.string().min(1, "Employee ID is required"),
   phone: z.string().min(1, "Phone number is required"),
   division: z.string().min(1, "Division selection is required"),
+  territoryId: territoryIdField,
   territory: z.string().min(1, "Territory selection is required"),
   allocatedZone: z.string().min(1, "Allocated zone details are required"),
   effectiveDate: z.string().optional(),

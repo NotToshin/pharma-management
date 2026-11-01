@@ -1,3 +1,4 @@
+import { territoryIdField } from "./territoryValidation";
 import { z } from "zod";
 
 export const clientFormSchema = z.object({
@@ -8,6 +9,7 @@ export const clientFormSchema = z.object({
   drugLicenseNo: z.string().optional().or(z.literal("")),
   tradeLicenseNo: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),
+  territoryId: territoryIdField,
   territory: z.string().optional().or(z.literal("")),
   assignedMio: z.string().optional().or(z.literal("")),
   creditLimitBDT: z.coerce.number().min(0, "Credit limit cannot be negative").optional().default(0),
@@ -29,6 +31,7 @@ export const updateClientBodySchema = z.object({
   drugLicenseNo: z.string().optional().or(z.literal("")),
   tradeLicenseNo: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),
+  territoryId: territoryIdField,
   territory: z.string().optional().or(z.literal("")),
   assignedMio: z.string().optional().or(z.literal("")),
   creditLimitBDT: z.coerce.number().min(0, "Credit limit cannot be negative").optional(),
@@ -85,7 +88,8 @@ export const bulkImportClientSchema = z.object({
           drugLicenseNo: z.string().optional().default("N/A"),
           tradeLicenseNo: z.string().optional().default("N/A"),
           address: z.string().optional().default("N/A"),
-          territory: z.string().optional().default("Dhaka North"),
+          territoryId: territoryIdField,
+          territory: z.string().optional(),
           assignedMio: z.string().optional().default("Unassigned"),
           creditLimitBDT: z.coerce.number().optional().default(0),
           outstandingBalanceBDT: z.coerce.number().optional().default(0),

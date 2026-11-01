@@ -1,49 +1,6 @@
 import prisma from "../utils/prisma";
 import { territoryService } from "./territoryService";
 
-// Standard mapping of Bangladesh Territories to Administrative Divisions
-export const STANDARD_TERRITORY_DIVISION_MAP: Record<string, string> = {
-  "Dhaka North": "Dhaka Division",
-  "Dhaka South": "Dhaka Division",
-  "Mirpur": "Dhaka Division",
-  "Uttara": "Dhaka Division",
-  "Dhanmondi": "Dhaka Division",
-  "Gulshan": "Dhaka Division",
-  "Mohakhali": "Dhaka Division",
-  "Motijheel": "Dhaka Division",
-  "Savar": "Dhaka Division",
-  "Gazipur": "Dhaka Division",
-  "Narayanganj": "Dhaka Division",
-  "Chittagong Central": "Chittagong Division",
-  "Chittagong North": "Chittagong Division",
-  "Agrabad C/A": "Chittagong Division",
-  "GEC Circle": "Chittagong Division",
-  "Cox's Bazar": "Chittagong Division",
-  "Comilla": "Chittagong Division",
-  "Feni": "Chittagong Division",
-  "Noakhali": "Chittagong Division",
-  "Sylhet Sadar": "Sylhet Division",
-  "Zindabazar": "Sylhet Division",
-  "Amberkhana": "Sylhet Division",
-  "Moulvibazar": "Sylhet Division",
-  "Habiganj": "Sylhet Division",
-  "Rajshahi Metro": "Rajshahi Division",
-  "Shaheb Bazar": "Rajshahi Division",
-  "Bogura Hub": "Rajshahi Division",
-  "Bogura Central": "Rajshahi Division",
-  "Pabna": "Rajshahi Division",
-  "Khulna Zone": "Khulna Division",
-  "Shibbari More": "Khulna Division",
-  "Jessore": "Khulna Division",
-  "Kushtia": "Khulna Division",
-  "Barisal Sadar": "Barisal Division",
-  "Patuakhali": "Barisal Division",
-  "Rangpur Cantt": "Rangpur Division",
-  "Dinajpur": "Rangpur Division",
-  "Mymensingh Town": "Mymensingh Division",
-  "Jamalpur": "Mymensingh Division",
-};
-
 export const DIVISION_COLORS: Record<string, string> = {
   "Dhaka Division": "#0090FF",
   "Chittagong Division": "#38bdf8",
@@ -83,7 +40,7 @@ export const territoryAnalyticsService = {
     const limit = Math.max(1, Number(options.limit || 10));
 
     // 1. Fetch raw operational data in parallel from Prisma
-    const [orders, clients, allocations, staffMembers, targets] = await Promise.all([
+    const [orders, clients, allocations, staffMembers, targets, masterTerritories] = await Promise.all([
       prisma.order.findMany({
         orderBy: { createdAt: "desc" },
       }),
@@ -106,63 +63,21 @@ export const territoryAnalyticsService = {
       prisma.territoryTarget.findMany({
         orderBy: { territory: "asc" },
       }),
+      territoryService.getAllTerritories(),
     ]);
 
-    // Build dynamic territory -> division lookup
-    const territoryDivisionMap: Record<string, string> = { ...STANDARD_TERRITORY_DIVISION_MAP };
-    allocations.forEach((a) => {
-      if (a.territory?.trim() && a.division?.trim()) {
-        territoryDivisionMap[a.territory.trim()] = a.division.trim();
-      }
-    });
-
-    const getDivisionForTerritory = (territoryName?: string | null): string => {
-      if (!territoryName) return "Other Division";
-      const trimmed = territoryName.trim();
-      if (territoryDivisionMap[trimmed]) return territoryDivisionMap[trimmed];
-
-      // Fuzzy check
-      const lower = trimmed.toLowerCase();
-      if (lower.includes("dhaka")) return "Dhaka Division";
-      if (lower.includes("chittagong") || lower.includes("ctg") || lower.includes("agrabad")) return "Chittagong Division";
-      if (lower.includes("sylhet") || lower.includes("zinda")) return "Sylhet Division";
-      if (lower.includes("rajshahi") || lower.includes("bogura")) return "Rajshahi Division";
-      if (lower.includes("khulna") || lower.includes("jessore") || lower.includes("kushtia")) return "Khulna Division";
-      if (lower.includes("barisal") || lower.includes("patuakhali")) return "Barisal Division";
-      if (lower.includes("rangpur") || lower.includes("dinajpur")) return "Rangpur Division";
-      if (lower.includes("mymensingh")) return "Mymensingh Division";
-
-      return "Other Division";
-    };
-
-    // 2. Discover all distinct territories represented across all models
-    const allTerritoriesSet = new Set<string>();
-
-    orders.forEach((o) => {
-      if (o.territory?.trim()) allTerritoriesSet.add(o.territory.trim());
-    });
-    clients.forEach((c) => {
-      if (c.territory?.trim()) allTerritoriesSet.add(c.territory.trim());
-    });
-    allocations.forEach((a) => {
-      if (a.territory?.trim()) allTerritoriesSet.add(a.territory.trim());
-    });
-    targets.forEach((t) => {
-      if (t.territory?.trim()) allTerritoriesSet.add(t.territory.trim());
-    });
-
-    // Also include national administrative territories from standard map
-    Object.keys(STANDARD_TERRITORY_DIVISION_MAP).forEach((t) => allTerritoriesSet.add(t));
-
-    const allTerritoryNames = Array.from(allTerritoriesSet);
+    const territoryDivisionMap = new Map(masterTerritories.map(t => [t.name.toLowerCase(), t.division || "Other Division"]));
+    const getDivisionForTerritory = (name: string) => territoryDivisionMap.get(name.toLowerCase()) || "Other Division";
+    const allTerritoryNames = masterTerritories.map(t => t.name);
 
     // 3. Process Granular Territory Records
     const ledgerItems = allTerritoryNames.map((territory) => {
       const division = getDivisionForTerritory(territory);
+      const territoryId = masterTerritories.find(t => t.name === territory)!.id;
 
       // Orders for this territory
       const territoryOrders = orders.filter(
-        (o) => (o.territory || "").trim().toLowerCase() === territory.toLowerCase()
+        (o) => o.territoryId === territoryId || (!o.territoryId && (o.territory || "").trim().toLowerCase() === territory.toLowerCase())
       );
       const orderCount = territoryOrders.length;
       const totalRevenue = territoryOrders.reduce(
@@ -172,17 +87,17 @@ export const territoryAnalyticsService = {
 
       // Clients / Pharmacies for this territory
       const territoryClients = clients.filter(
-        (c) => (c.territory || "").trim().toLowerCase() === territory.toLowerCase()
+        (c) => c.territoryId === territoryId || (!c.territoryId && (c.territory || "").trim().toLowerCase() === territory.toLowerCase())
       );
       const pharmacyCount = territoryClients.length;
 
       // MIOs assigned to this territory
       const territoryAllocations = allocations.filter(
-        (a) => (a.territory || "").trim().toLowerCase() === territory.toLowerCase()
+        (a) => a.territoryId === territoryId || (!a.territoryId && (a.territory || "").trim().toLowerCase() === territory.toLowerCase())
       );
       const territoryStaff = staffMembers.filter((s) => {
         if (!s.territory) return false;
-        const matches = s.territory.trim().toLowerCase() === territory.toLowerCase();
+        const matches = s.territoryId === territoryId || (!s.territoryId && s.territory.trim().toLowerCase() === territory.toLowerCase());
         if (!matches) return false;
         const dept = (s.department || "").toLowerCase();
         const roleName = (s.role?.name || "").toLowerCase();
@@ -257,7 +172,7 @@ export const territoryAnalyticsService = {
 
       // Target matching
       const targetRecord = targets.find(
-        (t) => (t.territory || "").trim().toLowerCase() === territory.toLowerCase()
+        (t) => t.territoryId === territoryId || (!t.territoryId && (t.territory || "").trim().toLowerCase() === territory.toLowerCase())
       );
       const targetAmount = targetRecord ? targetRecord.targetAmount : 0;
       const targetRate = targetAmount > 0 ? Math.round((totalRevenue / targetAmount) * 100) : 0;

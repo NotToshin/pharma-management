@@ -224,7 +224,7 @@ export default function SalaryManagementPage() {
         fullName: s.fullName || "Unnamed Staff",
         designation: s.role?.name || s.designation || s.department || "Staff Member",
         department: s.department || "General",
-        territory: s.territory || "Dhaka HQ",
+        territory: s.territory || "Unassigned",
         phone: s.phone || "",
         email: s.email || "",
         status: s.status || "ACTIVE",
@@ -250,7 +250,7 @@ export default function SalaryManagementPage() {
               sal.staff?.role?.name || sal.staff?.department || sal.designation || "Staff Member"
             ),
             department: String(sal.staff?.department || sal.department || "General"),
-            territory: String(sal.staff?.territory || sal.territory || "Dhaka HQ"),
+            territory: String(sal.staff?.territory || sal.territory || "Unassigned"),
             bankName: String(sal.bankName || "Eastern Bank PLC"),
             bankAccount: String(sal.bankAccount || "104-102-000000"),
             payPeriod: String(sal.payPeriod || selectedMonth),

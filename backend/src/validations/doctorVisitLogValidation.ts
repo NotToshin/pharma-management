@@ -1,3 +1,4 @@
+import { territoryIdField } from "./territoryValidation";
 import { z } from "zod";
 
 export const visitLogFormSchema = z.object({
@@ -6,6 +7,7 @@ export const visitLogFormSchema = z.object({
   specialty: z.string().min(1, "Specialty is required"),
   chamber: z.string().min(1, "Chamber address is required"),
   mioName: z.string().min(1, "Field MIO name is required"),
+  territoryId: territoryIdField,
   territory: z.string().min(1, "Territory is required"),
   visitDate: z.string().min(1, "Visit date is required"),
   visitTime: z.string().min(1, "Visit time is required"),

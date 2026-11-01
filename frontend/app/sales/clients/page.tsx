@@ -3,6 +3,8 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { useTerritories } from "@/hooks/use-territories"
+import { MasterTerritorySelect } from "@/components/master-territory-select"
 import { getEndpoint, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import Link from "next/link"
@@ -163,7 +165,7 @@ function parseClientRow(row: any): ParsedClientRow {
   const drugLicenseNo = getCol("Drug License #", "Drug License", "DGDA License", "License No", "License") || "N/A"
   const tradeLicenseNo = getCol("Trade License #", "Trade License", "Trade Lic") || "N/A"
   const address = getCol("Address", "Location", "Market Address", "Chamber Address") || "N/A"
-  const territory = getCol("Territory", "Area", "Zone", "Region") || "Dhaka North"
+  const territory = getCol("Territory", "Area", "Zone", "Region") || ""
   const assignedMio = getCol("Assigned MIO", "MIO", "Representative", "Field Officer") || "Unassigned"
   const rawCredit = getCol(
     "Credit Facility (BDT)",
@@ -213,6 +215,7 @@ function parseClientRow(row: any): ParsedClientRow {
 }
 
 export default function ClientsDirectoryPage() {
+  const { territories: masterTerritories } = useTerritories()
   const router = useRouter()
   const [clients, setClients] = React.useState<ClientProfile[]>([])
   const [staffList, setStaffList] = React.useState<StaffMember[]>([])
@@ -246,7 +249,7 @@ export default function ClientsDirectoryPage() {
     drugLicenseNo: "",
     tradeLicenseNo: "",
     address: "",
-    territory: "Dhaka North",
+    territory: "",
     assignedMio: "Unassigned",
     creditLimitBDT: 0,
     outstandingBalanceBDT: 0,
@@ -331,7 +334,7 @@ export default function ClientsDirectoryPage() {
           drugLicenseNo: item.drugLicenseNo || "N/A",
           tradeLicenseNo: item.tradeLicenseNo || "N/A",
           address: item.address || "N/A",
-          territory: item.territory || "Dhaka North",
+          territory: item.territory || "",
           assignedMio: item.assignedMio || "Unassigned",
           creditLimitBDT:
             item.creditLimitBDT !== undefined && item.creditLimitBDT !== null
@@ -408,7 +411,7 @@ export default function ClientsDirectoryPage() {
       drugLicenseNo: "",
       tradeLicenseNo: "",
       address: "",
-      territory: "Dhaka North",
+      territory: "",
       assignedMio: "Unassigned",
       creditLimitBDT: 0,
       outstandingBalanceBDT: 0,
@@ -553,7 +556,7 @@ export default function ClientsDirectoryPage() {
           drugLicenseNo: item.drugLicenseNo || "N/A",
           tradeLicenseNo: item.tradeLicenseNo || "N/A",
           address: item.address || "N/A",
-          territory: item.territory || "Dhaka North",
+          territory: item.territory || "",
           assignedMio: item.assignedMio || "Unassigned",
           creditLimitBDT:
             item.creditLimitBDT !== undefined && item.creditLimitBDT !== null
@@ -630,7 +633,7 @@ export default function ClientsDirectoryPage() {
         "Drug License #": "DL-DHK-9921",
         "Trade License #": "TR-2024-5120",
         Address: "House 12, Mirpur Road, Kalabagan, Dhaka",
-        Territory: "Dhaka North",
+        Territory: masterTerritories.find(t => t.status === "Active")?.name || "",
         "Assigned MIO": "Rafiqul Islam",
         "Credit Limit (BDT)": 300000,
         "Credit Terms (Days)": 30,
@@ -644,7 +647,7 @@ export default function ClientsDirectoryPage() {
         "Drug License #": "DL-CTG-3301",
         "Trade License #": "TR-2024-8199",
         Address: "GEC Circle, Central Avenue, Chittagong",
-        Territory: "Chittagong Central",
+        Territory: masterTerritories.find(t => t.status === "Active")?.name || "",
         "Assigned MIO": "Tanvir Ahmed",
         "Credit Limit (BDT)": 200000,
         "Credit Terms (Days)": 15,
@@ -931,22 +934,7 @@ export default function ClientsDirectoryPage() {
               </div>
 
               {/* Territory Filter */}
-              <Select value={territoryFilter} onValueChange={(val) => { setTerritoryFilter(val); setCurrentPage(1); }}>
-                <SelectTrigger className="h-8 w-[150px] bg-white text-xs">
-                  <SelectValue placeholder="Territory" />
-                </SelectTrigger>
-                <SelectContent className="text-xs">
-                  <SelectItem value="all">All Territories</SelectItem>
-                  <SelectItem value="Dhaka North">Dhaka North</SelectItem>
-                  <SelectItem value="Dhaka South">Dhaka South</SelectItem>
-                  <SelectItem value="Dhanmondi">Dhanmondi</SelectItem>
-                  <SelectItem value="Gulshan">Gulshan</SelectItem>
-                  <SelectItem value="Uttara">Uttara</SelectItem>
-                  <SelectItem value="Chittagong Central">Chittagong Central</SelectItem>
-                  <SelectItem value="Rajshahi">Rajshahi</SelectItem>
-                  <SelectItem value="Sylhet">Sylhet</SelectItem>
-                </SelectContent>
-              </Select>
+              <MasterTerritorySelect value={territoryFilter} onValueChange={(val) => { setTerritoryFilter(val); setCurrentPage(1); }} all />
 
               {/* Account Status Filter */}
               <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}>
@@ -1551,24 +1539,7 @@ export default function ClientsDirectoryPage() {
                 <Label className="text-xs font-medium text-slate-700">
                   Territory / Zone *
                 </Label>
-                <Select
-                  value={formData.territory}
-                  onValueChange={(val) => setFormData({ ...formData, territory: val })}
-                >
-                  <SelectTrigger className="h-8 bg-white text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="text-xs">
-                    <SelectItem value="Dhaka North">Dhaka North</SelectItem>
-                    <SelectItem value="Dhaka South">Dhaka South</SelectItem>
-                    <SelectItem value="Dhanmondi">Dhanmondi</SelectItem>
-                    <SelectItem value="Gulshan">Gulshan</SelectItem>
-                    <SelectItem value="Uttara">Uttara</SelectItem>
-                    <SelectItem value="Chittagong Central">Chittagong Central</SelectItem>
-                    <SelectItem value="Rajshahi">Rajshahi</SelectItem>
-                    <SelectItem value="Sylhet">Sylhet</SelectItem>
-                  </SelectContent>
-                </Select>
+                <MasterTerritorySelect value={formData.territory} onValueChange={(val) => setFormData({ ...formData, territory: val })}  />
               </div>
 
               <div className="space-y-1">

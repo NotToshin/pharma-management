@@ -2,7 +2,7 @@
 
 Internal pharmaceutical ERP: warehouse stock, doctors and field force, pharmacy sales, procurement, treasury, payroll, RBAC, and an audit trail. No public storefront and no payment gateway.
 
-Detail lives in [FRONTEND_GUIDELINES.md](./FRONTEND_GUIDELINES.md), [BACKEND_ARCHITECTURE.md](./BACKEND_ARCHITECTURE.md), [AUTHENTICATION.md](./AUTHENTICATION.md), and [UI_UX_GUIDELINES.md](./UI_UX_GUIDELINES.md).
+Detail lives in [FRONTEND_GUIDELINES.md](./FRONTEND_GUIDELINES.md), [BACKEND_ARCHITECTURE.md](./BACKEND_ARCHITECTURE.md), [AUTHENTICATION.md](./AUTHENTICATION.md), [UI_UX_GUIDELINES.md](./UI_UX_GUIDELINES.md), and [TERRITORIES.md](./TERRITORIES.md).
 
 ## Stack
 
@@ -40,6 +40,8 @@ IDs are MongoDB ObjectIds. Embedded types, not collections: `OrderItem`, `Purcha
 
 `SystemRole` is login security. HR `Role` is a job title on `Staff`. They are not the same, and a staff row is not a login.
 
+`Territory` is the assignment master. Users, doctors, visits, staff, clients, orders, collections, wholesalers, zones, and targets link through `territoryId` / `territoryRef`; canonical name strings remain for display and exports. All assignment writes resolve against a master record. Geographic defaults and hardcoded options are removed. See [TERRITORIES.md](./TERRITORIES.md) for API contracts and the existing-data backfill.
+
 `Client` and `Order` have no foreign key. Orders store `pharmacyName`. Collections store `orderId` and `invoiceNo` as strings. `Product` has many batches. `FinancialAccount` has debit and credit journal rows. `AuditLog` optionally points at `SystemUser`.
 
 ## Modules
@@ -57,12 +59,12 @@ Names come from `backend/src/constants/moduleCatalog.ts`. The sidebar is `fronte
 
 `/doctors/timeline` and `/field-force/approvals` exist and are not in the sidebar or `ROUTE_FEATURES`, so any signed-in user can open them.
 
-`RolePermission` stores `read`, `create`, `edit`, `delete`, optional `specialAction` / `specialGranted`, and `overviewGrants` for summary cards. Seed creates `SystemRole` code `SUPERADMIN`. Who passes checks, and which routes call `requireAuth`, is in [AUTHENTICATION.md](./AUTHENTICATION.md). Only RBAC user and role routes require a token. Other business routes do not.
+`RolePermission` stores `read`, `create`, `edit`, `delete`, optional `specialAction` / `specialGranted`, and `overviewGrants` for summary cards. Seed creates `SystemRole` code `SUPERADMIN`. Who passes checks, and which routes call `requireAuth`, is in [AUTHENTICATION.md](./AUTHENTICATION.md). RBAC user and role routes and territory master creation require a token. Most other business routes do not.
 
 ## Workflows
 
 - **Doctors.** Unique `bmdcRegNumber`. Create via `POST /api/doctors`. Excel import is parsed in the browser and posted as JSON to `/api/doctors/bulk-import`. No multipart upload.
-- **Visit logs.** `DoctorVisitLog` stores names and territory as strings. No foreign key to `Doctor` or `Staff`.
+- **Visit logs.** `DoctorVisitLog` stores practitioner and MIO names as strings and links to `Territory`. No foreign key to `Doctor` or `Staff`.
 - **Sales.** `orderService` numbers orders `SO-2026-####` and challans `DC-2026-####` inside a transaction. Default status `FEFO Allocated`. `Delivered & Invoiced` and `Cancelled` adjust stock. `paymentStatus` is `UNPAID`, `PARTIALLY_PAID`, or `PAID` from `paidAmount` versus `orderValue`. Orders match clients by name.
 - **Collections.** `DeliveryCollection` records Cash, Cheque, BEFTN / RTGS, or bKash / Nagad. Clearance can post a `FinancialAccount` journal.
 - **Procurement.** `PurchaseOrder` statuses: `Draft`, `Submitted`, `Approved`, `Partially Received`, `Received`, `Cancelled`. Receipt creates `Product`, `ProductBatch`, and `InventoryBatch` in one transaction. `productBatchService` mirrors batch quantity.

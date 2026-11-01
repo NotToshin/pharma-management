@@ -20,6 +20,7 @@ export const authService = {
         email: cleanEmail,
       },
       include: {
+        territoryRef: true,
         role: {
           include: {
             permissions: true,
@@ -101,7 +102,9 @@ export const authService = {
         email: user.email,
         role: user.role.code,
         roleName: user.role.name,
-        territory: user.territory,
+        territoryId: user.territoryId,
+          territoryRef: user.territoryRef,
+          territory: user.territoryRef?.name ?? user.territory,
         status: user.status,
         permissions: user.role.permissions,
       },
@@ -129,6 +132,7 @@ export const authService = {
       const user = await prisma.systemUser.findUnique({
         where: { id: decoded.userId },
         include: {
+          territoryRef: true,
           role: {
             include: {
               permissions: true,
@@ -184,7 +188,9 @@ export const authService = {
           email: user.email,
           role: user.role.code,
           roleName: user.role.name,
-          territory: user.territory,
+          territoryId: user.territoryId,
+          territoryRef: user.territoryRef,
+          territory: user.territoryRef?.name ?? user.territory,
           status: user.status,
           permissions: user.role.permissions,
         },

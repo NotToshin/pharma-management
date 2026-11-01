@@ -435,7 +435,7 @@ export default function FinanceOverviewPage() {
             `INV-2026-${String(i + 1).padStart(4, "0")}`,
           partyName: o.pharmacyName || "Registered Chemist",
           type: "Pharmacy Invoice",
-          territory: o.territory || "Dhaka North",
+          territory: o.territory || "Unassigned",
           amount: Number(o.orderValue) || 0,
           date: o.orderDate || "28 Sep 2026",
           status: isSettled ? "Settled" : "Pending Clearance",

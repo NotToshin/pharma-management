@@ -218,7 +218,7 @@ export function OrderInvoiceSheet({
             </p>
             <p>
               <span className="font-normal">Address: </span>
-              <span className="font-semibold">{client?.address || order.territory || "Dhaka, Bangladesh"}</span>
+              <span className="font-semibold">{client?.address || order.territory || "Address not provided"}</span>
             </p>
             <p>
               <span className="font-normal">Phone Number: </span>

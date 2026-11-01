@@ -3,6 +3,7 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { MasterTerritorySelect } from "@/components/master-territory-select"
 import { useSearchParams } from "next/navigation"
 import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -246,7 +247,7 @@ function DeliveryCashCollectionsContent() {
     invoiceNo: "",
     orderId: "",
     chemistName: "",
-    territory: "Dhaka North",
+    territory: "",
     salesRepName: "",
     totalInvoiceAmount: 0,
     amountCollected: 0,
@@ -360,7 +361,7 @@ function DeliveryCashCollectionsContent() {
             invoiceNo: matched.invoiceNumber || matched.orderNumber,
             orderId: matched.id,
             chemistName: matched.pharmacyName,
-            territory: matched.territory || "Dhaka North",
+            territory: matched.territory || "",
             salesRepName: matched.assignedMio || "General MIO",
             totalInvoiceAmount: invoiceAmt,
             amountCollected: invoiceAmt,
@@ -387,7 +388,7 @@ function DeliveryCashCollectionsContent() {
             orderId: matched.id,
             invoiceNo: matched.invoiceNumber || matched.orderNumber,
             chemistName: matched.pharmacyName,
-            territory: matched.territory || "Dhaka North",
+            territory: matched.territory || "",
             salesRepName: matched.assignedMio || "General MIO",
             totalInvoiceAmount: invoiceAmt,
             amountCollected: invoiceAmt,
@@ -500,7 +501,7 @@ function DeliveryCashCollectionsContent() {
       invoiceNo: "",
       orderId: "",
       chemistName: "",
-      territory: "Dhaka North",
+      territory: "",
       salesRepName: "",
       totalInvoiceAmount: 0,
       amountCollected: 0,
@@ -543,7 +544,7 @@ function DeliveryCashCollectionsContent() {
         orderId: ord.id,
         invoiceNo: ord.invoiceNumber || ord.orderNumber,
         chemistName: ord.pharmacyName,
-        territory: ord.territory || "Dhaka North",
+        territory: ord.territory || "",
         salesRepName: ord.assignedMio || "General MIO",
         totalInvoiceAmount: invoiceAmt,
         amountCollected: invoiceAmt,
@@ -1202,20 +1203,7 @@ function DeliveryCashCollectionsContent() {
               </SelectContent>
             </Select>
 
-            <Select value={territoryFilter} onValueChange={setTerritoryFilter}>
-              <SelectTrigger className="h-8 w-[150px] border-slate-200 bg-white text-xs">
-                <SelectValue placeholder="All Territories" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="all">All Territories</SelectItem>
-                <SelectItem value="Dhaka North">Dhaka North</SelectItem>
-                <SelectItem value="Dhaka South">Dhaka South</SelectItem>
-                <SelectItem value="Chittagong Central">Chittagong Central</SelectItem>
-                <SelectItem value="Sylhet Sadar">Sylhet Sadar</SelectItem>
-                <SelectItem value="Rajshahi Metro">Rajshahi Metro</SelectItem>
-                <SelectItem value="Khulna Zone">Khulna Zone</SelectItem>
-              </SelectContent>
-            </Select>
+            <MasterTerritorySelect value={territoryFilter} onValueChange={setTerritoryFilter} all />
 
             <Select value={methodFilter} onValueChange={setMethodFilter}>
               <SelectTrigger className="h-8 w-[140px] border-slate-200 bg-white text-xs">
@@ -1770,22 +1758,7 @@ function DeliveryCashCollectionsContent() {
                 <Label className="text-xs font-medium text-slate-700">
                   Territory *
                 </Label>
-                <Select
-                  value={formData.territory}
-                  onValueChange={(val) => setFormData({ ...formData, territory: val })}
-                >
-                  <SelectTrigger className="h-8 bg-white text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="text-xs">
-                    <SelectItem value="Dhaka North">Dhaka North</SelectItem>
-                    <SelectItem value="Dhaka South">Dhaka South</SelectItem>
-                    <SelectItem value="Chittagong Central">Chittagong Central</SelectItem>
-                    <SelectItem value="Sylhet Sadar">Sylhet Sadar</SelectItem>
-                    <SelectItem value="Rajshahi Metro">Rajshahi Metro</SelectItem>
-                    <SelectItem value="Khulna Zone">Khulna Zone</SelectItem>
-                  </SelectContent>
-                </Select>
+                <MasterTerritorySelect value={formData.territory} onValueChange={(val) => setFormData({ ...formData, territory: val })}  />
               </div>
 
               <div className="space-y-1">

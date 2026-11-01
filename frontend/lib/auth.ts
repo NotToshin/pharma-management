@@ -11,6 +11,8 @@ export interface AuthUser {
   email: string
   role: string
   roleName?: string
+  territoryId?: string | null
+  territoryRef?: { id: string; name: string; division?: string | null; status: string } | null
   territory?: string
   status?: string
   avatar?: string

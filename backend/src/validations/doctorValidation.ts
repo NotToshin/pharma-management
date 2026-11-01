@@ -1,3 +1,4 @@
+import { territoryIdField } from "./territoryValidation";
 import { z } from "zod";
 
 export const doctorFormSchema = z.object({
@@ -6,6 +7,7 @@ export const doctorFormSchema = z.object({
   bmdcRegNumber: z.string().min(1, "BMDC registration number is required"),
   specialtyAndInstitute: z.string().min(1, "Specialty & Institute is required"),
   chamber: z.string().min(1, "Chamber address is required"),
+  territoryId: territoryIdField,
   territory: z.string().optional().or(z.literal("")),
   territoryAndMio: z.string().optional().default("Unassigned"),
   email: z.string().min(1, "Email address is required").email("Invalid email format"),
@@ -70,8 +72,9 @@ export const bulkImportDoctorSchema = z.object({
           phone: z.string().optional().default("+880 1700-000000"),
           specialtyAndInstitute: z.string().optional().default("General Medicine"),
           chamber: z.string().optional().default("Central Chamber"),
-          territory: z.string().optional().default(""),
-          territoryAndMio: z.string().optional().default("Dhaka / Unassigned"),
+          territoryId: territoryIdField,
+          territory: z.string().optional(),
+          territoryAndMio: z.string().optional().default("Unassigned"),
           email: z.string().optional().default("doctor@akpharma.com"),
           tier: z.string().optional().default("Tier 1 (High Prescriber)"),
           patientVolumeDaily: z.coerce.number().optional().default(20),

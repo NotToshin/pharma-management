@@ -1,3 +1,4 @@
+import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryAssignment";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
@@ -23,6 +24,7 @@ export const doctorVisitLogService = {
     specialty: string;
     chamber: string;
     mioName: string;
+    territoryId?: string | null;
     territory: string;
     visitDate: string;
     visitTime: string;
@@ -32,6 +34,7 @@ export const doctorVisitLogService = {
   }) {
     const dcrCode = data.dcrCode || `DCR-2026-${Date.now().toString().slice(-4)}`;
 
+    const assignment = await resolveTerritoryAssignment(data, { required: true });
     const newLog = await prisma.doctorVisitLog.create({
       data: {
         dcrCode,
@@ -39,7 +42,7 @@ export const doctorVisitLogService = {
         specialty: data.specialty,
         chamber: data.chamber,
         mioName: data.mioName,
-        territory: data.territory,
+        ...assignment,
         visitDate: data.visitDate,
         visitTime: data.visitTime,
         promotedDrugs: data.promotedDrugs,
@@ -71,6 +74,7 @@ export const doctorVisitLogService = {
       specialty?: string;
       chamber?: string;
       mioName?: string;
+      territoryId?: string | null;
       territory?: string;
       visitDate?: string;
       visitTime?: string;
@@ -81,9 +85,11 @@ export const doctorVisitLogService = {
   ) {
     const existing = await this.getVisitLogById(id);
 
+    const assignment = hasTerritoryAssignment(data)
+      ? await resolveTerritoryAssignment(data, { required: true, currentId: existing.territoryId }) : {};
     const updated = await prisma.doctorVisitLog.update({
       where: { id },
-      data,
+      data: { ...data, ...assignment },
     });
 
     await auditLogService.recordAuditEvent({

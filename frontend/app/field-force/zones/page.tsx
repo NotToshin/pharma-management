@@ -3,6 +3,7 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { useTerritories, groupTerritories } from "@/hooks/use-territories"
 import Link from "next/link"
 import { apiFetch, getEndpoint } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -81,87 +82,6 @@ import {
 // Division & Territory Taxonomy for Bangladesh
 // ─────────────────────────────────────────────
 
-export const BANGLADESH_DIVISIONS = [
-  "Dhaka Division",
-  "Chittagong Division",
-  "Sylhet Division",
-  "Rajshahi Division",
-  "Khulna Division",
-  "Barisal Division",
-  "Rangpur Division",
-  "Mymensingh Division",
-] as const
-
-export const DIVISION_TERRITORIES: Record<string, string[]> = {
-  "Dhaka Division": [
-    "Dhaka North",
-    "Dhaka South",
-    "Mirpur",
-    "Uttara",
-    "Dhanmondi",
-    "Gulshan",
-    "Mohakhali",
-    "Motijheel",
-    "Savar",
-    "Gazipur",
-    "Narayanganj",
-  ],
-  "Chittagong Division": [
-    "Chittagong Central",
-    "Chittagong North",
-    "Agrabad C/A",
-    "GEC Circle",
-    "Cox's Bazar",
-    "Comilla",
-    "Feni",
-    "Noakhali",
-  ],
-  "Sylhet Division": [
-    "Sylhet Sadar",
-    "Zindabazar",
-    "Amberkhana",
-    "Moulvibazar",
-    "Habiganj",
-    "Sunamganj",
-  ],
-  "Rajshahi Division": [
-    "Rajshahi Metro",
-    "Shaheb Bazar",
-    "Bogura Central",
-    "Pabna",
-    "Natore",
-    "Sirajganj",
-  ],
-  "Khulna Division": [
-    "Khulna Zone",
-    "Shibbari More",
-    "Jessore",
-    "Kushtia",
-    "Satkhira",
-    "Jhenaidah",
-  ],
-  "Barisal Division": [
-    "Barisal Sadar",
-    "Patuakhali",
-    "Bhola",
-    "Pirojpur",
-    "Jhalokati",
-  ],
-  "Rangpur Division": [
-    "Rangpur Cantt",
-    "Dinajpur",
-    "Kurigram",
-    "Saidpur",
-    "Gaibandha",
-  ],
-  "Mymensingh Division": [
-    "Mymensingh Town",
-    "Jamalpur",
-    "Netrokona",
-    "Sherpur",
-  ],
-}
-
 // ─────────────────────────────────────────────
 // Interfaces
 // ─────────────────────────────────────────────
@@ -227,6 +147,13 @@ export interface StaffMioOption {
 }
 
 export default function MioZoneAllocationsPage() {
+  const { territories: masterTerritories, error: territoryError } = useTerritories()
+  const divisionTerritories = React.useMemo(() => {
+    const groups = groupTerritories(masterTerritories)
+    return Object.fromEntries(Object.entries(groups).map(([division, territories]) => [division, territories.map(t => t.name)]))
+  }, [masterTerritories])
+  const divisionList = Object.keys(divisionTerritories).sort()
+
   const [allocations, setAllocations] = React.useState<AllocationItem[]>([])
   const [staffMios, setStaffMios] = React.useState<StaffMioOption[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -243,8 +170,8 @@ export default function MioZoneAllocationsPage() {
   const [createMioName, setCreateMioName] = React.useState("")
   const [createEmployeeId, setCreateEmployeeId] = React.useState("")
   const [createPhone, setCreatePhone] = React.useState("")
-  const [createDivision, setCreateDivision] = React.useState<string>("Dhaka Division")
-  const [createTerritory, setCreateTerritory] = React.useState<string>("Dhaka North")
+  const [createDivision, setCreateDivision] = React.useState<string>("")
+  const [createTerritory, setCreateTerritory] = React.useState<string>("")
   const [createAllocatedZone, setCreateAllocatedZone] = React.useState("")
   const [createEffectiveDate, setCreateEffectiveDate] = React.useState(
     new Date().toLocaleDateString("en-GB", {
@@ -318,6 +245,8 @@ export default function MioZoneAllocationsPage() {
 
   // Handle Staff Selection in Create Modal
   const handleSelectStaffMio = (staffId: string) => {
+    setCreateDivision("")
+    setCreateTerritory("")
     setSelectedStaffId(staffId)
     const staff = staffMios.find((s) => s.id === staffId)
     if (staff) {
@@ -329,7 +258,7 @@ export default function MioZoneAllocationsPage() {
       if (staff.territory) {
         setCreateTerritory(staff.territory)
         // Find which division contains this territory
-        for (const [div, territories] of Object.entries(DIVISION_TERRITORIES)) {
+        for (const [div, territories] of Object.entries(divisionTerritories)) {
           if (territories.includes(staff.territory)) {
             setCreateDivision(div)
             break
@@ -342,25 +271,25 @@ export default function MioZoneAllocationsPage() {
   // Handle Division change in Create Modal -> Update Territory options
   const handleDivisionChange = (division: string) => {
     setCreateDivision(division)
-    const territories = DIVISION_TERRITORIES[division] || []
-    if (territories.length > 0) {
-      setCreateTerritory(territories[0])
-    }
+    const territories = divisionTerritories[division] || []
+    setCreateTerritory(territories[0] || "")
   }
 
   // Handle Division change in Edit Modal
   const handleEditDivisionChange = (division: string) => {
     if (!editingItem) return
-    const territories = DIVISION_TERRITORIES[division] || []
+    const territories = divisionTerritories[division] || []
     setEditingItem({
       ...editingItem,
       division,
-      territory: territories[0] || editingItem.territory,
+      territory: territories[0] || "",
     })
   }
 
   // Open Create Modal
   const handleOpenCreate = () => {
+    setCreateDivision("")
+    setCreateTerritory("")
     // Reset or pre-fill with first staff member
     if (staffMios.length > 0) {
       const first = staffMios[0]
@@ -370,23 +299,23 @@ export default function MioZoneAllocationsPage() {
       setCreatePhone(first.phone)
       if (first.territory) {
         setCreateTerritory(first.territory)
-        for (const [div, territories] of Object.entries(DIVISION_TERRITORIES)) {
+        for (const [div, territories] of Object.entries(divisionTerritories)) {
           if (territories.includes(first.territory)) {
             setCreateDivision(div)
             break
           }
         }
       } else {
-        setCreateDivision("Dhaka Division")
-        setCreateTerritory("Dhaka North")
+        setCreateDivision("")
+        setCreateTerritory("")
       }
     } else {
       setSelectedStaffId("")
       setCreateMioName("")
       setCreateEmployeeId("")
       setCreatePhone("")
-      setCreateDivision("Dhaka Division")
-      setCreateTerritory("Dhaka North")
+      setCreateDivision("")
+      setCreateTerritory("")
     }
     setCreateAllocatedZone("")
     setCreateNotes("")
@@ -396,7 +325,7 @@ export default function MioZoneAllocationsPage() {
   // Submit Create Allocation
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!createMioName.trim() || !createEmployeeId.trim() || !createAllocatedZone.trim()) {
+    if (!createMioName.trim() || !createEmployeeId.trim() || !createAllocatedZone.trim() || !createTerritory || territoryError) {
       toast.error("Please fill in all required fields including Zone Details.")
       return
     }
@@ -411,6 +340,7 @@ export default function MioZoneAllocationsPage() {
         employeeId: createEmployeeId.trim(),
         phone: createPhone.trim(),
         division: createDivision,
+        territoryId: masterTerritories.find(t => t.name === createTerritory)?.id,
         territory: createTerritory,
         allocatedZone: createAllocatedZone.trim(),
         effectiveDate: createEffectiveDate,
@@ -466,6 +396,7 @@ export default function MioZoneAllocationsPage() {
         employeeId: editingItem.employeeId,
         phone: editingItem.phone,
         division: editingItem.division,
+        territoryId: masterTerritories.find(t => t.name === editingItem.territory)?.id,
         territory: editingItem.territory,
         allocatedZone: editingItem.allocatedZone,
         effectiveDate: editingItem.effectiveDate,
@@ -744,7 +675,7 @@ export default function MioZoneAllocationsPage() {
             </SelectTrigger>
             <SelectContent className="text-xs">
               <SelectItem value="all">All Divisions</SelectItem>
-              {BANGLADESH_DIVISIONS.map((div) => (
+              {divisionList.map((div) => (
                 <SelectItem key={div} value={div}>
                   {div}
                 </SelectItem>
@@ -1077,7 +1008,7 @@ export default function MioZoneAllocationsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="text-xs">
-                    {BANGLADESH_DIVISIONS.map((div) => (
+                    {divisionList.map((div) => (
                       <SelectItem key={div} value={div}>
                         {div}
                       </SelectItem>
@@ -1095,7 +1026,7 @@ export default function MioZoneAllocationsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="text-xs max-h-56">
-                    {(DIVISION_TERRITORIES[createDivision] || []).map((terr) => (
+                    {(divisionTerritories[createDivision] || []).map((terr) => (
                       <SelectItem key={terr} value={terr}>
                         {terr}
                       </SelectItem>
@@ -1225,7 +1156,7 @@ export default function MioZoneAllocationsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="text-xs">
-                      {BANGLADESH_DIVISIONS.map((div) => (
+                      {divisionList.map((div) => (
                         <SelectItem key={div} value={div}>
                           {div}
                         </SelectItem>
@@ -1248,7 +1179,7 @@ export default function MioZoneAllocationsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="text-xs max-h-56">
-                      {(DIVISION_TERRITORIES[editingItem.division] || []).map((terr) => (
+                      {(divisionTerritories[editingItem.division] || []).map((terr) => (
                         <SelectItem key={terr} value={terr}>
                           {terr}
                         </SelectItem>

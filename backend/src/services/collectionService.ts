@@ -1,3 +1,4 @@
+import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryAssignment";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
@@ -210,6 +211,7 @@ export const collectionService = {
     const dateFormatted = formatDate(data.collectionDate);
 
     const created = await prisma.$transaction(async (txClient) => {
+      const assignment = await resolveTerritoryAssignment(data, { required: true, db: txClient });
       let targetAccountId = data.financialAccountId;
 
       // 1. Resolve or find matching order
@@ -341,7 +343,7 @@ export const collectionService = {
           orderId: finalOrderId,
           clientCode: data.clientCode || null,
           chemistName: data.chemistName.trim(),
-          territory: data.territory.trim(),
+          ...assignment,
           salesRepName: data.salesRepName.trim(),
           totalInvoiceAmount: invoiced,
           amountCollected: collected,
@@ -391,7 +393,7 @@ export const collectionService = {
     if (data.orderId !== undefined) updateData.orderId = data.orderId;
     if (data.clientCode !== undefined) updateData.clientCode = data.clientCode;
     if (data.chemistName !== undefined) updateData.chemistName = data.chemistName.trim();
-    if (data.territory !== undefined) updateData.territory = data.territory.trim();
+    if (hasTerritoryAssignment(data)) Object.assign(updateData, await resolveTerritoryAssignment(data, { required: true, currentId: existing.territoryId }));
     if (data.salesRepName !== undefined) updateData.salesRepName = data.salesRepName.trim();
     if (data.totalInvoiceAmount !== undefined) updateData.totalInvoiceAmount = Number(data.totalInvoiceAmount);
     if (data.amountCollected !== undefined) updateData.amountCollected = Number(data.amountCollected);

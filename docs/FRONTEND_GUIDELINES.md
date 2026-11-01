@@ -92,10 +92,10 @@ Other screens use local `if` checks and `toast.error`. RBAC provisioning require
 
 Encoded rules:
 
-- Doctors: `doctorName`, `phone`, `bmdcRegNumber`, `specialtyAndInstitute`, `chamber`, `tier` required. `email` required and `.email()`. `patientVolumeDaily` coerced integer ≥ 0. `territoryAndMio` defaults to `"Unassigned"`.
+- Doctors: `doctorName`, `phone`, `bmdcRegNumber`, `specialtyAndInstitute`, `chamber`, `tier` required. `email` required and `.email()`. `patientVolumeDaily` coerced integer ≥ 0. `territoryAndMio` defaults to `"Unassigned"`. Optional territory selections resolve to the Territory master.
 - Clients: `pharmacyName`, `phone`, `territory` required. Credit amounts coerced and ≥ 0. `creditTermDays` integer ≥ 0, default 30. `status` enum `Active / Healthy`, `Credit Hold`, `Watchlist`, `Cash Only`.
 - Login API: email format, password `min(1)`.
-- User provisioning API: email format, password `min(6)`, name and `roleCode` required.
+- User provisioning API: email format, password `min(6)`, name, `roleCode`, and a master `territoryId` required. Division and territory options come from the master collection. Other forms reuse `MasterTerritorySelect`; see [TERRITORIES.md](./TERRITORIES.md).
 - Phones are required strings. There is no phone regex and no password rule beyond length 6. Money inputs need `z.coerce.number()`.
 
 New form, matching `handleAddDoctor` in `app/doctors/database/page.tsx`:

@@ -1,10 +1,10 @@
+import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryAssignment";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
 import type { Prisma } from "@prisma/client";
 import { loadOrderAttributionSources, normalizeAssignment, resolveOrderMio } from "./orderAttributionService";
 import { territoryService } from "./territoryService";
-import { STANDARD_TERRITORY_DIVISION_MAP } from "./territoryAnalyticsService";
 
 export const territoryTargetService = {
   /**
@@ -30,6 +30,7 @@ export const territoryTargetService = {
           id: true,
           orderNumber: true,
           territory: true,
+          territoryId: true,
           assignedMio: true,
           pharmacyName: true,
           orderValue: true,
@@ -50,28 +51,6 @@ export const territoryTargetService = {
       }),
       loadOrderAttributionSources(),
     ]);
-
-    // Non-blocking background sync for targets missing territoryId
-    const unlinkedTargets = targets.filter((t) => !t.territoryId && t.territory?.trim());
-    if (unlinkedTargets.length > 0) {
-      void (async () => {
-        try {
-          const masterTerritories = await prisma.territory.findMany({ select: { id: true, name: true } });
-          const terrMap = new Map(masterTerritories.map((m) => [m.name.trim().toLowerCase(), m.id]));
-          for (const ut of unlinkedTargets) {
-            const matchedId = terrMap.get(ut.territory.trim().toLowerCase());
-            if (matchedId) {
-              await prisma.territoryTarget.update({
-                where: { id: ut.id },
-                data: { territoryId: matchedId },
-              }).catch(() => null);
-            }
-          }
-        } catch {
-          // ignore background sync errors
-        }
-      })();
-    }
 
     const { allocations } = attributionSources;
     const attributedOrders = orders.map((order) => ({
@@ -101,8 +80,8 @@ export const territoryTargetService = {
       // Aggregate matching orders for real delivered/invoiced sales from DB
       const attributableOrders = attributedOrders.filter((order) =>
         Boolean(targetMioLower) && order.resolvedMio === targetMioLower &&
-        (!targetTerritoryLower || !normalizeAssignment(order.territory) ||
-          normalizeAssignment(order.territory) === targetTerritoryLower));
+        (target.territoryId && order.territoryId ? target.territoryId === order.territoryId :
+          (!targetTerritoryLower || !normalizeAssignment(order.territory) || normalizeAssignment(order.territory) === targetTerritoryLower)));
       const matchingOrders = attributableOrders.filter((order) =>
         normalizeAssignment(order.status) === "delivered & invoiced");
       const ordersRealized = matchingOrders.reduce(
@@ -212,29 +191,7 @@ export const territoryTargetService = {
       }),
     ]);
 
-    // Build unique territories set strictly from database records & master territory collection
-    const territorySet = new Set<string>();
-
-    masterTerritories.forEach((t) => {
-      if (t.name?.trim()) territorySet.add(t.name.trim());
-    });
-    allocations.forEach((a) => {
-      if (a.territory?.trim()) territorySet.add(a.territory.trim());
-    });
-    staffList.forEach((s) => {
-      if (s.territory?.trim()) territorySet.add(s.territory.trim());
-    });
-    clients.forEach((c) => {
-      if (c.territory?.trim()) territorySet.add(c.territory.trim());
-    });
-    orders.forEach((o) => {
-      if (o.territory?.trim()) territorySet.add(o.territory.trim());
-    });
-    targets.forEach((t) => {
-      if (t.territory?.trim()) territorySet.add(t.territory.trim());
-    });
-
-    const territories = Array.from(territorySet).sort((a, b) => a.localeCompare(b));
+    const territories = masterTerritories.filter(t => t.status === "Active").map(t => t.name);
 
     const territoryList = masterTerritories.map((t) => ({
       id: t.id,
@@ -340,37 +297,9 @@ export const territoryTargetService = {
     fiscalYear?: string;
     notes?: string | null;
   }) {
-    let targetTerritoryName = data.territory.trim();
-    let targetTerritoryId = data.territoryId?.trim() || null;
-
-    // Resolve or establish relation with Territory collection
-    if (targetTerritoryId) {
-      const terr = await prisma.territory.findUnique({
-        where: { id: targetTerritoryId },
-      });
-      if (terr) {
-        targetTerritoryName = terr.name;
-        targetTerritoryId = terr.id;
-      }
-    } else {
-      let terr = await prisma.territory.findFirst({
-        where: { name: { equals: targetTerritoryName, mode: "insensitive" } },
-      });
-      if (!terr && targetTerritoryName) {
-        const division = STANDARD_TERRITORY_DIVISION_MAP[targetTerritoryName] || "General Division";
-        terr = await prisma.territory.create({
-          data: {
-            name: targetTerritoryName,
-            division,
-            status: "Active",
-          },
-        });
-      }
-      if (terr) {
-        targetTerritoryId = terr.id;
-        targetTerritoryName = terr.name;
-      }
-    }
+    const assignment = await resolveTerritoryAssignment(data, { required: true });
+    const targetTerritoryName = assignment.territory;
+    const targetTerritoryId = assignment.territoryId;
 
     const mioName = data.mioName.trim();
     const fiscalYear = data.fiscalYear?.trim() || "Fiscal Year 2026";
@@ -477,39 +406,11 @@ export const territoryTargetService = {
       throw new AppError("Target quota record not found", 404);
     }
 
-    let targetTerritoryName = data.territory ? data.territory.trim() : existing.territory;
-    let targetTerritoryId =
-      data.territoryId !== undefined
-        ? (data.territoryId?.trim() || null)
-        : existing.territoryId;
-
-    if (data.territoryId?.trim()) {
-      const terr = await prisma.territory.findUnique({
-        where: { id: data.territoryId.trim() },
-      });
-      if (terr) {
-        targetTerritoryName = terr.name;
-        targetTerritoryId = terr.id;
-      }
-    } else if (data.territory?.trim()) {
-      let terr = await prisma.territory.findFirst({
-        where: { name: { equals: data.territory.trim(), mode: "insensitive" } },
-      });
-      if (!terr) {
-        const division = STANDARD_TERRITORY_DIVISION_MAP[data.territory.trim()] || "General Division";
-        terr = await prisma.territory.create({
-          data: {
-            name: data.territory.trim(),
-            division,
-            status: "Active",
-          },
-        });
-      }
-      if (terr) {
-        targetTerritoryId = terr.id;
-        targetTerritoryName = terr.name;
-      }
-    }
+    const assignment = hasTerritoryAssignment(data)
+      ? await resolveTerritoryAssignment(data, { required: true, currentId: existing.territoryId })
+      : { territoryId: existing.territoryId, territory: existing.territory };
+    const targetTerritoryName = assignment.territory;
+    const targetTerritoryId = assignment.territoryId;
 
     const mioName = data.mioName ? data.mioName.trim() : existing.mioName;
 

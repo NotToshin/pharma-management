@@ -1,3 +1,4 @@
+import { territoryIdField } from "./territoryValidation";
 import { z } from "zod";
 
 const staffStatusEnum = z.enum(["ACTIVE", "INACTIVE", "SUSPENDED", "TERMINATED", "PROBATION", "ON_LEAVE"]);
@@ -13,6 +14,7 @@ export const createStaffSchema = z.object({
     mothersName: z.string().optional().or(z.literal("")),
     address: z.string().optional().or(z.literal("")),
     department: z.string().optional().or(z.literal("")),
+    territoryId: territoryIdField,
     territory: z.string().optional().or(z.literal("")),
     supervisor: z.string().optional().or(z.literal("")),
     status: staffStatusEnum.optional().default("ACTIVE"),
@@ -40,6 +42,7 @@ export const updateStaffSchema = z.object({
     mothersName: z.string().optional().or(z.literal("")),
     address: z.string().optional().or(z.literal("")),
     department: z.string().optional().or(z.literal("")),
+    territoryId: territoryIdField,
     territory: z.string().optional().or(z.literal("")),
     supervisor: z.string().optional().or(z.literal("")),
     status: staffStatusEnum.optional(),

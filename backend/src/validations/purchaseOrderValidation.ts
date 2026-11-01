@@ -1,3 +1,4 @@
+import { territoryIdField } from "./territoryValidation";
 import { z } from "zod";
 
 export const purchaseOrderItemSchema = z.object({
@@ -167,7 +168,8 @@ export const createWholesalerSchema = z.object({
     drugLicenseNo: z.string().min(1, "Drug license number is required"),
     tradeLicense: z.string().optional().nullable(),
     address: z.string().min(1, "Address is required"),
-    territory: z.string().optional().default("Dhaka Metro"),
+    territoryId: territoryIdField,
+    territory: z.string().optional(),
     paymentTerms: z.string().optional().default("Net 30 Days"),
     rating: z.coerce.number().min(1).max(5).optional().default(5.0),
     status: z.enum(["Active", "Under Review", "Blacklisted"]).optional().default("Active"),
@@ -189,6 +191,7 @@ export const updateWholesalerSchema = z.object({
     drugLicenseNo: z.string().min(1).optional(),
     tradeLicense: z.string().optional().nullable(),
     address: z.string().min(1).optional(),
+    territoryId: territoryIdField,
     territory: z.string().optional(),
     paymentTerms: z.string().optional(),
     rating: z.coerce.number().min(1).max(5).optional(),

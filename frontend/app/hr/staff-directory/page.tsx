@@ -482,7 +482,7 @@ export default function StaffDirectoryPage() {
         roleName: formState.roleName,
         designation: formState.roleName,
         department: formState.department,
-        territory: "Dhaka",
+        territory: "",
         salary: Number(formState.salary) || 20000,
         employmentStatus: formState.employmentStatus,
         joiningDate: formState.startDate ? new Date(formState.startDate) : new Date(),

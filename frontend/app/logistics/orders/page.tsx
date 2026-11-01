@@ -3,6 +3,7 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { MasterTerritorySelect } from "@/components/master-territory-select"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { API_URL, apiFetch } from "@/lib/api"
@@ -1153,24 +1154,7 @@ function LogisticsOrdersContent() {
                     >
                       Territory Hub
                     </Label>
-                    <Select value={territory} onValueChange={setTerritory}>
-                      <SelectTrigger className="h-8 bg-white text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="text-xs">
-                        <SelectItem value="Dhaka North">Dhaka North</SelectItem>
-                        <SelectItem value="Dhaka South">Dhaka South</SelectItem>
-                        <SelectItem value="Chittagong Central">
-                          Chittagong Central
-                        </SelectItem>
-                        <SelectItem value="Sylhet Sadar">
-                          Sylhet Sadar
-                        </SelectItem>
-                        <SelectItem value="Rajshahi Metro">
-                          Rajshahi Metro
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <MasterTerritorySelect value={territory} onValueChange={setTerritory}  />
                   </div>
 
                   <div className="space-y-1.5">
@@ -1592,21 +1576,7 @@ function LogisticsOrdersContent() {
             </SelectContent>
           </Select>
 
-          <Select value={territoryFilter} onValueChange={setTerritoryFilter}>
-            <SelectTrigger className="h-8 w-[150px] border-slate-200 bg-white text-xs">
-              <SelectValue placeholder="All Territories" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Territories</SelectItem>
-              <SelectItem value="dhaka north">Dhaka North</SelectItem>
-              <SelectItem value="dhaka south">Dhaka South</SelectItem>
-              <SelectItem value="chittagong central">
-                Chittagong Central
-              </SelectItem>
-              <SelectItem value="sylhet sadar">Sylhet Sadar</SelectItem>
-              <SelectItem value="rajshahi metro">Rajshahi Metro</SelectItem>
-            </SelectContent>
-          </Select>
+          <MasterTerritorySelect value={territoryFilter} onValueChange={setTerritoryFilter} all />
         </div>
       </div>
 

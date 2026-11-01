@@ -356,6 +356,18 @@ export default function TargetVsAchievementPage() {
     setSortDirection(dir)
   }
 
+  // Custom entries create an explicit master record before assigning a quota.
+  const createMasterTerritory = async (name: string) => {
+    const existing = options.territoryList?.find(t => t.name.toLowerCase() === name.toLowerCase())
+    if (existing) return existing.id
+    const response = await apiFetch(getEndpoint("/territories"), {
+      method: "POST", body: JSON.stringify({ name }),
+    })
+    const result = await response.json()
+    if (!response.ok) throw new Error(result.message || "Could not create master territory")
+    return result.data.id as string
+  }
+
   // Handle Create Target Form Submission
   const handleAddTarget = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -384,10 +396,11 @@ export default function TargetVsAchievementPage() {
     setIsSubmitting(true)
 
     try {
+      const territoryId = isCustomTerritory ? await createMasterTerritory(targetTerritoryName) : newTerritoryId
       const res = await apiFetch(getEndpoint("/targets"), {
         method: "POST",
         body: JSON.stringify({
-          territoryId: isCustomTerritory ? undefined : (newTerritoryId || undefined),
+          territoryId: territoryId || undefined,
           territory: targetTerritoryName,
           mioName: targetMioName,
           targetAmount: targetNum,
@@ -471,10 +484,11 @@ export default function TargetVsAchievementPage() {
     setIsUpdating(true)
 
     try {
+      const territoryId = isEditCustomTerritory ? await createMasterTerritory(finalTerritory) : editTerritoryId
       const res = await apiFetch(getEndpoint(`/targets/${editingTarget.id}`), {
         method: "PUT",
         body: JSON.stringify({
-          territoryId: isEditCustomTerritory ? undefined : (editTerritoryId || undefined),
+          territoryId: territoryId || undefined,
           territory: finalTerritory,
           mioName: editMio.trim(),
           targetAmount: targetNum,
@@ -793,7 +807,7 @@ export default function TargetVsAchievementPage() {
                   required
                   selectedTerritoryName={newTerritory}
                   selectedTerritoryId={newTerritoryId}
-                  territories={options.territoryList || []}
+                  territories={(options.territoryList || []).filter(t => t.status === "Active" || t.id === editTerritoryId)}
                   territoryMioMap={options.territoryMioMap}
                   isCustom={isCustomTerritory}
                   customValue={customTerritory}

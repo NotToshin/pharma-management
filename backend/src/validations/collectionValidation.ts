@@ -1,3 +1,4 @@
+import { territoryIdField } from "./territoryValidation";
 import { z } from "zod";
 
 export const createCollectionSchema = z.object({
@@ -7,6 +8,7 @@ export const createCollectionSchema = z.object({
     orderId: z.string().optional().nullable(),
     clientCode: z.string().optional().nullable(),
     chemistName: z.string().min(1, "Chemist name is required"),
+    territoryId: territoryIdField,
     territory: z.string().min(1, "Territory is required"),
     salesRepName: z.string().min(1, "Sales representative name is required"),
     totalInvoiceAmount: z.coerce.number().positive("Total invoice amount must be positive"),
@@ -36,6 +38,7 @@ export const updateCollectionSchema = z.object({
     orderId: z.string().optional().nullable(),
     clientCode: z.string().optional().nullable(),
     chemistName: z.string().min(1).optional(),
+    territoryId: territoryIdField,
     territory: z.string().min(1).optional(),
     salesRepName: z.string().min(1).optional(),
     totalInvoiceAmount: z.coerce.number().positive().optional(),

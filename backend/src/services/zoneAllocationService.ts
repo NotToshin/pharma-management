@@ -1,3 +1,4 @@
+import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryAssignment";
 import { StaffStatus } from "@prisma/client";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
@@ -37,6 +38,8 @@ export const zoneAllocationService = {
           specialtyAndInstitute: true,
           chamber: true,
           territoryAndMio: true,
+          territoryId: true,
+          territory: true,
           tier: true,
           phone: true,
         },
@@ -50,6 +53,7 @@ export const zoneAllocationService = {
           phone: true,
           address: true,
           territory: true,
+          territoryId: true,
           assignedMio: true,
           creditLimitBDT: true,
           outstandingBalanceBDT: true,
@@ -91,7 +95,7 @@ export const zoneAllocationService = {
         if (!docField) return false;
         return (
           docField.includes(mioLower) ||
-          (territoryLower && docField.includes(territoryLower))
+          (alloc.territoryId ? doc.territoryId === alloc.territoryId : territoryLower && (doc.territory || "").trim().toLowerCase() === territoryLower)
         );
       });
 
@@ -102,7 +106,7 @@ export const zoneAllocationService = {
         const clientTerritory = (client.territory || "").trim().toLowerCase();
         return (
           (clientMio && (clientMio === mioLower || clientMio.includes(mioLower))) ||
-          (territoryLower && clientTerritory === territoryLower)
+          (alloc.territoryId ? client.territoryId === alloc.territoryId : territoryLower && clientTerritory === territoryLower)
         );
       });
 
@@ -113,6 +117,7 @@ export const zoneAllocationService = {
         employeeId: actualEmpId,
         phone: actualPhone,
         division: alloc.division,
+        territoryId: alloc.territoryId,
         territory: alloc.territory,
         allocatedZone: alloc.allocatedZone,
         effectiveDate: alloc.effectiveDate,
@@ -184,6 +189,7 @@ export const zoneAllocationService = {
     employeeId: string;
     phone: string;
     division: string;
+    territoryId?: string | null;
     territory: string;
     allocatedZone: string;
     effectiveDate?: string;
@@ -212,32 +218,29 @@ export const zoneAllocationService = {
       }
     }
 
-    // Keep Staff territory updated so HR reflects the new assignment
-    if (staffRecord && data.territory) {
-      await prisma.staff.update({
-        where: { id: staffRecord.id },
-        data: { territory: data.territory },
-      });
-    }
-
     const todayDate = new Date().toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
       year: "numeric",
     });
 
-    const newAllocation = await prisma.mioZoneAllocation.create({
-      data: {
-        staffId: resolvedStaffId || null,
-        mioName: staffRecord ? staffRecord.fullName : data.mioName,
-        employeeId: staffRecord ? staffRecord.empId : data.employeeId,
-        phone: staffRecord ? staffRecord.phone : data.phone,
-        division: data.division,
-        territory: data.territory,
-        allocatedZone: data.allocatedZone,
-        effectiveDate: data.effectiveDate || todayDate,
-        notes: data.notes || null,
-      },
+    const newAllocation = await prisma.$transaction(async (tx) => {
+      const assignment = await resolveTerritoryAssignment(data, { required: true, db: tx });
+      const master = await tx.territory.findUniqueOrThrow({ where: { id: assignment.territoryId! } });
+      if (staffRecord) await tx.staff.update({ where: { id: staffRecord.id }, data: assignment });
+      return tx.mioZoneAllocation.create({
+        data: {
+          staffId: resolvedStaffId || null,
+          mioName: staffRecord ? staffRecord.fullName : data.mioName,
+          employeeId: staffRecord ? staffRecord.empId : data.employeeId,
+          phone: staffRecord ? staffRecord.phone : data.phone,
+          division: master.division || "General Division",
+          ...assignment,
+          allocatedZone: data.allocatedZone,
+          effectiveDate: data.effectiveDate || todayDate,
+          notes: data.notes || null,
+        },
+      });
     });
 
     await auditLogService.recordAuditEvent({
@@ -263,6 +266,7 @@ export const zoneAllocationService = {
       employeeId?: string;
       phone?: string;
       division?: string;
+      territoryId?: string | null;
       territory?: string;
       allocatedZone?: string;
       effectiveDate?: string;
@@ -277,30 +281,25 @@ export const zoneAllocationService = {
       throw new AppError("Zone allocation record not found", 404);
     }
 
-    // If staffId or territory changed, sync staff territory
-    const targetStaffId = data.staffId || existing.staffId;
-    if (targetStaffId && data.territory) {
-      await prisma.staff
-        .update({
-          where: { id: targetStaffId },
-          data: { territory: data.territory },
-        })
-        .catch(() => {});
-    }
-
-    const updated = await prisma.mioZoneAllocation.update({
-      where: { id },
-      data: {
-        ...(data.staffId !== undefined ? { staffId: data.staffId } : {}),
-        ...(data.mioName ? { mioName: data.mioName } : {}),
-        ...(data.employeeId ? { employeeId: data.employeeId } : {}),
-        ...(data.phone ? { phone: data.phone } : {}),
-        ...(data.division ? { division: data.division } : {}),
-        ...(data.territory ? { territory: data.territory } : {}),
-        ...(data.allocatedZone ? { allocatedZone: data.allocatedZone } : {}),
-        ...(data.effectiveDate ? { effectiveDate: data.effectiveDate } : {}),
-        ...(data.notes !== undefined ? { notes: data.notes } : {}),
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const assignment = await resolveTerritoryAssignment(hasTerritoryAssignment(data) ? data : { territoryId: existing.territoryId, territory: existing.territory }, { required: true, currentId: existing.territoryId, db: tx });
+      const master = await tx.territory.findUniqueOrThrow({ where: { id: assignment.territoryId! } });
+      const targetStaffId = data.staffId === undefined ? existing.staffId : data.staffId;
+      if (targetStaffId) await tx.staff.update({ where: { id: targetStaffId }, data: assignment });
+      return tx.mioZoneAllocation.update({
+        where: { id },
+        data: {
+          ...(data.staffId !== undefined ? { staffId: data.staffId } : {}),
+          ...(data.mioName ? { mioName: data.mioName } : {}),
+          ...(data.employeeId ? { employeeId: data.employeeId } : {}),
+          ...(data.phone ? { phone: data.phone } : {}),
+          division: master.division || "General Division",
+          ...assignment,
+          ...(data.allocatedZone ? { allocatedZone: data.allocatedZone } : {}),
+          ...(data.effectiveDate ? { effectiveDate: data.effectiveDate } : {}),
+          ...(data.notes !== undefined ? { notes: data.notes } : {}),
+        },
+      });
     });
 
     await auditLogService.recordAuditEvent({

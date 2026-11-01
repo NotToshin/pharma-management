@@ -27,6 +27,12 @@ async function runTests() {
   console.log("STARTING END-TO-END FLOW TESTING FOR AK PHARMA");
   console.log("==================================================\n");
 
+  const territoryResponse = await fetch(`${API_BASE}/territories`);
+  if (!territoryResponse.ok) throw new Error("Could not load master territories for the test");
+  const territoryData = await territoryResponse.json() as { data: Array<{ id: string; name: string; status: string }> };
+  const territory = territoryData.data.find(item => item.status === "Active");
+  if (!territory) throw new Error("Create an active master territory before running this test");
+
   let testPoId = "";
   let testPoNumber = "";
   let testOrderId = "";
@@ -179,7 +185,8 @@ async function runTests() {
   await logStep("5. Sell Something (Order Creation & FEFO Inventory Deduction)", async () => {
     const orderPayload = {
       pharmacyName: "Labaid Pharmacy (Gulshan)",
-      territory: "Dhaka North",
+      territoryId: territory.id,
+      territory: territory.name,
       assignedMio: "Tanvir Ahmed",
       itemsSummary: `${uniqueDrugName} (30)`,
       itemsDetail: [
@@ -246,7 +253,8 @@ async function runTests() {
       invoiceNo: testInvoiceNo,
       orderId: testOrderId,
       chemistName: "Labaid Pharmacy (Gulshan)",
-      territory: "Dhaka North",
+      territoryId: territory.id,
+      territory: territory.name,
       salesRepName: "Tanvir Ahmed",
       totalInvoiceAmount: 9000,
       amountCollected: 9000,

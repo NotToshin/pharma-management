@@ -1,3 +1,4 @@
+import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryAssignment";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import {
@@ -565,6 +566,7 @@ export const purchaseOrderService = {
       wholesalerCode = `WHL-${initials}-${String(count + 1).padStart(2, "0")}`;
     }
 
+    const assignment = await resolveTerritoryAssignment(data, { required: true });
     const wholesaler = await prisma.wholesaler.create({
       data: {
         wholesalerCode,
@@ -575,7 +577,7 @@ export const purchaseOrderService = {
         drugLicenseNo: data.drugLicenseNo.trim(),
         tradeLicense: data.tradeLicense?.trim() || null,
         address: data.address.trim(),
-        territory: data.territory || "Dhaka Metro",
+        ...assignment,
         paymentTerms: data.paymentTerms || "Net 30 Days",
         rating: Number(data.rating) || 5.0,
         status: data.status || "Active",
@@ -611,7 +613,7 @@ export const purchaseOrderService = {
     if (data.drugLicenseNo !== undefined) updateData.drugLicenseNo = data.drugLicenseNo.trim();
     if (data.tradeLicense !== undefined) updateData.tradeLicense = data.tradeLicense?.trim() || null;
     if (data.address !== undefined) updateData.address = data.address.trim();
-    if (data.territory !== undefined) updateData.territory = data.territory;
+    if (hasTerritoryAssignment(data)) Object.assign(updateData, await resolveTerritoryAssignment(data, { required: true, currentId: existing.territoryId }));
     if (data.paymentTerms !== undefined) updateData.paymentTerms = data.paymentTerms;
     if (data.rating !== undefined) updateData.rating = Number(data.rating);
     if (data.status !== undefined) updateData.status = data.status;

@@ -1,3 +1,4 @@
+import { territoryIdField } from "./territoryValidation";
 import { z } from "zod";
 
 export const loginOperatorSchema = z.object({
@@ -13,7 +14,8 @@ export const provisionUserSchema = z.object({
     email: z.string().email("Invalid email format"),
     password: z.string().min(6, "Password must be at least 6 characters"),
     roleCode: z.string().min(1, "Role code is required"),
-    territory: z.string().optional().default("Dhaka HQ"),
+    territoryId: z.string().regex(/^[a-f\d]{24}$/i, "Select a territory"),
+    territory: z.string().optional(),
   }),
 });
 
@@ -62,6 +64,7 @@ export const updateUserSchema = z.object({
     email: z.string().email("Invalid email format").optional(),
     password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal("")),
     roleCode: z.string().min(1).optional(),
+    territoryId: territoryIdField,
     territory: z.string().optional(),
   }),
   params: z.object({

@@ -1,7 +1,8 @@
+import { territoryIdField } from "./territoryValidation";
 import { z } from "zod";
 
 export const territoryTargetFormSchema = z.object({
-  territoryId: z.string().optional().nullable(),
+  territoryId: territoryIdField,
   territory: z.string().min(1, "Territory is required"),
   mioName: z.string().min(1, "Assigned MIO is required"),
   targetAmount: z.coerce.number().positive("Target amount must be greater than 0"),

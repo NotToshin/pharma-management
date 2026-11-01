@@ -3,6 +3,7 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { MasterTerritorySelect } from "@/components/master-territory-select"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -337,7 +338,7 @@ export default function WholesalerPurchaseOrdersPage() {
     drugLicenseNo: "",
     tradeLicense: "",
     address: "",
-    territory: "Dhaka Central",
+    territory: "",
     paymentTerms: "Net 30 Days",
     rating: 5.0,
     leadTimeDays: 2,
@@ -1164,7 +1165,7 @@ export default function WholesalerPurchaseOrdersPage() {
       drugLicenseNo: "",
       tradeLicense: "",
       address: "",
-      territory: "Dhaka Central",
+      territory: "",
       paymentTerms: "Net 30 Days",
       rating: 5.0,
       leadTimeDays: 2,
@@ -1185,7 +1186,7 @@ export default function WholesalerPurchaseOrdersPage() {
       drugLicenseNo: w.drugLicenseNo,
       tradeLicense: w.tradeLicense || "",
       address: w.address,
-      territory: w.territory || "Dhaka Central",
+      territory: w.territory || "",
       paymentTerms: w.paymentTerms || "Net 30 Days",
       rating: w.rating || 5.0,
       leadTimeDays: w.leadTimeDays || 2,
@@ -2735,25 +2736,7 @@ export default function WholesalerPurchaseOrdersPage() {
 
                 <div className="space-y-1">
                   <Label className="text-xs font-medium text-slate-700">Commercial Territory</Label>
-                  <Select
-                    value={newWholesalerForm.territory}
-                    onValueChange={(val) => setNewWholesalerForm((p) => ({ ...p, territory: val }))}
-                  >
-                    <SelectTrigger className="h-8 border-slate-200 bg-white text-xs">
-                      <SelectValue placeholder="Territory" />
-                    </SelectTrigger>
-                    <SelectContent className="text-xs">
-                      <SelectItem value="Dhaka Central">Dhaka Central</SelectItem>
-                      <SelectItem value="Dhaka North">Dhaka North</SelectItem>
-                      <SelectItem value="Dhaka South">Dhaka South</SelectItem>
-                      <SelectItem value="Dhaka Suburb">Dhaka Suburb / Savar</SelectItem>
-                      <SelectItem value="Dhaka West">Dhaka West / Mirpur</SelectItem>
-                      <SelectItem value="Chittagong Metro">Chittagong Metro</SelectItem>
-                      <SelectItem value="Sylhet Division">Sylhet Division</SelectItem>
-                      <SelectItem value="Rajshahi Division">Rajshahi Division</SelectItem>
-                      <SelectItem value="Khulna Division">Khulna Division</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <MasterTerritorySelect value={newWholesalerForm.territory} onValueChange={(val) => setNewWholesalerForm((p) => ({ ...p, territory: val }))}  />
                 </div>
 
                 <div className="space-y-1">
@@ -2948,7 +2931,7 @@ export default function WholesalerPurchaseOrdersPage() {
                               {w.rating?.toFixed(1) || "5.0"}
                             </span>
                             <span className="text-[10px] text-slate-400">•</span>
-                            <span className="text-[10px] text-slate-500">{w.territory || "Dhaka Central"}</span>
+                            <span className="text-[10px] text-slate-500">{w.territory || ""}</span>
                           </div>
                           {w.suppliedCategories && w.suppliedCategories.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">

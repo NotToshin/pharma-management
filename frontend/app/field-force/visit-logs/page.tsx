@@ -3,6 +3,7 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { MasterTerritorySelect } from "@/components/master-territory-select"
 import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -576,7 +577,7 @@ export default function DoctorVisitLogsPage() {
               row["Chamber Location"] || row["Chamber"] || "General Clinic",
             mioName:
               row["Field MIO"] || row["MIO Name"] || "Field Representative",
-            territory: row["Territory"] || "Central Hub",
+            territory: row["Territory"] || "",
             visitDate: row["Visit Date"] || new Date().toISOString().slice(0, 10),
             visitTime: row["Visit Time"] || row["Time"] || "10:00 AM",
             promotedDrugs: row["Promoted Drugs"] || "Standard Formulations",
@@ -850,14 +851,7 @@ export default function DoctorVisitLogsPage() {
                     >
                       Territory
                     </Label>
-                    <Input
-                      id="territory"
-                      placeholder="Territory Zone"
-                      value={territory}
-                      onChange={(e) => setTerritory(e.target.value)}
-                      required
-                      className="h-8 text-xs"
-                    />
+                    <MasterTerritorySelect id="territory" value={territory} onValueChange={setTerritory} />
                   </div>
                 </div>
 
@@ -1394,17 +1388,7 @@ export default function DoctorVisitLogsPage() {
                   <Label className="text-xs font-medium text-slate-700">
                     Territory
                   </Label>
-                  <Input
-                    value={editingLog.territory}
-                    onChange={(e) =>
-                      setEditingLog({
-                        ...editingLog,
-                        territory: e.target.value,
-                      })
-                    }
-                    required
-                    className="h-8 text-xs"
-                  />
+                  <MasterTerritorySelect value={editingLog.territory} onValueChange={(territory) => setEditingLog({ ...editingLog, territory })} />
                 </div>
               </div>
 

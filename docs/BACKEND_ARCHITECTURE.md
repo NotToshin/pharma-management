@@ -89,6 +89,8 @@ export const createDoctor = catchAsync(async (req: Request, res: Response) => {
 
 Services in `src/services/` own Prisma, document numbers, transactions, and audit writes. They do not take `req` or `res`. The audit actor comes from `requestContextStorage` (`src/utils/requestContext.ts`). Call `auditLogService` from the service after a mutation the module already audits. Do not add a second logger.
 
+Territory assignments use `src/services/territoryAssignment.ts` to resolve IDs or legacy master names and persist the relation plus canonical label. Unknown or inactive new assignments return `AppError` 400. Territory reads never create records. See [TERRITORIES.md](./TERRITORIES.md) for contracts and backfill steps. Master creation requires authentication and the `Target Vs Achievement` create permission.
+
 `prisma.$transaction` is required when one action writes more than one collection: order create, cancel, and stock; purchase-order receipt; collection clearance; expense disbursement; ledger transfers; settlements. Pass `tx` into nested writes. Throw inside the callback so the whole action rolls back.
 
 `src/utils/prisma.ts` reuses one `PrismaClient` outside production. Schema changes: `npx prisma db push` from `backend`, then `npx prisma generate`. MongoDB does not enforce every relation. Services throw `AppError` when a parent row is missing. Models are listed in [SYSTEM_OVERVIEW.md](./SYSTEM_OVERVIEW.md).
@@ -115,7 +117,8 @@ Token helpers and `requireAuth` / `requirePermission` behavior are in [AUTHENTIC
 |---|---|
 | `/api/rbac/roles` and `/api/rbac/users` | `requireAuth("SUPER_ADMIN")` |
 | `/api/auth/*`, `/api/rbac/login` | Public. The service checks the password |
-| Every other module | No `requireAuth` |
+| `POST /api/territories` | `requireAuth()` plus `requirePermission("Target Vs Achievement", "create")` |
+| Other business routes | No `requireAuth` |
 
 That gap is real. New routes that change users, money, or stock still call `requireAuth()`, and `requirePermission(moduleName, action)` when the module catalog has that name. `req.user` is typed in `src/types/express.d.ts`.
 
