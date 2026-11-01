@@ -8,6 +8,7 @@ import {
   updateCollection,
   settleCollections,
   deleteCollection,
+  getCollectionOrderContext,
 } from "../controllers/collectionController";
 import { validate, validateBody, validateParams, validateQuery } from "../utils/validate";
 import {
@@ -16,12 +17,15 @@ import {
   settleBulkCollectionSchema,
   collectionIdParamSchema,
   queryCollectionSchema,
+  collectionOrderContextParamSchema,
 } from "../validations/collectionValidation";
+import { requireAuth, requirePermission } from "../middlewares/requireAuth";
 
 const router = Router();
 
 router.get("/metrics", getCollectionMetrics);
 router.get("/next-number", getNextReceiptNumber);
+router.get("/order-context/:orderId", requireAuth(), requirePermission("Delivery Cash Collections", "read"), validateParams(collectionOrderContextParamSchema), getCollectionOrderContext);
 router.get("/", validateQuery(queryCollectionSchema), getAllCollections);
 router.get("/:id", validateParams(collectionIdParamSchema), getCollectionById);
 router.post("/", validateBody(createCollectionSchema), createCollection);

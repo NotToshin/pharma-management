@@ -45,7 +45,7 @@ The login page calls `POST /api/auth/login` with `fetch`, not `apiFetch`. Auth r
 
 `apiFetch` (`frontend/lib/api.ts`) refreshes if the access token is missing or inside 5 seconds of expiry. Concurrent callers share one refresh. It sends `Authorization: Bearer` plus `x-user-email`, `x-user-name`, and `x-user-role`. Those headers are for audit context, not authorization. On refresh failure it clears storage and redirects to `/login?expired=1`.
 
-Login and refresh user payloads include `territoryId`, `territoryRef`, and the master territory name. Operator provisioning requires a master territory ID; editing credentials without an assignment change preserves it. Territory is an assignment, not an authorization grant or an automatic data-scope restriction. See [TERRITORIES.md](./TERRITORIES.md).
+Login and refresh user payloads include `territoryId`, `territoryRef`, and the master territory name. Operator provisioning requires a master territory ID; editing credentials without an assignment change preserves it. Territory is an assignment, not an authorization grant or an automatic data-scope restriction. See [BACKEND_ARCHITECTURE.md](./BACKEND_ARCHITECTURE.md#territory-assignments).
 
 Refresh tries each candidate token. A hash mismatch continues to the next candidate so a parallel refresh does not kill the session. `status === "Restricted"` cannot log in or refresh (`403`). A null `refreshTokenHash` is `401`.
 

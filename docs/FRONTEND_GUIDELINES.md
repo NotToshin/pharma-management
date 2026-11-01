@@ -95,7 +95,7 @@ Encoded rules:
 - Doctors: `doctorName`, `phone`, `bmdcRegNumber`, `specialtyAndInstitute`, `chamber`, `tier` required. `email` required and `.email()`. `patientVolumeDaily` coerced integer ≥ 0. `territoryAndMio` defaults to `"Unassigned"`. Optional territory selections resolve to the Territory master.
 - Clients: `pharmacyName`, `phone`, `territory` required. Credit amounts coerced and ≥ 0. `creditTermDays` integer ≥ 0, default 30. `status` enum `Active / Healthy`, `Credit Hold`, `Watchlist`, `Cash Only`.
 - Login API: email format, password `min(1)`.
-- User provisioning API: email format, password `min(6)`, name, `roleCode`, and a master `territoryId` required. Division and territory options come from the master collection. Other forms reuse `MasterTerritorySelect`; see [TERRITORIES.md](./TERRITORIES.md).
+- User provisioning API: email format, password `min(6)`, name, `roleCode`, and a master `territoryId` required. Division and territory options come from the master collection; follow the territory selection pattern below.
 - Phones are required strings. There is no phone regex and no password rule beyond length 6. Money inputs need `z.coerce.number()`.
 
 New form, matching `handleAddDoctor` in `app/doctors/database/page.tsx`:
@@ -105,6 +105,19 @@ New form, matching `handleAddDoctor` in `app/doctors/database/page.tsx`:
 3. On `res.ok`, `toast.success` with the same id, close the dialog, reload.
 4. On failure, toast `errorData.message`. Server `errors: [{ field, message }]` are not written back onto inputs.
 5. Updates on the doctors page use `schema.partial().safeParse`.
+
+## Division and territory selection
+
+`Territory` is the source of names, divisions, and active status. Load records with `useTerritories` from `hooks/use-territories.ts`. Use `groupTerritories` to group active records by their stored division; `General Division` labels a missing division without guessing geography. Pass the original territory name when editing to retain an existing inactive assignment.
+
+- Forms requiring division and territory use linked **Division** and **Territory Station** dropdowns, following RBAC provisioning. `components/division-territory-fields.tsx` supplies the shared controls used by Enroll New Chemist Client, client editing, and delivery cash collection forms. Reuse these controls instead of copying dropdown markup and state logic.
+- Choosing a division limits stations to that group and selects its first station, replacing the previous assignment. Keep the selected master ID as the dropdown value. Submit `territoryId` and the canonical `territory` name; derive division from the master rather than accepting an independent assignment string.
+- Existing client or receipt assignments prefill both fields. New collections fetch `/collections/order-context/:orderId` when selecting an invoice or opening from an invoice link. This reads the pharmacy's current assignment instead of copying the older order territory. Returning from another browser tab refreshes it; cancelled or superseded requests cannot overwrite a later selection. Block saving while the lookup is pending or failed, and submit its `clientCode` with the chosen territory ID. Receipt editing retains its recorded assignment. A new form starts without a geographic default.
+- Show loading, request errors, and empty-master feedback. Disable unavailable controls and reject submission until a valid station is selected. Do not inject hardcoded regions or free-text fallback assignments.
+- Client forms include the chosen ID and canonical name in `clientFormSchema.safeParse`, map validation issues to field errors, and show Sonner feedback. Backend validation remains authoritative.
+- `components/master-territory-select.tsx` remains available for simple single-territory selectors and list filters. Doctor/staff assignments can be blank. Other new assignments require a master territory. Custom entry in the targets screen explicitly creates a master record before saving the quota.
+
+Backend relation contracts, inactive-assignment rules, and existing-data backfill commands are in [BACKEND_ARCHITECTURE.md](./BACKEND_ARCHITECTURE.md#territory-assignments). Update these existing guides when this pattern changes; do not create a new documentation file for each feature or logic change unless requested.
 
 ## Permissions in the UI
 

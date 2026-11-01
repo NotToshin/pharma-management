@@ -4,6 +4,8 @@ import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
 import { MasterTerritorySelect } from "@/components/master-territory-select"
+import { DivisionTerritoryFields } from "@/components/division-territory-fields"
+import { groupTerritories, useTerritories } from "@/hooks/use-territories"
 import { useSearchParams } from "next/navigation"
 import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -239,15 +241,20 @@ function DeliveryCashCollectionsContent() {
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [isSubmittingForm, setIsSubmittingForm] = React.useState(false)
+  const [isLoadingOrderContext, setIsLoadingOrderContext] = React.useState(false)
+  const [orderContextError, setOrderContextError] = React.useState("")
+  const [loadedOrderContextId, setLoadedOrderContextId] = React.useState("")
   const [detailsTarget, setDetailsTarget] = React.useState<DeliveryCollection | null>(null)
 
   // Create / Edit Form State
+  const { territories: masterTerritories, loading: territoriesLoading, error: territoriesError } = useTerritories()
   const [formData, setFormData] = React.useState({
     receiptNo: "",
     invoiceNo: "",
     orderId: "",
     chemistName: "",
     territory: "",
+    clientCode: "",
     salesRepName: "",
     totalInvoiceAmount: 0,
     amountCollected: 0,
@@ -265,6 +272,14 @@ function DeliveryCashCollectionsContent() {
     financialAccountId: "",
     notes: "",
   })
+
+  const collectionTerritoryGroups = React.useMemo(() => groupTerritories(
+    masterTerritories,
+    collections.find(collection => collection.id === editingId)?.territory
+  ), [masterTerritories, collections, editingId])
+  const selectedCollectionTerritory = Object.values(collectionTerritoryGroups).flat().find(
+    territory => territory.name.toLowerCase() === formData.territory.trim().toLowerCase()
+  )
 
   // Bulk Settlement Modal State
   const [isSettlementOpen, setIsSettlementOpen] = React.useState(false)
@@ -361,7 +376,8 @@ function DeliveryCashCollectionsContent() {
             invoiceNo: matched.invoiceNumber || matched.orderNumber,
             orderId: matched.id,
             chemistName: matched.pharmacyName,
-            territory: matched.territory || "",
+            territory: "",
+            clientCode: "",
             salesRepName: matched.assignedMio || "General MIO",
             totalInvoiceAmount: invoiceAmt,
             amountCollected: invoiceAmt,
@@ -388,7 +404,8 @@ function DeliveryCashCollectionsContent() {
             orderId: matched.id,
             invoiceNo: matched.invoiceNumber || matched.orderNumber,
             chemistName: matched.pharmacyName,
-            territory: matched.territory || "",
+            territory: "",
+            clientCode: "",
             salesRepName: matched.assignedMio || "General MIO",
             totalInvoiceAmount: invoiceAmt,
             amountCollected: invoiceAmt,
@@ -399,6 +416,56 @@ function DeliveryCashCollectionsContent() {
         })
     }
   }, [targetOrderId, targetInvoiceNo, deliveredOrders, accounts, collections.length])
+
+  // Resolve new invoice selections against the current pharmacy record.
+  React.useEffect(() => {
+    if (!isCreateOpen || editingId || !formData.orderId) {
+      setIsLoadingOrderContext(false)
+      setOrderContextError("")
+      setLoadedOrderContextId("")
+      return
+    }
+    const orderId = formData.orderId
+    const controller = new AbortController()
+    let sequence = 0
+    const refreshContext = async () => {
+      const request = ++sequence
+      setIsLoadingOrderContext(true)
+      setOrderContextError("")
+      try {
+        const response = await apiFetch(
+          "/collections/order-context/" + encodeURIComponent(orderId),
+          { signal: controller.signal, cache: "no-store" }
+        )
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.message || "Could not load the pharmacy's current territory")
+        if (controller.signal.aborted || request !== sequence) return
+        const context = result.data
+        setFormData(prev => ({
+          ...prev,
+          chemistName: context.chemistName,
+          clientCode: context.clientCode || "",
+          territory: context.territory || "",
+          salesRepName: context.salesRepName || "",
+        }))
+        setLoadedOrderContextId(orderId)
+      } catch (error) {
+        if (controller.signal.aborted || request !== sequence) return
+        const message = error instanceof Error ? error.message : "Could not load the pharmacy's current territory"
+        setOrderContextError(message)
+        setLoadedOrderContextId("")
+      } finally {
+        if (!controller.signal.aborted && request === sequence) setIsLoadingOrderContext(false)
+      }
+    }
+    void refreshContext()
+    // Refresh after returning from a tab where the pharmacy assignment was edited.
+    window.addEventListener("focus", refreshContext)
+    return () => {
+      controller.abort()
+      window.removeEventListener("focus", refreshContext)
+    }
+  }, [isCreateOpen, editingId, formData.orderId])
 
   // Filtered collections
   const filteredCollections = React.useMemo(() => {
@@ -502,6 +569,7 @@ function DeliveryCashCollectionsContent() {
       orderId: "",
       chemistName: "",
       territory: "",
+      clientCode: "",
       salesRepName: "",
       totalInvoiceAmount: 0,
       amountCollected: 0,
@@ -529,6 +597,7 @@ function DeliveryCashCollectionsContent() {
       setFormData((prev) => ({
         ...prev,
         orderId: "",
+        clientCode: "",
       }))
       return
     }
@@ -544,7 +613,8 @@ function DeliveryCashCollectionsContent() {
         orderId: ord.id,
         invoiceNo: ord.invoiceNumber || ord.orderNumber,
         chemistName: ord.pharmacyName,
-        territory: ord.territory || "",
+        territory: "",
+        clientCode: "",
         salesRepName: ord.assignedMio || "General MIO",
         totalInvoiceAmount: invoiceAmt,
         amountCollected: invoiceAmt,
@@ -561,6 +631,7 @@ function DeliveryCashCollectionsContent() {
       orderId: c.orderId || "",
       chemistName: c.chemistName,
       territory: c.territory,
+      clientCode: c.clientCode || "",
       salesRepName: c.salesRepName,
       totalInvoiceAmount: c.totalInvoiceAmount,
       amountCollected: c.amountCollected,
@@ -586,6 +657,16 @@ function DeliveryCashCollectionsContent() {
       return
     }
 
+    if (!editingId && formData.orderId && (isLoadingOrderContext || orderContextError || loadedOrderContextId !== formData.orderId)) {
+      toast.error(orderContextError || "Please wait for the pharmacy's current assignment to load.")
+      return
+    }
+
+    if (territoriesLoading || territoriesError || !selectedCollectionTerritory) {
+      toast.error(territoriesError || "Please select a division and territory station.")
+      return
+    }
+
     if (formData.amountCollected <= 0) {
       toast.error("Valid positive collection amount is required.")
       return
@@ -602,7 +683,9 @@ function DeliveryCashCollectionsContent() {
         invoiceNo: formData.invoiceNo.trim(),
         orderId: formData.orderId || undefined,
         chemistName: formData.chemistName.trim(),
-        territory: formData.territory.trim(),
+        clientCode: formData.clientCode || undefined,
+        territoryId: selectedCollectionTerritory.id,
+        territory: selectedCollectionTerritory.name,
         salesRepName: formData.salesRepName.trim(),
         totalInvoiceAmount: Number(formData.totalInvoiceAmount),
         amountCollected: Number(formData.amountCollected),
@@ -1677,7 +1760,7 @@ function DeliveryCashCollectionsContent() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => setFormData((prev) => ({ ...prev, orderId: "" }))}
+                          onClick={() => setFormData((prev) => ({ ...prev, orderId: "", clientCode: "" }))}
                           className="ml-1 text-slate-400 hover:text-rose-600 font-medium text-[10px] cursor-pointer"
                           title="Unlink order"
                         >
@@ -1745,34 +1828,34 @@ function DeliveryCashCollectionsContent() {
                 <Input
                   placeholder="e.g. Labaid Pharmacy"
                   value={formData.chemistName}
-                  onChange={(e) => setFormData({ ...formData, chemistName: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, chemistName: e.target.value, clientCode: "" })}
                   required
                   className="h-8 font-semibold"
                 />
               </div>
             </div>
 
-            {/* Row 3: Territory & Sales Rep */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">
-                  Territory *
-                </Label>
-                <MasterTerritorySelect value={formData.territory} onValueChange={(val) => setFormData({ ...formData, territory: val })}  />
-              </div>
+            {/* Row 3: Division & Territory Station */}
+            <DivisionTerritoryFields
+              groups={collectionTerritoryGroups}
+              value={formData.territory}
+              onValueChange={territory => setFormData(prev => ({ ...prev, territory: territory.name }))}
+              loading={territoriesLoading || isLoadingOrderContext}
+              error={territoriesError || orderContextError}
+              idPrefix="collection"
+            />
 
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">
-                  Collecting Sales Rep (MIO) *
-                </Label>
-                <Input
-                  placeholder="e.g. Tanvir Ahmed (MIO)"
-                  value={formData.salesRepName}
-                  onChange={(e) => setFormData({ ...formData, salesRepName: e.target.value })}
-                  required
-                  className="h-8"
-                />
-              </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-slate-700">
+                Collecting Sales Rep (MIO) *
+              </Label>
+              <Input
+                placeholder="e.g. Tanvir Ahmed (MIO)"
+                value={formData.salesRepName}
+                onChange={(e) => setFormData({ ...formData, salesRepName: e.target.value })}
+                required
+                className="h-8"
+              />
             </div>
 
             {/* Row 4: Invoice Amount & Amount Collected */}
@@ -1953,7 +2036,7 @@ function DeliveryCashCollectionsContent() {
 
               <Button
                 type="submit"
-                disabled={isSubmittingForm}
+                disabled={isSubmittingForm || (!editingId && Boolean(formData.orderId) && (isLoadingOrderContext || Boolean(orderContextError) || loadedOrderContextId !== formData.orderId))}
                 className="h-8 bg-[#0090FF] text-xs font-semibold text-white hover:bg-[#0080e5]"
               >
                 {isSubmittingForm ? (

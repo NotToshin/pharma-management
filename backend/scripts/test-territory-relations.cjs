@@ -7,7 +7,7 @@ process.env.JWT_SECRET ||= 'territory-test-secret';
 process.env.JWT_ACCESS_SECRET ||= 'territory-test-access';
 process.env.JWT_REFRESH_SECRET ||= 'territory-test-refresh';
 const unexpected = async () => { throw new Error('Unexpected database operation in test'); };
-global.prisma = Object.fromEntries(['territory', 'systemUser', 'systemRole', 'staff', 'mioZoneAllocation', 'territoryTarget', 'doctor', 'client']
+global.prisma = Object.fromEntries(['territory', 'systemUser', 'systemRole', 'staff', 'mioZoneAllocation', 'territoryTarget', 'doctor', 'client', 'order', 'deliveryCollection']
   .map(model => [model, Object.fromEntries(['findUnique', 'findUniqueOrThrow', 'findFirst', 'findMany', 'create', 'createMany', 'update', 'updateMany', 'count']
     .map(method => [method, unexpected]))]));
 global.prisma.$transaction = unexpected;
@@ -22,9 +22,66 @@ const { provisionUserSchema, updateUserSchema } = require('../dist/validations/r
 const { clientService } = require('../dist/services/clientService');
 const { doctorService } = require('../dist/services/doctorService');
 const { bulkImportDoctorSchema } = require('../dist/validations/doctorValidation');
+const { collectionService } = require('../dist/services/collectionService');
 const master = { id: '000000000000000000000001', name: 'Test Territory', division: 'Test Division', status: 'Active' };
 const otherId = '000000000000000000000002';
 const role = { id: '000000000000000000000003', code: 'MIO_FIELD', name: 'Field Officer' };
+
+test('collection invoice defaults follow the current pharmacy territory after reassignment', async () => {
+  const oldTerritory = { id: otherId, name: 'Dhaka North' };
+  const currentTerritory = { id: master.id, name: 'Dhaka South' };
+  mock.method(prisma.order, 'findUnique', async () => ({ id: otherId, pharmacyName: 'Test Pharmacy', territoryId: oldTerritory.id, territory: oldTerritory.name, territoryRef: oldTerritory, assignedMio: 'Order Officer', status: 'Delivered & Invoiced' }));
+  mock.method(prisma.client, 'findMany', async () => [{ clientCode: 'CLIENT-TEST', pharmacyName: 'Test Pharmacy', territoryId: currentTerritory.id, territory: currentTerritory.name, territoryRef: currentTerritory, assignedMio: 'Current Officer' }]);
+  const result = await collectionService.getOrderContext(otherId);
+  assert.equal(result.territoryId, currentTerritory.id);
+  assert.equal(result.territory, 'Dhaka South');
+  assert.equal(result.clientCode, 'CLIENT-TEST');
+  assert.equal(result.salesRepName, 'Current Officer');
+});
+
+test('an unregistered pharmacy retains the order assignment as a fallback', async () => {
+  mock.method(prisma.order, 'findUnique', async () => ({ id: otherId, pharmacyName: 'Unregistered Pharmacy', territoryId: master.id, territory: 'Old label', territoryRef: master, assignedMio: 'Officer', status: 'Delivered & Invoiced' }));
+  mock.method(prisma.client, 'findMany', async () => []);
+  const result = await collectionService.getOrderContext(otherId);
+  assert.equal(result.clientCode, null);
+  assert.equal(result.territory, master.name);
+});
+
+test('a registered client with no territory does not revive the old order territory', async () => {
+  mock.method(prisma.order, 'findUnique', async () => ({ id: otherId, pharmacyName: 'Test Pharmacy', territoryId: master.id, territory: master.name, territoryRef: master, status: 'Delivered & Invoiced' }));
+  mock.method(prisma.client, 'findMany', async () => [{ clientCode: 'CLIENT-TEST', pharmacyName: 'Test Pharmacy', territoryId: null, territory: null, territoryRef: null }]);
+  const result = await collectionService.getOrderContext(otherId);
+  assert.equal(result.territoryId, null);
+  assert.equal(result.territory, '');
+});
+
+test('ambiguous pharmacy matches cannot silently supply an unrelated assignment', async () => {
+  mock.method(prisma.order, 'findUnique', async () => ({ id: otherId, pharmacyName: 'Duplicate', status: 'Delivered & Invoiced' }));
+  mock.method(prisma.client, 'findMany', async () => [{ clientCode: 'FIRST' }, { clientCode: 'SECOND' }]);
+  await assert.rejects(collectionService.getOrderContext(otherId), error => error.statusCode === 409 || /Multiple pharmacy/.test(error.message));
+});
+
+test('missing or cancelled orders cannot provide collection context', async () => {
+  mock.method(prisma.order, 'findUnique', async () => null);
+  await assert.rejects(collectionService.getOrderContext(otherId), /not found/);
+  prisma.order.findUnique.mock.mockImplementation(async () => ({ status: 'Cancelled' }));
+  await assert.rejects(collectionService.getOrderContext(otherId), /cancelled/);
+});
+
+test('a saved collection uses the resolved client code for balance updates', async () => {
+  mock.method(prisma.order, 'findUnique', async () => ({ id: otherId, orderValue: 100 }));
+  mock.method(prisma.order, 'update', async () => ({}));
+  mock.method(prisma.deliveryCollection, 'findMany', async () => []);
+  mock.method(prisma.deliveryCollection, 'create', async ({ data }) => ({ ...data, id: otherId }));
+  mock.method(prisma.client, 'findUnique', async () => ({ id: master.id, outstandingBalanceBDT: 100 }));
+  mock.method(prisma.client, 'findFirst', unexpected);
+  mock.method(prisma.client, 'update', async () => ({}));
+  const result = await collectionService.createCollection({ receiptNo: 'TEST-RECEIPT', invoiceNo: 'TEST-INVOICE', orderId: otherId, clientCode: 'CLIENT-TEST', chemistName: 'Test Pharmacy', territoryId: master.id, territory: master.name, salesRepName: 'Officer', totalInvoiceAmount: 100, amountCollected: 50 });
+  assert.equal(result.clientCode, 'CLIENT-TEST');
+  assert.equal(result.territoryId, master.id);
+  assert.deepEqual(prisma.client.findUnique.mock.calls[0].arguments[0].where, { clientCode: 'CLIENT-TEST' });
+  assert.equal(prisma.client.findFirst.mock.callCount(), 0);
+});
 
 beforeEach(() => {
   mock.method(prisma.territory, 'findUnique', async ({ where }) => where.id === master.id ? master : null);

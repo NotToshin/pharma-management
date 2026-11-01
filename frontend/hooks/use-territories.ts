@@ -10,10 +10,10 @@ export interface MasterTerritory {
   status: string
 }
 
-export function groupTerritories(territories: MasterTerritory[]) {
+export function groupTerritories(territories: MasterTerritory[], retainedTerritoryName?: string) {
   const groups: Record<string, MasterTerritory[]> = {}
   for (const territory of territories) {
-    if (territory.status !== "Active") continue
+    if (territory.status !== "Active" && territory.name !== retainedTerritoryName) continue
     const division = territory.division || "General Division"
     if (!groups[division]) groups[division] = []
     groups[division].push(territory)

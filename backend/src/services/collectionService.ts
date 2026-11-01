@@ -41,6 +41,37 @@ const generateNextReceiptNumber = async (): Promise<string> => {
 };
 
 export const collectionService = {
+  // New receipts use the pharmacy's current assignment, not an older invoice snapshot.
+  async getOrderContext(orderId: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { territoryRef: true },
+    });
+    if (!order) throw new AppError("Sales order not found", 404);
+    if (order.status === "Cancelled") throw new AppError("Cannot collect against a cancelled order", 400);
+
+    // Legacy orders identify clients by pharmacy name. Never guess between duplicates.
+    const clients = await prisma.client.findMany({
+      where: { pharmacyName: { equals: order.pharmacyName.trim(), mode: "insensitive" } },
+      take: 2,
+      select: {
+        clientCode: true, pharmacyName: true, territoryId: true, territory: true, assignedMio: true,
+        territoryRef: { select: { id: true, name: true } },
+      },
+    });
+    if (clients.length > 1) throw new AppError("Multiple pharmacy clients match this invoice. Resolve the duplicate pharmacy names before linking a collection.", 409);
+    const client = clients[0];
+    const source = client || order;
+    return {
+      orderId: order.id,
+      clientCode: client?.clientCode || null,
+      chemistName: client?.pharmacyName || order.pharmacyName,
+      territoryId: source.territoryRef?.id || source.territoryId || null,
+      territory: source.territoryRef?.name ?? source.territory ?? "",
+      salesRepName: client?.assignedMio || order.assignedMio || "",
+    };
+  },
+
   /**
    * Generates sequential collection receipt number
    */
@@ -286,14 +317,11 @@ export const collectionService = {
       // Decrement client outstanding dues if registered
       // ALWAYS reduce pharmacy due balance as soon as cash collection is recorded from pharmacy
       if (data.chemistName) {
-        const client = await txClient.client.findFirst({
-          where: {
-            OR: [
-              { pharmacyName: { equals: data.chemistName.trim(), mode: "insensitive" } },
-              ...(data.clientCode ? [{ clientCode: data.clientCode.trim() }] : []),
-            ],
-          },
-        });
+        const client = data.clientCode?.trim()
+          ? await txClient.client.findUnique({ where: { clientCode: data.clientCode.trim() } })
+          : await txClient.client.findFirst({
+            where: { pharmacyName: { equals: data.chemistName.trim(), mode: "insensitive" } },
+          });
         if (client) {
           const currentBal = Number(client.outstandingBalanceBDT) || 0;
           const newBal = Math.max(0, Math.round((currentBal - collected) * 100) / 100);

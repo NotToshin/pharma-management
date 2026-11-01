@@ -1,6 +1,12 @@
 import { territoryIdField } from "./territoryValidation";
 import { z } from "zod";
 
+export const collectionOrderContextParamSchema = z.object({
+  params: z.object({
+    orderId: z.string().regex(/^[a-f\d]{24}$/i, "Invalid order ID"),
+  }),
+});
+
 export const createCollectionSchema = z.object({
   body: z.object({
     receiptNo: z.string().optional(),

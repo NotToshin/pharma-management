@@ -3,8 +3,9 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
-import { useTerritories } from "@/hooks/use-territories"
+import { groupTerritories, useTerritories } from "@/hooks/use-territories"
 import { MasterTerritorySelect } from "@/components/master-territory-select"
+import { DivisionTerritoryFields } from "@/components/division-territory-fields"
 import { getEndpoint, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import Link from "next/link"
@@ -215,7 +216,7 @@ function parseClientRow(row: any): ParsedClientRow {
 }
 
 export default function ClientsDirectoryPage() {
-  const { territories: masterTerritories } = useTerritories()
+  const { territories: masterTerritories, loading: territoriesLoading, error: territoriesError } = useTerritories()
   const router = useRouter()
   const [clients, setClients] = React.useState<ClientProfile[]>([])
   const [staffList, setStaffList] = React.useState<StaffMember[]>([])
@@ -263,6 +264,14 @@ export default function ClientsDirectoryPage() {
   })
   const [formErrors, setFormErrors] = React.useState<Record<string, string>>({})
   const [isSaving, setIsSaving] = React.useState(false)
+
+  const clientTerritoryGroups = React.useMemo(() => groupTerritories(
+    masterTerritories,
+    clients.find(client => client.id === editingId)?.territory
+  ), [masterTerritories, clients, editingId])
+  const selectedClientTerritory = Object.values(clientTerritoryGroups).flat().find(
+    territory => territory.name.toLowerCase() === formData.territory.trim().toLowerCase()
+  )
 
   // Global Delete Confirmation Modal State
   const [clientToDelete, setClientToDelete] = React.useState<ClientProfile | null>(null)
@@ -456,7 +465,11 @@ export default function ClientsDirectoryPage() {
     e.preventDefault()
     setFormErrors({})
 
-    const validationResult = clientFormSchema.safeParse(formData)
+    const validationResult = clientFormSchema.safeParse({
+      ...formData,
+      territoryId: selectedClientTerritory?.id,
+      territory: selectedClientTerritory?.name || formData.territory,
+    })
     if (!validationResult.success) {
       const errorsMap: Record<string, string> = {}
       validationResult.error.issues.forEach((issue) => {
@@ -465,6 +478,13 @@ export default function ClientsDirectoryPage() {
       })
       setFormErrors(errorsMap)
       toast.error("Form validation failed. Please check the highlighted fields.")
+      return
+    }
+
+    if (territoriesLoading || territoriesError || !selectedClientTerritory) {
+      const message = territoriesError || "Please select a division and territory station."
+      setFormErrors({ territory: message })
+      toast.error(message)
       return
     }
 
@@ -1534,35 +1554,39 @@ export default function ClientsDirectoryPage() {
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">
-                  Territory / Zone *
-                </Label>
-                <MasterTerritorySelect value={formData.territory} onValueChange={(val) => setFormData({ ...formData, territory: val })}  />
-              </div>
+            <DivisionTerritoryFields
+              groups={clientTerritoryGroups}
+              value={formData.territory}
+              onValueChange={territory => {
+                setFormData(prev => ({ ...prev, territory: territory.name }))
+                setFormErrors(prev => ({ ...prev, territory: "", territoryId: "" }))
+              }}
+              loading={territoriesLoading}
+              error={territoriesError}
+              validationError={formErrors.territory || formErrors.territoryId}
+              idPrefix="client"
+            />
 
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">
-                  Assigned MIO
-                </Label>
-                <Select
-                  value={formData.assignedMio}
-                  onValueChange={(val) => setFormData({ ...formData, assignedMio: val })}
-                >
-                  <SelectTrigger className="h-8 bg-white text-xs">
-                    <SelectValue placeholder="Select active MIO" />
-                  </SelectTrigger>
-                  <SelectContent className="text-xs">
-                    <SelectItem value="Unassigned">Unassigned</SelectItem>
-                    {staffList.map((s) => (
-                      <SelectItem key={s.id} value={s.name || s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-slate-700">
+                Assigned MIO
+              </Label>
+              <Select
+                value={formData.assignedMio}
+                onValueChange={(val) => setFormData({ ...formData, assignedMio: val })}
+              >
+                <SelectTrigger className="h-8 bg-white text-xs">
+                  <SelectValue placeholder="Select active MIO" />
+                </SelectTrigger>
+                <SelectContent className="text-xs">
+                  <SelectItem value="Unassigned">Unassigned</SelectItem>
+                  {staffList.map((s) => (
+                    <SelectItem key={s.id} value={s.name || s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

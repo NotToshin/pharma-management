@@ -89,7 +89,7 @@ export const createDoctor = catchAsync(async (req: Request, res: Response) => {
 
 Services in `src/services/` own Prisma, document numbers, transactions, and audit writes. They do not take `req` or `res`. The audit actor comes from `requestContextStorage` (`src/utils/requestContext.ts`). Call `auditLogService` from the service after a mutation the module already audits. Do not add a second logger.
 
-Territory assignments use `src/services/territoryAssignment.ts` to resolve IDs or legacy master names and persist the relation plus canonical label. Unknown or inactive new assignments return `AppError` 400. Territory reads never create records. See [TERRITORIES.md](./TERRITORIES.md) for contracts and backfill steps. Master creation requires authentication and the `Target Vs Achievement` create permission.
+Territory assignments use `src/services/territoryAssignment.ts` to resolve IDs or legacy master names and persist the relation plus canonical label. The contracts and backfill workflow are documented below under Territory assignments.
 
 `prisma.$transaction` is required when one action writes more than one collection: order create, cancel, and stock; purchase-order receipt; collection clearance; expense disbursement; ledger transfers; settlements. Pass `tx` into nested writes. Throw inside the callback so the whole action rolls back.
 
@@ -118,6 +118,7 @@ Token helpers and `requireAuth` / `requirePermission` behavior are in [AUTHENTIC
 | `/api/rbac/roles` and `/api/rbac/users` | `requireAuth("SUPER_ADMIN")` |
 | `/api/auth/*`, `/api/rbac/login` | Public. The service checks the password |
 | `POST /api/territories` | `requireAuth()` plus `requirePermission("Target Vs Achievement", "create")` |
+| `GET /api/collections/order-context/:orderId` | `requireAuth()` plus `requirePermission("Delivery Cash Collections", "read")` |
 | Other business routes | No `requireAuth` |
 
 That gap is real. New routes that change users, money, or stock still call `requireAuth()`, and `requirePermission(moduleName, action)` when the module catalog has that name. `req.user` is typed in `src/types/express.d.ts`.
@@ -158,6 +159,34 @@ That gap is real. New routes that change users, money, or stock still call `requ
 7. Do not add a catch-all route that returns `200`. Do not swallow a rejection with an empty `catch`. `unhandledRejection` in `server.ts` shuts the process down.
 
 `loginOperator` still uses `sendResponse(res, 400, ...)` for a missing email or password. New handlers throw `AppError`. Auth 401 and 403 text is in [AUTHENTICATION.md](./AUTHENTICATION.md).
+
+## Territory assignments
+
+`Territory` is the master for territory names, divisions, and active status. `SystemUser`, `Doctor`, `DoctorVisitLog`, `Staff`, `Client`, `Order`, `DeliveryCollection`, `Wholesaler`, `MioZoneAllocation`, and `TerritoryTarget` have an indexed `territoryId` ObjectId and `territoryRef` relation. Deleting a referenced master is restricted. IDs remain nullable for legacy MongoDB documents and optional doctor/staff assignments; `territory` strings remain canonical labels for existing lists, invoices, filters, and exports.
+
+- Resolve assignment writes through `src/services/territoryAssignment.ts`; store the master ID and canonical name together. An ID takes precedence over a supplied label. Imports and legacy callers may submit an exact, case-insensitive master name. Unknown IDs, unknown or ambiguous names, and newly assigned inactive territories throw `AppError` 400. Existing inactive assignments may be retained.
+- `POST /api/rbac/users` requires `territoryId`. Updates may omit assignment fields to preserve the existing territory. User list, provisioning, editing, login, and refresh responses include the ID; user/session responses also expose `territoryRef`. Territory assignments do not grant permissions or automatically scope business data.
+- Doctors and staff may clear an optional assignment; clear both ID and label. Clients, orders, collections, wholesalers, zones, and targets require a master for new assignments. An order may inherit its client's assignment. Client and collection forms send `territoryId` with the canonical name; their Division and Territory Station pattern is in [FRONTEND_GUIDELINES.md](./FRONTEND_GUIDELINES.md#division-and-territory-selection).
+- Zone allocation derives division from the master and synchronizes the staff territory in the same transaction. Territory analytics uses master records, matching operations by ID with exact-name fallback for legacy rows. Do not invent territories or infer divisions from name fragments.
+- New collection invoice defaults come from `collectionService.getOrderContext`, exposed at `GET /api/collections/order-context/:orderId` with validated ObjectId params, authentication, and collection read permission. Legacy orders still identify clients by exact, case-insensitive pharmacy name; the service requires a unique match and returns its current master territory, MIO, and stable `clientCode`. Duplicate matches return 409; missing orders return 404 and cancelled orders return 400. Only unregistered pharmacies fall back to the order assignment. New receipt balance updates prefer the supplied unique client code. Changing a client territory does not rewrite historical order or receipt assignments.
+- `GET /api/territories` only reads. `POST /api/territories` validates its body, requires authentication, and checks `Target Vs Achievement` create permission. Target forms explicitly create custom masters before saving quotas. Seed finds or creates the administrator's territory using `SUPERADMIN_TERRITORY` (default `Head Office`) and stores the relation.
+
+### Schema sync and existing records
+
+From `backend`:
+
+```sh
+npx prisma generate
+npx prisma db push --skip-generate
+npm run territories:backfill
+npm run territories:backfill -- --apply
+```
+
+`scripts/backfill-territories.ts` previews counts without writes by default. `--apply` creates missing masters from stored names and links existing assignments. It does not merge similar names or guess divisions; it copies a division from zone allocations only when those records agree. Unassigned placeholders are preserved without fake masters. Duplicate master names and dangling references stop the script. Writes check the original assignment to avoid overwriting concurrent changes; rerunning after completion makes no assignment changes.
+
+The script loads assignment fields and logs counts without credentials or connection details. Review master divisions after importing legacy labels. Restart running API processes after regenerating Prisma; on Windows, a running process may lock its engine DLL. `npm run test:territories` compiles the API and runs isolated regression tests using database stubs. Frontend validation is checked with `npm run typecheck` in `frontend`.
+
+Maintain this existing guide and the frontend guide when contracts or workflows change. Do not create separate documentation files for individual features or logic changes unless requested.
 
 ## Other constraints
 
