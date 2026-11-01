@@ -40,15 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationPrevious,
-  PaginationNext,
-  PaginationEllipsis,
-} from "@/components/ui/pagination"
+import { ServerListPagination } from "@/components/server-list-controls"
 import {
   Search,
   Filter,
@@ -221,6 +213,7 @@ function DeliveryCashCollectionsContent() {
   // Filters & Tabs
   const [activeTab, setActiveTab] = React.useState<"all" | "pending" | "cleared" | "cash" | "cheque" | "bank">("all")
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [debouncedSearch, setDebouncedSearch] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState("all")
   const [territoryFilter, setTerritoryFilter] = React.useState("all")
   const [methodFilter, setMethodFilter] = React.useState("all")
@@ -228,14 +221,25 @@ function DeliveryCashCollectionsContent() {
   // Multi-Selection State for Batch Vault Settlement
   const [selectedIds, setSelectedIds] = React.useState<string[]>([])
 
-  // Pagination State
+  // Server-side Pagination State (Matching RBAC & Audit Logs)
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(10)
+  const [totalItems, setTotalItems] = React.useState(0)
+  const [totalPages, setTotalPages] = React.useState(1)
+
+  // Debounce search query
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+      setCurrentPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   // Reset page when filters change
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, activeTab, statusFilter, territoryFilter, methodFilter])
+  }, [activeTab, statusFilter, territoryFilter, methodFilter])
 
   // Modals
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
@@ -297,23 +301,57 @@ function DeliveryCashCollectionsContent() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [isDeleting, setIsDeleting] = React.useState(false)
 
-  // Load live data from database
-  const loadData = React.useCallback(async (quiet = false) => {
-    if (!quiet) setIsLoading(true)
-    else setIsRefreshing(true)
+  const fetchCollections = React.useCallback(
+    async (targetPage = currentPage, targetLimit = pageSize) => {
+      try {
+        setIsLoading(true)
+        const params = new URLSearchParams()
+        params.set("page", String(targetPage))
+        params.set("limit", String(targetLimit))
 
+        if (debouncedSearch.trim()) {
+          params.set("search", debouncedSearch.trim())
+        }
+        if (activeTab !== "all") {
+          params.set("tab", activeTab)
+        }
+        if (statusFilter !== "all") {
+          params.set("status", statusFilter)
+        }
+        if (territoryFilter !== "all") {
+          params.set("territory", territoryFilter)
+        }
+        if (methodFilter !== "all") {
+          params.set("paymentMethod", methodFilter)
+        }
+
+        const res = await apiFetch(`/collections?${params.toString()}`)
+        if (res && res.ok) {
+          const json = await res.json()
+          const data: DeliveryCollection[] = json.data || []
+          const meta = json.meta || {}
+          setCollections(data)
+          setTotalItems(meta.total !== undefined ? meta.total : data.length)
+          setTotalPages(meta.totalPages !== undefined ? meta.totalPages : 1)
+        }
+      } catch (err) {
+        console.error("Error loading collections:", err)
+        toast.error("Failed to load collection records from database.")
+      } finally {
+        setIsLoading(false)
+        setIsRefreshing(false)
+      }
+    },
+    [currentPage, pageSize, debouncedSearch, activeTab, statusFilter, territoryFilter, methodFilter]
+  )
+
+  const fetchSupportingData = React.useCallback(async () => {
     try {
-      const [colRes, metRes, accRes, ordRes] = await Promise.all([
-        apiFetch("/collections?limit=all"),
+      const [metRes, accRes, ordRes] = await Promise.all([
         apiFetch("/collections/metrics"),
         apiFetch("/account-ledger/accounts"),
         apiFetch("/orders"),
       ])
-
-      if (colRes.ok) {
-        const json = await colRes.json()
-        setCollections(json.data || [])
-      }
 
       if (metRes.ok) {
         const json = await metRes.json()
@@ -333,17 +371,36 @@ function DeliveryCashCollectionsContent() {
         )
       }
     } catch (err) {
+      console.error("Error loading supporting data:", err)
+    }
+  }, [])
+
+  // Load live data from database
+  const loadData = React.useCallback(async (quiet = false) => {
+    if (!quiet) setIsLoading(true)
+    else setIsRefreshing(true)
+
+    try {
+      await Promise.all([
+        fetchCollections(currentPage, pageSize),
+        fetchSupportingData(),
+      ])
+    } catch (err) {
       console.error("Error loading collections:", err)
       toast.error("Failed to load collection records from database.")
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }, [])
+  }, [fetchCollections, fetchSupportingData, currentPage, pageSize])
 
   React.useEffect(() => {
-    loadData()
-  }, [loadData])
+    fetchSupportingData()
+  }, [fetchSupportingData])
+
+  React.useEffect(() => {
+    fetchCollections(currentPage, pageSize)
+  }, [fetchCollections, currentPage, pageSize, debouncedSearch, activeTab, statusFilter, territoryFilter, methodFilter])
 
   // Automatically trigger create modal with order prefilled when navigated with ?orderId= or ?invoiceNo=
   React.useEffect(() => {
@@ -467,59 +524,10 @@ function DeliveryCashCollectionsContent() {
     }
   }, [isCreateOpen, editingId, formData.orderId])
 
-  // Filtered collections
-  const filteredCollections = React.useMemo(() => {
-    return collections.filter((c) => {
-      // 1. Search Query
-      const q = searchQuery.toLowerCase().trim()
-      if (q) {
-        const matchReceipt = c.receiptNo.toLowerCase().includes(q)
-        const matchInvoice = c.invoiceNo.toLowerCase().includes(q)
-        const matchChemist = c.chemistName.toLowerCase().includes(q)
-        const matchMio = c.salesRepName.toLowerCase().includes(q)
-        const matchTerritory = c.territory.toLowerCase().includes(q)
-        const matchCheque = (c.chequeNumber || "").toLowerCase().includes(q)
-        const matchNotes = (c.notes || "").toLowerCase().includes(q)
-
-        if (!matchReceipt && !matchInvoice && !matchChemist && !matchMio && !matchTerritory && !matchCheque && !matchNotes) {
-          return false
-        }
-      }
-
-      // 2. Tab Filter
-      if (activeTab === "pending") {
-        if (c.status !== "Pending Vault Clearance") return false
-      } else if (activeTab === "cleared") {
-        if (c.status !== "Cleared & Deposited") return false
-      } else if (activeTab === "cash") {
-        if (c.paymentMethod !== "Cash") return false
-      } else if (activeTab === "cheque") {
-        if (c.paymentMethod !== "Cheque") return false
-      } else if (activeTab === "bank") {
-        if (c.paymentMethod !== "BEFTN / RTGS" && c.paymentMethod !== "bKash / Nagad") return false
-      }
-
-      // 3. Dropdown Filters
-      if (statusFilter !== "all" && c.status !== statusFilter) return false
-      if (territoryFilter !== "all" && c.territory !== territoryFilter) return false
-      if (methodFilter !== "all" && c.paymentMethod !== methodFilter) return false
-
-      return true
-    })
-  }, [collections, searchQuery, activeTab, statusFilter, territoryFilter, methodFilter])
-
-  // Pagination derived variables
-  const totalItems = filteredCollections.length
-  const totalPages = Math.ceil(totalItems / pageSize) || 1
-  const paginatedCollections = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize
-    return filteredCollections.slice(startIndex, startIndex + pageSize)
-  }, [filteredCollections, currentPage, pageSize])
-
-  // Selection helpers
+  // Selection helpers for current page
   const pendingCollections = React.useMemo(() => {
-    return filteredCollections.filter((c) => c.status === "Pending Vault Clearance")
-  }, [filteredCollections])
+    return collections.filter((c) => c.status === "Pending Vault Clearance")
+  }, [collections])
 
   const isAllPendingSelected =
     pendingCollections.length > 0 &&
@@ -973,32 +981,57 @@ function DeliveryCashCollectionsContent() {
   }
 
   // Export Excel
-  const handleExportExcel = () => {
-    const data = filteredCollections.map((c) => ({
-      "Receipt #": c.receiptNo,
-      "Invoice #": c.invoiceNo,
-      "Chemist / Pharmacy": c.chemistName,
-      Territory: c.territory,
-      "MIO / Representative": c.salesRepName,
-      "Invoice Amount (BDT)": c.totalInvoiceAmount,
-      "Collected Amount (BDT)": c.amountCollected,
-      "Due Balance (BDT)": c.dueAmountRemaining,
-      "Payment Method": c.paymentMethod,
-      "Cheque / Instrument #": c.chequeNumber || "N/A",
-      Status: c.status,
-      "Destination Safe / Bank": c.destinationName || "N/A",
-      "Cleared By": c.clearedBy || "Pending",
-      Notes: c.notes || "",
-    }))
+  const handleExportExcel = async () => {
+    try {
+      const toastId = toast.loading("Preparing collection records for export...")
+      const params = new URLSearchParams()
+      params.set("limit", "all")
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim())
+      if (activeTab !== "all") params.set("tab", activeTab)
+      if (statusFilter !== "all") params.set("status", statusFilter)
+      if (territoryFilter !== "all") params.set("territory", territoryFilter)
+      if (methodFilter !== "all") params.set("paymentMethod", methodFilter)
 
-    const worksheet = XLSX.utils.json_to_sheet(data)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Delivery Cash Collections")
-    XLSX.writeFile(
-      workbook,
-      `AK_Pharma_Delivery_Collections_${new Date().toISOString().slice(0, 10)}.xlsx`
-    )
-    toast.success("Collections ledger exported to Excel.")
+      const res = await apiFetch(`/collections?${params.toString()}`)
+      const json = res.ok ? await res.json() : null
+      const records: DeliveryCollection[] = json?.data || collections
+
+      if (records.length === 0) {
+        toast.dismiss(toastId)
+        toast.error("No collection records to export.")
+        return
+      }
+
+      const data = records.map((c) => ({
+        "Receipt #": c.receiptNo,
+        "Invoice #": c.invoiceNo,
+        "Chemist / Pharmacy": c.chemistName,
+        Territory: c.territory,
+        "MIO / Representative": c.salesRepName,
+        "Invoice Amount (BDT)": c.totalInvoiceAmount,
+        "Collected Amount (BDT)": c.amountCollected,
+        "Due Balance (BDT)": c.dueAmountRemaining,
+        "Payment Method": c.paymentMethod,
+        "Cheque / Instrument #": c.chequeNumber || "N/A",
+        Status: c.status,
+        "Destination Safe / Bank": c.destinationName || "N/A",
+        "Cleared By": c.clearedBy || "Pending",
+        Notes: c.notes || "",
+      }))
+
+      const worksheet = XLSX.utils.json_to_sheet(data)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Delivery Cash Collections")
+      XLSX.writeFile(
+        workbook,
+        `AK_Pharma_Delivery_Collections_${new Date().toISOString().slice(0, 10)}.xlsx`
+      )
+      toast.dismiss(toastId)
+      toast.success(`Exported ${records.length} collection records to Excel.`)
+    } catch (err) {
+      console.error("Export error:", err)
+      toast.error("Failed to export collection records.")
+    }
   }
 
   const totalRealized = metrics?.totalRealizedBDT ?? collections
@@ -1172,7 +1205,7 @@ function DeliveryCashCollectionsContent() {
                   : "text-slate-600 hover:bg-slate-100"
               }`}
             >
-              All Receipts ({collections.length})
+              All Receipts ({metrics?.totalReceipts ?? totalItems})
             </button>
 
             <button
@@ -1185,11 +1218,11 @@ function DeliveryCashCollectionsContent() {
             >
               <Clock className="h-3 w-3" />
               Pending Vault Clearance
-              {pendingCollections.length > 0 && (
+              {((metrics?.pendingCount ?? pendingCollections.length) > 0) && (
                 <span className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
                   activeTab === "pending" ? "bg-white text-amber-700" : "bg-amber-100 text-amber-800"
                 }`}>
-                  {pendingCollections.length}
+                  {metrics?.pendingCount ?? pendingCollections.length}
                 </span>
               )}
             </button>
@@ -1204,6 +1237,13 @@ function DeliveryCashCollectionsContent() {
             >
               <CheckCircle2 className="h-3 w-3" />
               Cleared & Deposited
+              {((metrics?.realizedCount ?? 0) > 0) && (
+                <span className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                  activeTab === "cleared" ? "bg-white text-emerald-800" : "bg-emerald-100 text-emerald-800"
+                }`}>
+                  {metrics?.realizedCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -1373,7 +1413,7 @@ function DeliveryCashCollectionsContent() {
                     Loading delivery collection records from database...
                   </TableCell>
                 </TableRow>
-              ) : filteredCollections.length === 0 ? (
+              ) : collections.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={10} className="py-12 text-center text-xs text-slate-400">
                     <AlertCircle className="mx-auto h-6 w-6 text-slate-300 mb-2" />
@@ -1381,7 +1421,7 @@ function DeliveryCashCollectionsContent() {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedCollections.map((c) => {
+                collections.map((c) => {
                   const isSelected = selectedIds.includes(c.id)
                   const isPending = c.status === "Pending Vault Clearance"
 
@@ -1589,86 +1629,20 @@ function DeliveryCashCollectionsContent() {
           </Table>
         </div>
 
-        {/* Pagination Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 p-4 gap-3 bg-white rounded-b-xl">
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span>
-              Showing{" "}
-              <span className="font-semibold text-slate-800">
-                {totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0}
-              </span>{" "}
-              to{" "}
-              <span className="font-semibold text-slate-800">
-                {Math.min(currentPage * pageSize, totalItems)}
-              </span>{" "}
-              of <span className="font-semibold text-slate-800">{totalItems}</span> collection receipts
-            </span>
-
-            <div className="flex items-center gap-1.5 ml-2">
-              <span className="text-[11px] text-slate-400">Per page:</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(val) => {
-                  setPageSize(Number(val))
-                  setCurrentPage(1)
-                }}
-              >
-                <SelectTrigger className="h-7 w-[68px] text-xs bg-slate-50 border-slate-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="text-xs">
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {totalPages > 1 && (
-            <Pagination className="mx-0 w-auto justify-end">
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    className={currentPage === 1 ? "pointer-events-none opacity-40 text-xs" : "cursor-pointer text-xs"}
-                  />
-                </PaginationItem>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-                  .map((pageNum, idx, arr) => {
-                    const prev = arr[idx - 1]
-                    return (
-                      <React.Fragment key={pageNum}>
-                        {prev && pageNum - prev > 1 && (
-                          <PaginationItem>
-                            <PaginationEllipsis />
-                          </PaginationItem>
-                        )}
-                        <PaginationItem>
-                          <PaginationLink
-                            isActive={currentPage === pageNum}
-                            onClick={() => setCurrentPage(pageNum)}
-                            className="cursor-pointer text-xs h-7 w-7"
-                          >
-                            {pageNum}
-                          </PaginationLink>
-                        </PaginationItem>
-                      </React.Fragment>
-                    )
-                  })}
-
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    className={currentPage === totalPages || totalPages === 0 ? "pointer-events-none opacity-40 text-xs" : "cursor-pointer text-xs"}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          )}
+        {/* Pagination Bar (ServerListPagination matching RBAC & Audit Logs) */}
+        <div className="px-4 pb-4 bg-white rounded-b-xl">
+          <ServerListPagination
+            page={currentPage}
+            totalPages={totalPages}
+            total={totalItems}
+            limit={pageSize}
+            loading={isLoading}
+            onPageChange={(p) => setCurrentPage(p)}
+            onLimitChange={(l) => {
+              setPageSize(l)
+              setCurrentPage(1)
+            }}
+          />
         </div>
       </Card>
 

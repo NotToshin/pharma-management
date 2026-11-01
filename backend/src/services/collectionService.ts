@@ -98,6 +98,21 @@ export const collectionService = {
       ];
     }
 
+    // Tab-level quick filters
+    if (filters?.tab && filters.tab !== "all") {
+      if (filters.tab === "pending") {
+        where.status = "Pending Vault Clearance";
+      } else if (filters.tab === "cleared") {
+        where.status = "Cleared & Deposited";
+      } else if (filters.tab === "cash") {
+        where.paymentMethod = "Cash";
+      } else if (filters.tab === "cheque") {
+        where.paymentMethod = "Cheque";
+      } else if (filters.tab === "bank") {
+        where.paymentMethod = { in: ["BEFTN / RTGS", "bKash / Nagad"] };
+      }
+    }
+
     if (filters?.status && filters.status !== "all") {
       where.status = filters.status;
     }
@@ -114,6 +129,17 @@ export const collectionService = {
       where.salesRepName = filters.salesRep;
     }
 
+    if (filters?.startDate || filters?.endDate) {
+      where.createdAt = {};
+      if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
+      if (filters.endDate) where.createdAt.lte = new Date(filters.endDate);
+    }
+
+    // Sorting
+    const sortField = filters?.sortBy || "createdAt";
+    const sortOrder = filters?.sortOrder || "desc";
+    const orderBy: Record<string, any> = { [sortField]: sortOrder };
+
     // Pagination calculations
     const page = filters?.page ? Math.max(1, parseInt(filters.page, 10) || 1) : 1;
     const isFetchAll = filters?.limit === "all" || filters?.limit === "-1";
@@ -125,7 +151,7 @@ export const collectionService = {
       prisma.deliveryCollection.count({ where }),
       prisma.deliveryCollection.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy,
         ...(skip !== undefined ? { skip } : {}),
         ...(take !== undefined ? { take } : {}),
       }),
@@ -156,67 +182,73 @@ export const collectionService = {
   },
 
   /**
-   * Aggregated KPI metrics for delivery cash collections & vault clearance
+   * Aggregated KPI metrics for delivery cash collections & vault clearance (Optimized with DB Aggregations)
    */
   async getCollectionMetrics() {
-    const all = await prisma.deliveryCollection.findMany();
+    const [
+      overallStats,
+      clearedStats,
+      pendingStats,
+      methodGroups,
+      territoryGroups,
+    ] = await Promise.all([
+      prisma.deliveryCollection.aggregate({
+        _count: { id: true },
+        _sum: {
+          totalInvoiceAmount: true,
+          amountCollected: true,
+          dueAmountRemaining: true,
+        },
+      }),
+      prisma.deliveryCollection.aggregate({
+        where: { status: "Cleared & Deposited" },
+        _count: { id: true },
+        _sum: { amountCollected: true },
+      }),
+      prisma.deliveryCollection.aggregate({
+        where: { status: "Pending Vault Clearance" },
+        _count: { id: true },
+        _sum: { amountCollected: true },
+      }),
+      prisma.deliveryCollection.groupBy({
+        by: ["paymentMethod"],
+        _count: { id: true },
+        _sum: { amountCollected: true },
+      }),
+      prisma.deliveryCollection.groupBy({
+        by: ["territory"],
+        _count: { id: true },
+        _sum: { amountCollected: true },
+      }),
+    ]);
 
-    let totalRealizedBDT = 0;
-    let totalPendingClearanceBDT = 0;
-    let totalInvoicedBDT = 0;
-    let outstandingDueBDT = 0;
-    let realizedCount = 0;
-    let pendingCount = 0;
-
-    const territoryMap: Record<string, { count: number; amount: number }> = {};
-    const methodMap: Record<string, { count: number; amount: number }> = {};
-
-    for (const c of all) {
-      const collected = Number(c.amountCollected) || 0;
-      const invoiced = Number(c.totalInvoiceAmount) || 0;
-      const due = Number(c.dueAmountRemaining) || Math.max(0, invoiced - collected);
-
-      totalInvoicedBDT += invoiced;
-      outstandingDueBDT += due;
-
-      if (c.status === "Cleared & Deposited") {
-        totalRealizedBDT += collected;
-        realizedCount++;
-      } else if (c.status === "Pending Vault Clearance") {
-        totalPendingClearanceBDT += collected;
-        pendingCount++;
-      }
-
-      // Territory
-      const terr = c.territory || "Unassigned";
-      if (!territoryMap[terr]) territoryMap[terr] = { count: 0, amount: 0 };
-      territoryMap[terr].count++;
-      territoryMap[terr].amount += collected;
-
-      // Payment method
-      const meth = c.paymentMethod || "Cash";
-      if (!methodMap[meth]) methodMap[meth] = { count: 0, amount: 0 };
-      methodMap[meth].count++;
-      methodMap[meth].amount += collected;
-    }
+    const totalReceipts = overallStats._count.id || 0;
+    const totalInvoicedBDT = overallStats._sum.totalInvoiceAmount || 0;
+    const totalRealizedBDT = clearedStats._sum.amountCollected || 0;
+    const totalPendingClearanceBDT = pendingStats._sum.amountCollected || 0;
+    const realizedCount = clearedStats._count.id || 0;
+    const pendingCount = pendingStats._count.id || 0;
+    const outstandingDueBDT =
+      overallStats._sum.dueAmountRemaining ??
+      Math.max(0, totalInvoicedBDT - (overallStats._sum.amountCollected || 0));
 
     return {
-      totalReceipts: all.length,
+      totalReceipts,
       totalRealizedBDT,
       totalPendingClearanceBDT,
       totalInvoicedBDT,
       outstandingDueBDT,
       realizedCount,
       pendingCount,
-      territoryBreakdown: Object.entries(territoryMap).map(([territory, stats]) => ({
-        territory,
-        count: stats.count,
-        amount: stats.amount,
+      territoryBreakdown: territoryGroups.map((g) => ({
+        territory: g.territory || "Unassigned",
+        count: g._count.id || 0,
+        amount: g._sum.amountCollected || 0,
       })),
-      paymentMethodBreakdown: Object.entries(methodMap).map(([method, stats]) => ({
-        method,
-        count: stats.count,
-        amount: stats.amount,
+      paymentMethodBreakdown: methodGroups.map((g) => ({
+        method: g.paymentMethod || "Cash",
+        count: g._count.id || 0,
+        amount: g._sum.amountCollected || 0,
       })),
     };
   },

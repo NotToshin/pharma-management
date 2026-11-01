@@ -90,6 +90,9 @@ export const queryCollectionSchema = z.object({
     salesRep: z.string().optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
+    tab: z.string().optional(),
+    sortBy: z.string().optional(),
+    sortOrder: z.enum(["asc", "desc"]).optional(),
   }),
 });
 

@@ -295,6 +295,12 @@ model DeliveryCollection {
   @@index([chemistName])
   @@index([invoiceNo])
   @@index([territoryId])
+  @@index([createdAt])
+  @@index([paymentMethod])
+  @@index([salesRepName])
+  @@index([orderId])
+  @@index([collectionDate])
+  @@index([status, createdAt])
 }
 
 model ExpenseVoucher {
