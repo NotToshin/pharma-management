@@ -113,9 +113,11 @@ model DoctorVisitLog {
   specialty     String
   chamber       String
   mioName       String
-  territory     String
-  territoryId String? @db.ObjectId
-  territoryRef Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)
+  mioId         String?  @db.ObjectId
+  mio           Staff?   @relation(fields: [mioId], references: [id])
+  territory     String?
+  territoryId   String?  @db.ObjectId
+  territoryRef  Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)
   visitDate     String
   visitTime     String
   promotedDrugs String
@@ -124,6 +126,7 @@ model DoctorVisitLog {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   @@index([territoryId])
+  @@index([mioId])
 }
 
 // ─────────────────────────────────────────────
@@ -167,6 +170,7 @@ model Staff {
   role     Role?   @relation(fields: [roleId], references: [id])
   salaries Salary[]
   zoneAllocations MioZoneAllocation[]
+  doctorVisitLogs DoctorVisitLog[]
   @@index([territoryId])
 }
 

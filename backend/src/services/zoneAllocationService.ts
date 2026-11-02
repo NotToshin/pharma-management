@@ -165,6 +165,12 @@ export const zoneAllocationService = {
 
   async getAllStaffMios() {
     const allStaff = await prisma.staff.findMany({
+      where: {
+        OR: [
+          { role: { is: { name: { contains: "MIO", mode: "insensitive" } } } },
+          { role: { is: { name: { contains: "Medical Information", mode: "insensitive" } } } },
+        ],
+      },
       include: { role: true },
       orderBy: { fullName: "asc" },
     });

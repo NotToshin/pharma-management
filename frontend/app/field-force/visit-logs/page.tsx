@@ -4,6 +4,8 @@ import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
 import { MasterTerritorySelect } from "@/components/master-territory-select"
+import { DivisionTerritoryFields } from "@/components/division-territory-fields"
+import { groupTerritories, useTerritories } from "@/hooks/use-territories"
 import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -147,12 +149,24 @@ interface VisitLog {
   specialty: string
   chamber: string
   mioName: string
+  mioId?: string | null
   territory: string
+  territoryId?: string | null
   visitDate: string
   visitTime: string
   promotedDrugs: string
   samplesGiven: string
   feedback: "High Potential" | "Positive" | "Neutral" | "Needs Follow-up"
+}
+
+interface StaffMio {
+  id: string
+  empId: string
+  fullName: string
+  phone?: string
+  role?: string
+  department?: string
+  territory?: string
 }
 
 interface RegisteredDoctor {
@@ -185,6 +199,10 @@ export default function DoctorVisitLogsPage() {
   const addDoctorContainerRef = React.useRef<HTMLDivElement | null>(null)
   const editDoctorContainerRef = React.useRef<HTMLDivElement | null>(null)
 
+  // Staff MIOs state (strictly staff with MIO role)
+  const [mioStaffList, setMioStaffList] = React.useState<StaffMio[]>([])
+  const [loadingStaffMios, setLoadingStaffMios] = React.useState(false)
+
   // Edit Log Dialog State
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [editingLog, setEditingLog] = React.useState<VisitLog | null>(null)
@@ -210,8 +228,32 @@ export default function DoctorVisitLogsPage() {
   const [doctorName, setDoctorName] = React.useState("")
   const [specialty, setSpecialty] = React.useState("")
   const [chamber, setChamber] = React.useState("")
+  const [mioId, setMioId] = React.useState<string>("")
   const [mioName, setMioName] = React.useState("")
+  const { territories: masterTerritories, loading: territoriesLoading, error: territoriesError } = useTerritories()
   const [territory, setTerritory] = React.useState("")
+
+  const visitLogTerritoryGroups = React.useMemo(() => groupTerritories(
+    masterTerritories,
+    territory
+  ), [masterTerritories, territory])
+
+  const selectedVisitLogTerritory = React.useMemo(() => (
+    Object.values(visitLogTerritoryGroups).flat().find(
+      (t) => t.name.toLowerCase() === territory.trim().toLowerCase()
+    )
+  ), [visitLogTerritoryGroups, territory])
+
+  const editVisitLogTerritoryGroups = React.useMemo(() => groupTerritories(
+    masterTerritories,
+    editingLog?.territory
+  ), [masterTerritories, editingLog?.territory])
+
+  const selectedEditVisitLogTerritory = React.useMemo(() => (
+    Object.values(editVisitLogTerritoryGroups).flat().find(
+      (t) => t.name.toLowerCase() === (editingLog?.territory || "").trim().toLowerCase()
+    )
+  ), [editVisitLogTerritoryGroups, editingLog?.territory])
   const [visitDate, setVisitDate] = React.useState(
     new Date().toISOString().slice(0, 10)
   )
@@ -240,8 +282,10 @@ export default function DoctorVisitLogsPage() {
           doctorName: item.doctorName || "",
           specialty: item.specialty || "",
           chamber: item.chamber || "",
-          mioName: item.mioName || "",
+          mioName: item.mio?.fullName || item.mioName || "",
+          mioId: item.mioId || item.mio?.id || null,
           territory: item.territory || "",
+          territoryId: item.territoryId || item.territoryRef?.id || null,
           visitDate: item.visitDate || "",
           visitTime: item.visitTime || "",
           promotedDrugs: item.promotedDrugs || "",
@@ -274,9 +318,50 @@ export default function DoctorVisitLogsPage() {
     }
   }
 
+  // Fetch staff with MIO role only from backend
+  const fetchStaffMios = async () => {
+    try {
+      setLoadingStaffMios(true)
+      let list: any[] = []
+      const res = await apiFetch(getEndpoint("/staff?role=mio")).catch(() => null)
+      if (res && res.ok) {
+        const json = await res.json()
+        list = Array.isArray(json) ? json : json.data || []
+      }
+      if (list.length === 0) {
+        const fallbackRes = await apiFetch(getEndpoint("/zone-allocations/staff-mios")).catch(() => null)
+        if (fallbackRes && fallbackRes.ok) {
+          const fallbackJson = await fallbackRes.json()
+          list = Array.isArray(fallbackJson) ? fallbackJson : fallbackJson.data || []
+        }
+      }
+      const miosOnly = list.filter((s: any) => {
+        const roleName = typeof s.role === "string" ? s.role : s.role?.name || ""
+        const lower = roleName.toLowerCase()
+        return lower.includes("mio") || lower.includes("medical information")
+      })
+      setMioStaffList(
+        miosOnly.map((s: any) => ({
+          id: s.id,
+          empId: s.empId,
+          fullName: s.fullName,
+          phone: s.phone,
+          role: typeof s.role === "string" ? s.role : s.role?.name || "Medical Information Officer",
+          department: s.department,
+          territory: s.territory,
+        }))
+      )
+    } catch (err) {
+      console.error("Failed to fetch MIO staff personnel:", err)
+    } finally {
+      setLoadingStaffMios(false)
+    }
+  }
+
   React.useEffect(() => {
     fetchLogs()
     fetchDoctors()
+    fetchStaffMios()
   }, [])
 
   // Auto-close doctor search dropdown when clicking outside
@@ -320,7 +405,17 @@ export default function DoctorVisitLogsPage() {
     }
 
     if (pTerritory) setTerritory(pTerritory)
-    if (pMio) setMioName(pMio)
+    if (pMio) {
+      const matched = mioStaffList.find(
+        (s) => s.fullName.trim().toLowerCase() === pMio.toLowerCase()
+      )
+      if (matched) {
+        setMioId(matched.id)
+        setMioName(matched.fullName)
+      } else {
+        setMioName(pMio)
+      }
+    }
 
     setSelectedDoctorBadge(doc.doctorName)
     setIsAddDoctorDropdownOpen(false)
@@ -341,6 +436,16 @@ export default function DoctorVisitLogsPage() {
       }
     }
 
+    let matchedMioId = editingLog.mioId || ""
+    if (pMio) {
+      const matched = mioStaffList.find(
+        (s) => s.fullName.trim().toLowerCase() === pMio.toLowerCase()
+      )
+      if (matched) {
+        matchedMioId = matched.id
+      }
+    }
+
     setEditingLog({
       ...editingLog,
       doctorName: doc.doctorName || editingLog.doctorName,
@@ -348,6 +453,7 @@ export default function DoctorVisitLogsPage() {
       chamber: doc.chamber || editingLog.chamber,
       territory: pTerritory || editingLog.territory,
       mioName: pMio || editingLog.mioName,
+      mioId: matchedMioId || editingLog.mioId,
     })
 
     setIsEditDoctorDropdownOpen(false)
@@ -382,12 +488,20 @@ export default function DoctorVisitLogsPage() {
     e.preventDefault()
     setFormErrors({})
 
+    if (territoriesLoading || territoriesError || !territory.trim() || !selectedVisitLogTerritory) {
+      const message = territoriesError || "Please select a division and territory station."
+      toast.error(message)
+      return
+    }
+
     const payload = {
       doctorName,
       specialty,
       chamber,
       mioName,
-      territory,
+      mioId: mioId || undefined,
+      territoryId: selectedVisitLogTerritory?.id || undefined,
+      territory: selectedVisitLogTerritory?.name || territory,
       visitDate: visitDate || new Date().toISOString().slice(0, 10),
       visitTime: visitTime || "10:00 AM",
       promotedDrugs,
@@ -421,6 +535,7 @@ export default function DoctorVisitLogsPage() {
         setDoctorName("")
         setSpecialty("")
         setChamber("")
+        setMioId("")
         setMioName("")
         setTerritory("")
         setPromotedDrugs("")
@@ -440,7 +555,13 @@ export default function DoctorVisitLogsPage() {
   }
 
   const handleOpenEdit = (item: VisitLog) => {
-    setEditingLog({ ...item })
+    const matchedMioId =
+      item.mioId ||
+      mioStaffList.find(
+        (s) => s.fullName.trim().toLowerCase() === item.mioName.trim().toLowerCase()
+      )?.id ||
+      null
+    setEditingLog({ ...item, mioId: matchedMioId })
     setIsEditOpen(true)
   }
 
@@ -448,7 +569,13 @@ export default function DoctorVisitLogsPage() {
     e.preventDefault()
     if (!editingLog) return
 
-    const validationResult = visitLogFormSchema.partial().safeParse(editingLog)
+    const validationResult = visitLogFormSchema.partial().safeParse({
+      ...editingLog,
+      mioId: editingLog.mioId || undefined,
+      mioName: editingLog.mioName,
+      territoryId: selectedEditVisitLogTerritory?.id || undefined,
+      territory: selectedEditVisitLogTerritory?.name || editingLog.territory,
+    })
     if (!validationResult.success) {
       toast.error(validationResult.error.issues.map((i) => i.message).join("\n"))
       return
@@ -713,7 +840,7 @@ export default function DoctorVisitLogsPage() {
                 </Button>
               </DialogTrigger>
 </PermissionGate>
-            <DialogContent className="rounded-xl bg-white sm:max-w-[480px]">
+            <DialogContent className="rounded-xl bg-white sm:max-w-[540px]">
               <DialogHeader>
                 <DialogTitle className="text-base font-bold text-slate-900">
                   Log Daily Doctor Call
@@ -778,14 +905,9 @@ export default function DoctorVisitLogsPage() {
                                   {doc.doctorName}
                                 </p>
                                 <p className="text-[11px] text-slate-500">
-                                  {doc.specialtyAndInstitute || doc.specialty || "Specialist"} • {doc.chamber || "Chamber"}
+                                  {doc.specialty || doc.specialtyAndInstitute || "Specialist"}
                                 </p>
                               </div>
-                              {doc.territoryAndMio && (
-                                <span className="rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
-                                  {doc.territoryAndMio}
-                                </span>
-                              )}
                             </div>
                           ))
                         )}
@@ -810,50 +932,86 @@ export default function DoctorVisitLogsPage() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="chamber"
-                    className="text-xs font-medium text-slate-700"
-                  >
-                    Chamber / Hospital Address
-                  </Label>
-                  <Input
-                    id="chamber"
-                    placeholder="e.g. Popular Diagnostic, Mirpur"
-                    value={chamber}
-                    onChange={(e) => setChamber(e.target.value)}
-                    required
-                    className="h-8 text-xs"
-                  />
-                </div>
-
+                {/* Row 2: Hospital Address & Field MIO in the same row */}
                 <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="chamber"
+                      className="text-xs font-medium text-slate-700"
+                    >
+                      Chamber / Hospital Address *
+                    </Label>
+                    <Input
+                      id="chamber"
+                      placeholder="e.g. Popular Diagnostic, Mirpur"
+                      value={chamber}
+                      onChange={(e) => setChamber(e.target.value)}
+                      required
+                      className="h-8 text-xs"
+                    />
+                    {formErrors.chamber && (
+                      <p className="text-[10px] text-red-500">
+                        {formErrors.chamber}
+                      </p>
+                    )}
+                  </div>
+
                   <div className="space-y-1.5">
                     <Label
                       htmlFor="mio"
                       className="text-xs font-medium text-slate-700"
                     >
-                      Field MIO
+                      Field MIO *
                     </Label>
-                    <Input
-                      id="mio"
-                      placeholder="MIO Name"
-                      value={mioName}
-                      onChange={(e) => setMioName(e.target.value)}
-                      required
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="territory"
-                      className="text-xs font-medium text-slate-700"
+                    <Select
+                      value={mioId}
+                      onValueChange={(val) => {
+                        setMioId(val)
+                        const staff = mioStaffList.find((s) => s.id === val)
+                        if (staff) {
+                          setMioName(staff.fullName)
+                          if (!territory && staff.territory) {
+                            setTerritory(staff.territory)
+                          }
+                        }
+                      }}
                     >
-                      Territory
-                    </Label>
-                    <MasterTerritorySelect id="territory" value={territory} onValueChange={setTerritory} />
+                      <SelectTrigger id="mio" className="h-8 bg-white text-xs">
+                        <SelectValue placeholder={loadingStaffMios ? "Loading MIOs..." : "Select Field MIO..."} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60 bg-white">
+                        {mioStaffList.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-slate-400">
+                            {loadingStaffMios ? "Loading personnel..." : "No MIO personnel found in HR"}
+                          </div>
+                        ) : (
+                          mioStaffList.map((staff) => (
+                            <SelectItem key={staff.id} value={staff.id}>
+                              <span className="font-semibold text-slate-800">{staff.fullName}</span>{" "}
+                              <span className="text-[11px] text-slate-400">({staff.empId})</span>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {formErrors.mioName && (
+                      <p className="text-[10px] text-red-500">
+                        {formErrors.mioName}
+                      </p>
+                    )}
                   </div>
                 </div>
+
+                <DivisionTerritoryFields
+                  groups={visitLogTerritoryGroups}
+                  value={territory}
+                  onValueChange={(terr) => {
+                    setTerritory(terr.name)
+                  }}
+                  loading={territoriesLoading}
+                  error={territoriesError}
+                  idPrefix="add-log"
+                />
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
@@ -1274,7 +1432,7 @@ export default function DoctorVisitLogsPage() {
 
       {/* 5. Edit Call Log Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="rounded-xl bg-white sm:max-w-[480px]">
+        <DialogContent className="rounded-xl bg-white sm:max-w-[540px]">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900">
               Edit Doctor Call Log
@@ -1325,14 +1483,9 @@ export default function DoctorVisitLogsPage() {
                               {doc.doctorName}
                             </p>
                             <p className="text-[11px] text-slate-500">
-                              {doc.specialtyAndInstitute || doc.specialty || "Specialist"} • {doc.chamber || "Chamber"}
+                              {doc.specialty || doc.specialtyAndInstitute || "Specialist"}
                             </p>
                           </div>
-                          {doc.territoryAndMio && (
-                            <span className="rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
-                              {doc.territoryAndMio}
-                            </span>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -1356,41 +1509,68 @@ export default function DoctorVisitLogsPage() {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-slate-700">
-                  Chamber / Hospital Address
-                </Label>
-                <Input
-                  value={editingLog.chamber}
-                  onChange={(e) =>
-                    setEditingLog({ ...editingLog, chamber: e.target.value })
-                  }
-                  required
-                  className="h-8 text-xs"
-                />
-              </div>
-
+              {/* Row 2: Hospital Address & Field MIO in the same row */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
-                    Field MIO
+                    Chamber / Hospital Address *
                   </Label>
                   <Input
-                    value={editingLog.mioName}
+                    value={editingLog.chamber}
                     onChange={(e) =>
-                      setEditingLog({ ...editingLog, mioName: e.target.value })
+                      setEditingLog({ ...editingLog, chamber: e.target.value })
                     }
                     required
                     className="h-8 text-xs"
                   />
                 </div>
+
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
-                    Territory
+                    Field MIO *
                   </Label>
-                  <MasterTerritorySelect value={editingLog.territory} onValueChange={(territory) => setEditingLog({ ...editingLog, territory })} />
+                  <Select
+                    value={
+                      editingLog.mioId ||
+                      mioStaffList.find(
+                        (s) => s.fullName.trim().toLowerCase() === editingLog.mioName.trim().toLowerCase()
+                      )?.id ||
+                      ""
+                    }
+                    onValueChange={(val) => {
+                      const staff = mioStaffList.find((s) => s.id === val)
+                      setEditingLog({
+                        ...editingLog,
+                        mioId: val,
+                        mioName: staff ? staff.fullName : editingLog.mioName,
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="h-8 bg-white text-xs">
+                      <SelectValue placeholder="Select Field MIO..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60 bg-white">
+                      {mioStaffList.map((staff) => (
+                        <SelectItem key={staff.id} value={staff.id}>
+                          <span className="font-semibold text-slate-800">{staff.fullName}</span>{" "}
+                          <span className="text-[11px] text-slate-400">({staff.empId})</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
+
+              <DivisionTerritoryFields
+                groups={editVisitLogTerritoryGroups}
+                value={editingLog.territory}
+                onValueChange={(territory) =>
+                  setEditingLog({ ...editingLog, territory: territory.name })
+                }
+                loading={territoriesLoading}
+                error={territoriesError}
+                idPrefix="edit-log"
+              />
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">

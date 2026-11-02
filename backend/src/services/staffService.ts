@@ -51,8 +51,24 @@ const generateNextEmpId = async (): Promise<string> => {
 };
 
 export const staffService = {
-  async getAllStaff() {
+  async getAllStaff(filters?: { role?: string }) {
+    const where: any = {};
+    if (filters?.role) {
+      const r = filters.role.trim().toLowerCase();
+      if (r === "mio" || r.includes("medical information")) {
+        where.OR = [
+          { role: { is: { name: { contains: "MIO", mode: "insensitive" } } } },
+          { role: { is: { name: { contains: "Medical Information", mode: "insensitive" } } } },
+        ];
+      } else {
+        where.role = {
+          is: { name: { contains: filters.role, mode: "insensitive" } },
+        };
+      }
+    }
+
     return prisma.staff.findMany({
+      where,
       include: {
         role: true,
         salaries: true,

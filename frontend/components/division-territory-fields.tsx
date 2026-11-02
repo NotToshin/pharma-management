@@ -5,7 +5,18 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { MasterTerritory } from "@/hooks/use-territories"
 
-export function DivisionTerritoryFields({ groups, value, onValueChange, loading, error, idPrefix, validationError }: {
+export function DivisionTerritoryFields({
+  groups,
+  value,
+  onValueChange,
+  loading,
+  error,
+  idPrefix,
+  validationError,
+  className,
+  gridClassName,
+  children,
+}: {
   groups: Record<string, MasterTerritory[]>
   value: string
   onValueChange: (territory: MasterTerritory) => void
@@ -13,15 +24,19 @@ export function DivisionTerritoryFields({ groups, value, onValueChange, loading,
   error: string
   idPrefix: string
   validationError?: string
+  className?: string
+  gridClassName?: string
+  children?: React.ReactNode
 }) {
   const [requestedDivision, setRequestedDivision] = React.useState("")
   const divisions = Object.keys(groups).sort()
   const selected = Object.values(groups).flat().find(territory => territory.name.toLowerCase() === value.trim().toLowerCase())
   const division = selected ? selected.division || "General Division" : requestedDivision
+  const resolvedGridClassName = gridClassName || (children ? "grid grid-cols-1 gap-3 sm:grid-cols-3" : "grid grid-cols-1 gap-3 sm:grid-cols-2")
 
   return (
-    <div className="space-y-1">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className={`space-y-1 ${className || ""}`}>
+      <div className={resolvedGridClassName}>
         <div className="space-y-1">
           <Label htmlFor={`${idPrefix}-division`} className="text-xs font-semibold text-slate-700">Division *</Label>
           <Select value={division} onValueChange={nextDivision => {
@@ -51,6 +66,7 @@ export function DivisionTerritoryFields({ groups, value, onValueChange, loading,
             </SelectContent>
           </Select>
         </div>
+        {children}
       </div>
       {(error || validationError) && <p role="alert" className="text-xs text-rose-600">{error || validationError}</p>}
       {!loading && !error && divisions.length === 0 && <p className="text-xs text-amber-700">No active territories available. Create a master territory before continuing.</p>}
