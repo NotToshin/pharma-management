@@ -43,6 +43,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import {
   Table,
   TableBody,
@@ -1295,7 +1296,10 @@ export default function StaffDirectoryPage() {
                   colSpan={9}
                   className="py-6 text-center text-xs text-slate-400"
                 >
-                  Loading live staff directory from database...
+                  <GlobalLoadingSpinner
+                    message="Loading live staff directory from database..."
+                    className="py-0"
+                  />
                 </TableCell>
               </TableRow>
             ) : filteredEmployees.length === 0 ? (

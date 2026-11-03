@@ -12,6 +12,7 @@ import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { ServerListPagination } from "@/components/server-list-controls"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -1479,11 +1480,12 @@ export default function RBACManagementPage() {
           <TableBody>
             {isUsersLoading && assignments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-12 text-center text-xs text-slate-400">
-                  <div className="flex items-center justify-center gap-2">
-                    <RefreshCw className="h-4 w-4 animate-spin text-slate-400" />
-                    <span>Loading provisioned credentials...</span>
-                  </div>
+                <TableCell colSpan={6} className="py-8 text-center text-xs text-slate-400">
+                  <GlobalLoadingSpinner
+                    size="sm"
+                    className="py-0"
+                    message="Loading provisioned credentials..."
+                  />
                 </TableCell>
               </TableRow>
             ) : assignments.length === 0 ? (
@@ -1914,9 +1916,7 @@ export default function RBACManagementPage() {
               </div>
             </div>
           ) : (
-            <div className="p-8 text-center text-xs text-slate-400">
-              Loading permission matrix...
-            </div>
+            <GlobalLoadingSpinner className="py-8" message="Loading permission matrix..." />
           )}
               </div>
             </div>
@@ -1984,10 +1984,11 @@ export default function RBACManagementPage() {
                 {isStaffDropdownOpen && (
                   <div className="absolute top-[100%] left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg ring-1 ring-black/5 animate-in fade-in-0 zoom-in-95">
                     {isStaffLoading ? (
-                      <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                        <span>Loading staff directory...</span>
-                      </div>
+                      <GlobalLoadingSpinner
+                        size="sm"
+                        className="py-2"
+                        message="Loading staff directory..."
+                      />
                     ) : filteredStaffList.length === 0 ? (
                       <div className="py-4 text-center text-xs text-slate-400">
                         No matching staff found.

@@ -3,6 +3,7 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card } from "@/components/ui/card"
@@ -947,11 +948,11 @@ export default function FinanceOverviewPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="py-8 text-center text-xs text-slate-400"
-                >
-                  Loading live financial records...
+                <TableCell colSpan={7} className="py-2 text-center">
+                  <GlobalLoadingSpinner
+                    message="Loading live financial records..."
+                    className="py-0"
+                  />
                 </TableCell>
               </TableRow>
             ) : filteredTransactions.length === 0 ? (

@@ -64,6 +64,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 
 /* ------------------------------------------------------------------ */
 /* Optimized Print stylesheet for DCR Ledger (Clean, Professional)     */
@@ -1303,7 +1304,10 @@ export default function DoctorVisitLogsPage() {
             {loading ? (
               <TableRow>
                 <TableCell colSpan={8} className="py-10 text-center text-xs text-slate-500">
-                  Loading doctor visit logs...
+                  <GlobalLoadingSpinner
+                    message="Loading doctor visit logs..."
+                    className="py-0"
+                  />
                 </TableCell>
               </TableRow>
             ) : filteredLogs.length === 0 ? (

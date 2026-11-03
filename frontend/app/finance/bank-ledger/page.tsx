@@ -3,6 +3,7 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
@@ -1019,9 +1020,11 @@ export default function AccountLedgerPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-xs text-slate-400">
-                    <RefreshCw className="mx-auto mb-2 h-5 w-5 animate-spin text-[#0090FF]" />
-                    Loading treasury ledger data from database...
+                  <TableCell colSpan={8} className="py-2 text-center">
+                    <GlobalLoadingSpinner
+                      message="Loading treasury ledger data from database..."
+                      className="py-0"
+                    />
                   </TableCell>
                 </TableRow>
               ) : paginatedLedger.length === 0 ? (

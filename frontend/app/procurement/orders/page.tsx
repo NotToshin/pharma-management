@@ -3,6 +3,7 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { DivisionTerritoryFields } from "@/components/division-territory-fields"
 import { groupTerritories, useTerritories } from "@/hooks/use-territories"
 import Link from "next/link"
@@ -1622,8 +1623,11 @@ export default function WholesalerPurchaseOrdersPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} className="py-8 text-center text-xs text-slate-400">
-                  Loading wholesaler purchase orders from database...
+                <TableCell colSpan={9} className="py-2 text-center">
+                  <GlobalLoadingSpinner
+                    message="Loading wholesaler purchase orders from database..."
+                    className="py-0"
+                  />
                 </TableCell>
               </TableRow>
             ) : filteredOrders.length === 0 ? (

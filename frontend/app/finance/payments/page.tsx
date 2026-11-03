@@ -3,6 +3,7 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
@@ -1444,9 +1445,11 @@ export default function GeneralPaymentsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-12 text-center text-xs text-slate-400">
-                    <RefreshCw className="mx-auto h-5 w-5 animate-spin text-[#0090FF] mb-2" />
-                    Loading payment records from database...
+                  <TableCell colSpan={7} className="py-2 text-center">
+                    <GlobalLoadingSpinner
+                      message="Loading payment records from database..."
+                      className="py-0"
+                    />
                   </TableCell>
                 </TableRow>
               ) : filteredVouchers.length === 0 ? (

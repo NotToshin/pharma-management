@@ -101,6 +101,7 @@ import {
 import { doctorFormSchema } from "@/lib/validations/doctorValidation"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 
 interface ParsedDoctorItem {
   doctorName: string
@@ -1696,10 +1697,10 @@ export default function DoctorMasterDatabasePage() {
                   className="py-12 text-center text-xs text-slate-400"
                 >
                   {isSearching ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin text-[#0090FF]" />
-                      <span>Loading practitioner records...</span>
-                    </div>
+                    <GlobalLoadingSpinner
+                      message="Loading practitioner records..."
+                      className="py-0"
+                    />
                   ) : (
                     "No registered doctors found matching your criteria."
                   )}

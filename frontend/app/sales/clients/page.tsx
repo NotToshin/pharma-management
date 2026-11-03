@@ -101,6 +101,7 @@ import {
 import { clientFormSchema } from "@/lib/validations/clientValidation"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { getStoredUser } from "@/lib/auth"
 
 export interface ClientProfile {
@@ -1040,11 +1041,11 @@ export default function ClientsDirectoryPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-xs text-slate-400">
-                  <div className="flex items-center justify-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#0090FF]" />
-                    <span>Loading chemist master directory...</span>
-                  </div>
+                <TableCell colSpan={7} className="py-2 text-center">
+                  <GlobalLoadingSpinner
+                    message="Loading chemist master directory..."
+                    className="py-0"
+                  />
                 </TableCell>
               </TableRow>
             ) : clients.length === 0 ? (

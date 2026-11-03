@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import {
   Select,
   SelectContent,
@@ -857,10 +858,10 @@ export default function StockAdjustmentsPage() {
         </div>
 
         {loading ? (
-          <div className="py-12 text-center text-xs text-slate-400">
-            <RefreshCw className="mx-auto h-5 w-5 animate-spin text-[#0090FF]" />
-            <span className="mt-2 block">Loading stock adjustments from database...</span>
-          </div>
+          <GlobalLoadingSpinner
+            message="Loading stock adjustments from database..."
+            className="py-8"
+          />
         ) : filteredAdjustments.length === 0 ? (
           <div className="py-12 text-center text-xs text-slate-400">
             <Package className="mx-auto h-8 w-8 text-slate-300" />

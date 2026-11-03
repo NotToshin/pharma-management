@@ -39,6 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import {
   Table,
   TableBody,
@@ -1035,10 +1036,11 @@ export default function TargetVsAchievementPage() {
 
         <div className="h-[280px] w-full pt-4">
           {isLoading ? (
-            <div className="flex h-full items-center justify-center text-xs text-slate-400">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#0090FF]" />
-              Loading MIO performance analytics from database...
-            </div>
+            <GlobalLoadingSpinner
+              message="Loading MIO performance analytics from database..."
+              size="sm"
+              className="h-full py-0"
+            />
           ) : dynamicChartData.length === 0 ? (
             <div className="flex h-full items-center justify-center text-xs text-slate-400">
               No MIO quotas registered in database yet.
@@ -1329,8 +1331,10 @@ export default function TargetVsAchievementPage() {
                     colSpan={7}
                     className="h-32 text-center text-xs text-slate-400"
                   >
-                    <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-[#0090FF]" />
-                    Loading MIO performance ledger from database...
+                    <GlobalLoadingSpinner
+                      message="Loading MIO performance ledger from database..."
+                      className="py-0"
+                    />
                   </TableCell>
                 </TableRow>
               ) : processedTargets.length === 0 ? (

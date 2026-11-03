@@ -6,6 +6,7 @@ import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import {
   ServerListPagination,
   ServerListToolbar,
@@ -655,7 +656,9 @@ export function PartySettlementPage({
           <TableBody>
             {billsLoading && bills.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-xs text-slate-400">Loading open orders...</TableCell>
+                <TableCell colSpan={8} className="py-2 text-center">
+                  <GlobalLoadingSpinner message="Loading open orders..." className="py-0" />
+                </TableCell>
               </TableRow>
             ) : bills.length === 0 ? (
               <TableRow>
@@ -760,7 +763,9 @@ export function PartySettlementPage({
           <TableBody>
             {paymentsLoading && payments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-xs text-slate-400">Loading payments...</TableCell>
+                <TableCell colSpan={7} className="py-2 text-center">
+                  <GlobalLoadingSpinner message="Loading payments..." className="py-0" />
+                </TableCell>
               </TableRow>
             ) : payments.length === 0 ? (
               <TableRow>

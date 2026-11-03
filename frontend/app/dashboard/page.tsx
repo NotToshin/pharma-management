@@ -3,6 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { API_URL } from "@/lib/api"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -103,6 +104,14 @@ export default function MasterExecutiveDashboardPage() {
   React.useEffect(() => {
     fetchDashboardTelemetry()
   }, [fetchDashboardTelemetry])
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-[1380px]">
+        <GlobalLoadingSpinner message="Loading executive dashboard telemetry..." className="py-24" />
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-[1380px] space-y-6 pb-16 font-sans text-slate-900">

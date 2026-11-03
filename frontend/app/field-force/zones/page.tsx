@@ -52,6 +52,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { toast } from "sonner"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import {
   MapPin,
   Users2,
@@ -734,10 +735,10 @@ export default function MioZoneAllocationsPage() {
         </div>
 
         {loading ? (
-          <div className="flex h-48 flex-col items-center justify-center gap-2 text-slate-400">
-            <RefreshCw className="h-6 w-6 animate-spin text-[#0090FF]" />
-            <span className="text-xs">Connecting to database and calculating live network...</span>
-          </div>
+          <GlobalLoadingSpinner
+            message="Connecting to database and calculating live network..."
+            className="py-8"
+          />
         ) : filteredAllocations.length === 0 ? (
           <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 p-8 text-center">
             <Users2 className="h-8 w-8 text-slate-300" />

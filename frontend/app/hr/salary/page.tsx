@@ -28,6 +28,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import {
   Table,
   TableBody,
@@ -1627,10 +1628,10 @@ export default function SalaryManagementPage() {
               {loading ? (
                 <TableRow>
                   <TableCell colSpan={8} className="py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Loader2 className="h-5 w-5 animate-spin text-[#0090FF]" />
-                      <span className="text-xs">Loading payroll register for {selectedMonth}...</span>
-                    </div>
+                    <GlobalLoadingSpinner
+                      message={`Loading payroll register for ${selectedMonth}...`}
+                      className="py-0"
+                    />
                   </TableCell>
                 </TableRow>
               ) : filteredSalaries.length === 0 ? (
