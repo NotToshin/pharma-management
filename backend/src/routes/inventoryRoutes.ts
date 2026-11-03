@@ -9,18 +9,19 @@ import {
   quarantineBatch,
   deleteBatch,
 } from "../controllers/inventoryController";
-import { validateBody, validateParams } from "../utils/validate";
+import { validateBody, validateParams, validateQuery } from "../utils/validate";
 import {
   createInventoryBatchSchema,
   updateInventoryBatchSchema,
   adjustStockSchema,
   quarantineBatchSchema,
   batchIdParamSchema,
+  getInventoryBatchesQuerySchema,
 } from "../validations/inventoryValidation";
 
 const router = Router();
 
-router.get("/", getAllBatches);
+router.get("/", validateQuery(getInventoryBatchesQuerySchema), getAllBatches);
 router.get("/stats", getInventoryStats);
 router.get("/:id", validateParams(batchIdParamSchema), getBatchById);
 

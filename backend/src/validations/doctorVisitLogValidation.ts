@@ -36,6 +36,28 @@ export const visitLogIdParamSchema = z.object({
   }),
 });
 
+export const getVisitLogsQuerySchema = z.object({
+  query: z
+    .object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z
+        .union([z.coerce.number().int().min(0), z.literal("all"), z.literal("-1")])
+        .optional(),
+      sortBy: z.string().optional(),
+      sortOrder: z.enum(["asc", "desc"]).optional(),
+      searchTerm: z.string().optional(),
+      search: z.string().optional(),
+      doctorName: z.string().optional(),
+      specialty: z.string().optional(),
+      chamber: z.string().optional(),
+      mioName: z.string().optional(),
+      territory: z.string().optional(),
+      feedback: z.string().optional(),
+    })
+    .optional(),
+});
+
 export type VisitLogInput = z.infer<typeof visitLogFormSchema>;
+export type GetVisitLogsQueryInput = z.infer<typeof getVisitLogsQuerySchema>["query"];
 export type CreateVisitLogInput = z.infer<typeof createVisitLogSchema>["body"];
 export type UpdateVisitLogInput = z.infer<typeof updateVisitLogSchema>["body"];

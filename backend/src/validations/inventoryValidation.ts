@@ -104,14 +104,24 @@ export const batchIdParamSchema = z.object({
 export const queryInventorySchema = z.object({
   query: z.object({
     search: z.string().optional(),
+    searchTerm: z.string().optional(),
     category: z.string().optional(),
     fefoStatus: z.string().optional(),
     storageCondition: z.string().optional(),
     sort: z.string().optional(),
+    page: z.coerce.number().int().positive().optional(),
+    limit: z
+      .union([z.literal("all"), z.literal("-1"), z.coerce.number().int().min(0)])
+      .optional(),
+    sortBy: z.string().optional(),
+    sortOrder: z.enum(["asc", "desc"]).optional(),
   }).optional(),
 });
+
+export const getInventoryBatchesQuerySchema = queryInventorySchema;
 
 export type CreateInventoryBatchInput = z.infer<typeof createInventoryBatchSchema>["body"];
 export type UpdateInventoryBatchInput = z.infer<typeof updateInventoryBatchSchema>["body"];
 export type AdjustStockInput = z.infer<typeof adjustStockSchema>["body"];
 export type QuarantineBatchInput = z.infer<typeof quarantineBatchSchema>["body"];
+export type GetInventoryBatchesQueryInput = z.infer<typeof queryInventorySchema>["query"];

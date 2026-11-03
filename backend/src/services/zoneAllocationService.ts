@@ -3,6 +3,11 @@ import { StaffStatus } from "@prisma/client";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
+import {
+  paginationHelper,
+  IPaginationOptions,
+  IPaginatedResult,
+} from "../utils/paginationHelper";
 
 const mapStaffStatus = (status?: StaffStatus | string): string => {
   if (!status) return "Active";
@@ -16,12 +21,26 @@ const mapStaffStatus = (status?: StaffStatus | string): string => {
   return "Active";
 };
 
+export interface IZoneAllocationFilterOptions {
+  searchTerm?: string;
+  search?: string;
+  division?: string;
+  status?: string;
+  [key: string]: any;
+}
+
+export const zoneAllocationFilterableFields = [
+  "searchTerm",
+  "search",
+  "division",
+  "status",
+] as const;
+
 export const zoneAllocationService = {
-  async getAllAllocations(filters?: {
-    searchTerm?: string;
-    division?: string;
-    status?: string;
-  }) {
+  async getAllAllocations(
+    filters?: IZoneAllocationFilterOptions,
+    paginationOptions?: IPaginationOptions
+  ): Promise<IPaginatedResult<any[]>> {
 
     const [allocations, staffMembers, allDoctors, allClients] = await Promise.all([
       prisma.mioZoneAllocation.findMany({
@@ -133,10 +152,25 @@ export const zoneAllocationService = {
       };
     });
 
+    // Overview KPIs are computed over the whole enriched set (unfiltered),
+    // matching the legacy frontend behavior.
+    const overview = {
+      activeOfficers: enriched.filter((item) => item.status === "Active").length,
+      connectedDoctors: enriched.reduce(
+        (acc, cur) => acc + (cur.assignedDoctors || 0),
+        0
+      ),
+      connectedStores: enriched.reduce(
+        (acc, cur) => acc + (cur.assignedPharmacies || 0),
+        0
+      ),
+    };
+
     // Apply optional memory filters if supplied
+    const searchValue = (filters?.searchTerm || filters?.search || "").trim();
     let result = enriched;
-    if (filters?.searchTerm && filters.searchTerm.trim()) {
-      const q = filters.searchTerm.trim().toLowerCase();
+    if (searchValue) {
+      const q = searchValue.toLowerCase();
       result = result.filter(
         (item) =>
           item.mioName.toLowerCase().includes(q) ||
@@ -160,7 +194,57 @@ export const zoneAllocationService = {
       );
     }
 
-    return result;
+    // Backward compatibility: callers without a limit (or "all"/"-1") get ALL rows.
+    const normalizedPagination: IPaginationOptions = { ...(paginationOptions || {}) };
+    if (
+      normalizedPagination.limit === undefined ||
+      normalizedPagination.limit === "" ||
+      normalizedPagination.limit === "all" ||
+      Number(normalizedPagination.limit) === -1
+    ) {
+      normalizedPagination.limit = 0;
+    }
+
+    const { page, limit, skip, sortBy, sortOrder } =
+      paginationHelper.calculatePagination(normalizedPagination, {
+        sortBy: "createdAt",
+        sortOrder: "desc",
+      });
+
+    // Allowlisted in-memory sort (rows are already enriched at this point).
+    const allowedSortFields = [
+      "createdAt",
+      "updatedAt",
+      "mioName",
+      "employeeId",
+      "territory",
+      "division",
+      "allocatedZone",
+      "effectiveDate",
+      "status",
+    ];
+    const safeSortBy = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : "createdAt";
+
+    const sorted = [...result].sort((a, b) => {
+      const av = (a as any)[safeSortBy];
+      const bv = (b as any)[safeSortBy];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp = String(av).localeCompare(String(bv));
+      return sortOrder === "asc" ? cmp : -cmp;
+    });
+
+    const total = sorted.length;
+    const rows = limit > 0 ? sorted.slice(skip, skip + limit) : sorted;
+    const meta = {
+      ...paginationHelper.createPaginationMeta(total, { page, limit }),
+      ...overview,
+    };
+
+    return { meta, data: rows };
   },
 
   async getAllStaffMios() {

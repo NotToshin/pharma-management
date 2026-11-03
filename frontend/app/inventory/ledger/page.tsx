@@ -8,6 +8,11 @@ import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -49,7 +54,6 @@ import {
 } from "@/components/ui/table"
 import {
   Boxes,
-  Search,
   Filter,
   Plus,
   Download,
@@ -189,6 +193,36 @@ function calculateFefoMeta(expiryDateStr: string, warehouseBin = ""): {
   }
 }
 
+function mapInventoryBatch(item: any): InventoryBatch {
+  const { days, status, isQuarantined, isExpired } = calculateFefoMeta(
+    item.expiryDate,
+    item.warehouseBin
+  )
+  const units = Number(item.availableUnits) || 0
+  const price = Number(item.unitPrice) || 0
+  return {
+    id: item.id,
+    skuCode: item.skuCode || `SKU-${item.brandName?.slice(0, 2).toUpperCase()}-001`,
+    brandName: item.brandName,
+    genericName: item.genericName,
+    category: item.category,
+    batchNumber: item.batchNumber,
+    mfgDate: item.mfgDate,
+    expiryDate: item.expiryDate,
+    daysToExpiry: days,
+    availableUnits: units,
+    unitPrice: price,
+    warehouseBin: item.warehouseBin,
+    storageCondition: item.storageCondition,
+    fefoStatus: status,
+    isQuarantined,
+    isExpired,
+    totalValuation: Math.round(units * price * 100) / 100,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }
+}
+
 function getShelfLifePercent(mfgDate: string, expiryDate: string, daysToExpiry: number) {
   const mfg = Date.parse(mfgDate)
   const exp = Date.parse(expiryDate)
@@ -204,12 +238,15 @@ export default function ActiveInventoryLedgerPage() {
   const [loading, setLoading] = React.useState(true)
   const [refreshing, setRefreshing] = React.useState(false)
 
-  // Filters & Search
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [categoryFilter, setCategoryFilter] = React.useState("all")
-  const [fefoFilter, setFefoFilter] = React.useState("all")
-  const [storageFilter, setStorageFilter] = React.useState("all")
-  const [sortBy, setSortBy] = React.useState("fefo_asc")
+  // Server-side Search, Filters & Sort
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "daysToExpiry",
+    initialSortOrder: "asc",
+    initialFilters: { category: "all", fefoStatus: "all", storageCondition: "all" },
+  })
+  const [totalBatches, setTotalBatches] = React.useState(0)
+  const [totalPages, setTotalPages] = React.useState(1)
 
   // Modals
   const [isAddBatchOpen, setIsAddBatchOpen] = React.useState(false)
@@ -268,46 +305,19 @@ export default function ActiveInventoryLedgerPage() {
       else setLoading(true)
 
       const [batchesRes, statsRes] = await Promise.all([
-        apiFetch(`${API_URL}/inventory`),
+        apiFetch(`${API_URL}/inventory?${listQuery.queryKey}`),
         apiFetch(`${API_URL}/inventory/stats`).catch(() => null),
       ])
 
       if (batchesRes.ok) {
         const json = await batchesRes.json()
         const rawBatches = Array.isArray(json) ? json : json?.data || []
+        const meta = json?.meta || {}
         if (Array.isArray(rawBatches)) {
-          setLedger(
-            rawBatches.map((item: any) => {
-              const { days, status, isQuarantined, isExpired } = calculateFefoMeta(
-                item.expiryDate,
-                item.warehouseBin
-              )
-              const units = Number(item.availableUnits) || 0
-              const price = Number(item.unitPrice) || 0
-              return {
-                id: item.id,
-                skuCode: item.skuCode || `SKU-${item.brandName?.slice(0, 2).toUpperCase()}-001`,
-                brandName: item.brandName,
-                genericName: item.genericName,
-                category: item.category,
-                batchNumber: item.batchNumber,
-                mfgDate: item.mfgDate,
-                expiryDate: item.expiryDate,
-                daysToExpiry: days,
-                availableUnits: units,
-                unitPrice: price,
-                warehouseBin: item.warehouseBin,
-                storageCondition: item.storageCondition,
-                fefoStatus: status,
-                isQuarantined,
-                isExpired,
-                totalValuation: Math.round(units * price * 100) / 100,
-                createdAt: item.createdAt,
-                updatedAt: item.updatedAt,
-              }
-            })
-          )
+          setLedger(rawBatches.map(mapInventoryBatch))
         }
+        setTotalBatches(meta.total ?? rawBatches.length)
+        setTotalPages(meta.totalPage ?? meta.totalPages ?? 1)
       }
 
       if (statsRes && statsRes.ok) {
@@ -323,7 +333,7 @@ export default function ActiveInventoryLedgerPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [])
+  }, [listQuery.queryKey])
 
   React.useEffect(() => {
     fetchInventory()
@@ -630,17 +640,27 @@ export default function ActiveInventoryLedgerPage() {
   }
 
   // ─────────────────────────────────────────────
-  // Excel Export Handler
+  // Excel Export Handler (fetches the full filtered dataset from the server)
   // ─────────────────────────────────────────────
-  const handleExportExcel = () => {
-    if (ledger.length === 0) {
+  const handleExportExcel = async () => {
+    if (totalBatches === 0 && ledger.length === 0) {
       toast.error("No inventory batches to export.")
       return
     }
 
     const toastId = toast.loading("Generating audited FEFO Excel ledger...")
     try {
-      const exportData = filteredLedger.map((item, idx) => ({
+      const params = new URLSearchParams(listQuery.params)
+      params.set("page", "1")
+      params.set("limit", "0")
+      const res = await apiFetch(`${API_URL}/inventory?${params.toString()}`)
+      if (!res.ok) throw new Error("Failed to load the full inventory ledger")
+
+      const json = await res.json()
+      const raw = Array.isArray(json) ? json : json?.data || []
+      const exportRows: InventoryBatch[] = raw.map(mapInventoryBatch)
+
+      const exportData = exportRows.map((item, idx) => ({
         "SL #": idx + 1,
         "SKU Code": item.skuCode,
         "Commercial Brand": item.brandName,
@@ -666,7 +686,7 @@ export default function ActiveInventoryLedgerPage() {
         workbook,
         `AK_Pharma_FEFO_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`
       )
-      toast.success(`Exported ${filteredLedger.length} batch records to Excel successfully.`, {
+      toast.success(`Exported ${exportRows.length} batch records to Excel successfully.`, {
         id: toastId,
       })
     } catch (err: any) {
@@ -678,84 +698,39 @@ export default function ActiveInventoryLedgerPage() {
   // ─────────────────────────────────────────────
   // Filter and Sort Pipeline
   // ─────────────────────────────────────────────
-  const filteredLedger = React.useMemo(() => {
-    return ledger
-      .filter((item) => {
-        const q = searchQuery.toLowerCase().trim()
-        const matchesSearch =
-          !q ||
-          item.brandName.toLowerCase().includes(q) ||
-          item.genericName.toLowerCase().includes(q) ||
-          item.batchNumber.toLowerCase().includes(q) ||
-          item.warehouseBin.toLowerCase().includes(q) ||
-          item.skuCode.toLowerCase().includes(q) ||
-          item.category.toLowerCase().includes(q)
+  // Server-side: filters, sorting, and paging run in the backend via
+  // useServerListQuery. No client-side slicing is applied to the ledger.
 
-        const matchesCategory =
-          categoryFilter === "all" ||
-          item.category.toLowerCase() === categoryFilter.toLowerCase()
-
-        let matchesFefo = true
-        if (fefoFilter === "quarantined") {
-          matchesFefo = item.isQuarantined
-        } else if (fefoFilter !== "all") {
-          matchesFefo = item.fefoStatus.toLowerCase() === fefoFilter.toLowerCase()
-        }
-
-        const matchesStorage =
-          storageFilter === "all" ||
-          (storageFilter === "cold" && item.storageCondition.includes("Cold")) ||
-          (storageFilter === "ambient" && item.storageCondition.includes("Ambient"))
-
-        return matchesSearch && matchesCategory && matchesFefo && matchesStorage
-      })
-      .sort((a, b) => {
-        switch (sortBy) {
-          case "fefo_asc":
-            return a.daysToExpiry - b.daysToExpiry
-          case "fefo_desc":
-            return b.daysToExpiry - a.daysToExpiry
-          case "units_desc":
-            return b.availableUnits - a.availableUnits
-          case "units_asc":
-            return a.availableUnits - b.availableUnits
-          case "val_desc":
-            return b.totalValuation - a.totalValuation
-          case "brand_asc":
-            return a.brandName.localeCompare(b.brandName)
-          default:
-            return a.daysToExpiry - b.daysToExpiry
-        }
-      })
-  }, [ledger, searchQuery, categoryFilter, fefoFilter, storageFilter, sortBy])
-
-  // Computed metrics
+  // Computed metrics (prefer the /inventory/stats endpoint; fall back to the page)
   const totalValuation = React.useMemo(
-    () => ledger.reduce((acc, curr) => acc + curr.availableUnits * curr.unitPrice, 0),
-    [ledger]
+    () => stats?.grossValuation ?? ledger.reduce((acc, curr) => acc + curr.availableUnits * curr.unitPrice, 0),
+    [stats, ledger]
   )
   const totalPacks = React.useMemo(
-    () => ledger.reduce((acc, curr) => acc + curr.availableUnits, 0),
-    [ledger]
+    () => stats?.totalStockUnits ?? ledger.reduce((acc, curr) => acc + curr.availableUnits, 0),
+    [stats, ledger]
   )
   const priorityOutCount = React.useMemo(
-    () => ledger.filter((i) => i.fefoStatus === "Priority Out" || i.fefoStatus === "Near Expiry").length,
-    [ledger]
+    () =>
+      stats?.priorityOutCount ??
+      ledger.filter((i) => i.fefoStatus === "Priority Out" || i.fefoStatus === "Near Expiry").length,
+    [stats, ledger]
   )
   const expiredCount = React.useMemo(
-    () => ledger.filter((i) => i.fefoStatus === "Expired").length,
-    [ledger]
+    () => stats?.expiredCount ?? ledger.filter((i) => i.fefoStatus === "Expired").length,
+    [stats, ledger]
   )
   const quarantinedCount = React.useMemo(
-    () => ledger.filter((i) => i.isQuarantined).length,
-    [ledger]
+    () => stats?.quarantinedCount ?? ledger.filter((i) => i.isQuarantined).length,
+    [stats, ledger]
   )
   const coldChainUnits = React.useMemo(
     () =>
+      stats?.coldChainUnits ??
       ledger
         .filter((i) => i.storageCondition.includes("Cold"))
         .reduce((acc, curr) => acc + curr.availableUnits, 0),
-    [ledger]
+    [stats, ledger]
   )
 
   return (
@@ -838,7 +813,7 @@ export default function ActiveInventoryLedgerPage() {
             ৳{totalValuation.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
           </div>
           <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-400">
-            <span>{ledger.length} active registered batches</span>
+            <span>{stats?.activeBatchCount ?? ledger.length} active registered batches</span>
             <span className="font-semibold text-emerald-600">Audited Basis</span>
           </div>
         </Card>
@@ -921,112 +896,69 @@ export default function ActiveInventoryLedgerPage() {
       </div>
 
       {/* 3. Search & Comprehensive Filter Toolbars */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative min-w-[260px] flex-1">
-          <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Search brand, generic, batch #, shelf bin, or SKU..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 border-slate-200 bg-slate-50/60 pl-8 text-xs font-medium focus:bg-white"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Category Filter */}
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="h-9 w-[190px] border-slate-200 bg-white text-xs font-medium">
-              <Filter className="mr-1.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-              <SelectValue placeholder="Therapeutic Class" />
-            </SelectTrigger>
-            <SelectContent className="max-h-[340px] text-xs">
-              <SelectItem value="all">All Categories ({ALL_CATEGORIES.length})</SelectItem>
-              <SelectGroup>
-                <SelectLabel className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                  Infectious Diseases
-                </SelectLabel>
-                {PHARMA_CATEGORIES.generalInfectious.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectGroup>
-                <SelectLabel className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                  Systemic & Chronic
-                </SelectLabel>
-                {PHARMA_CATEGORIES.systemicTherapies.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectGroup>
-                <SelectLabel className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                  Specialty & Clinical
-                </SelectLabel>
-                {PHARMA_CATEGORIES.specialtyClinicals.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectGroup>
-                <SelectLabel className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                  Nutrition & Hospital
-                </SelectLabel>
-                {PHARMA_CATEGORIES.nutritionAndSupplements.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-
-          {/* FEFO Status Filter */}
-          <Select value={fefoFilter} onValueChange={setFefoFilter}>
-            <SelectTrigger className="h-9 w-[165px] border-slate-200 bg-white text-xs font-medium">
-              <SelectValue placeholder="FEFO Priority" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All FEFO Statuses</SelectItem>
-              <SelectItem value="expired">Expired (&le; 0d)</SelectItem>
-              <SelectItem value="near expiry">Near Expiry (&le; 60d)</SelectItem>
-              <SelectItem value="priority out">Priority Out (61-180d)</SelectItem>
-              <SelectItem value="healthy">Healthy Stock (&gt; 180d)</SelectItem>
-              <SelectItem value="quarantined">Quarantine Hold (All)</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Storage Filter */}
-          <Select value={storageFilter} onValueChange={setStorageFilter}>
-            <SelectTrigger className="h-9 w-[150px] border-slate-200 bg-white text-xs font-medium">
-              <SelectValue placeholder="Storage Environment" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Storage</SelectItem>
-              <SelectItem value="ambient">Ambient (&lt;25°C)</SelectItem>
-              <SelectItem value="cold">Cold Chain (2-8°C)</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Sort By */}
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="h-9 w-[160px] border-slate-200 bg-white text-xs font-medium">
-              <SelectValue placeholder="Sort Sequence" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="fefo_asc">FEFO: Earliest Expiry</SelectItem>
-              <SelectItem value="fefo_desc">Expiry: Furthest Out</SelectItem>
-              <SelectItem value="units_desc">Stock: High to Low</SelectItem>
-              <SelectItem value="units_asc">Stock: Low to High</SelectItem>
-              <SelectItem value="val_desc">Valuation: Highest</SelectItem>
-              <SelectItem value="brand_asc">Brand: A to Z</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <ServerListToolbar
+        search={listQuery.search}
+        onSearchChange={listQuery.setSearch}
+        searchPlaceholder="Search brand, generic, batch #, shelf bin, or SKU..."
+        loading={loading}
+        sort={{
+          value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+          onValueChange: (value) => {
+            const [field, order] = value.split(":")
+            listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+          },
+          widthClassName: "w-[180px]",
+          options: [
+            { value: "daysToExpiry:asc", label: "FEFO: Earliest Expiry" },
+            { value: "daysToExpiry:desc", label: "Expiry: Furthest Out" },
+            { value: "availableUnits:desc", label: "Stock: High to Low" },
+            { value: "availableUnits:asc", label: "Stock: Low to High" },
+            { value: "totalValuation:desc", label: "Valuation: Highest" },
+            { value: "brandName:asc", label: "Brand: A to Z" },
+          ],
+        }}
+        filters={[
+          {
+            id: "category",
+            value: listQuery.filters.category || "all",
+            onValueChange: (value) => listQuery.setFilter("category", value),
+            placeholder: "Therapeutic Class",
+            widthClassName: "w-[190px]",
+            icon: <Filter className="mr-1.5 h-3.5 w-3.5 shrink-0 text-slate-400" />,
+            options: [
+              { value: "all", label: `All Categories (${ALL_CATEGORIES.length})` },
+              ...ALL_CATEGORIES.map((cat) => ({ value: cat, label: cat })),
+            ],
+          },
+          {
+            id: "fefoStatus",
+            value: listQuery.filters.fefoStatus || "all",
+            onValueChange: (value) => listQuery.setFilter("fefoStatus", value),
+            placeholder: "FEFO Priority",
+            widthClassName: "w-[170px]",
+            options: [
+              { value: "all", label: "All FEFO Statuses" },
+              { value: "expired", label: "Expired (≤ 0d)" },
+              { value: "near expiry", label: "Near Expiry (≤ 60d)" },
+              { value: "priority out", label: "Priority Out (61-180d)" },
+              { value: "healthy", label: "Healthy Stock (> 180d)" },
+              { value: "quarantined", label: "Quarantine Hold (All)" },
+            ],
+          },
+          {
+            id: "storageCondition",
+            value: listQuery.filters.storageCondition || "all",
+            onValueChange: (value) => listQuery.setFilter("storageCondition", value),
+            placeholder: "Storage Environment",
+            widthClassName: "w-[170px]",
+            options: [
+              { value: "all", label: "All Storage" },
+              { value: "Controlled Ambient (<25°C)", label: "Ambient (<25°C)" },
+              { value: "Cold Chain (2-8°C)", label: "Cold Chain (2-8°C)" },
+            ],
+          },
+        ]}
+      />
 
       {/* 4. Active Inventory Table */}
       <Card className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -1041,8 +973,8 @@ export default function ActiveInventoryLedgerPage() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold text-slate-500">
-              Showing <strong className="text-slate-900">{filteredLedger.length}</strong> of{" "}
-              {ledger.length} Active Batches
+              Showing <strong className="text-slate-900">{ledger.length}</strong> of{" "}
+              {totalBatches} Active Batches
             </span>
           </div>
         </div>
@@ -1073,7 +1005,7 @@ export default function ActiveInventoryLedgerPage() {
                     />
                   </TableCell>
                 </TableRow>
-              ) : filteredLedger.length === 0 ? (
+              ) : ledger.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={10} className="py-14 text-center text-xs text-slate-400">
                     <div className="mx-auto flex max-w-sm flex-col items-center justify-center gap-2">
@@ -1086,7 +1018,7 @@ export default function ActiveInventoryLedgerPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredLedger.map((batch) => {
+                ledger.map((batch) => {
                   const shelfLifePercent = getShelfLifePercent(
                     batch.mfgDate,
                     batch.expiryDate,
@@ -1378,6 +1310,18 @@ export default function ActiveInventoryLedgerPage() {
               )}
             </TableBody>
           </Table>
+        </div>
+
+        <div className="px-4 pb-4">
+          <ServerListPagination
+            page={listQuery.page}
+            totalPages={totalPages}
+            total={totalBatches}
+            limit={listQuery.limit}
+            loading={loading}
+            onPageChange={listQuery.setPage}
+            onLimitChange={listQuery.setLimit}
+          />
         </div>
       </Card>
 

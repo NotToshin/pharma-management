@@ -6,16 +6,17 @@ import {
   updateAllocation,
   deleteAllocation,
 } from "../controllers/zoneAllocationController";
-import { validateBody, validateParams } from "../utils/validate";
+import { validateBody, validateParams, validateQuery } from "../utils/validate";
 import {
   createZoneAllocationSchema,
   updateZoneAllocationSchema,
   zoneAllocationIdParamSchema,
+  getZoneAllocationsQuerySchema,
 } from "../validations/zoneAllocationValidation";
 
 const router = Router();
 
-router.get("/", getAllAllocations);
+router.get("/", validateQuery(getZoneAllocationsQuerySchema), getAllAllocations);
 router.get("/staff-mios", getStaffMios);
 router.post("/", validateBody(createZoneAllocationSchema), createAllocation);
 router.put(

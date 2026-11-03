@@ -5,6 +5,11 @@ import PermissionGate from "@/components/permission-gate"
 import * as React from "react"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { API_URL, apiFetch } from "@/lib/api"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 import * as XLSX from "xlsx"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -100,7 +105,16 @@ export default function FinanceOverviewPage() {
   const [selectedMonth, setSelectedMonth] = React.useState<number>(new Date().getMonth())
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
   const [isStatementOpen, setIsStatementOpen] = React.useState(false)
-  const [filterType, setFilterType] = React.useState("all")
+
+  // Server-side list state for the transactions ledger table
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "date",
+    initialSortOrder: "desc",
+    initialFilters: { type: "all" },
+  })
+  const [totalPages, setTotalPages] = React.useState(1)
+  const [totalCount, setTotalCount] = React.useState(0)
 
   const [metrics, setMetrics] = React.useState({
     currentEarnBDT: 0,
@@ -164,7 +178,6 @@ export default function FinanceOverviewPage() {
             annualNetProfitBDT: 0,
           })
           setMonthlyTrend(data.monthlyTrend || [])
-          setTransactions(data.transactions || [])
           setLoading(false)
           return
         }
@@ -421,52 +434,6 @@ export default function FinanceOverviewPage() {
         annualBurnBDT: annualBurn,
         annualNetProfitBDT: annualNetProfit,
       })
-
-      // Transactions stream
-      const liveTxList: FinancialTransaction[] = []
-
-      validOrders.forEach((o, i) => {
-        const isSettled =
-          o.status === "Settled" || o.status === "Delivered & Invoiced"
-        liveTxList.push({
-          id: o.id || `tx-ord-${i}`,
-          trxCode:
-            o.invoiceNumber ||
-            o.orderNumber ||
-            `INV-2026-${String(i + 1).padStart(4, "0")}`,
-          partyName: o.pharmacyName || "Registered Chemist",
-          type: "Pharmacy Invoice",
-          territory: o.territory || "Unassigned",
-          amount: Number(o.orderValue) || 0,
-          date: o.orderDate || "28 Sep 2026",
-          status: isSettled ? "Settled" : "Pending Clearance",
-        })
-      })
-
-      allExpenses.forEach((e, i) => {
-        liveTxList.push({
-          id: e.id || `tx-exp-${i}`,
-          trxCode:
-            e.voucherNumber ||
-            e.refNo ||
-            `EXP-2026-${String(i + 1).padStart(4, "0")}`,
-          partyName:
-            e.recipient ||
-            e.submittedBy ||
-            e.description ||
-            "Field DA/TA Disbursement",
-          type: "TA/DA Disbursement",
-          territory: e.territory || "Field Force",
-          amount: Number(e.amount || e.totalAmount) || 0,
-          date: e.expenseDate || e.date || "28 Sep 2026",
-          status:
-            e.status === "Approved" || e.status === "Paid"
-              ? "Settled"
-              : "Pending Clearance",
-        })
-      })
-
-      setTransactions(liveTxList)
     } catch (err) {
       console.error("Failed to load live financial overview:", err)
     } finally {
@@ -477,6 +444,41 @@ export default function FinanceOverviewPage() {
   React.useEffect(() => {
     fetchOverviewData()
   }, [fetchOverviewData])
+
+  // Fetch the paginated transactions ledger from the server
+  const [txLoading, setTxLoading] = React.useState(true)
+  const fetchTransactions = React.useCallback(async () => {
+    try {
+      setTxLoading(true)
+      const res = await apiFetch(
+        `/finance-overview/metrics?year=${selectedYear}&month=${selectedMonth}&${listQuery.queryKey}`
+      )
+      if (!res.ok) {
+        throw new Error(`Failed to load transactions: ${res.statusText}`)
+      }
+      const json = await res.json()
+      const data = json.data || {}
+      const rows = Array.isArray(data.transactions) ? data.transactions : []
+      const meta = json.meta || {}
+      setTransactions(rows)
+      setTotalPages(meta.totalPage || meta.totalPages || 1)
+      setTotalCount(meta.total ?? rows.length)
+    } catch (err: any) {
+      console.error("Finance overview transactions fetch error:", err)
+    } finally {
+      setTxLoading(false)
+    }
+  }, [selectedYear, selectedMonth, listQuery.queryKey])
+
+  React.useEffect(() => {
+    fetchTransactions()
+  }, [fetchTransactions])
+
+  // Manual refresh of KPIs and the transactions ledger
+  const handleRefresh = () => {
+    fetchOverviewData()
+    fetchTransactions()
+  }
 
   const handleExportExcel = () => {
     const data = transactions.map((t) => ({
@@ -501,11 +503,6 @@ export default function FinanceOverviewPage() {
       `AK_Pharma_Financial_Overview_${MONTH_NAMES[selectedMonth]}_${selectedYear}.xlsx`
     )
   }
-
-  const filteredTransactions = transactions.filter((t) => {
-    if (filterType === "all") return true
-    return t.type.toLowerCase().includes(filterType.toLowerCase())
-  })
 
   const collectionRatio =
     metrics.currentEarnBDT > 0
@@ -561,7 +558,7 @@ export default function FinanceOverviewPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={fetchOverviewData}
+            onClick={handleRefresh}
             className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
           >
             <RefreshCw
@@ -888,6 +885,45 @@ export default function FinanceOverviewPage() {
       </div>
 
       {/* 4. Live Transactions Ledger Table */}
+      <ServerListToolbar
+        search={listQuery.search}
+        onSearchChange={listQuery.setSearch}
+        searchPlaceholder="Search ref, counterparty, type, or territory..."
+        loading={txLoading}
+        sort={{
+          value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+          onValueChange: (value) => {
+            const [field, order] = value.split(":")
+            listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+          },
+          widthClassName: "w-[180px]",
+          options: [
+            { value: "date:desc", label: "Newest first" },
+            { value: "date:asc", label: "Oldest first" },
+            { value: "amount:desc", label: "Amount high → low" },
+            { value: "amount:asc", label: "Amount low → high" },
+            { value: "trxCode:asc", label: "Ref ID A–Z" },
+          ],
+        }}
+        filters={[
+          {
+            id: "type",
+            value: listQuery.filters.type || "all",
+            onValueChange: (value) => listQuery.setFilter("type", value),
+            placeholder: "All Operations",
+            widthClassName: "w-[190px]",
+            icon: <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />,
+            options: [
+              { value: "all", label: "All Operations" },
+              { value: "Pharmacy Invoice", label: "Pharmacy Invoices" },
+              { value: "Sales Collection Deposit", label: "Sales Collections" },
+              { value: "Expense Disbursement", label: "Expense Disbursements" },
+              { value: "Wholesaler Settlement", label: "Wholesaler Settlements" },
+            ],
+          },
+        ]}
+      />
+
       <Card className="rounded-xl border border-slate-200 bg-white p-6 shadow-none">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -900,23 +936,9 @@ export default function FinanceOverviewPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="h-8 w-[170px] border-slate-200 bg-white text-xs">
-                <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
-                <SelectValue placeholder="All Operations" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="all">All Operations</SelectItem>
-                <SelectItem value="pharmacy invoice">
-                  Pharmacy Invoices
-                </SelectItem>
-                <SelectItem value="ta/da disbursement">
-                  TA/DA Disbursements
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <span className="text-xs font-medium text-slate-400">
+            Showing {transactions.length} of {totalCount} Entries
+          </span>
         </div>
 
         <Table>
@@ -946,7 +968,7 @@ export default function FinanceOverviewPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
+            {txLoading ? (
               <TableRow>
                 <TableCell colSpan={7} className="py-2 text-center">
                   <GlobalLoadingSpinner
@@ -955,7 +977,7 @@ export default function FinanceOverviewPage() {
                   />
                 </TableCell>
               </TableRow>
-            ) : filteredTransactions.length === 0 ? (
+            ) : transactions.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={7}
@@ -965,7 +987,7 @@ export default function FinanceOverviewPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredTransactions.map((tx) => (
+              transactions.map((tx) => (
                 <TableRow
                   key={tx.id}
                   className="border-b border-slate-50 hover:bg-slate-50/50"
@@ -1012,6 +1034,16 @@ export default function FinanceOverviewPage() {
             )}
           </TableBody>
         </Table>
+
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={txLoading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* 5. Working Calendar Dialog Modal */}
@@ -1035,7 +1067,10 @@ export default function FinanceOverviewPage() {
               </span>
               <Select
                 value={String(selectedYear)}
-                onValueChange={(v) => setSelectedYear(Number(v))}
+                onValueChange={(v) => {
+                  setSelectedYear(Number(v))
+                  listQuery.setPage(1)
+                }}
               >
                 <SelectTrigger className="h-8 w-28 bg-white font-mono text-xs font-bold">
                   <SelectValue />
@@ -1072,6 +1107,7 @@ export default function FinanceOverviewPage() {
                           type="button"
                           onClick={() => {
                             setSelectedMonth(mIdx)
+                            listQuery.setPage(1)
                             setIsCalendarOpen(false)
                           }}
                           className={`rounded-lg border p-2.5 text-left transition-all ${

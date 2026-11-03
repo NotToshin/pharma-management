@@ -58,8 +58,17 @@ export const salaryIdParamSchema = z.object({
 export const getSalariesQuerySchema = z.object({
   query: z.object({
     month: z.string().optional().default("September 2026"),
+    search: z.string().optional(),
+    searchTerm: z.string().optional(),
+    status: z.string().optional(),
+    department: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    sortBy: z.string().optional(),
+    sortOrder: z.enum(["asc", "desc"]).optional(),
   }),
 });
 
 export type UpsertSalaryInput = z.infer<typeof upsertSalarySchema>["body"];
 export type UpdateSalaryInput = z.infer<typeof updateSalarySchema>["body"];
+export type GetSalariesQueryInput = z.infer<typeof getSalariesQuerySchema>["query"];

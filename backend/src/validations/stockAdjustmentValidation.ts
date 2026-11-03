@@ -59,10 +59,19 @@ export const stockAdjustmentIdParamSchema = z.object({
 export const queryStockAdjustmentSchema = z.object({
   query: z.object({
     search: z.string().optional(),
+    searchTerm: z.string().optional(),
     type: z.string().optional(),
     status: z.string().optional(),
+    page: z.coerce.number().int().positive().optional(),
+    limit: z
+      .union([z.literal("all"), z.literal("-1"), z.coerce.number().int().min(0)])
+      .optional(),
+    sortBy: z.string().optional(),
+    sortOrder: z.enum(["asc", "desc"]).optional(),
   }).optional(),
 });
+
+export type QueryStockAdjustmentInput = z.infer<typeof queryStockAdjustmentSchema>["query"];
 
 export type CreateStockAdjustmentInput = z.infer<typeof createStockAdjustmentSchema>["body"];
 export type UpdateStockAdjustmentInput = z.infer<typeof updateStockAdjustmentSchema>["body"];

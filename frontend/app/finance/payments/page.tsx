@@ -5,6 +5,11 @@ import PermissionGate from "@/components/permission-gate"
 import * as React from "react"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { API_URL, apiFetch } from "@/lib/api"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
@@ -37,18 +42,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationPrevious,
-  PaginationNext,
-  PaginationEllipsis,
-} from "@/components/ui/pagination"
-import {
   Printer,
   Download,
-  Search,
   Filter,
   Plus,
   Pencil,
@@ -275,21 +270,60 @@ export default function GeneralPaymentsPage() {
   const [isLoading, setIsLoading] = React.useState(true)
   const [isRefreshing, setIsRefreshing] = React.useState(false)
 
-  // Filters & Tabs
-  const [activeTab, setActiveTab] = React.useState<"all" | "pending" | "disbursed" | "vendor" | "doctor" | "staff">("all")
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [categoryFilter, setCategoryFilter] = React.useState("all")
-  const [fundingSourceFilter, setFundingSourceFilter] = React.useState("all")
-  const [statusFilter, setStatusFilter] = React.useState("all")
+  // Server-side list state (search / filters / sort / pagination)
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "createdAt",
+    initialSortOrder: "desc",
+    initialFilters: {
+      category: "all",
+      fundingSource: "all",
+      status: "all",
+      payeeType: "all",
+    },
+  })
+  const [totalPages, setTotalPages] = React.useState(1)
+  const [totalCount, setTotalCount] = React.useState(0)
 
-  // Pagination State
-  const [currentPage, setCurrentPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(10)
+  // Apply a quick tab as server-side filters
+  const applyTab = (tab: "all" | "pending" | "disbursed" | "vendor" | "doctor" | "staff") => {
+    if (tab === "all") {
+      listQuery.setFilter("status", "all")
+      listQuery.setFilter("category", "all")
+      listQuery.setFilter("payeeType", "all")
+    } else if (tab === "pending") {
+      listQuery.setFilter("status", "Pending Approval,Approved")
+      listQuery.setFilter("category", "all")
+      listQuery.setFilter("payeeType", "all")
+    } else if (tab === "disbursed") {
+      listQuery.setFilter("status", "Disbursed")
+      listQuery.setFilter("category", "all")
+      listQuery.setFilter("payeeType", "all")
+    } else if (tab === "vendor") {
+      listQuery.setFilter("category", "Wholesaler Settlement")
+      listQuery.setFilter("status", "all")
+      listQuery.setFilter("payeeType", "all")
+    } else if (tab === "doctor") {
+      listQuery.setFilter("category", "Doctor Gifts & Promotional")
+      listQuery.setFilter("status", "all")
+      listQuery.setFilter("payeeType", "all")
+    } else {
+      listQuery.setFilter("category", "Staff Welfare & Meals")
+      listQuery.setFilter("status", "all")
+      listQuery.setFilter("payeeType", "all")
+    }
+  }
 
-  // Reset page when filters change
-  React.useEffect(() => {
-    setCurrentPage(1)
-  }, [searchQuery, activeTab, categoryFilter, fundingSourceFilter, statusFilter])
+  // Derive the highlighted tab from the active server filters
+  const activeTab: "all" | "pending" | "disbursed" | "vendor" | "doctor" | "staff" = (() => {
+    const f = listQuery.filters
+    if (f.status === "Pending Approval,Approved") return "pending"
+    if (f.status === "Disbursed") return "disbursed"
+    if (f.category === "Wholesaler Settlement") return "vendor"
+    if (f.category === "Doctor Gifts & Promotional") return "doctor"
+    if (f.category === "Staff Welfare & Meals") return "staff"
+    return "all"
+  })()
 
   // Modal Form State
   const [isFormOpen, setIsFormOpen] = React.useState(false)
@@ -348,7 +382,7 @@ export default function GeneralPaymentsPage() {
 
     try {
       const [vouchersRes, metricsRes, accountsRes, wholesalersRes] = await Promise.all([
-        apiFetch("/payments"),
+        apiFetch(`/payments?${listQuery.queryKey}`),
         apiFetch("/payments/metrics"),
         apiFetch("/account-ledger/accounts"),
         apiFetch("/wholesalers"),
@@ -357,6 +391,9 @@ export default function GeneralPaymentsPage() {
       if (vouchersRes.ok) {
         const json = await vouchersRes.json()
         setVouchers(json.data || [])
+        const meta = json.meta || {}
+        setTotalPages(meta.totalPage || meta.totalPages || 1)
+        setTotalCount(meta.total ?? (json.data || []).length)
       }
 
       if (metricsRes.ok) {
@@ -380,7 +417,7 @@ export default function GeneralPaymentsPage() {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }, [])
+  }, [listQuery.queryKey])
 
   React.useEffect(() => {
     loadData()
@@ -921,7 +958,8 @@ export default function GeneralPaymentsPage() {
       )
 
       setIsFormOpen(false)
-      loadData(true)
+      if (listQuery.page === 1) loadData(true)
+      else listQuery.setPage(1)
     } catch (err: any) {
       console.error("Save error:", err)
       toast.error(err.message || "Failed to save payment voucher.", { id: toastId })
@@ -1045,57 +1083,8 @@ export default function GeneralPaymentsPage() {
     toast.success("Excel ledger exported successfully.")
   }
 
-  // Filtered Vouchers List
-  const filteredVouchers = React.useMemo(() => {
-    return vouchers.filter((v) => {
-      // 1. Search Query
-      const q = searchQuery.toLowerCase().trim()
-      if (q) {
-        const matchNo = v.voucherNo.toLowerCase().includes(q)
-        const matchPayee = v.payeeName.toLowerCase().includes(q)
-        const matchNotes = (v.notes || "").toLowerCase().includes(q)
-        const matchPo = (v.poNumber || "").toLowerCase().includes(q)
-        const matchCheque = (v.chequeNumber || "").toLowerCase().includes(q)
-        const matchSource = (v.sourceDetail || "").toLowerCase().includes(q)
-        if (!matchNo && !matchPayee && !matchNotes && !matchPo && !matchCheque && !matchSource) {
-          return false
-        }
-      }
-
-      // 2. Tab filtering
-      if (activeTab === "pending") {
-        if (v.status !== "Pending Approval" && v.status !== "Approved") return false
-      } else if (activeTab === "disbursed") {
-        if (v.status !== "Disbursed") return false
-      } else if (activeTab === "vendor") {
-        if (v.category !== "Wholesaler Settlement" && v.payeeType !== "Wholesaler / Vendor") return false
-      } else if (activeTab === "doctor") {
-        if (v.category !== "Doctor Gifts & Promotional" && v.payeeType !== "Doctor / Clinical") return false
-      } else if (activeTab === "staff") {
-        if (v.category !== "Staff Welfare & Meals" && v.payeeType !== "Staff TA/DA") return false
-      }
-
-      // 3. Dropdown Filters
-      if (categoryFilter !== "all" && v.category !== categoryFilter) return false
-      if (fundingSourceFilter !== "all" && v.fundingSource !== fundingSourceFilter) return false
-      if (statusFilter !== "all" && v.status !== statusFilter) return false
-
-      return true
-    })
-  }, [vouchers, searchQuery, activeTab, categoryFilter, fundingSourceFilter, statusFilter])
-
-  // Pagination derived variables
-  const totalItems = filteredVouchers.length
-  const totalPages = Math.ceil(totalItems / pageSize) || 1
-  const paginatedVouchers = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize
-    return filteredVouchers.slice(startIndex, startIndex + pageSize)
-  }, [filteredVouchers, currentPage, pageSize])
-
-  // Count pending vouchers for badge
-  const pendingCount = React.useMemo(() => {
-    return vouchers.filter((v) => v.status === "Pending Approval" || v.status === "Approved").length
-  }, [vouchers])
+  // Count pending vouchers for badge (from backend metrics)
+  const pendingCount = metrics?.pendingCount ?? 0
 
   const totalDisbursed = metrics?.totalDisbursedBDT ?? vouchers
     .filter((v) => v.status === "Disbursed")
@@ -1180,7 +1169,7 @@ export default function GeneralPaymentsPage() {
             ৳{totalGross.toLocaleString("en-IN")}
           </div>
           <p className="mt-1 text-[11px] text-slate-500">
-            {vouchers.length} Total vouchers recorded
+            {metrics?.totalVouchers ?? totalCount} Total vouchers recorded
           </p>
         </Card>
 </PermissionGate>
@@ -1260,21 +1249,21 @@ export default function GeneralPaymentsPage() {
 
       {/* 3. Quick Tabs & Filter Bar */}
       <div className="space-y-3">
-        {/* Navigation Tabs */}
+        {/* Navigation Tabs (drive server-side filters) */}
         <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 pb-2 text-xs font-semibold">
           <button
-            onClick={() => setActiveTab("all")}
+            onClick={() => applyTab("all")}
             className={`rounded-lg px-3 py-1.5 transition-colors ${
               activeTab === "all"
                 ? "bg-slate-900 text-white"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            All Vouchers ({vouchers.length})
+            All Vouchers ({metrics?.totalVouchers ?? totalCount})
           </button>
 
           <button
-            onClick={() => setActiveTab("pending")}
+            onClick={() => applyTab("pending")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${
               activeTab === "pending"
                 ? "bg-amber-600 text-white"
@@ -1293,7 +1282,7 @@ export default function GeneralPaymentsPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("disbursed")}
+            onClick={() => applyTab("disbursed")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${
               activeTab === "disbursed"
                 ? "bg-emerald-700 text-white"
@@ -1305,7 +1294,7 @@ export default function GeneralPaymentsPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("vendor")}
+            onClick={() => applyTab("vendor")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${
               activeTab === "vendor"
                 ? "bg-blue-600 text-white"
@@ -1317,7 +1306,7 @@ export default function GeneralPaymentsPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("doctor")}
+            onClick={() => applyTab("doctor")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${
               activeTab === "doctor"
                 ? "bg-purple-600 text-white"
@@ -1329,7 +1318,7 @@ export default function GeneralPaymentsPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("staff")}
+            onClick={() => applyTab("staff")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${
               activeTab === "staff"
                 ? "bg-slate-700 text-white"
@@ -1341,76 +1330,74 @@ export default function GeneralPaymentsPage() {
           </button>
         </div>
 
-        {/* Filter Controls Row */}
-        <div className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative max-w-sm flex-1">
-            <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-            <Input
-              placeholder="Search voucher #, payee, PO #, cheque #, notes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="h-8 w-[190px] border-slate-200 bg-white text-xs">
-                <Filter className="mr-1.5 h-3 w-3 text-slate-400" />
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="Wholesaler Settlement">Wholesaler Settlement</SelectItem>
-                <SelectItem value="Doctor Gifts & Promotional">Doctor Gifts & Promotional</SelectItem>
-                <SelectItem value="Staff Welfare & Meals">Staff Welfare & Meals</SelectItem>
-                <SelectItem value="Meetings & Events">Meetings & Events</SelectItem>
-                <SelectItem value="General Operating Expense">General Operating Expense</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={fundingSourceFilter} onValueChange={setFundingSourceFilter}>
-              <SelectTrigger className="h-8 w-[150px] border-slate-200 bg-white text-xs">
-                <SelectValue placeholder="All Funding" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="all">All Funding Sources</SelectItem>
-                <SelectItem value="Bank Account">Corporate Bank</SelectItem>
-                <SelectItem value="Cash Safe">Cash Drawer / Safe</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-8 w-[140px] border-slate-200 bg-white text-xs">
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Disbursed">Disbursed</SelectItem>
-                <SelectItem value="Approved">Approved</SelectItem>
-                <SelectItem value="Pending Approval">Pending Approval</SelectItem>
-                <SelectItem value="Draft">Draft</SelectItem>
-                <SelectItem value="Rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {(searchQuery || categoryFilter !== "all" || fundingSourceFilter !== "all" || statusFilter !== "all") && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSearchQuery("")
-                  setCategoryFilter("all")
-                  setFundingSourceFilter("all")
-                  setStatusFilter("all")
-                }}
-                className="h-8 px-2 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-              >
-                Reset
-              </Button>
-            )}
-          </div>
-        </div>
+        {/* Server-driven search & filter controls */}
+        <ServerListToolbar
+          search={listQuery.search}
+          onSearchChange={listQuery.setSearch}
+          searchPlaceholder="Search voucher #, payee, PO #, cheque #, notes..."
+          loading={isLoading}
+          sort={{
+            value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+            onValueChange: (value) => {
+              const [field, order] = value.split(":")
+              listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+            },
+            widthClassName: "w-[180px]",
+            options: [
+              { value: "createdAt:desc", label: "Issued (newest first)" },
+              { value: "createdAt:asc", label: "Issued (oldest first)" },
+              { value: "amount:desc", label: "Amount high → low" },
+              { value: "amount:asc", label: "Amount low → high" },
+              { value: "voucherNo:asc", label: "Voucher # A–Z" },
+            ],
+          }}
+          filters={[
+            {
+              id: "category",
+              value: listQuery.filters.category || "all",
+              onValueChange: (value) => listQuery.setFilter("category", value),
+              placeholder: "All Categories",
+              widthClassName: "w-[190px]",
+              icon: <Filter className="mr-1.5 h-3 w-3 text-slate-400" />,
+              options: [
+                { value: "all", label: "All Categories" },
+                { value: "Wholesaler Settlement", label: "Wholesaler Settlement" },
+                { value: "Doctor Gifts & Promotional", label: "Doctor Gifts & Promotional" },
+                { value: "Staff Welfare & Meals", label: "Staff Welfare & Meals" },
+                { value: "Meetings & Events", label: "Meetings & Events" },
+                { value: "General Operating Expense", label: "General Operating Expense" },
+              ],
+            },
+            {
+              id: "fundingSource",
+              value: listQuery.filters.fundingSource || "all",
+              onValueChange: (value) => listQuery.setFilter("fundingSource", value),
+              placeholder: "All Funding",
+              widthClassName: "w-[150px]",
+              options: [
+                { value: "all", label: "All Funding Sources" },
+                { value: "Bank Account", label: "Corporate Bank" },
+                { value: "Cash Safe", label: "Cash Drawer / Safe" },
+              ],
+            },
+            {
+              id: "status",
+              value: listQuery.filters.status || "all",
+              onValueChange: (value) => listQuery.setFilter("status", value),
+              placeholder: "All Statuses",
+              widthClassName: "w-[140px]",
+              options: [
+                { value: "all", label: "All Statuses" },
+                { value: "Pending Approval,Approved", label: "Pending Review (incl. Approved)" },
+                { value: "Disbursed", label: "Disbursed" },
+                { value: "Approved", label: "Approved" },
+                { value: "Pending Approval", label: "Pending Approval" },
+                { value: "Draft", label: "Draft" },
+                { value: "Rejected", label: "Rejected" },
+              ],
+            },
+          ]}
+        />
       </div>
 
       {/* 4. Voucher Table */}
@@ -1421,7 +1408,7 @@ export default function GeneralPaymentsPage() {
               Expense & Vendor Disbursement Register
             </h3>
             <Badge variant="secondary" className="text-[10px] font-bold">
-              {totalItems} Records {totalPages > 1 ? `• Page ${currentPage} of ${totalPages}` : ""}
+              {totalCount} Records {totalPages > 1 ? `• Page ${listQuery.page} of ${totalPages}` : ""}
             </Badge>
           </div>
           <span className="text-[11px] font-medium text-slate-400">
@@ -1452,7 +1439,7 @@ export default function GeneralPaymentsPage() {
                     />
                   </TableCell>
                 </TableRow>
-              ) : filteredVouchers.length === 0 ? (
+              ) : vouchers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="py-12 text-center text-xs text-slate-400">
                     <AlertCircle className="mx-auto h-6 w-6 text-slate-300 mb-2" />
@@ -1460,7 +1447,7 @@ export default function GeneralPaymentsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedVouchers.map((v) => {
+                vouchers.map((v) => {
                   const gross = v.grossAmount || v.amount
                   const hasTax = (v.tdsAmount && v.tdsAmount > 0) || (v.vdsAmount && v.vdsAmount > 0)
 
@@ -1648,87 +1635,16 @@ export default function GeneralPaymentsPage() {
           </Table>
         </div>
 
-        {/* Pagination Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 p-4 gap-3 bg-white rounded-b-xl">
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span>
-              Showing{" "}
-              <span className="font-semibold text-slate-800">
-                {totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0}
-              </span>{" "}
-              to{" "}
-              <span className="font-semibold text-slate-800">
-                {Math.min(currentPage * pageSize, totalItems)}
-              </span>{" "}
-              of <span className="font-semibold text-slate-800">{totalItems}</span> vouchers
-            </span>
-
-            <div className="flex items-center gap-1.5 ml-2">
-              <span className="text-[11px] text-slate-400">Per page:</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(val) => {
-                  setPageSize(Number(val))
-                  setCurrentPage(1)
-                }}
-              >
-                <SelectTrigger className="h-7 w-[68px] text-xs bg-slate-50 border-slate-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="text-xs">
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {totalPages > 1 && (
-            <Pagination className="mx-0 w-auto justify-end">
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    className={currentPage === 1 ? "pointer-events-none opacity-40 text-xs" : "cursor-pointer text-xs"}
-                  />
-                </PaginationItem>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-                  .map((pageNum, idx, arr) => {
-                    const prev = arr[idx - 1]
-                    return (
-                      <React.Fragment key={pageNum}>
-                        {prev && pageNum - prev > 1 && (
-                          <PaginationItem>
-                            <PaginationEllipsis />
-                          </PaginationItem>
-                        )}
-                        <PaginationItem>
-                          <PaginationLink
-                            isActive={currentPage === pageNum}
-                            onClick={() => setCurrentPage(pageNum)}
-                            className="cursor-pointer text-xs h-7 w-7"
-                          >
-                            {pageNum}
-                          </PaginationLink>
-                        </PaginationItem>
-                      </React.Fragment>
-                    )
-                  })}
-
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    className={currentPage === totalPages || totalPages === 0 ? "pointer-events-none opacity-40 text-xs" : "cursor-pointer text-xs"}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          )}
-        </div>
+        {/* Server Pagination */}
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={isLoading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* 5. Create / Edit Payment Voucher Modal */}

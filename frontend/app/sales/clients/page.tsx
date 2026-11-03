@@ -4,7 +4,6 @@ import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
 import { groupTerritories, useTerritories } from "@/hooks/use-territories"
-import { MasterTerritorySelect } from "@/components/master-territory-select"
 import { DivisionTerritoryFields } from "@/components/division-territory-fields"
 import { getEndpoint, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -15,6 +14,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 import {
   Select,
   SelectContent,
@@ -59,8 +63,6 @@ import {
   Plus,
   Download,
   Upload,
-  Search,
-  Filter,
   Phone,
   FileText,
   CreditCard,
@@ -74,7 +76,6 @@ import {
   Building2,
   CheckCircle2,
   AlertCircle,
-  ArrowUpDown,
   Loader2,
   ShieldCheck,
   FileSpreadsheet,
@@ -87,16 +88,6 @@ import {
   FileCheck2,
   Users,
 } from "lucide-react"
-
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
 
 import { clientFormSchema } from "@/lib/validations/clientValidation"
 import { toast } from "sonner"
@@ -120,6 +111,29 @@ export interface ClientProfile {
   creditTermDays: number
   status: "Active / Healthy" | "Credit Hold" | "Watchlist" | "Cash Only"
   lastBilledDate: string
+}
+
+function mapClientProfile(item: any): ClientProfile {
+  return {
+    id: item.id,
+    clientCode: item.clientCode || `AKP-CL-${item.id?.slice(0, 4) || "0000"}`,
+    pharmacyName: item.pharmacyName,
+    proprietor: item.proprietor || "N/A",
+    phone: item.phone || "+880 ",
+    drugLicenseNo: item.drugLicenseNo || "N/A",
+    tradeLicenseNo: item.tradeLicenseNo || "N/A",
+    address: item.address || "N/A",
+    territory: item.territory || "",
+    assignedMio: item.assignedMio || "Unassigned",
+    creditLimitBDT:
+      item.creditLimitBDT !== undefined && item.creditLimitBDT !== null
+        ? Number(item.creditLimitBDT)
+        : 0,
+    outstandingBalanceBDT: Number(item.outstandingBalanceBDT) || 0,
+    creditTermDays: Number(item.creditTermDays ?? 30),
+    status: item.status || "Active / Healthy",
+    lastBilledDate: item.lastBilledDate || "Recent",
+  }
 }
 
 interface ParsedClientRow {
@@ -220,21 +234,19 @@ export default function ClientsDirectoryPage() {
   const { territories: masterTerritories, loading: territoriesLoading, error: territoriesError } = useTerritories()
   const router = useRouter()
   const [clients, setClients] = React.useState<ClientProfile[]>([])
+  const [aggregateClients, setAggregateClients] = React.useState<ClientProfile[]>([])
   const [staffList, setStaffList] = React.useState<StaffMember[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [isSearching, setIsSearching] = React.useState(false)
 
   // Server-side Pagination, Sort & Filter State
-  const [currentPage, setCurrentPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(10)
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "createdAt",
+    initialSortOrder: "desc",
+    initialFilters: { territory: "all", status: "all" },
+  })
   const [totalItems, setTotalItems] = React.useState(0)
   const [totalPages, setTotalPages] = React.useState(1)
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [debouncedSearch, setDebouncedSearch] = React.useState("")
-  const [sortBy, setSortBy] = React.useState("createdAt")
-  const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("desc")
-  const [territoryFilter, setTerritoryFilter] = React.useState("all")
-  const [statusFilter, setStatusFilter] = React.useState("all")
 
   // Statement / Profile Sheet State
   const [activeClient, setActiveClient] = React.useState<ClientProfile | null>(null)
@@ -287,39 +299,13 @@ export default function ClientsDirectoryPage() {
   const [isImporting, setIsImporting] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  // Debounce search query
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery)
-      setCurrentPage(1)
-    }, 350)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
-
   // Fetch client directory and staff list from backend
-  const fetchData = React.useCallback(async () => {
+  const fetchData = React.useCallback(async (queryString = listQuery.queryKey) => {
     try {
-      setIsSearching(true)
-      const params = new URLSearchParams()
-      params.set("page", String(currentPage))
-      params.set("limit", String(pageSize))
-      params.set("sortBy", sortBy)
-      params.set("sortOrder", sortOrder)
-
-      if (debouncedSearch.trim()) {
-        params.set("searchTerm", debouncedSearch.trim())
-      }
-
-      if (territoryFilter !== "all") {
-        params.set("territory", territoryFilter)
-      }
-
-      if (statusFilter !== "all") {
-        params.set("status", statusFilter)
-      }
+      setLoading(true)
 
       const [clientRes, staffRes] = await Promise.all([
-        apiFetch(getEndpoint(`/clients?${params.toString()}`)).catch(() => null),
+        apiFetch(getEndpoint(`/clients?${queryString}`)).catch(() => null),
         staffList.length === 0 ? apiFetch(getEndpoint("/staff")).catch(() => null) : null,
       ])
 
@@ -329,34 +315,13 @@ export default function ClientsDirectoryPage() {
 
         if (json.meta) {
           setTotalItems(json.meta.total ?? rawData.length)
-          setTotalPages(json.meta.totalPage ?? 1)
+          setTotalPages(json.meta.totalPage ?? json.meta.totalPages ?? 1)
         } else {
           setTotalItems(rawData.length)
           setTotalPages(1)
         }
 
-        const formatted: ClientProfile[] = rawData.map((item: any) => ({
-          id: item.id,
-          clientCode: item.clientCode || `AKP-CL-${item.id?.slice(0, 4) || "0000"}`,
-          pharmacyName: item.pharmacyName,
-          proprietor: item.proprietor || "N/A",
-          phone: item.phone || "+880 ",
-          drugLicenseNo: item.drugLicenseNo || "N/A",
-          tradeLicenseNo: item.tradeLicenseNo || "N/A",
-          address: item.address || "N/A",
-          territory: item.territory || "",
-          assignedMio: item.assignedMio || "Unassigned",
-          creditLimitBDT:
-            item.creditLimitBDT !== undefined && item.creditLimitBDT !== null
-              ? Number(item.creditLimitBDT)
-              : 0,
-          outstandingBalanceBDT: Number(item.outstandingBalanceBDT) || 0,
-          creditTermDays: Number(item.creditTermDays ?? 30),
-          status: item.status || "Active / Healthy",
-          lastBilledDate: item.lastBilledDate || "Recent",
-        }))
-
-        setClients(formatted)
+        setClients(rawData.map(mapClientProfile))
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("clients-updated"))
         }
@@ -377,22 +342,34 @@ export default function ClientsDirectoryPage() {
       console.error("Error loading clients from backend:", err)
     } finally {
       setLoading(false)
-      setIsSearching(false)
     }
-  }, [
-    currentPage,
-    pageSize,
-    sortBy,
-    sortOrder,
-    debouncedSearch,
-    territoryFilter,
-    statusFilter,
-    staffList.length,
-  ])
+  }, [listQuery.queryKey, staffList.length])
+
+  // Full dataset for the KPI summary cards (list table itself stays paged)
+  const fetchClientAggregates = React.useCallback(async () => {
+    try {
+      const res = await apiFetch(getEndpoint("/clients?limit=0")).catch(() => null)
+      if (res && res.ok) {
+        const json = await res.json()
+        const raw = Array.isArray(json) ? json : json.data || []
+        setAggregateClients(raw.map(mapClientProfile))
+      }
+    } catch (err) {
+      console.warn("Could not load client aggregate totals:", err)
+    }
+  }, [])
+
+  const refreshClients = React.useCallback(async () => {
+    await Promise.all([fetchData(listQuery.queryKey), fetchClientAggregates()])
+  }, [fetchData, fetchClientAggregates, listQuery.queryKey])
 
   React.useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    fetchData(listQuery.queryKey)
+  }, [fetchData, listQuery.queryKey])
+
+  React.useEffect(() => {
+    fetchClientAggregates()
+  }, [fetchClientAggregates])
 
   // Direct connection to /logistics/orders
   const handleRedirectToOrder = (client: ClientProfile) => {
@@ -518,7 +495,7 @@ export default function ClientsDirectoryPage() {
         { id: toastId }
       )
       setIsFormOpen(false)
-      fetchData()
+      refreshClients()
     } catch (error: any) {
       console.error("Error saving client:", error)
       toast.error(error.message || "Failed to save client record to database.", { id: toastId })
@@ -550,7 +527,7 @@ export default function ClientsDirectoryPage() {
       toast.success(`Pharmacy client ${clientToDelete.pharmacyName} deleted successfully.`, { id: toastId })
       setIsDeleteModalOpen(false)
       setClientToDelete(null)
-      fetchData()
+      refreshClients()
     } catch (error: any) {
       console.error("Error deleting client:", error)
       toast.error(error.message || "Failed to delete client record.", { id: toastId })
@@ -782,7 +759,7 @@ export default function ClientsDirectoryPage() {
       setIsImportOpen(false)
       setSelectedFile(null)
       setParsedClients([])
-      await fetchData()
+      await refreshClients()
     } catch (err: any) {
       console.error("Bulk import error:", err)
       toast.error(err.message || "Failed to import pharmacy clients", { id: toastId })
@@ -796,11 +773,12 @@ export default function ClientsDirectoryPage() {
     setIsStatementOpen(true)
   }
 
-  // Summary Metrics
-  const totalCreditPool = clients.reduce((sum, c) => sum + c.creditLimitBDT, 0)
-  const totalOutstanding = clients.reduce((sum, c) => sum + c.outstandingBalanceBDT, 0)
-  const activeHealthyCount = clients.filter((c) => c.status === "Active / Healthy").length
-  const healthyPercent = clients.length > 0 ? Math.round((activeHealthyCount / clients.length) * 100) : 100
+  // Summary Metrics (computed over the full client dataset, not just the current page)
+  const kpiClients = aggregateClients.length > 0 ? aggregateClients : clients
+  const totalCreditPool = kpiClients.reduce((sum, c) => sum + c.creditLimitBDT, 0)
+  const totalOutstanding = kpiClients.reduce((sum, c) => sum + c.outstandingBalanceBDT, 0)
+  const activeHealthyCount = kpiClients.filter((c) => c.status === "Active / Healthy").length
+  const healthyPercent = kpiClients.length > 0 ? Math.round((activeHealthyCount / kpiClients.length) * 100) : 100
 
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-12">
@@ -889,7 +867,7 @@ export default function ClientsDirectoryPage() {
             {healthyPercent}%
           </div>
           <p className="mt-1 text-[11px] text-slate-400">
-            {activeHealthyCount} of {clients.length} accounts in good standing
+            {activeHealthyCount} of {kpiClients.length} accounts in good standing
           </p>
         </Card>
 </PermissionGate>
@@ -933,82 +911,54 @@ export default function ClientsDirectoryPage() {
       <Card className="rounded-xl border border-slate-200/90 bg-white shadow-none">
         {/* Toolbar */}
         <div className="border-b border-slate-100 p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-1 flex-wrap items-center gap-2.5">
-              {/* Search Bar */}
-              <div className="relative min-w-[260px] flex-1 sm:max-w-xs">
-                <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-                <Input
-                  placeholder="Search chemist, license, phone..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-8 pl-8 text-xs bg-slate-50/50"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute top-2 right-2 text-xs text-slate-400 hover:text-slate-600"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-
-              {/* Territory Filter */}
-              <MasterTerritorySelect value={territoryFilter} onValueChange={(val) => { setTerritoryFilter(val); setCurrentPage(1); }} all />
-
-              {/* Account Status Filter */}
-              <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}>
-                <SelectTrigger className="h-8 w-[150px] bg-white text-xs">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent className="text-xs">
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="Active / Healthy">Active / Healthy</SelectItem>
-                  <SelectItem value="Watchlist">Watchlist</SelectItem>
-                  <SelectItem value="Credit Hold">Credit Hold</SelectItem>
-                  <SelectItem value="Cash Only">Cash Only</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {(searchQuery || territoryFilter !== "all" || statusFilter !== "all") && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setSearchQuery("")
-                    setTerritoryFilter("all")
-                    setStatusFilter("all")
-                    setCurrentPage(1)
-                  }}
-                  className="h-8 px-2 text-xs text-slate-500 hover:text-slate-800"
-                >
-                  Reset
-                </Button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-400">Rows per page:</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(val) => {
-                  setPageSize(Number(val))
-                  setCurrentPage(1)
-                }}
-              >
-                <SelectTrigger className="h-8 w-[70px] bg-white text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="text-xs">
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <ServerListToolbar
+            search={listQuery.search}
+            onSearchChange={listQuery.setSearch}
+            searchPlaceholder="Search chemist, license, phone..."
+            loading={loading}
+            sort={{
+              value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+              onValueChange: (value) => {
+                const [field, order] = value.split(":")
+                listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+              },
+              widthClassName: "w-[180px]",
+              options: [
+                { value: "createdAt:desc", label: "Newest first" },
+                { value: "createdAt:asc", label: "Oldest first" },
+                { value: "pharmacyName:asc", label: "Pharmacy A–Z" },
+                { value: "outstandingBalanceBDT:desc", label: "Balance: High to Low" },
+                { value: "creditLimitBDT:desc", label: "Credit: High to Low" },
+              ],
+            }}
+            filters={[
+              {
+                id: "territory",
+                value: listQuery.filters.territory || "all",
+                onValueChange: (value) => listQuery.setFilter("territory", value),
+                placeholder: "All Territories",
+                widthClassName: "w-[190px]",
+                options: [
+                  { value: "all", label: "All Territories" },
+                  ...masterTerritories.map((t) => ({ value: t.name, label: t.name })),
+                ],
+              },
+              {
+                id: "status",
+                value: listQuery.filters.status || "all",
+                onValueChange: (value) => listQuery.setFilter("status", value),
+                placeholder: "All Statuses",
+                widthClassName: "w-[160px]",
+                options: [
+                  { value: "all", label: "All Statuses" },
+                  { value: "Active / Healthy", label: "Active / Healthy" },
+                  { value: "Watchlist", label: "Watchlist" },
+                  { value: "Credit Hold", label: "Credit Hold" },
+                  { value: "Cash Only", label: "Cash Only" },
+                ],
+              },
+            ]}
+          />
         </div>
 
         {/* Master Table */}
@@ -1203,60 +1153,16 @@ export default function ClientsDirectoryPage() {
         </Table>
 
         {/* Pagination Bar */}
-        <div className="flex items-center justify-between border-t border-slate-100 p-4">
-          <div className="text-xs text-slate-500">
-            Showing{" "}
-            <span className="font-semibold text-slate-800">
-              {clients.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}
-            </span>{" "}
-            to{" "}
-            <span className="font-semibold text-slate-800">
-              {Math.min(currentPage * pageSize, totalItems)}
-            </span>{" "}
-            of <span className="font-semibold text-slate-800">{totalItems}</span> chemists
-          </div>
-
-          <Pagination className="mx-0 w-auto justify-end">
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className={currentPage === 1 ? "pointer-events-none opacity-40 text-xs" : "cursor-pointer text-xs"}
-                />
-              </PaginationItem>
-
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-                .map((pageNum, idx, arr) => {
-                  const prev = arr[idx - 1]
-                  return (
-                    <React.Fragment key={pageNum}>
-                      {prev && pageNum - prev > 1 && (
-                        <PaginationItem>
-                          <PaginationEllipsis />
-                        </PaginationItem>
-                      )}
-                      <PaginationItem>
-                        <PaginationLink
-                          isActive={currentPage === pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className="cursor-pointer text-xs"
-                        >
-                          {pageNum}
-                        </PaginationLink>
-                      </PaginationItem>
-                    </React.Fragment>
-                  )
-                })}
-
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className={currentPage === totalPages || totalPages === 0 ? "pointer-events-none opacity-40 text-xs" : "cursor-pointer text-xs"}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+        <div className="px-4 pb-4">
+          <ServerListPagination
+            page={listQuery.page}
+            totalPages={totalPages}
+            total={totalItems}
+            limit={listQuery.limit}
+            loading={loading}
+            onPageChange={listQuery.setPage}
+            onLimitChange={listQuery.setLimit}
+          />
         </div>
       </Card>
 

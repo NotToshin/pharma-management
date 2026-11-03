@@ -3,7 +3,6 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
-import { MasterTerritorySelect } from "@/components/master-territory-select"
 import { DivisionTerritoryFields } from "@/components/division-territory-fields"
 import { groupTerritories, useTerritories } from "@/hooks/use-territories"
 import Link from "next/link"
@@ -13,6 +12,11 @@ import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 import { useSearchParams } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -52,7 +56,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Search,
   Filter,
   Plus,
   ChevronDown,
@@ -196,6 +199,75 @@ function parseSummaryToRows(
   return parsed
 }
 
+function mapSalesOrder(item: any, idx: number): SalesOrder {
+  let parsedItems: InvoiceItem[] = []
+  if (
+    Array.isArray(item.itemsDetail) &&
+    item.itemsDetail.length > 0
+  ) {
+    parsedItems = item.itemsDetail.map((it: any) => ({
+      no: Number(it.no) || 1,
+      description: it.description,
+      quantity: Number(it.quantity) || 1,
+      unitCost: Number(it.unitCost) || 0,
+      total: Number(it.total) || 0,
+    }))
+  } else if (typeof item.itemsDetail === "string") {
+    try {
+      parsedItems = JSON.parse(item.itemsDetail)
+    } catch {
+      parsedItems = parseSummaryToRows(
+        item.itemsSummary,
+        Number(item.orderValue) || 0,
+        Number(item.totalBoxes) || 1
+      )
+    }
+  } else {
+    parsedItems = parseSummaryToRows(
+      item.itemsSummary,
+      Number(item.orderValue) || 0,
+      Number(item.totalBoxes) || 1
+    )
+  }
+
+  const sequentialInvoiceNo = item.invoiceNumber || ""
+  const computedSubtotal = parsedItems.reduce(
+    (acc, curr) => acc + (curr.total || 0),
+    0
+  )
+
+  // The backend's discount field stores a monetary amount.
+  const monetaryDiscount = Number(item.discountAmount ?? item.discount ??
+    Math.round((computedSubtotal * Number(item.discountPercent ?? 0)) / 100))
+  const pct = Number(item.discountPercent ??
+    (computedSubtotal > 0 ? (monetaryDiscount / computedSubtotal) * 100 : 0))
+
+  return {
+    id: item.id,
+    orderNumber:
+      item.orderNumber ||
+      `SO-2026-${String(idx + 1).padStart(4, "0")}`,
+    orderDate: item.orderDate || "",
+    pharmacyName: item.pharmacyName,
+    territory: item.territory || "",
+    assignedMio: item.assignedMio || "",
+    paymentTerms: item.paymentTerms ?? null,
+    itemsSummary: item.itemsSummary || "General Formulations",
+    itemsDetail: parsedItems,
+    totalBoxes: Number(item.totalBoxes) || 1,
+    orderValue:
+      Number(item.orderValue ?? Math.max(0, computedSubtotal - monetaryDiscount)),
+    paidAmount: Number(item.paidAmount) || 0,
+    paymentStatus: item.paymentStatus || "UNPAID",
+    discountPercent: pct,
+    discountAmount: monetaryDiscount,
+    comments: item.comments || "",
+    deliveryMethod: item.deliveryMethod || "Sales Representative",
+    status: item.status || "FEFO Allocated",
+    invoiceNumber: sequentialInvoiceNo,
+  }
+}
+
 function numberToWordsBDT(num: number): string {
   if (num === 0) return "Zero Taka Only"
   const a = [
@@ -272,9 +344,24 @@ function LogisticsOrdersContent() {
 
   const [orders, setOrders] = React.useState<SalesOrder[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [statusFilter, setStatusFilter] = React.useState("all")
-  const [territoryFilter, setTerritoryFilter] = React.useState("all")
+
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "createdAt",
+    initialSortOrder: "desc",
+    initialFilters: { status: "all", territory: "all" },
+  })
+  const [totalPages, setTotalPages] = React.useState(1)
+  const [totalCount, setTotalCount] = React.useState(0)
+  const [orderStats, setOrderStats] = React.useState<{
+    totalOrders: number
+    grossValue: number
+    activeReps: number
+    pendingCredit: number
+    delivered: number
+    nonCancelled: number
+    otifRate: number
+  } | null>(null)
 
   const [clientList, setClientList] = React.useState<ClientOption[]>([])
   const [staffList, setStaffList] = React.useState<StaffOption[]>([])
@@ -336,13 +423,45 @@ function LogisticsOrdersContent() {
   const [isSavingInvoice, setIsSavingInvoice] = React.useState(false)
   const [isInspectOpen, setIsInspectOpen] = React.useState(false)
 
-  const fetchBackendData = React.useCallback(async () => {
+  const fetchOrders = React.useCallback(async (queryString = listQuery.queryKey) => {
     try {
-      const [ordRes, clientRes, staffRes, invRes] = await Promise.all([
-        apiFetch(`${API_URL}/orders`, { cache: "no-store" }).catch(() => ({
-          ok: false,
-          json: async () => [],
-        })),
+      setLoading(true)
+      const ordRes = await apiFetch(`${API_URL}/orders?${queryString}`, { cache: "no-store" })
+      if (!ordRes.ok) {
+        throw new Error(`Unable to load current orders: ${ordRes.statusText}`)
+      }
+      const ordData = await ordRes.json()
+      const rawOrders = Array.isArray(ordData) ? ordData : ordData?.data || []
+      const meta = ordData.meta || {}
+
+      setOrders(rawOrders.map((item: any, idx: number) => mapSalesOrder(item, idx)))
+      setTotalPages(meta.totalPages || meta.totalPage || 1)
+      setTotalCount(meta.total ?? rawOrders.length)
+
+      setLoading(false)
+      return true
+    } catch (err) {
+      console.error("Error loading logistics records:", err)
+      setLoading(false)
+      return false
+    }
+  }, [listQuery.queryKey])
+
+  const fetchOrderStats = React.useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_URL}/orders/stats`)
+      if (res.ok) {
+        const json = await res.json()
+        setOrderStats(json.data)
+      }
+    } catch (err) {
+      console.warn("Could not fetch order statistics:", err)
+    }
+  }, [])
+
+  const fetchSupportData = React.useCallback(async () => {
+    try {
+      const [clientRes, staffRes, invRes] = await Promise.all([
         apiFetch(`${API_URL}/clients`, { cache: "no-store" }).catch(() => ({
           ok: false,
           json: async () => [],
@@ -357,8 +476,6 @@ function LogisticsOrdersContent() {
           json: async () => [],
         })),
       ])
-
-      if (!ordRes.ok || !clientRes.ok) throw new Error("Unable to load current orders and client details")
 
       // Dynamic Product Catalog mapped from live inventory batches
       if (invRes.ok) {
@@ -394,81 +511,6 @@ function LogisticsOrdersContent() {
         }
       }
 
-      if (ordRes.ok) {
-        const ordData = await ordRes.json()
-        const rawOrders = Array.isArray(ordData) ? ordData : ordData?.data || []
-        setOrders(
-          rawOrders.map((item: any, idx: number) => {
-            let parsedItems: InvoiceItem[] = []
-            if (
-              Array.isArray(item.itemsDetail) &&
-              item.itemsDetail.length > 0
-            ) {
-              parsedItems = item.itemsDetail.map((it: any) => ({
-                no: Number(it.no) || 1,
-                description: it.description,
-                quantity: Number(it.quantity) || 1,
-                unitCost: Number(it.unitCost) || 0,
-                total: Number(it.total) || 0,
-              }))
-            } else if (typeof item.itemsDetail === "string") {
-              try {
-                parsedItems = JSON.parse(item.itemsDetail)
-              } catch {
-                parsedItems = parseSummaryToRows(
-                  item.itemsSummary,
-                  Number(item.orderValue) || 0,
-                  Number(item.totalBoxes) || 1
-                )
-              }
-            } else {
-              parsedItems = parseSummaryToRows(
-                item.itemsSummary,
-                Number(item.orderValue) || 0,
-                Number(item.totalBoxes) || 1
-              )
-            }
-
-            const sequentialInvoiceNo = item.invoiceNumber || ""
-            const computedSubtotal = parsedItems.reduce(
-              (acc, curr) => acc + (curr.total || 0),
-              0
-            )
-
-            // The backend's discount field stores a monetary amount.
-            const monetaryDiscount = Number(item.discountAmount ?? item.discount ??
-              Math.round((computedSubtotal * Number(item.discountPercent ?? 0)) / 100))
-            const pct = Number(item.discountPercent ??
-              (computedSubtotal > 0 ? (monetaryDiscount / computedSubtotal) * 100 : 0))
-
-            return {
-              id: item.id,
-              orderNumber:
-                item.orderNumber ||
-                `SO-2026-${String(idx + 1).padStart(4, "0")}`,
-              orderDate: item.orderDate || "",
-              pharmacyName: item.pharmacyName,
-              territory: item.territory || "",
-              assignedMio: item.assignedMio || "",
-              paymentTerms: item.paymentTerms ?? null,
-              itemsSummary: item.itemsSummary || "General Formulations",
-              itemsDetail: parsedItems,
-              totalBoxes: Number(item.totalBoxes) || 1,
-              orderValue:
-                Number(item.orderValue ?? Math.max(0, computedSubtotal - monetaryDiscount)),
-              paidAmount: Number(item.paidAmount) || 0,
-              paymentStatus: item.paymentStatus || "UNPAID",
-              discountPercent: pct,
-              discountAmount: monetaryDiscount,
-              comments: item.comments || "",
-              deliveryMethod: item.deliveryMethod || "Sales Representative",
-              status: item.status || "FEFO Allocated",
-              invoiceNumber: sequentialInvoiceNo,
-            }
-          })
-        )
-      }
-
       if (clientRes.ok) {
         const clientData = await clientRes.json()
         const rawClients = Array.isArray(clientData) ? clientData : clientData?.data || []
@@ -480,19 +522,19 @@ function LogisticsOrdersContent() {
         const rawStaff = Array.isArray(staffData) ? staffData : staffData?.data || []
         setStaffList(rawStaff)
       }
-
-      setLoading(false)
-      return true
     } catch (err) {
-      console.error("Error loading logistics records:", err)
-      setLoading(false)
-      return false
+      console.error("Error loading logistics supporting records:", err)
     }
   }, [])
 
   React.useEffect(() => {
-    fetchBackendData()
-  }, [fetchBackendData])
+    fetchOrders(listQuery.queryKey)
+  }, [fetchOrders, listQuery.queryKey])
+
+  React.useEffect(() => {
+    fetchSupportData()
+    fetchOrderStats()
+  }, [fetchSupportData, fetchOrderStats])
 
   React.useEffect(() => {
     const incomingPharmacy = searchParams.get("pharmacy")
@@ -655,7 +697,7 @@ function LogisticsOrdersContent() {
     [validLineItems]
   )
 
-  const nextSerialInvoiceNo = `INV-2026-${String(orders.length + 1).padStart(4, "0")}`
+  const nextSerialInvoiceNo = `INV-2026-${String(totalCount + 1).padStart(4, "0")}`
 
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -678,7 +720,7 @@ function LogisticsOrdersContent() {
       const isHold = clientCreditNotice?.status === "Credit Hold"
 
       const payload = {
-        orderNumber: `SO-2026-${String(orders.length + 1).padStart(4, "0")}`,
+        orderNumber: `SO-2026-${String(totalCount + 1).padStart(4, "0")}`,
         orderDate: new Date().toLocaleDateString("en-GB", {
           day: "2-digit",
           month: "short",
@@ -722,7 +764,12 @@ function LogisticsOrdersContent() {
       setDiscountPercent(0)
       setOrderComments("")
       setClientCreditNotice(null)
-      fetchBackendData()
+      if (listQuery.page === 1) {
+        fetchOrders(listQuery.queryKey)
+      } else {
+        listQuery.setPage(1)
+      }
+      fetchOrderStats()
     } catch (error: any) {
       console.error("Error creating sales order:", error)
       toast.error(error.message || "Failed to submit order to warehouse.", { id: toastId })
@@ -747,7 +794,8 @@ function LogisticsOrdersContent() {
       }
 
       toast.success(`Order status updated to ${newStatus}`, { id: toastId })
-      fetchBackendData()
+      fetchOrders(listQuery.queryKey)
+      fetchOrderStats()
     } catch (error: any) {
       console.error("Error updating order status:", error)
       toast.error(error.message || "Failed to update order status.", { id: toastId })
@@ -791,7 +839,7 @@ function LogisticsOrdersContent() {
 
   const handleOpenInvoice = async (order: SalesOrder) => {
     const toastId = toast.loading("Loading current invoice details...")
-    if (await fetchBackendData()) {
+    if (await fetchOrders(listQuery.queryKey)) {
       setSelectedOrderId(order.id)
       setIsInspectOpen(true)
       toast.dismiss(toastId)
@@ -822,7 +870,8 @@ function LogisticsOrdersContent() {
       toast.success(`Sales order ${orderToDelete.orderNumber} deleted successfully.`, { id: toastId })
       setIsDeleteModalOpen(false)
       setOrderToDelete(null)
-      fetchBackendData()
+      fetchOrders(listQuery.queryKey)
+      fetchOrderStats()
     } catch (error: any) {
       console.error("Error deleting order:", error)
       toast.error(error.message || "Failed to delete order record.", { id: toastId })
@@ -831,88 +880,88 @@ function LogisticsOrdersContent() {
     }
   }
 
-  const handleExportExcel = () => {
-    const exportData = orders.map((o) => ({
-      "Order Number": o.orderNumber,
-      "Order Date": o.orderDate,
-      "Chemist / Pharmacy": o.pharmacyName,
-      Territory: o.territory,
-      "Assigned MIO": o.assignedMio,
-      "Item Breakdown": o.itemsSummary,
-      Boxes: o.totalBoxes,
-      "Discount (%)": `${o.discountPercent}%`,
-      "Discount Value (৳)": o.discountAmount,
-      "Total Amount (৳)": o.orderValue,
-      "Logistics Method": o.deliveryMethod,
-      "Fulfillment Status": o.status,
-      "Invoice Number": o.invoiceNumber,
-    }))
+  const handleExportExcel = async () => {
+    if (totalCount === 0 && orders.length === 0) {
+      toast.error("No orders available to export.")
+      return
+    }
 
-    const worksheet = XLSX.utils.json_to_sheet(exportData)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Logistics Orders")
-    XLSX.writeFile(
-      workbook,
-      `AK_Pharma_Logistics_Orders_${new Date().toISOString().slice(0, 10)}.xlsx`
-    )
+    const toastId = toast.loading("Preparing order roster export...")
+    try {
+      const params = new URLSearchParams(listQuery.params)
+      params.set("page", "1")
+      params.set("limit", "0")
+      const res = await apiFetch(`${API_URL}/orders?${params.toString()}`, { cache: "no-store" })
+      if (!res.ok) throw new Error("Failed to load the full order roster")
+      const json = await res.json()
+      const raw = Array.isArray(json) ? json : json?.data || []
+      const exportRows: SalesOrder[] = raw.map((item: any, idx: number) => mapSalesOrder(item, idx))
+
+      const exportData = exportRows.map((o) => ({
+        "Order Number": o.orderNumber,
+        "Order Date": o.orderDate,
+        "Chemist / Pharmacy": o.pharmacyName,
+        Territory: o.territory,
+        "Assigned MIO": o.assignedMio,
+        "Item Breakdown": o.itemsSummary,
+        Boxes: o.totalBoxes,
+        "Discount (%)": `${o.discountPercent}%`,
+        "Discount Value (৳)": o.discountAmount,
+        "Total Amount (৳)": o.orderValue,
+        "Logistics Method": o.deliveryMethod,
+        "Fulfillment Status": o.status,
+        "Invoice Number": o.invoiceNumber,
+      }))
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Logistics Orders")
+      XLSX.writeFile(
+        workbook,
+        `AK_Pharma_Logistics_Orders_${new Date().toISOString().slice(0, 10)}.xlsx`
+      )
+      toast.success(`Exported ${exportRows.length} order records to Excel.`, { id: toastId })
+    } catch (err: any) {
+      console.error("Export failed:", err)
+      toast.error("Failed to export order roster.", { id: toastId })
+    }
   }
 
-  const filteredOrders = React.useMemo(() => {
-    const q = searchQuery.toLowerCase()
-    const sf = statusFilter.toLowerCase()
-    const tf = territoryFilter.toLowerCase()
-
-    return orders.filter((ord) => {
-      const matchesSearch =
-        !q ||
-        ord.orderNumber.toLowerCase().includes(q) ||
-        ord.pharmacyName.toLowerCase().includes(q) ||
-        ord.itemsSummary.toLowerCase().includes(q) ||
-        ord.assignedMio.toLowerCase().includes(q) ||
-        Boolean(
-          ord.invoiceNumber && ord.invoiceNumber.toLowerCase().includes(q)
-        )
-
-      const matchesStatus = sf === "all" || ord.status.toLowerCase() === sf
-      const matchesTerritory =
-        tf === "all" || ord.territory.toLowerCase() === tf
-
-      return matchesSearch && matchesStatus && matchesTerritory
-    })
-  }, [orders, searchQuery, statusFilter, territoryFilter])
-
   const totalRevenue = React.useMemo(
-    () => orders.reduce((acc, curr) => acc + curr.orderValue, 0),
-    [orders]
+    () => orderStats?.grossValue ?? orders.reduce((acc, curr) => acc + curr.orderValue, 0),
+    [orderStats, orders]
   )
 
   const activeRepsCount = React.useMemo(() => {
+    if (orderStats) return orderStats.activeReps
     const reps = new Set(
       orders.map((o) => o.assignedMio).filter((m) => m && m !== "Unassigned")
     )
     return reps.size
-  }, [orders])
+  }, [orderStats, orders])
 
   const pendingCreditCount = React.useMemo(
-    () => orders.filter((o) => o.status === "Pending Credit Check").length,
-    [orders]
+    () =>
+      orderStats?.pendingCredit ??
+      orders.filter((o) => o.status === "Pending Credit Check").length,
+    [orderStats, orders]
   )
 
   // Dynamic OTIF Calculation (Delivered & Invoiced / Total non-cancelled orders)
   const otifMetrics = React.useMemo(() => {
-    const nonCancelled = orders.filter((o) => o.status !== "Cancelled")
-    if (nonCancelled.length === 0) {
+    const nonCancelled = orderStats?.nonCancelled ?? orders.filter((o) => o.status !== "Cancelled").length
+    if (nonCancelled === 0) {
       return { percentage: "100.0%", isTargetMet: true }
     }
-    const delivered = nonCancelled.filter(
-      (o) => o.status === "Delivered & Invoiced"
-    ).length
-    const rate = ((delivered / nonCancelled.length) * 100).toFixed(1)
+    const delivered =
+      orderStats?.delivered ??
+      orders.filter((o) => o.status === "Delivered & Invoiced").length
+    const rate = ((delivered / nonCancelled) * 100).toFixed(1)
     return {
       percentage: `${rate}%`,
       isTargetMet: parseFloat(rate) >= 95,
     }
-  }, [orders])
+  }, [orderStats, orders])
 
   const matchedClient = React.useMemo(
     () =>
@@ -1516,7 +1565,7 @@ function LogisticsOrdersContent() {
             </div>
           </div>
           <div className="mt-3 font-mono text-[28px] leading-none font-bold tracking-tight text-slate-900">
-            {orders.length} Orders
+            {orderStats?.totalOrders ?? orders.length} Orders
           </div>
           <p className="mt-3 text-[11px] text-slate-400">
             ৳{totalRevenue.toLocaleString("en-IN")} Gross Billed Value
@@ -1591,39 +1640,56 @@ function LogisticsOrdersContent() {
       </div>
 
       {/* 3. Search & Filter Bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white p-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Search order #, pharmacy, invoice #, or MIO..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 w-[170px] border-slate-200 bg-white text-xs">
-              <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
-              <SelectValue placeholder="All Order Stages" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Stages</SelectItem>
-              <SelectItem value="pending credit check">
-                Pending Credit Check
-              </SelectItem>
-              <SelectItem value="fefo allocated">FEFO Allocated</SelectItem>
-              <SelectItem value="out for delivery">Out for Delivery</SelectItem>
-              <SelectItem value="delivered & invoiced">
-                Delivered & Invoiced
-              </SelectItem>
-            </SelectContent>
-          </Select>
-
-          <MasterTerritorySelect value={territoryFilter} onValueChange={setTerritoryFilter} all />
-        </div>
-      </div>
+      <ServerListToolbar
+        search={listQuery.search}
+        onSearchChange={listQuery.setSearch}
+        searchPlaceholder="Search order #, pharmacy, invoice #, or MIO..."
+        loading={loading}
+        sort={{
+          value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+          onValueChange: (value) => {
+            const [field, order] = value.split(":")
+            listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+          },
+          widthClassName: "w-[170px]",
+          options: [
+            { value: "createdAt:desc", label: "Newest first" },
+            { value: "createdAt:asc", label: "Oldest first" },
+            { value: "orderValue:desc", label: "Value: High to Low" },
+            { value: "orderValue:asc", label: "Value: Low to High" },
+            { value: "pharmacyName:asc", label: "Pharmacy A–Z" },
+          ],
+        }}
+        filters={[
+          {
+            id: "status",
+            value: listQuery.filters.status || "all",
+            onValueChange: (value) => listQuery.setFilter("status", value),
+            placeholder: "All Order Stages",
+            widthClassName: "w-[190px]",
+            icon: <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />,
+            options: [
+              { value: "all", label: "All Stages" },
+              { value: "Pending Credit Check", label: "Pending Credit Check" },
+              { value: "FEFO Allocated", label: "FEFO Allocated" },
+              { value: "Out for Delivery", label: "Out for Delivery" },
+              { value: "Delivered & Invoiced", label: "Delivered & Invoiced" },
+              { value: "Cancelled", label: "Cancelled" },
+            ],
+          },
+          {
+            id: "territory",
+            value: listQuery.filters.territory || "all",
+            onValueChange: (value) => listQuery.setFilter("territory", value),
+            placeholder: "All Territories",
+            widthClassName: "w-[190px]",
+            options: [
+              { value: "all", label: "All Territories" },
+              ...masterTerritories.map((t) => ({ value: t.name, label: t.name })),
+            ],
+          },
+        ]}
+      />
 
       {/* 4. Main Order Ledger Table */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none print:hidden">
@@ -1638,7 +1704,7 @@ function LogisticsOrdersContent() {
             </p>
           </div>
           <span className="text-xs font-medium text-slate-400">
-            Showing {filteredOrders.length} Orders
+            Showing {orders.length} of {totalCount} Orders
           </span>
         </div>
 
@@ -1684,7 +1750,7 @@ function LogisticsOrdersContent() {
                   />
                 </TableCell>
               </TableRow>
-            ) : filteredOrders.length === 0 ? (
+            ) : orders.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={9}
@@ -1695,7 +1761,7 @@ function LogisticsOrdersContent() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredOrders.map((ord) => (
+              orders.map((ord) => (
                 <TableRow
                   key={ord.id}
                   className="border-b border-slate-50 hover:bg-slate-50/50"
@@ -1884,6 +1950,16 @@ function LogisticsOrdersContent() {
             )}
           </TableBody>
         </Table>
+
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={loading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* 5. Invoice Preview & Actions Dialog */}

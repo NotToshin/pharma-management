@@ -58,7 +58,6 @@ import { cn } from "cn"
 import { getStoredUser } from "@/lib/auth"
 import {
   Stethoscope,
-  Search,
   Filter,
   Plus,
   Download,
@@ -82,26 +81,19 @@ import {
   Shield,
   FileCheck2,
   AlertCircle,
-  ArrowUpDown,
-  Loader2,
   ChevronDown,
   X,
 } from "lucide-react"
-
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
 
 import { doctorFormSchema } from "@/lib/validations/doctorValidation"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 
 interface ParsedDoctorItem {
   doctorName: string
@@ -265,19 +257,16 @@ export default function DoctorMasterDatabasePage() {
   const [staffList, setStaffList] = React.useState<StaffMember[]>([])
   const [territoryList, setTerritoryList] = React.useState<TerritoryItem[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [isSearching, setIsSearching] = React.useState(false)
 
-  // Server-side Pagination, Sort & Filter State
-  const [currentPage, setCurrentPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(10)
-  const [totalItems, setTotalItems] = React.useState(0)
+  // Server-side Pagination, Sort & Filter State (shared global pattern)
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "createdAt",
+    initialSortOrder: "desc",
+    initialFilters: { specialtyAndInstitute: "all", tier: "all" },
+  })
+  const [totalCount, setTotalCount] = React.useState(0)
   const [totalPages, setTotalPages] = React.useState(1)
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [debouncedSearch, setDebouncedSearch] = React.useState("")
-  const [sortBy, setSortBy] = React.useState("createdAt")
-  const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("desc")
-  const [specialtyFilter, setSpecialtyFilter] = React.useState("all")
-  const [categoryFilter, setCategoryFilter] = React.useState("all")
 
   // Portfolio Sheet State
   const [selectedDoctor, setSelectedDoctor] =
@@ -351,15 +340,6 @@ export default function DoctorMasterDatabasePage() {
   const [isImporting, setIsImporting] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  // Debounce search query to avoid spamming the backend
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery)
-      setCurrentPage(1)
-    }, 350)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
-
   // Helper to format raw backend doctor response into UI DoctorRecord
   const formatRawDoctor = (doc: any, index: number): DoctorRecord => {
     const rawSpecInst = doc.specialtyAndInstitute || ""
@@ -419,33 +399,11 @@ export default function DoctorMasterDatabasePage() {
   // Fetch doctors and staff directory from backend with pagination, sort, and search
   const fetchData = React.useCallback(async () => {
     try {
-      setIsSearching(true)
-      const params = new URLSearchParams()
-      params.set("page", String(currentPage))
-      params.set("limit", String(pageSize))
-      params.set("sortBy", sortBy)
-      params.set("sortOrder", sortOrder)
-
-      if (debouncedSearch.trim()) {
-        params.set("searchTerm", debouncedSearch.trim())
-      }
-
-      if (specialtyFilter !== "all") {
-        params.set("specialtyAndInstitute", specialtyFilter)
-      }
-
-      if (categoryFilter !== "all") {
-        const tierMapping: Record<string, string> = {
-          "A+": "Tier 1",
-          "A": "Tier 2",
-          "B": "Tier 3",
-          "C": "Tier 4",
-        }
-        params.set("tier", tierMapping[categoryFilter] || categoryFilter)
-      }
+      setLoading(true)
+      const queryString = listQuery.queryKey
 
       const [docRes, staffRes, territoryRes] = await Promise.all([
-        apiFetch(getEndpoint(`/doctors?${params.toString()}`)).catch(() => null),
+        apiFetch(getEndpoint(`/doctors?${queryString}`)).catch(() => null),
         staffList.length === 0 ? apiFetch(getEndpoint("/staff")).catch(() => null) : null,
         territoryList.length === 0 ? apiFetch(getEndpoint("/territories")).catch(() => null) : null,
       ])
@@ -457,10 +415,10 @@ export default function DoctorMasterDatabasePage() {
           : docResult.data || []
 
         if (docResult.meta) {
-          setTotalItems(docResult.meta.total ?? rawData.length)
-          setTotalPages(docResult.meta.totalPage ?? 1)
+          setTotalCount(docResult.meta.total ?? rawData.length)
+          setTotalPages(docResult.meta.totalPage ?? docResult.meta.totalPages ?? 1)
         } else {
-          setTotalItems(rawData.length)
+          setTotalCount(rawData.length)
           setTotalPages(1)
         }
 
@@ -495,17 +453,11 @@ export default function DoctorMasterDatabasePage() {
       console.error("Failed to fetch data from backend server:", err)
     } finally {
       setLoading(false)
-      setIsSearching(false)
     }
   }, [
-    currentPage,
-    pageSize,
-    sortBy,
-    sortOrder,
-    debouncedSearch,
-    specialtyFilter,
-    categoryFilter,
+    listQuery.queryKey,
     staffList.length,
+    territoryList.length,
   ])
 
   React.useEffect(() => {
@@ -720,7 +672,8 @@ export default function DoctorMasterDatabasePage() {
       setIsImportOpen(false)
       setSelectedFile(null)
       setParsedDoctors([])
-      await fetchData()
+      if (listQuery.page === 1) await fetchData()
+      else listQuery.setPage(1)
     } catch (err: any) {
       console.error("Bulk import error:", err)
       toast.error(err.message || "Failed to import doctors", { id: toastId })
@@ -791,7 +744,8 @@ export default function DoctorMasterDatabasePage() {
         setIsAddOpen(false)
         const formattedDocName = newDocPayload.doctorName.startsWith("Dr.") ? newDocPayload.doctorName : `Dr. ${newDocPayload.doctorName}`
         toast.success(`Successfully registered ${formattedDocName}.`, { id: toastId })
-        fetchData()
+        if (listQuery.page === 1) fetchData()
+        else listQuery.setPage(1)
       } else {
         const errorData = await res.json().catch(() => null)
         toast.error(errorData?.message || "Server failed to save doctor record.", { id: toastId })
@@ -894,13 +848,13 @@ export default function DoctorMasterDatabasePage() {
       })
       if (res.ok) {
         await new Promise((resolve) => setTimeout(resolve, 2000))
-        setDoctors((prev) => prev.filter((doc) => doc.id !== id))
+        setDeleteModal({ isOpen: false, doctorId: null, doctorName: null, isDeleting: false })
         if (selectedDoctor && selectedDoctor.id === id) {
           setIsPortfolioOpen(false)
         }
         toast.success(`Doctor profile for ${targetName} deleted successfully.`, { id: toastId })
-        setDeleteModal({ isOpen: false, doctorId: null, doctorName: null, isDeleting: false })
-        fetchData()
+        if (listQuery.page === 1) fetchData()
+        else listQuery.setPage(1)
       } else {
         const errorData = await res.json().catch(() => null)
         toast.error(errorData?.message || "Failed to delete doctor record.", { id: toastId })
@@ -920,30 +874,6 @@ export default function DoctorMasterDatabasePage() {
     (acc, curr) => acc + curr.patientVolumeDaily,
     0
   )
-
-  const getPaginationItems = () => {
-    const items: Array<{ type: "page" | "ellipsis"; page?: number }> = []
-    if (totalPages <= 5) {
-      for (let i = 1; i <= totalPages; i++) {
-        items.push({ type: "page", page: i })
-      }
-    } else {
-      items.push({ type: "page", page: 1 })
-      if (currentPage > 3) {
-        items.push({ type: "ellipsis" })
-      }
-      const start = Math.max(2, currentPage - 1)
-      const end = Math.min(totalPages - 1, currentPage + 1)
-      for (let i = start; i <= end; i++) {
-        items.push({ type: "page", page: i })
-      }
-      if (currentPage < totalPages - 2) {
-        items.push({ type: "ellipsis" })
-      }
-      items.push({ type: "page", page: totalPages })
-    }
-    return items
-  }
 
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-10">
@@ -1486,7 +1416,7 @@ export default function DoctorMasterDatabasePage() {
             </div>
           </div>
           <div className="mt-3 text-[28px] leading-none font-bold tracking-tight text-slate-900">
-            {totalItems}
+            {totalCount}
           </div>
           <p className="mt-3 text-[11px] text-slate-400">
             Total active practitioners in database
@@ -1556,83 +1486,60 @@ export default function DoctorMasterDatabasePage() {
       </div>
 
       {/* 3. Search & Filter Bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Search doctor, phone, BMDC, or chamber..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Server-side Sort Selector */}
-          <Select
-            value={`${sortBy}:${sortOrder}`}
-            onValueChange={(val) => {
-              const [field, order] = val.split(":")
-              setSortBy(field)
-              setSortOrder(order as "asc" | "desc")
-              setCurrentPage(1)
-            }}
-          >
-            <SelectTrigger className="h-8 w-[165px] border-slate-200 bg-white text-xs">
-              <ArrowUpDown className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
-              <SelectValue placeholder="Sort Practitioners" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="createdAt:desc">Newest First</SelectItem>
-              <SelectItem value="createdAt:asc">Oldest First</SelectItem>
-              <SelectItem value="doctorName:asc">Name (A → Z)</SelectItem>
-              <SelectItem value="doctorName:desc">Name (Z → A)</SelectItem>
-              <SelectItem value="patientVolumeDaily:desc">Daily Patients (High → Low)</SelectItem>
-              <SelectItem value="patientVolumeDaily:asc">Daily Patients (Low → High)</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={specialtyFilter}
-            onValueChange={(val) => {
-              setSpecialtyFilter(val)
-              setCurrentPage(1)
-            }}
-          >
-            <SelectTrigger className="h-8 w-[150px] border-slate-200 bg-white text-xs">
-              <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
-              <SelectValue placeholder="All Specialties" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Specialties</SelectItem>
-              <SelectItem value="cardiology">Cardiology</SelectItem>
-              <SelectItem value="gynecology">Gynecology</SelectItem>
-              <SelectItem value="medicine">Medicine</SelectItem>
-              <SelectItem value="pediatrics">Pediatrics</SelectItem>
-              <SelectItem value="orthopedic">Orthopedics</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={categoryFilter}
-            onValueChange={(val) => {
-              setCategoryFilter(val)
-              setCurrentPage(1)
-            }}
-          >
-            <SelectTrigger className="h-8 w-[130px] border-slate-200 bg-white text-xs">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Tiers</SelectItem>
-              <SelectItem value="A+">Category A+</SelectItem>
-              <SelectItem value="A">Category A</SelectItem>
-              <SelectItem value="B">Category B</SelectItem>
-              <SelectItem value="C">Category C</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <ServerListToolbar
+        search={listQuery.search}
+        onSearchChange={listQuery.setSearch}
+        searchPlaceholder="Search doctor, phone, BMDC, or chamber..."
+        loading={loading}
+        sort={{
+          value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+          onValueChange: (value) => {
+            const [field, order] = value.split(":")
+            listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+          },
+          widthClassName: "w-[170px]",
+          options: [
+            { value: "createdAt:desc", label: "Newest First" },
+            { value: "createdAt:asc", label: "Oldest First" },
+            { value: "doctorName:asc", label: "Name (A → Z)" },
+            { value: "doctorName:desc", label: "Name (Z → A)" },
+            { value: "patientVolumeDaily:desc", label: "Daily Patients (High → Low)" },
+            { value: "patientVolumeDaily:asc", label: "Daily Patients (Low → High)" },
+          ],
+        }}
+        filters={[
+          {
+            id: "specialtyAndInstitute",
+            value: listQuery.filters.specialtyAndInstitute || "all",
+            onValueChange: (value) => listQuery.setFilter("specialtyAndInstitute", value),
+            placeholder: "All Specialties",
+            widthClassName: "w-[150px]",
+            icon: <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />,
+            options: [
+              { value: "all", label: "All Specialties" },
+              { value: "cardiology", label: "Cardiology" },
+              { value: "gynecology", label: "Gynecology" },
+              { value: "medicine", label: "Medicine" },
+              { value: "pediatrics", label: "Pediatrics" },
+              { value: "orthopedic", label: "Orthopedics" },
+            ],
+          },
+          {
+            id: "tier",
+            value: listQuery.filters.tier || "all",
+            onValueChange: (value) => listQuery.setFilter("tier", value),
+            placeholder: "All Tiers",
+            widthClassName: "w-[140px]",
+            options: [
+              { value: "all", label: "All Tiers" },
+              { value: "Tier 1", label: "Category A+" },
+              { value: "Tier 2", label: "Category A" },
+              { value: "Tier 3", label: "Category B" },
+              { value: "Tier 4", label: "Category C" },
+            ],
+          },
+        ]}
+      />
 
       {/* 4. Table with Clickable Doctor Name & Visible Phone */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
@@ -1647,15 +1554,9 @@ export default function DoctorMasterDatabasePage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {isSearching && (
-              <span className="flex items-center gap-1 text-[11px] text-slate-400">
-                <Loader2 className="h-3 w-3 animate-spin text-[#0090FF]" />
-                Updating...
-              </span>
-            )}
             <span className="text-xs font-medium text-slate-400">
-              Showing {totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1}-
-              {Math.min(currentPage * pageSize, totalItems)} of {totalItems} Practitioners
+              Showing {totalCount === 0 ? 0 : (listQuery.page - 1) * listQuery.limit + 1}-
+              {Math.min(listQuery.page * listQuery.limit, totalCount)} of {totalCount} Practitioners
             </span>
           </div>
         </div>
@@ -1696,7 +1597,7 @@ export default function DoctorMasterDatabasePage() {
                   colSpan={8}
                   className="py-12 text-center text-xs text-slate-400"
                 >
-                  {isSearching ? (
+                  {loading ? (
                     <GlobalLoadingSpinner
                       message="Loading practitioner records..."
                       className="py-0"
@@ -1846,81 +1747,16 @@ export default function DoctorMasterDatabasePage() {
           </TableBody>
         </Table>
 
-        {/* Shadcn Pagination Controls */}
-        <div className="mt-5 flex flex-col items-center justify-between gap-4 border-t border-slate-100 pt-4 sm:flex-row">
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span>
-              Page {currentPage} of {Math.max(1, totalPages)} ({totalItems} total)
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span>Rows per page:</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(val) => {
-                  setPageSize(Number(val))
-                  setCurrentPage(1)
-                }}
-              >
-                <SelectTrigger className="h-7 w-[70px] border-slate-200 bg-white text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="text-xs">
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {totalPages > 1 && (
-            <Pagination className="mx-0 w-auto justify-end">
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    aria-disabled={currentPage <= 1 || isSearching}
-                    className={
-                      currentPage <= 1 || isSearching
-                        ? "pointer-events-none opacity-40 cursor-not-allowed"
-                        : "cursor-pointer hover:bg-slate-100"
-                    }
-                  />
-                </PaginationItem>
-
-                {getPaginationItems().map((item, idx) => (
-                  <PaginationItem key={idx}>
-                    {item.type === "page" ? (
-                      <PaginationLink
-                        isActive={item.page === currentPage}
-                        onClick={() => setCurrentPage(item.page!)}
-                        disabled={isSearching}
-                        className="cursor-pointer"
-                      >
-                        {item.page}
-                      </PaginationLink>
-                    ) : (
-                      <PaginationEllipsis />
-                    )}
-                  </PaginationItem>
-                ))}
-
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    aria-disabled={currentPage >= totalPages || isSearching}
-                    className={
-                      currentPage >= totalPages || isSearching
-                        ? "pointer-events-none opacity-40 cursor-not-allowed"
-                        : "cursor-pointer hover:bg-slate-100"
-                    }
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          )}
-        </div>
+        {/* Server-side Pagination Controls */}
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={loading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* 5. Doctor Portfolio Slide-Over (Sheet) */}

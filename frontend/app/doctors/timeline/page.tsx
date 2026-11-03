@@ -4,19 +4,10 @@ import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Clock,
   Calendar,
-  Search,
   Filter,
   Stethoscope,
   Pill,
@@ -26,12 +17,15 @@ import {
   Sparkles,
   MessageSquare,
   Gift,
-  ArrowRight,
-  TrendingUp,
 } from "lucide-react"
 
 import { apiFetch, getEndpoint } from "@/lib/api"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 
 interface TimelineEvent {
   id: string
@@ -60,73 +54,74 @@ export default function VisitHistoryTimelinePage() {
   const [events, setEvents] = React.useState<TimelineEvent[]>([])
   const [loading, setLoading] = React.useState(true)
 
-  React.useEffect(() => {
-    async function fetchVisitLogs() {
-      try {
-        const res = await apiFetch(getEndpoint("/doctor-visit-logs"))
-        if (res.ok) {
-          const json = await res.json()
-          const rawLogs = Array.isArray(json) ? json : json.data || []
-          const mapped: TimelineEvent[] = rawLogs.map((log: any, idx: number) => ({
-            id: log.id || `evt-${idx + 1}`,
-            doctorName: log.doctorName || "Dr. Medical Practitioner",
-            specialty: log.specialty || "General Medicine",
-            chamber: log.chamber || "Central Chamber",
-            tier: "A",
-            mioName: log.mioName || "Field Representative",
-            territory: log.territory || "Territory Hub",
-            date:
-              log.visitDate ||
-              new Date(log.createdAt || Date.now()).toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              }),
-            time: log.visitTime || "10:30 AM",
-            promotedProducts: log.promotedDrugs
-              ? log.promotedDrugs.split(",").map((s: string) => s.trim())
-              : ["Prescription Detailing"],
-            samplesGiven: log.samplesGiven || "Standard Detailing Pack",
-            callType: "Scheduled Routine",
-            feedbackSentiment: "Positive",
-            physicianFeedback:
-              log.feedback || "Detailing conducted and product features communicated.",
-            nextScheduledFollowUp: "Pending Cycle Schedule",
-          }))
-          setEvents(mapped)
-        }
-      } catch {
-        // ignore network error
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchVisitLogs()
-  }, [])
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [territoryFilter, setTerritoryFilter] = React.useState("all")
-  const [sentimentFilter, setSentimentFilter] = React.useState("all")
-
-  const filteredEvents = events.filter((evt) => {
-    const matchesSearch =
-      evt.doctorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      evt.specialty.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      evt.mioName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      evt.chamber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      evt.promotedProducts.some((p) =>
-        p.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-
-    const matchesTerritory =
-      territoryFilter === "all" ||
-      evt.territory.toLowerCase().includes(territoryFilter.toLowerCase())
-
-    const matchesSentiment =
-      sentimentFilter === "all" ||
-      evt.feedbackSentiment.toLowerCase() === sentimentFilter.toLowerCase()
-
-    return matchesSearch && matchesTerritory && matchesSentiment
+  // Server-side Pagination, Sort & Filter State (shared global pattern)
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "createdAt",
+    initialSortOrder: "desc",
+    initialFilters: { territory: "all", feedback: "all" },
   })
+  const [totalCount, setTotalCount] = React.useState(0)
+  const [totalPages, setTotalPages] = React.useState(1)
+
+  const fetchTimeline = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await apiFetch(
+        getEndpoint(`/doctor-visit-logs?${listQuery.queryKey}`)
+      )
+      if (res.ok) {
+        const json = await res.json()
+        const rawLogs = Array.isArray(json) ? json : json.data || []
+        const meta = json.meta || {}
+        setTotalCount(meta.total ?? rawLogs.length)
+        setTotalPages(meta.totalPage ?? meta.totalPages ?? 1)
+
+        const sentimentMap: Record<string, TimelineEvent["feedbackSentiment"]> = {
+          "High Potential": "High Potential",
+          Positive: "Positive",
+          Neutral: "Neutral",
+          "Needs Follow-up": "Follow-up Required",
+        }
+
+        const mapped: TimelineEvent[] = rawLogs.map((log: any, idx: number) => ({
+          id: log.id || `evt-${idx + 1}`,
+          doctorName: log.doctorName || "Dr. Medical Practitioner",
+          specialty: log.specialty || "General Medicine",
+          chamber: log.chamber || "Central Chamber",
+          tier: "A",
+          mioName: log.mioName || "Field Representative",
+          territory: log.territory || "Territory Hub",
+          date:
+            log.visitDate ||
+            new Date(log.createdAt || Date.now()).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            }),
+          time: log.visitTime || "10:30 AM",
+          promotedProducts: log.promotedDrugs
+            ? log.promotedDrugs.split(",").map((s: string) => s.trim())
+            : ["Prescription Detailing"],
+          samplesGiven: log.samplesGiven || "Standard Detailing Pack",
+          callType: "Scheduled Routine",
+          feedbackSentiment: sentimentMap[log.feedback] || "Positive",
+          physicianFeedback:
+            log.feedback || "Detailing conducted and product features communicated.",
+          nextScheduledFollowUp: "Pending Cycle Schedule",
+        }))
+        setEvents(mapped)
+      }
+    } catch {
+      // ignore network error
+    } finally {
+      setLoading(false)
+    }
+  }, [listQuery.queryKey])
+
+  React.useEffect(() => {
+    fetchTimeline()
+  }, [fetchTimeline])
 
   const highPotentialCalls = events.filter(
     (e) => e.feedbackSentiment === "High Potential"
@@ -170,7 +165,7 @@ export default function VisitHistoryTimelinePage() {
             </div>
           </div>
           <div className="mt-3 text-[28px] leading-none font-bold tracking-tight text-slate-900">
-            {events.length} Calls Logged
+            {totalCount} Calls Logged
           </div>
           <p className="mt-3 text-[11px] text-slate-400">
             Across active field cycles
@@ -233,49 +228,58 @@ export default function VisitHistoryTimelinePage() {
       </div>
 
       {/* 3. Search and Filtering Header */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Search physician, drug name, chamber, or MIO..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Select value={territoryFilter} onValueChange={setTerritoryFilter}>
-            <SelectTrigger className="h-8 w-[150px] border-slate-200 bg-white text-xs">
-              <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
-              <SelectValue placeholder="All Territories" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Territories</SelectItem>
-              <SelectItem value="dhaka north">Dhaka North</SelectItem>
-              <SelectItem value="dhaka south">Dhaka South</SelectItem>
-              <SelectItem value="chittagong">Chittagong</SelectItem>
-              <SelectItem value="sylhet">Sylhet</SelectItem>
-              <SelectItem value="rajshahi">Rajshahi</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={sentimentFilter} onValueChange={setSentimentFilter}>
-            <SelectTrigger className="h-8 w-[150px] border-slate-200 bg-white text-xs">
-              <SelectValue placeholder="All Sentiments" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Sentiments</SelectItem>
-              <SelectItem value="high potential">High Potential</SelectItem>
-              <SelectItem value="positive">Positive</SelectItem>
-              <SelectItem value="neutral">Neutral</SelectItem>
-              <SelectItem value="follow-up required">
-                Needs Follow-up
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <ServerListToolbar
+        search={listQuery.search}
+        onSearchChange={listQuery.setSearch}
+        searchPlaceholder="Search physician, drug name, chamber, or MIO..."
+        loading={loading}
+        sort={{
+          value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+          onValueChange: (value) => {
+            const [field, order] = value.split(":")
+            listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+          },
+          widthClassName: "w-[170px]",
+          options: [
+            { value: "createdAt:desc", label: "Newest First" },
+            { value: "createdAt:asc", label: "Oldest First" },
+            { value: "visitDate:desc", label: "Visit Date (Newest)" },
+            { value: "doctorName:asc", label: "Physician (A → Z)" },
+          ],
+        }}
+        filters={[
+          {
+            id: "territory",
+            value: listQuery.filters.territory || "all",
+            onValueChange: (value) => listQuery.setFilter("territory", value),
+            placeholder: "All Territories",
+            widthClassName: "w-[150px]",
+            icon: <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />,
+            options: [
+              { value: "all", label: "All Territories" },
+              { value: "dhaka north", label: "Dhaka North" },
+              { value: "dhaka south", label: "Dhaka South" },
+              { value: "chittagong", label: "Chittagong" },
+              { value: "sylhet", label: "Sylhet" },
+              { value: "rajshahi", label: "Rajshahi" },
+            ],
+          },
+          {
+            id: "feedback",
+            value: listQuery.filters.feedback || "all",
+            onValueChange: (value) => listQuery.setFilter("feedback", value),
+            placeholder: "All Sentiments",
+            widthClassName: "w-[160px]",
+            options: [
+              { value: "all", label: "All Sentiments" },
+              { value: "High Potential", label: "High Potential" },
+              { value: "Positive", label: "Positive" },
+              { value: "Neutral", label: "Neutral" },
+              { value: "Needs Follow-up", label: "Needs Follow-up" },
+            ],
+          },
+        ]}
+      />
 
       {/* 4. Chronological Timeline Stream */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none sm:p-8">
@@ -290,12 +294,12 @@ export default function VisitHistoryTimelinePage() {
             </p>
           </div>
           <span className="text-xs font-medium text-slate-400">
-            Showing {filteredEvents.length} Engagement Milestones
+            Showing {events.length} of {totalCount} Engagement Milestones
           </span>
         </div>
 
         <div className="relative space-y-8 pl-6 sm:pl-8">
-          {filteredEvents.length === 0 ? (
+          {events.length === 0 ? (
             loading ? (
               <GlobalLoadingSpinner message="Loading detailing chronology..." />
             ) : (
@@ -314,7 +318,7 @@ export default function VisitHistoryTimelinePage() {
               {/* Vertical Connecting Guide Line */}
               <div className="absolute top-3 bottom-3 left-[15px] w-[2px] bg-slate-200 sm:left-[19px]" />
 
-              {filteredEvents.map((evt) => (
+              {events.map((evt) => (
             <div
               key={evt.id}
               className="relative flex flex-col items-start gap-4 sm:flex-row sm:gap-6"
@@ -475,6 +479,16 @@ export default function VisitHistoryTimelinePage() {
         </>
       )}
     </div>
+
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={loading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
     </div>
   )

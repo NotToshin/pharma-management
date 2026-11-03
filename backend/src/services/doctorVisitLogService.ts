@@ -1,17 +1,142 @@
 import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryAssignment";
+import { Prisma, DoctorVisitLog } from "@prisma/client";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
+import {
+  paginationHelper,
+  IPaginationOptions,
+  IPaginatedResult,
+} from "../utils/paginationHelper";
+
+export interface IVisitLogFilterOptions {
+  searchTerm?: string;
+  search?: string;
+  doctorName?: string;
+  specialty?: string;
+  chamber?: string;
+  mioName?: string;
+  territory?: string;
+  feedback?: string;
+  [key: string]: any;
+}
+
+export const visitLogSearchableFields = [
+  "dcrCode",
+  "doctorName",
+  "specialty",
+  "chamber",
+  "mioName",
+  "territory",
+  "promotedDrugs",
+  "feedback",
+] as const;
+
+export const visitLogFilterableFields = [
+  "searchTerm",
+  "search",
+  "doctorName",
+  "specialty",
+  "chamber",
+  "mioName",
+  "territory",
+  "feedback",
+] as const;
 
 export const doctorVisitLogService = {
-  async getAllVisitLogs() {
-    return prisma.doctorVisitLog.findMany({
+  async getAllVisitLogs(
+    filters?: IVisitLogFilterOptions,
+    paginationOptions?: IPaginationOptions
+  ): Promise<IPaginatedResult<DoctorVisitLog[]>> {
+    // Backward compatibility: callers without a limit (or "all"/"-1") get ALL rows.
+    const normalizedPagination: IPaginationOptions = { ...(paginationOptions || {}) };
+    if (
+      normalizedPagination.limit === undefined ||
+      normalizedPagination.limit === "" ||
+      normalizedPagination.limit === "all" ||
+      Number(normalizedPagination.limit) === -1
+    ) {
+      normalizedPagination.limit = 0;
+    }
+
+    const { page, limit, skip, sortBy, sortOrder } =
+      paginationHelper.calculatePagination(normalizedPagination, {
+        sortBy: "createdAt",
+        sortOrder: "desc",
+      });
+
+    const searchValue = (filters?.searchTerm || filters?.search || "").trim();
+    const { searchTerm: _s1, search: _s2, ...filterData } = filters || {};
+
+    const andConditions: Prisma.DoctorVisitLogWhereInput[] = [];
+
+    if (searchValue) {
+      andConditions.push({
+        OR: visitLogSearchableFields.map((field) => ({
+          [field]: {
+            contains: searchValue,
+            mode: "insensitive",
+          },
+        })),
+      });
+    }
+
+    if (Object.keys(filterData).length > 0) {
+      andConditions.push({
+        AND: Object.entries(filterData).map(([field, value]) => ({
+          [field]: {
+            contains: String(value),
+            mode: "insensitive",
+          },
+        })),
+      });
+    }
+
+    const whereConditions: Prisma.DoctorVisitLogWhereInput =
+      andConditions.length > 0 ? { AND: andConditions } : {};
+
+    const allowedSortFields = [
+      "createdAt",
+      "updatedAt",
+      "visitDate",
+      "visitTime",
+      "dcrCode",
+      "doctorName",
+      "specialty",
+      "chamber",
+      "mioName",
+      "territory",
+      "feedback",
+    ];
+    const safeSortBy = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : "createdAt";
+
+    const findArgs: Prisma.DoctorVisitLogFindManyArgs = {
+      where: whereConditions,
+      orderBy: { [safeSortBy]: sortOrder },
       include: {
         mio: { select: { id: true, fullName: true, empId: true, phone: true } },
         territoryRef: true,
       },
-      orderBy: { createdAt: "desc" },
-    });
+    };
+
+    if (limit > 0) {
+      findArgs.skip = skip;
+      findArgs.take = limit;
+    }
+
+    const [rows, total] = await Promise.all([
+      prisma.doctorVisitLog.findMany(findArgs),
+      prisma.doctorVisitLog.count({ where: whereConditions }),
+    ]);
+
+    const meta = paginationHelper.createPaginationMeta(total, { page, limit });
+
+    return {
+      meta,
+      data: rows,
+    };
   },
 
   async getVisitLogById(id: string) {

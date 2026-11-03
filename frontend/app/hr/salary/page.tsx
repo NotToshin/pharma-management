@@ -30,6 +30,11 @@ import {
 } from "@/components/ui/dialog"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
+import {
   Table,
   TableBody,
   TableCell,
@@ -121,6 +126,41 @@ interface TreasuryAccount {
   accountNumber: string
 }
 
+const parseSalaryRecord = (sal: any, fallbackMonth: string): EmployeeSalary => {
+  let resolvedStatus: "Draft" | "Disbursed" | "Processing" = "Draft"
+  const statusStr = (sal.paymentStatus || sal.status || "").toUpperCase()
+  if (statusStr === "PAID" || statusStr === "DISBURSED") {
+    resolvedStatus = "Disbursed"
+  } else if (statusStr === "PROCESSING") {
+    resolvedStatus = "Processing"
+  }
+
+  return {
+    id: String(sal.id),
+    empId: String(sal.staff?.empId || sal.empId || ""),
+    fullName: String(sal.staff?.fullName || sal.fullName || "Staff Member"),
+    designation: String(
+      sal.staff?.role?.name || sal.staff?.department || sal.designation || "Staff Member"
+    ),
+    department: String(sal.staff?.department || sal.department || "General"),
+    territory: String(sal.staff?.territory || sal.territory || "Unassigned"),
+    bankName: String(sal.bankName || "Eastern Bank PLC"),
+    bankAccount: String(sal.bankAccount || "104-102-000000"),
+    payPeriod: String(sal.payPeriod || fallbackMonth),
+    basicSalary: Number(sal.baseSalary || sal.basicSalary) || 0,
+    houseRent: Number(sal.houseRent) || 0,
+    medicalAllowance: Number(sal.medicalAllowance) || 0,
+    conveyanceTaDa: Number(sal.conveyanceTaDa) || 0,
+    salesIncentive: Number(sal.salesIncentive) || 0,
+    specialBonus: Number(sal.specialBonus) || 0,
+    providentFund: Number(sal.providentFund) || 0,
+    taxDeduction: Number(sal.taxDeduction) || 0,
+    otherDeductions: Number(sal.otherDeductions) || 0,
+    leaveDays: Number(sal.leaveDays) || 0,
+    status: resolvedStatus,
+  }
+}
+
 const generateDynamicMonths = () => {
   const months: string[] = []
   const currentDate = new Date()
@@ -148,9 +188,15 @@ export default function SalaryManagementPage() {
   const [treasuryAccounts, setTreasuryAccounts] = React.useState<TreasuryAccount[]>([])
   const [loading, setLoading] = React.useState(true)
   const [selectedMonth, setSelectedMonth] = React.useState(getCurrentMonthString())
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [statusFilter, setStatusFilter] = React.useState<"all" | "Draft" | "Disbursed">("all")
-  const [departmentFilter, setDepartmentFilter] = React.useState<string>("all")
+
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialFilters: { status: "all", department: "all" },
+  })
+  const [salaryPageRows, setSalaryPageRows] = React.useState<EmployeeSalary[]>([])
+  const [totalPages, setTotalPages] = React.useState(1)
+  const [totalCount, setTotalCount] = React.useState(0)
+  const [pageLoading, setPageLoading] = React.useState(false)
 
   // Assign Salary Dialog State
   const [isAssignOpen, setIsAssignOpen] = React.useState(false)
@@ -234,40 +280,7 @@ export default function SalaryManagementPage() {
       setStaffDirectory(parsedStaff)
 
       setSalaries(
-        salaryData.map((sal: any) => {
-          let resolvedStatus: "Draft" | "Disbursed" | "Processing" = "Draft"
-          const statusStr = (sal.paymentStatus || sal.status || "").toUpperCase()
-          if (statusStr === "PAID" || statusStr === "DISBURSED") {
-            resolvedStatus = "Disbursed"
-          } else if (statusStr === "PROCESSING") {
-            resolvedStatus = "Processing"
-          }
-
-          return {
-            id: String(sal.id),
-            empId: String(sal.staff?.empId || sal.empId || ""),
-            fullName: String(sal.staff?.fullName || sal.fullName || "Staff Member"),
-            designation: String(
-              sal.staff?.role?.name || sal.staff?.department || sal.designation || "Staff Member"
-            ),
-            department: String(sal.staff?.department || sal.department || "General"),
-            territory: String(sal.staff?.territory || sal.territory || "Unassigned"),
-            bankName: String(sal.bankName || "Eastern Bank PLC"),
-            bankAccount: String(sal.bankAccount || "104-102-000000"),
-            payPeriod: String(sal.payPeriod || selectedMonth),
-            basicSalary: Number(sal.baseSalary || sal.basicSalary) || 0,
-            houseRent: Number(sal.houseRent) || 0,
-            medicalAllowance: Number(sal.medicalAllowance) || 0,
-            conveyanceTaDa: Number(sal.conveyanceTaDa) || 0,
-            salesIncentive: Number(sal.salesIncentive) || 0,
-            specialBonus: Number(sal.specialBonus) || 0,
-            providentFund: Number(sal.providentFund) || 0,
-            taxDeduction: Number(sal.taxDeduction) || 0,
-            otherDeductions: Number(sal.otherDeductions) || 0,
-            leaveDays: Number(sal.leaveDays) || 0,
-            status: resolvedStatus,
-          }
-        })
+        salaryData.map((sal: any) => parseSalaryRecord(sal, selectedMonth))
       )
     } catch (err) {
       console.error("Error fetching payroll data:", err)
@@ -280,6 +293,47 @@ export default function SalaryManagementPage() {
   React.useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Server-paginated fetch for the register table only
+  const salaryPageRequestRef = React.useRef(0)
+  const fetchSalaryPage = React.useCallback(async () => {
+    const requestId = ++salaryPageRequestRef.current
+    try {
+      setPageLoading(true)
+      const res = await apiFetch(
+        `${API_URL}/salary?month=${encodeURIComponent(selectedMonth)}&${listQuery.queryKey}`
+      )
+      if (!res.ok) throw new Error("Failed to fetch payroll register page")
+      const json = await res.json()
+      if (requestId !== salaryPageRequestRef.current) return // stale response, ignore
+      const salaryData = Array.isArray(json) ? json : json.data || []
+      const meta = json.meta || {}
+
+      setSalaryPageRows(salaryData.map((sal: any) => parseSalaryRecord(sal, selectedMonth)))
+      setTotalPages(meta.totalPage || meta.totalPages || 1)
+      setTotalCount(meta.total || salaryData.length)
+    } catch (err) {
+      if (requestId !== salaryPageRequestRef.current) return
+      console.error("Error fetching payroll register page:", err)
+    } finally {
+      if (requestId === salaryPageRequestRef.current) setPageLoading(false)
+    }
+  }, [selectedMonth, listQuery.queryKey])
+
+  React.useEffect(() => {
+    fetchSalaryPage()
+  }, [fetchSalaryPage])
+
+  // Reset to page 1 whenever the pay period changes
+  React.useEffect(() => {
+    listQuery.setPage(1)
+  }, [selectedMonth, listQuery.setPage])
+
+  // Refresh the visible page after mutations (keeps current page, or drops to page 1)
+  const refreshSalaryPage = React.useCallback(() => {
+    if (listQuery.page === 1) fetchSalaryPage()
+    else listQuery.setPage(1)
+  }, [listQuery.page, listQuery.setPage, fetchSalaryPage])
 
   const getGross = (r: {
     basicSalary: number
@@ -429,6 +483,7 @@ export default function SalaryManagementPage() {
       setIsAssignOpen(false)
       setSelectedStaff(null)
       fetchData()
+      refreshSalaryPage()
     } catch (err: any) {
       console.error("Error assigning salary:", err)
       toast.error(err.message || "Failed to save salary record.", { id: toastId })
@@ -470,6 +525,7 @@ export default function SalaryManagementPage() {
       setIsEditOpen(false)
       setEditingRecord(null)
       fetchData()
+      refreshSalaryPage()
     } catch (err: any) {
       console.error("Error updating salary:", err)
       toast.error(err.message || "Failed to update salary.", { id: toastId })
@@ -504,6 +560,7 @@ export default function SalaryManagementPage() {
       setIsDeleteModalOpen(false)
       setSalaryToDelete(null)
       fetchData()
+      refreshSalaryPage()
     } catch (err: any) {
       console.error("Error deleting salary:", err)
       toast.error(err.message || "Failed to delete salary record.", { id: toastId })
@@ -569,6 +626,7 @@ export default function SalaryManagementPage() {
       setIsPayOpen(false)
       setPayingRecord(null)
       fetchData()
+      refreshSalaryPage()
     } catch (err: any) {
       console.error("Disbursement Error:", err)
       toast.error(err.message || "Failed to post disbursement to Treasury.", { id: toastId })
@@ -609,6 +667,7 @@ export default function SalaryManagementPage() {
         { id: toastId }
       )
       fetchData()
+      refreshSalaryPage()
     } catch (err: any) {
       console.error("Batch generation error:", err)
       toast.error(err.message || "Failed to auto-generate payroll.", { id: toastId })
@@ -862,25 +921,6 @@ export default function SalaryManagementPage() {
       draftCount,
     }
   }, [staffDirectory, salaries])
-
-  // Filtered salary records for the table
-  const filteredSalaries = React.useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    return salaries.filter((s) => {
-      if (statusFilter === "Draft" && s.status === "Disbursed") return false
-      if (statusFilter === "Disbursed" && s.status !== "Disbursed") return false
-      if (departmentFilter !== "all" && s.department !== departmentFilter) return false
-
-      if (!q) return true
-      return (
-        s.fullName.toLowerCase().includes(q) ||
-        s.empId.toLowerCase().includes(q) ||
-        s.designation.toLowerCase().includes(q) ||
-        s.department.toLowerCase().includes(q) ||
-        s.territory.toLowerCase().includes(q)
-      )
-    })
-  }, [salaries, searchQuery, statusFilter, departmentFilter])
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-6 pb-12">
@@ -1523,76 +1563,47 @@ export default function SalaryManagementPage() {
       </div>
 
       {/* FILTER CONTROLS & TABLE ACTIONS */}
+      <ServerListToolbar
+        search={listQuery.search}
+        onSearchChange={listQuery.setSearch}
+        searchPlaceholder="Search staff name, EMP ID, designation..."
+        loading={pageLoading}
+        filters={[
+          {
+            id: "department",
+            value: listQuery.filters.department || "all",
+            onValueChange: (value) => listQuery.setFilter("department", value),
+            placeholder: "All Departments",
+            widthClassName: "w-[160px]",
+            options: [
+              { value: "all", label: "All Departments" },
+              ...allDepartments.map((dept) => ({ value: dept, label: dept })),
+            ],
+          },
+          {
+            id: "status",
+            value: listQuery.filters.status || "all",
+            onValueChange: (value) => listQuery.setFilter("status", value),
+            placeholder: "All Status",
+            widthClassName: "w-[190px]",
+            options: [
+              { value: "all", label: `All Status (${salaries.length})` },
+              { value: "Draft", label: `Draft / Pending (${metrics.draftCount})` },
+              { value: "Disbursed", label: `Disbursed (${metrics.disbursedCount})` },
+            ],
+          },
+        ]}
+      />
+
       <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm print:hidden">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <Input
-                placeholder="Search staff name, EMP ID, designation..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-8 w-[240px] pl-8 text-xs"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Department Filter */}
-            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-              <SelectTrigger className="h-8 w-[150px] text-xs">
-                <SelectValue placeholder="All Departments" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="all">All Departments</SelectItem>
-                {allDepartments.map((dept) => (
-                  <SelectItem key={dept} value={dept}>
-                    {dept}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Status Tabs */}
-            <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
-              <button
-                onClick={() => setStatusFilter("all")}
-                className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                  statusFilter === "all"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                All ({salaries.length})
-              </button>
-              <button
-                onClick={() => setStatusFilter("Draft")}
-                className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                  statusFilter === "Draft"
-                    ? "bg-white text-amber-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Draft / Pending ({metrics.draftCount})
-              </button>
-              <button
-                onClick={() => setStatusFilter("Disbursed")}
-                className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                  statusFilter === "Disbursed"
-                    ? "bg-white text-emerald-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Disbursed ({metrics.disbursedCount})
-              </button>
-            </div>
+          <div>
+            <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
+              SALARY REGISTER — {selectedMonth}
+            </h3>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Showing {salaryPageRows.length} of {totalCount} payroll records
+            </p>
           </div>
 
           {/* Export Action */}
@@ -1625,7 +1636,7 @@ export default function SalaryManagementPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
+              {loading || pageLoading ? (
                 <TableRow>
                   <TableCell colSpan={8} className="py-12 text-center text-slate-400">
                     <GlobalLoadingSpinner
@@ -1634,7 +1645,7 @@ export default function SalaryManagementPage() {
                     />
                   </TableCell>
                 </TableRow>
-              ) : filteredSalaries.length === 0 ? (
+              ) : salaryPageRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
@@ -1649,7 +1660,7 @@ export default function SalaryManagementPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredSalaries.map((emp) => {
+                salaryPageRows.map((emp) => {
                   const allowances =
                     emp.houseRent +
                     emp.medicalAllowance +
@@ -1802,6 +1813,16 @@ export default function SalaryManagementPage() {
             </TableBody>
           </Table>
         </div>
+
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={pageLoading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* DISBURSE TO TREASURY MODAL */}

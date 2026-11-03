@@ -2,11 +2,12 @@ import { Request, Response } from "express";
 import { stockAdjustmentService } from "../services/stockAdjustmentService";
 import { sendResponse } from "../utils/response";
 import { catchAsync } from "../utils/catchAsync";
+import { QueryStockAdjustmentInput } from "../validations/stockAdjustmentValidation";
 
 export const getAllAdjustments = catchAsync(async (req: Request, res: Response) => {
-  const { search, type, status } = req.query as { search?: string; type?: string; status?: string };
-  const adjustments = await stockAdjustmentService.getAllAdjustments({ search, type, status });
-  sendResponse(res, 200, "Stock adjustments retrieved successfully", adjustments);
+  const query = req.query as QueryStockAdjustmentInput;
+  const result = await stockAdjustmentService.getAllAdjustments(query);
+  sendResponse(res, 200, "Stock adjustments retrieved successfully", result.rows, result.meta);
 });
 
 export const getAdjustmentMetrics = catchAsync(async (req: Request, res: Response) => {

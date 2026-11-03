@@ -2,11 +2,12 @@ import { Request, Response } from "express";
 import { salaryService } from "../services/salaryService";
 import { sendResponse } from "../utils/response";
 import { catchAsync } from "../utils/catchAsync";
+import { GetSalariesQueryInput } from "../validations/salaryValidation";
 
 export const getSalariesByMonth = catchAsync(async (req: Request, res: Response) => {
-  const month = (req.query.month as string) || "September 2026";
-  const salaries = await salaryService.getSalariesByMonth(month);
-  sendResponse(res, 200, "Salaries retrieved successfully", salaries);
+  const query = req.query as unknown as GetSalariesQueryInput;
+  const result = await salaryService.getSalariesByMonth(query);
+  sendResponse(res, 200, "Salaries retrieved successfully", result.rows, result.meta);
 });
 
 export const upsertSalary = catchAsync(async (req: Request, res: Response) => {

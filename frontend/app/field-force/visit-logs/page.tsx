@@ -53,7 +53,6 @@ import {
   CheckCircle2,
   CalendarDays,
   Sparkles,
-  Search,
   Download,
   Upload,
   Printer,
@@ -65,6 +64,11 @@ import {
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 
 /* ------------------------------------------------------------------ */
 /* Optimized Print stylesheet for DCR Ledger (Clean, Professional)     */
@@ -188,9 +192,21 @@ import { visitLogFormSchema } from "@/lib/validations/doctorVisitLogValidation"
 export default function DoctorVisitLogsPage() {
   const [logs, setLogs] = React.useState<VisitLog[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [feedbackFilter, setFeedbackFilter] = React.useState("all")
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
+
+  // Server-side Pagination, Sort & Filter State (shared global pattern)
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "createdAt",
+    initialSortOrder: "desc",
+    initialFilters: { feedback: "all" },
+  })
+  const [totalCount, setTotalCount] = React.useState(0)
+  const [totalPages, setTotalPages] = React.useState(1)
+  const [kpiStats, setKpiStats] = React.useState({
+    highPotentialCount: 0,
+    samplesHandedOut: 0,
+  })
 
   // Doctor collection registry search states
   const [registeredDoctors, setRegisteredDoctors] = React.useState<RegisteredDoctor[]>([])
@@ -269,14 +285,19 @@ export default function DoctorVisitLogsPage() {
     setTimeout(() => setSuccessToast(null), 3500)
   }
 
-  // Fetch live logs from backend
-  const fetchLogs = async () => {
+  // Fetch live logs from backend (server-driven pagination, sort, search, filter)
+  const fetchLogs = React.useCallback(async () => {
     try {
       setLoading(true)
-      const res = await apiFetch(getEndpoint("/visit-logs")).catch(() => null)
+      const res = await apiFetch(
+        getEndpoint(`/visit-logs?${listQuery.queryKey}`)
+      ).catch(() => null)
       if (res && res.ok) {
         const result = await res.json()
         const rawData = Array.isArray(result) ? result : result.data || []
+        const meta = result.meta || {}
+        setTotalCount(meta.total ?? rawData.length)
+        setTotalPages(meta.totalPage ?? meta.totalPages ?? 1)
         const formatted: VisitLog[] = rawData.map((item: any) => ({
           id: item.id || item._id,
           dcrCode: item.dcrCode || `DCR-${(item.id || item._id)?.slice(-4)}`,
@@ -303,7 +324,33 @@ export default function DoctorVisitLogsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [listQuery.queryKey])
+
+  // KPI overview aggregates over the complete dataset (list stays server-driven)
+  const refreshKpis = React.useCallback(async () => {
+    try {
+      const res = await apiFetch(getEndpoint("/visit-logs?limit=0")).catch(() => null)
+      if (res && res.ok) {
+        const result = await res.json()
+        const rawData = Array.isArray(result) ? result : result.data || []
+        const highPotentialCount = rawData.filter(
+          (l: any) => l.feedback === "High Potential"
+        ).length
+        const samplesHandedOut = rawData.reduce((sum: number, item: any) => {
+          const given = item.samplesGiven ? String(item.samplesGiven) : ""
+          if (!given || given.toLowerCase() === "none") return sum
+          const numbers = given.match(/\d+/g)
+          if (numbers) {
+            return sum + numbers.reduce((a, b) => a + parseInt(b, 10), 0)
+          }
+          return sum + 1
+        }, 0)
+        setKpiStats({ highPotentialCount, samplesHandedOut })
+      }
+    } catch (err) {
+      console.error("Failed to fetch visit log KPIs from backend:", err)
+    }
+  }, [])
 
   // Fetch doctor collection from backend
   const fetchDoctors = async () => {
@@ -361,9 +408,13 @@ export default function DoctorVisitLogsPage() {
 
   React.useEffect(() => {
     fetchLogs()
+  }, [fetchLogs])
+
+  React.useEffect(() => {
+    refreshKpis()
     fetchDoctors()
     fetchStaffMios()
-  }, [])
+  }, [refreshKpis])
 
   // Auto-close doctor search dropdown when clicking outside
   React.useEffect(() => {
@@ -544,7 +595,9 @@ export default function DoctorVisitLogsPage() {
         setFormErrors({})
         setIsDialogOpen(false)
         toast.success(`Visit log for ${payload.doctorName} recorded successfully!`, { id: toastId })
-        fetchLogs()
+        if (listQuery.page === 1) fetchLogs()
+        else listQuery.setPage(1)
+        refreshKpis()
       } else {
         const errorData = await res.json().catch(() => null)
         toast.error(errorData?.message || "Failed to save visit log.", { id: toastId })
@@ -597,6 +650,7 @@ export default function DoctorVisitLogsPage() {
         setEditingLog(null)
         toast.success(`Visit log for ${editingLog.doctorName} updated successfully!`, { id: toastId })
         fetchLogs()
+        refreshKpis()
       } else {
         const errorData = await res.json().catch(() => null)
         toast.error(errorData?.message || "Failed to update visit log.", { id: toastId })
@@ -630,10 +684,11 @@ export default function DoctorVisitLogsPage() {
       })
       if (res.ok) {
         await new Promise((resolve) => setTimeout(resolve, 2000))
-        setLogs((prev) => prev.filter((l) => l.id !== id))
         toast.success(`Visit log for ${targetDoctor} deleted successfully.`, { id: toastId })
         setDeleteModal({ isOpen: false, logId: null, doctorName: null, isDeleting: false })
-        fetchLogs()
+        if (listQuery.page === 1) fetchLogs()
+        else listQuery.setPage(1)
+        refreshKpis()
       } else {
         const errorData = await res.json().catch(() => null)
         toast.error(errorData?.message || "Failed to delete visit log.", { id: toastId })
@@ -652,30 +707,56 @@ export default function DoctorVisitLogsPage() {
     })
   }
 
-  // Export Visit Logs to Excel
-  const handleExportExcel = () => {
-    const exportData = logs.map((item) => ({
-      "Call Ref": item.dcrCode,
-      "Doctor Name": item.doctorName,
-      Specialty: item.specialty,
-      "Chamber Location": item.chamber,
-      "Field MIO": item.mioName,
-      Territory: item.territory,
-      "Visit Date": item.visitDate,
-      "Visit Time": item.visitTime,
-      "Promoted Drugs": item.promotedDrugs,
-      "Samples Given": item.samplesGiven,
-      "Commitment Sentiment": item.feedback,
-    }))
+  // Export Visit Logs to Excel (full dataset from server)
+  const handleExportExcel = async () => {
+    const toastId = toast.loading("Preparing full doctor visit log export...")
+    try {
+      let exportLogs = logs
+      const res = await apiFetch(getEndpoint("/visit-logs?limit=0")).catch(() => null)
+      if (res && res.ok) {
+        const json = await res.json()
+        const rawData = Array.isArray(json) ? json : json.data || []
+        exportLogs = rawData.map((item: any) => ({
+          id: item.id || item._id,
+          dcrCode: item.dcrCode || "",
+          doctorName: item.doctorName || "",
+          specialty: item.specialty || "",
+          chamber: item.chamber || "",
+          mioName: item.mio?.fullName || item.mioName || "",
+          territory: item.territory || "",
+          visitDate: item.visitDate || "",
+          visitTime: item.visitTime || "",
+          promotedDrugs: item.promotedDrugs || "",
+          samplesGiven: item.samplesGiven || "None",
+          feedback: (item.feedback || "Positive") as VisitLog["feedback"],
+        }))
+      }
 
-    const worksheet = XLSX.utils.json_to_sheet(exportData)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Doctor Visit Logs")
-    XLSX.writeFile(
-      workbook,
-      `AK_Pharma_Doctor_Visit_Logs_${new Date().toISOString().slice(0, 10)}.xlsx`
-    )
-    toast.success("Doctor Visit Logs exported to Excel successfully.")
+      const exportData = exportLogs.map((item) => ({
+        "Call Ref": item.dcrCode,
+        "Doctor Name": item.doctorName,
+        Specialty: item.specialty,
+        "Chamber Location": item.chamber,
+        "Field MIO": item.mioName,
+        Territory: item.territory,
+        "Visit Date": item.visitDate,
+        "Visit Time": item.visitTime,
+        "Promoted Drugs": item.promotedDrugs,
+        "Samples Given": item.samplesGiven,
+        "Commitment Sentiment": item.feedback,
+      }))
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Doctor Visit Logs")
+      XLSX.writeFile(
+        workbook,
+        `AK_Pharma_Doctor_Visit_Logs_${new Date().toISOString().slice(0, 10)}.xlsx`
+      )
+      toast.success("Doctor Visit Logs exported to Excel successfully.", { id: toastId })
+    } catch {
+      toast.error("Failed to export doctor visit logs.", { id: toastId })
+    }
   }
 
   // Import Visit Logs from Excel
@@ -724,7 +805,9 @@ export default function DoctorVisitLogsPage() {
         }
 
         toast.success(`Successfully imported ${importedCount} visit log(s) to database.`, { id: toastId })
-        fetchLogs()
+        if (listQuery.page === 1) fetchLogs()
+        else listQuery.setPage(1)
+        refreshKpis()
       } catch (err) {
         console.error(err)
         toast.error("Failed to process Excel file.", { id: toastId })
@@ -734,34 +817,9 @@ export default function DoctorVisitLogsPage() {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
-  const filteredLogs = logs.filter((item) => {
-    const matchesSearch =
-      item.doctorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.specialty.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.chamber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.mioName.toLowerCase().includes(searchQuery.toLowerCase())
+  const highPotentialCount = kpiStats.highPotentialCount
 
-    const matchesFeedback =
-      feedbackFilter === "all" ||
-      item.feedback.toLowerCase() === feedbackFilter.toLowerCase()
-
-    return matchesSearch && matchesFeedback
-  })
-
-  const highPotentialCount = logs.filter(
-    (l) => l.feedback === "High Potential"
-  ).length
-
-  const samplesHandedOut = React.useMemo(() => {
-    return logs.reduce((sum, item) => {
-      if (!item.samplesGiven || item.samplesGiven.toLowerCase() === "none") return sum
-      const numbers = item.samplesGiven.match(/\d+/g)
-      if (numbers) {
-        return sum + numbers.reduce((a, b) => a + parseInt(b, 10), 0)
-      }
-      return sum + 1
-    }, 0)
-  }, [logs])
+  const samplesHandedOut = kpiStats.samplesHandedOut
 
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-10">
@@ -1151,7 +1209,7 @@ export default function DoctorVisitLogsPage() {
             </div>
           </div>
           <div className="mt-3 text-[28px] leading-none font-bold tracking-tight text-slate-900">
-            {logs.length}
+            {totalCount}
           </div>
           <p className="mt-3 text-[11px] text-slate-400">
             Physicians visited across territories
@@ -1192,7 +1250,7 @@ export default function DoctorVisitLogsPage() {
             </Badge>
           </div>
           <div className="mt-3 text-[28px] leading-none font-bold tracking-tight text-slate-900">
-            {Math.round((highPotentialCount / (logs.length || 1)) * 100)}%
+            {Math.round((highPotentialCount / (totalCount || 1)) * 100)}%
           </div>
           <p className="mt-3 text-[11px] text-slate-400">
             Positive conversion index
@@ -1221,33 +1279,43 @@ export default function DoctorVisitLogsPage() {
       </div>
 
       {/* 3. Search & Filter Bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white p-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Search doctor, chamber, or MIO..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Select value={feedbackFilter} onValueChange={setFeedbackFilter}>
-            <SelectTrigger className="h-8 w-[160px] border-slate-200 bg-white text-xs">
-              <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
-              <SelectValue placeholder="Filter Sentiment" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Sentiments</SelectItem>
-              <SelectItem value="high potential">High Potential</SelectItem>
-              <SelectItem value="positive">Positive</SelectItem>
-              <SelectItem value="neutral">Neutral</SelectItem>
-              <SelectItem value="needs follow-up">Needs Follow-up</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <ServerListToolbar
+        search={listQuery.search}
+        onSearchChange={listQuery.setSearch}
+        searchPlaceholder="Search doctor, chamber, or MIO..."
+        loading={loading}
+        sort={{
+          value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+          onValueChange: (value) => {
+            const [field, order] = value.split(":")
+            listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+          },
+          widthClassName: "w-[170px]",
+          options: [
+            { value: "createdAt:desc", label: "Newest First" },
+            { value: "createdAt:asc", label: "Oldest First" },
+            { value: "visitDate:desc", label: "Visit Date (Newest)" },
+            { value: "doctorName:asc", label: "Doctor (A → Z)" },
+          ],
+        }}
+        filters={[
+          {
+            id: "feedback",
+            value: listQuery.filters.feedback || "all",
+            onValueChange: (value) => listQuery.setFilter("feedback", value),
+            placeholder: "All Sentiments",
+            widthClassName: "w-[170px]",
+            icon: <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />,
+            options: [
+              { value: "all", label: "All Sentiments" },
+              { value: "High Potential", label: "High Potential" },
+              { value: "Positive", label: "Positive" },
+              { value: "Neutral", label: "Neutral" },
+              { value: "Needs Follow-up", label: "Needs Follow-up" },
+            ],
+          },
+        ]}
+      />
 
       {/* 4. Doctor Visit Logs Ledger */}
       <Card className="print-visit-node rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
@@ -1263,7 +1331,7 @@ export default function DoctorVisitLogsPage() {
           </div>
           <div className="text-right">
             <span className="text-xs font-medium text-slate-400 print:hidden">
-              Showing {filteredLogs.length} Records
+              Showing {logs.length} of {totalCount} Records
             </span>
             <span className="hidden font-mono text-xs text-slate-400 print:inline">
               Generated: {new Date().toLocaleDateString()}
@@ -1310,18 +1378,18 @@ export default function DoctorVisitLogsPage() {
                   />
                 </TableCell>
               </TableRow>
-            ) : filteredLogs.length === 0 ? (
+            ) : logs.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="py-12 text-center text-slate-500">
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <Stethoscope className="h-8 w-8 text-slate-300" />
                     <p className="text-xs font-semibold text-slate-700">
-                      {logs.length === 0
+                      {totalCount === 0
                         ? "No Doctor Visit Logs Recorded"
                         : "No matching logs found"}
                     </p>
                     <p className="text-[11px] text-slate-400">
-                      {logs.length === 0
+                      {totalCount === 0
                         ? "Click 'Log Doctor Call' or import an Excel file to populate real-time entries."
                         : "Try clearing your search query or feedback sentiment filter."}
                     </p>
@@ -1329,7 +1397,7 @@ export default function DoctorVisitLogsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredLogs.map((item) => (
+              logs.map((item) => (
                 <TableRow
                   key={item.id}
                   className="border-b border-slate-50 hover:bg-slate-50/50"
@@ -1432,6 +1500,16 @@ export default function DoctorVisitLogsPage() {
             )}
           </TableBody>
         </Table>
+
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={loading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* 5. Edit Call Log Dialog */}

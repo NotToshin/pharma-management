@@ -30,3 +30,22 @@ export const zoneAllocationIdParamSchema = z.object({
     id: z.string().min(1, "Allocation ID is required"),
   }),
 });
+
+export const getZoneAllocationsQuerySchema = z.object({
+  query: z
+    .object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z
+        .union([z.coerce.number().int().min(0), z.literal("all"), z.literal("-1")])
+        .optional(),
+      sortBy: z.string().optional(),
+      sortOrder: z.enum(["asc", "desc"]).optional(),
+      searchTerm: z.string().optional(),
+      search: z.string().optional(),
+      division: z.string().optional(),
+      status: z.string().optional(),
+    })
+    .optional(),
+});
+
+export type GetZoneAllocationsQueryInput = z.infer<typeof getZoneAllocationsQuerySchema>["query"];

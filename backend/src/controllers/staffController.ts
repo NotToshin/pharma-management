@@ -2,11 +2,12 @@ import { Request, Response } from "express";
 import { staffService } from "../services/staffService";
 import { sendResponse } from "../utils/response";
 import { catchAsync } from "../utils/catchAsync";
+import { GetStaffQueryInput } from "../validations/staffValidation";
 
 export const getAllStaff = catchAsync(async (req: Request, res: Response) => {
-  const { role } = req.query as { role?: string };
-  const staffList = await staffService.getAllStaff({ role });
-  sendResponse(res, 200, "Staff list retrieved successfully", staffList);
+  const query = req.query as unknown as GetStaffQueryInput;
+  const result = await staffService.getAllStaff(query);
+  sendResponse(res, 200, "Staff list retrieved successfully", result.rows, result.meta);
 });
 
 export const createStaff = catchAsync(async (req: Request, res: Response) => {

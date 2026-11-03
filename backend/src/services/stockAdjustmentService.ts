@@ -14,11 +14,21 @@ function formatCurrentDate(): string {
 }
 
 export const stockAdjustmentService = {
-  async getAllAdjustments(filters?: { search?: string; type?: string; status?: string }) {
+  async getAllAdjustments(filters?: {
+    search?: string;
+    searchTerm?: string;
+    type?: string;
+    status?: string;
+    page?: number | string;
+    limit?: number | string;
+    sortBy?: string;
+    sortOrder?: string;
+  }) {
     const where: any = {};
 
-    if (filters?.search && filters.search.trim()) {
-      const s = filters.search.trim();
+    const searchValue = (filters?.search || filters?.searchTerm || "").trim();
+    if (searchValue) {
+      const s = searchValue;
       where.OR = [
         { adjustmentRef: { contains: s, mode: "insensitive" } },
         { skuCode: { contains: s, mode: "insensitive" } },
@@ -37,12 +47,48 @@ export const stockAdjustmentService = {
       where.approvalStatus = { equals: filters.status, mode: "insensitive" };
     }
 
-    const adjustments = await prisma.stockAdjustment.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-    });
+    const page = Math.max(1, parseInt(String(filters?.page || "1"), 10) || 1);
+    const rawLimit = filters?.limit;
+    // Backward compatibility: missing limit, "all" or "-1" returns every row.
+    const limit =
+      rawLimit === undefined || rawLimit === "all" || rawLimit === "-1"
+        ? 0
+        : Math.max(0, parseInt(String(rawLimit), 10) || 0);
+    const allowedSortFields = [
+      "createdAt",
+      "updatedAt",
+      "adjustmentRef",
+      "formulationName",
+      "batchNumber",
+      "type",
+      "quantity",
+      "unitCostBDT",
+      "totalImpactBDT",
+      "approvalStatus",
+    ];
+    const sortBy = allowedSortFields.includes(filters?.sortBy || "")
+      ? (filters?.sortBy as string)
+      : "createdAt";
+    const sortOrder = filters?.sortOrder === "asc" ? "asc" : "desc";
 
-    return adjustments;
+    const [total, adjustments] = await Promise.all([
+      prisma.stockAdjustment.count({ where }),
+      prisma.stockAdjustment.findMany({
+        where,
+        orderBy: { [sortBy]: sortOrder },
+        ...(limit > 0 ? { skip: (page - 1) * limit, take: limit } : {}),
+      }),
+    ]);
+
+    return {
+      rows: adjustments,
+      meta: {
+        total,
+        page,
+        limit: limit > 0 ? limit : total,
+        totalPage: limit > 0 ? Math.ceil(total / limit) || 1 : 1,
+      },
+    };
   },
 
   async getSummaryMetrics() {

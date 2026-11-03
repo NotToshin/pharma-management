@@ -50,31 +50,130 @@ const generateNextEmpId = async (): Promise<string> => {
   return `${prefix}${paddedSeq}`;
 };
 
+interface StaffListQuery {
+  search?: string;
+  searchTerm?: string;
+  department?: string;
+  status?: string;
+  role?: string;
+  page?: string;
+  limit?: string;
+  sortBy?: string;
+  sortOrder?: string;
+}
+
+const STAFF_SORT_FIELDS = [
+  "createdAt",
+  "fullName",
+  "empId",
+  "joiningDate",
+  "department",
+  "status",
+] as const;
+
+const resolveStaffStatusFilter = (value?: string): StaffStatus | undefined => {
+  if (!value || value.trim().toLowerCase() === "all") return undefined;
+  const v = value.trim().toUpperCase();
+  const map: Record<string, StaffStatus> = {
+    ACTIVE: StaffStatus.ACTIVE,
+    INACTIVE: StaffStatus.INACTIVE,
+    SUSPENDED: StaffStatus.SUSPENDED,
+    TERMINATED: StaffStatus.TERMINATED,
+    PROBATION: StaffStatus.PROBATION,
+    PROBATIONARY: StaffStatus.PROBATION,
+    "ON LEAVE": StaffStatus.ON_LEAVE,
+    ON_LEAVE: StaffStatus.ON_LEAVE,
+  };
+  return map[v];
+};
+
 export const staffService = {
-  async getAllStaff(filters?: { role?: string }) {
-    const where: any = {};
+  async getAllStaff(filters?: StaffListQuery) {
+    const conditions: any[] = [];
+
     if (filters?.role) {
       const r = filters.role.trim().toLowerCase();
       if (r === "mio" || r.includes("medical information")) {
-        where.OR = [
-          { role: { is: { name: { contains: "MIO", mode: "insensitive" } } } },
-          { role: { is: { name: { contains: "Medical Information", mode: "insensitive" } } } },
-        ];
+        conditions.push({
+          OR: [
+            { role: { is: { name: { contains: "MIO", mode: "insensitive" } } } },
+            { role: { is: { name: { contains: "Medical Information", mode: "insensitive" } } } },
+          ],
+        });
       } else {
-        where.role = {
-          is: { name: { contains: filters.role, mode: "insensitive" } },
-        };
+        conditions.push({
+          role: {
+            is: { name: { contains: filters.role, mode: "insensitive" } },
+          },
+        });
       }
     }
 
-    return prisma.staff.findMany({
-      where,
-      include: {
-        role: true,
-        salaries: true,
+    if (filters?.department && filters.department.trim().toLowerCase() !== "all") {
+      conditions.push({
+        department: { equals: filters.department, mode: "insensitive" },
+      });
+    }
+
+    const statusFilter = resolveStaffStatusFilter(filters?.status);
+    if (statusFilter) {
+      conditions.push({ status: statusFilter });
+    }
+
+    const searchValue = (filters?.search || filters?.searchTerm || "").trim();
+    if (searchValue) {
+      conditions.push({
+        OR: [
+          { fullName: { contains: searchValue, mode: "insensitive" } },
+          { empId: { contains: searchValue, mode: "insensitive" } },
+          { phone: { contains: searchValue, mode: "insensitive" } },
+          { nidNumber: { contains: searchValue, mode: "insensitive" } },
+          { role: { is: { name: { contains: searchValue, mode: "insensitive" } } } },
+        ],
+      });
+    }
+
+    const where: any = conditions.length > 0 ? { AND: conditions } : {};
+
+    const rawLimit = filters?.limit;
+    const hasLimit =
+      rawLimit !== undefined &&
+      rawLimit.trim() !== "" &&
+      rawLimit.trim().toLowerCase() !== "all" &&
+      rawLimit.trim() !== "-1";
+    const page = Math.max(1, parseInt(filters?.page || "1", 10) || 1);
+    const parsedLimit = hasLimit ? parseInt(rawLimit as string, 10) : NaN;
+    const limit =
+      isNaN(parsedLimit) || parsedLimit <= 0 ? 0 : Math.min(200, parsedLimit);
+    const skip = limit > 0 ? (page - 1) * limit : 0;
+
+    const sortBy = (STAFF_SORT_FIELDS as readonly string[]).includes(filters?.sortBy || "")
+      ? (filters?.sortBy as string)
+      : "createdAt";
+    const sortOrder = filters?.sortOrder === "asc" ? "asc" : "desc";
+
+    const [total, rows] = await Promise.all([
+      prisma.staff.count({ where }),
+      prisma.staff.findMany({
+        where,
+        include: {
+          role: true,
+          salaries: true,
+        },
+        orderBy: { [sortBy]: sortOrder },
+        ...(limit > 0 ? { skip, take: limit } : {}),
+      }),
+    ]);
+
+    return {
+      rows,
+      meta: {
+        total,
+        page,
+        limit: limit > 0 ? limit : total,
+        totalPage: limit > 0 ? Math.ceil(total / limit) || 1 : 1,
       },
-      orderBy: { createdAt: "desc" },
-    });
+    };
   },
 
   async createStaff(data: {
