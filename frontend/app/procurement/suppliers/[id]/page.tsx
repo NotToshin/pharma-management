@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import {
   ServerListPagination,
   ServerListToolbar,
@@ -235,7 +236,7 @@ export default function SupplierDetailsPage() {
   }, [supplierId])
 
   if (loading) {
-    return <div className="p-6 text-xs text-slate-400">Loading supplier details...</div>
+    return <GlobalLoadingSpinner message="Loading supplier details..." className="py-6" />
   }
 
   if (notFound || !supplier) {
@@ -506,8 +507,8 @@ export default function SupplierDetailsPage() {
             <TableBody>
               {ordersLoading && orders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-xs text-slate-400">
-                    Loading purchase orders...
+                  <TableCell colSpan={5} className="py-2 text-center">
+                    <GlobalLoadingSpinner message="Loading purchase orders..." className="py-0" />
                   </TableCell>
                 </TableRow>
               ) : orders.length === 0 ? (

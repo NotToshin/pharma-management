@@ -12,6 +12,7 @@ import {
   ServerListToolbar,
   useServerListQuery,
 } from "@/components/server-list-controls"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -664,10 +665,7 @@ export default function AuditLogsPage() {
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <RefreshCw className="h-6 w-6 animate-spin text-[#0090FF]" />
-            <p className="mt-2 text-xs font-medium">Verifying and loading statutory audit records...</p>
-          </div>
+          <GlobalLoadingSpinner message="Verifying and loading statutory audit records..." />
         ) : logs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-slate-400">
             <FileText className="h-8 w-8 text-slate-300" />
@@ -1295,10 +1293,11 @@ export default function AuditLogsPage() {
           </DialogHeader>
 
           {isVerifying ? (
-            <div className="py-8 text-center space-y-2">
-              <RefreshCw className="h-8 w-8 animate-spin text-[#0090FF] mx-auto" />
-              <p className="text-xs font-medium text-slate-600">Recalculating and checking chronological hash chain...</p>
-            </div>
+            <GlobalLoadingSpinner
+              size="lg"
+              className="py-8"
+              message="Recalculating and checking chronological hash chain..."
+            />
           ) : verificationResult ? (
             <div className="mt-3 space-y-3 text-xs">
               <div className={`rounded-xl border p-4 ${

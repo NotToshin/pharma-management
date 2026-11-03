@@ -7,6 +7,7 @@ import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -1065,11 +1066,11 @@ export default function ActiveInventoryLedgerPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="py-14 text-center text-xs text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <RefreshCw className="h-6 w-6 animate-spin text-[#0090FF]" />
-                      <span>Loading audited FEFO stock ledger from server...</span>
-                    </div>
+                  <TableCell colSpan={10} className="py-2 text-center">
+                    <GlobalLoadingSpinner
+                      message="Loading audited FEFO stock ledger from server..."
+                      className="py-0"
+                    />
                   </TableCell>
                 </TableRow>
               ) : filteredLedger.length === 0 ? (

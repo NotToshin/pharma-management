@@ -31,6 +31,7 @@ import {
 } from "lucide-react"
 
 import { apiFetch, getEndpoint } from "@/lib/api"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 
 interface TimelineEvent {
   id: string
@@ -295,17 +296,19 @@ export default function VisitHistoryTimelinePage() {
 
         <div className="relative space-y-8 pl-6 sm:pl-8">
           {filteredEvents.length === 0 ? (
-            <div className="py-16 text-center text-xs text-slate-400">
-              <AlertCircle className="mx-auto mb-2 h-8 w-8 text-slate-300" />
-              <p className="font-medium text-slate-600">
-                {loading
-                  ? "Loading detailing chronology..."
-                  : "No physician visit timeline events found."}
-              </p>
-              <p className="mt-1 text-[11px] text-slate-400">
-                Visit interactions logged by medical representatives will be displayed here in chronological order.
-              </p>
-            </div>
+            loading ? (
+              <GlobalLoadingSpinner message="Loading detailing chronology..." />
+            ) : (
+              <div className="py-16 text-center text-xs text-slate-400">
+                <AlertCircle className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+                <p className="font-medium text-slate-600">
+                  No physician visit timeline events found.
+                </p>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Visit interactions logged by medical representatives will be displayed here in chronological order.
+                </p>
+              </div>
+            )
           ) : (
             <>
               {/* Vertical Connecting Guide Line */}

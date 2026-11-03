@@ -3,6 +3,7 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { MasterTerritorySelect } from "@/components/master-territory-select"
 import { DivisionTerritoryFields } from "@/components/division-territory-fields"
 import { groupTerritories, useTerritories } from "@/hooks/use-territories"
@@ -1408,9 +1409,11 @@ function DeliveryCashCollectionsContent() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="py-12 text-center text-xs text-slate-400">
-                    <RotateCcw className="mx-auto h-5 w-5 animate-spin text-[#0090FF] mb-2" />
-                    Loading delivery collection records from database...
+                  <TableCell colSpan={10} className="py-2 text-center">
+                    <GlobalLoadingSpinner
+                      message="Loading delivery collection records from database..."
+                      className="py-0"
+                    />
                   </TableCell>
                 </TableRow>
               ) : collections.length === 0 ? (
@@ -2442,7 +2445,7 @@ function DeliveryCashCollectionsContent() {
 
 export default function DeliveryCashCollectionsPage() {
   return (
-    <React.Suspense fallback={<div className="p-6 text-xs text-slate-400">Loading delivery collections...</div>}>
+    <React.Suspense fallback={<GlobalLoadingSpinner className="py-6" />}>
       <DeliveryCashCollectionsContent />
     </React.Suspense>
   )
