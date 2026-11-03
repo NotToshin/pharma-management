@@ -56,6 +56,7 @@ interface OpenBill {
   date: string
   partyName: string
   partyCode?: string | null
+  partyId?: string | null
   total: number
   paid: number
   balance: number
@@ -85,6 +86,7 @@ interface Settlement {
   direction: Direction
   partyName: string
   partyCode?: string | null
+  partyId?: string | null
   amount: number
   unallocatedAmount: number
   paymentMethod: string
@@ -525,7 +527,18 @@ export function PartySettlementPage({
                     <span className="block font-mono text-xs font-bold text-[#0090FF]">{bill.number}</span>
                     <span className="text-[10px] text-slate-400">{bill.date}</span>
                   </TableCell>
-                  <TableCell className="py-3 text-xs font-semibold text-slate-800">{bill.partyName}</TableCell>
+                  <TableCell className="py-3 text-xs font-semibold text-slate-800">
+                    {bill.partyId ? (
+                      <Link
+                        href={`/procurement/suppliers/${bill.partyId}`}
+                        className="text-[#0090FF] transition-colors hover:text-[#0080e5] hover:underline"
+                      >
+                        {bill.partyName}
+                      </Link>
+                    ) : (
+                      bill.partyName
+                    )}
+                  </TableCell>
                   <TableCell className="py-3 text-xs text-slate-600">{bill.documentStatus}</TableCell>
                   <TableCell className="py-3 text-right font-mono text-xs">{money(bill.total)}</TableCell>
                   <TableCell className="py-3 text-right font-mono text-xs text-slate-500">{money(bill.paid)}</TableCell>
@@ -580,7 +593,18 @@ export function PartySettlementPage({
                     <span className="block font-mono text-xs font-bold text-slate-800">{payment.paymentNumber}</span>
                     <span className="text-[10px] text-slate-400">{payment.paymentDate}</span>
                   </TableCell>
-                  <TableCell className="py-3 text-xs font-semibold text-slate-800">{payment.partyName}</TableCell>
+                  <TableCell className="py-3 text-xs font-semibold text-slate-800">
+                    {payment.partyId ? (
+                      <Link
+                        href={`/procurement/suppliers/${payment.partyId}`}
+                        className="text-[#0090FF] transition-colors hover:text-[#0080e5] hover:underline"
+                      >
+                        {payment.partyName}
+                      </Link>
+                    ) : (
+                      payment.partyName
+                    )}
+                  </TableCell>
                   <TableCell className="py-3 text-xs text-slate-600">
                     {payment.allocations?.length
                       ? payment.allocations.map((line) => `${line.documentNumber} ${money(line.allocatedAmount)}`).join(", ")

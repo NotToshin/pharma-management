@@ -46,6 +46,7 @@ type OpenBill = {
   createdAt: Date;
   partyName: string;
   partyCode: string | null;
+  partyId: string | null;
   total: number;
   paid: number;
   balance: number;
@@ -54,6 +55,31 @@ type OpenBill = {
   terms: string | null;
   referenceLabel: string;
 };
+
+async function wholesalerIdMaps() {
+  const wholesalers = await prisma.wholesaler.findMany({
+    select: { id: true, wholesalerCode: true, name: true },
+  });
+  const byCode = new Map<string, string>();
+  const byName = new Map<string, string>();
+  for (const wholesaler of wholesalers) {
+    byCode.set(wholesaler.wholesalerCode.trim().toLowerCase(), wholesaler.id);
+    byName.set(wholesaler.name.trim().toLowerCase(), wholesaler.id);
+  }
+  return { byCode, byName };
+}
+
+function resolveWholesalerId(
+  maps: { byCode: Map<string, string>; byName: Map<string, string> },
+  code?: string | null,
+  name?: string | null
+): string | null {
+  const trimmedCode = (code || "").trim().toLowerCase();
+  if (trimmedCode && maps.byCode.has(trimmedCode)) {
+    return maps.byCode.get(trimmedCode) || null;
+  }
+  return maps.byName.get((name || "").trim().toLowerCase()) || null;
+}
 
 async function priorPurchasePaidMap() {
   const vouchers = await prisma.expenseVoucher.findMany({
@@ -87,6 +113,7 @@ async function priorSalesPaidMap() {
 
 async function loadPurchaseBills(partyName?: string): Promise<OpenBill[]> {
   const priorPaid = await priorPurchasePaidMap();
+  const idMaps = await wholesalerIdMaps();
   const orders = await prisma.purchaseOrder.findMany({
     where: {
       status: { notIn: ["Draft", "Cancelled"] },
@@ -108,6 +135,7 @@ async function loadPurchaseBills(partyName?: string): Promise<OpenBill[]> {
       createdAt: order.createdAt,
       partyName: order.wholesalerName,
       partyCode: order.wholesalerCode || null,
+      partyId: resolveWholesalerId(idMaps, order.wholesalerCode, order.wholesalerName),
       total,
       paid,
       balance,
@@ -142,6 +170,7 @@ async function loadSalesBills(partyName?: string): Promise<OpenBill[]> {
       createdAt: order.createdAt,
       partyName: order.pharmacyName,
       partyCode: null,
+      partyId: null,
       total,
       paid,
       balance,
@@ -236,12 +265,13 @@ export const settlementService = {
       },
     });
 
-    const partyMap = new Map<string, { name: string; code: string | null; openBalance: number; advanceBalance: number }>();
+    const partyMap = new Map<string, { id: string | null; name: string; code: string | null; openBalance: number; advanceBalance: number }>();
 
     if (direction === "OUTGOING") {
       const wholesalers = await prisma.wholesaler.findMany({ orderBy: { name: "asc" } });
       for (const wholesaler of wholesalers) {
         partyMap.set(wholesaler.name.trim().toLowerCase(), {
+          id: wholesaler.id,
           name: wholesaler.name,
           code: wholesaler.wholesalerCode,
           openBalance: 0,
@@ -252,6 +282,7 @@ export const settlementService = {
       const clients = await prisma.client.findMany({ orderBy: { pharmacyName: "asc" } });
       for (const client of clients) {
         partyMap.set(client.pharmacyName.trim().toLowerCase(), {
+          id: null,
           name: client.pharmacyName,
           code: client.clientCode,
           openBalance: 0,
@@ -263,6 +294,7 @@ export const settlementService = {
     for (const bill of bills) {
       const key = bill.partyName.trim().toLowerCase();
       const current = partyMap.get(key) || {
+        id: bill.partyId,
         name: bill.partyName,
         code: bill.partyCode,
         openBalance: 0,
@@ -276,6 +308,7 @@ export const settlementService = {
     for (const advance of advances) {
       const key = advance.partyName.trim().toLowerCase();
       const current = partyMap.get(key) || {
+        id: null,
         name: advance.partyName,
         code: advance.partyCode || null,
         openBalance: 0,
@@ -342,9 +375,17 @@ export const settlementService = {
       }),
     ]);
 
-    const completed = settlements.filter((row) => row.status === "COMPLETED");
+    const rows = settlements.map((row) => ({ ...row, partyId: null as string | null }));
+    if (filters.direction === "OUTGOING" && rows.length > 0) {
+      const idMaps = await wholesalerIdMaps();
+      for (const row of rows) {
+        row.partyId = resolveWholesalerId(idMaps, row.partyCode, row.partyName);
+      }
+    }
+
+    const completed = rows.filter((row) => row.status === "COMPLETED");
     return {
-      settlements,
+      settlements: rows,
       summary: {
         count: total,
         settledAmount: round2(completed.reduce((sum, row) => sum + (Number(row.amount) || 0), 0)),
