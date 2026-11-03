@@ -45,6 +45,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
+import {
   Table,
   TableBody,
   TableCell,
@@ -57,7 +62,6 @@ import {
   Users2,
   Plus,
   Download,
-  Search,
   Briefcase,
   CheckCircle2,
   MoreHorizontal,
@@ -251,9 +255,16 @@ const createEmployeeFormState = () => ({
 
 export default function StaffDirectoryPage() {
   const [employees, setEmployees] = React.useState<Employee[]>([])
+  const [overviewEmployees, setOverviewEmployees] = React.useState<Employee[]>([])
   const [rolesList, setRolesList] = React.useState<RoleItem[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [searchQuery, setSearchQuery] = React.useState("")
+
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialFilters: { department: "all", status: "all" },
+  })
+  const [totalPages, setTotalPages] = React.useState(1)
+  const [totalCount, setTotalCount] = React.useState(0)
 
   // Departments dropdown list
   const [departments, setDepartments] = React.useState([
@@ -264,10 +275,6 @@ export default function StaffDirectoryPage() {
     "Supply Chain",
     "Marketing",
   ])
-
-  // Filters for department and status
-  const [departmentFilter, setDepartmentFilter] = React.useState("all")
-  const [statusFilter, setStatusFilter] = React.useState("all")
 
   // Portfolio Sheet State
   const [selectedEmp, setSelectedEmp] = React.useState<Employee | null>(null)
@@ -308,28 +315,57 @@ export default function StaffDirectoryPage() {
     }
   }, [])
 
-  const fetchStaffData = React.useCallback(async () => {
+  // Full roster for the KPI cards & Excel export (backward-compatible "all" request)
+  const fetchStaffOverview = React.useCallback(async () => {
     try {
-      const res = await apiFetch(`${API_URL}/staff`)
+      const res = await apiFetch(`${API_URL}/staff?limit=all`)
+      if (!res.ok) throw new Error("Failed to fetch staff overview")
+      const json = await res.json()
+      const rawData = Array.isArray(json) ? json : json.data || []
+
+      setOverviewEmployees((rawData as StaffRecord[]).map(formatEmployee))
+    } catch (err) {
+      console.error("Error loading staff overview data:", err)
+    }
+  }, [])
+
+  const fetchStaffData = React.useCallback(async (queryString = listQuery.queryKey) => {
+    try {
+      setLoading(true)
+      const res = await apiFetch(`${API_URL}/staff?${queryString}`)
       if (!res.ok) throw new Error("Failed to fetch staff")
       const json = await res.json()
       const rawData = Array.isArray(json) ? json : json.data || []
+      const meta = json.meta || {}
 
       const formattedData = (rawData as StaffRecord[]).map(formatEmployee)
 
       setEmployees(formattedData)
-      setLoading(false)
+      setTotalPages(meta.totalPage || meta.totalPages || 1)
+      setTotalCount(meta.total || formattedData.length)
     } catch (err) {
       console.error("Error loading staff data:", err)
       toast.error("Failed to load staff records. Please try again.")
+    } finally {
       setLoading(false)
     }
-  }, [])
+  }, [listQuery.queryKey])
+
+  // Refresh the visible page (keeps the current page, or drops to page 1 after writes)
+  const refreshStaff = React.useCallback(() => {
+    fetchStaffOverview()
+    if (listQuery.page === 1) fetchStaffData(listQuery.queryKey)
+    else listQuery.setPage(1)
+  }, [fetchStaffOverview, fetchStaffData, listQuery.page, listQuery.queryKey, listQuery.setPage])
 
   React.useEffect(() => {
     fetchRolesData()
-    fetchStaffData()
-  }, [fetchRolesData, fetchStaffData])
+    fetchStaffOverview()
+  }, [fetchRolesData, fetchStaffOverview])
+
+  React.useEffect(() => {
+    fetchStaffData(listQuery.queryKey)
+  }, [fetchStaffData, listQuery.queryKey])
 
   const handleCreateRoleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
@@ -518,6 +554,7 @@ export default function StaffDirectoryPage() {
         })
         setIsAddOpen(false)
         setIsEditOpen(true)
+        refreshStaff()
         toast.error("The employee was created, but the schedule or emergency contact was not saved. Your entries are available in the edit form.", { id: toastId })
         return
       }
@@ -525,6 +562,7 @@ export default function StaffDirectoryPage() {
       setFormState(createEmployeeFormState())
       setIsAddOpen(false)
       fetchRolesData()
+      refreshStaff()
     } catch (error: any) {
       console.error("Error adding employee:", error)
       toast.error(error.message || "Failed to onboard staff member.", { id: toastId })
@@ -583,6 +621,7 @@ export default function StaffDirectoryPage() {
       setIsEditOpen(false)
       setEditingEmp(null)
       fetchRolesData()
+      refreshStaff()
     } catch (error: any) {
       console.error("Error updating employee:", error)
       toast.error(error.message || "Failed to update staff record.", { id: toastId })
@@ -616,7 +655,7 @@ export default function StaffDirectoryPage() {
       }
       setIsDeleteModalOpen(false)
       setStaffToDelete(null)
-      fetchStaffData()
+      refreshStaff()
     } catch (error: any) {
       console.error("Error deleting staff:", error)
       toast.error(error.message || "Failed to delete staff record.", { id: toastId })
@@ -626,7 +665,7 @@ export default function StaffDirectoryPage() {
   }
 
   const handleExportExcel = () => {
-    const data = employees.map((emp) => ({
+    const data = overviewEmployees.map((emp) => ({
       ID: emp.empId,
       "Full Name": emp.fullName,
       "Phone Number": emp.phone,
@@ -656,30 +695,10 @@ export default function StaffDirectoryPage() {
     )
   }
 
-  const filteredEmployees = employees.filter((emp) => {
-    const matchesSearch =
-      emp.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      emp.empId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      emp.phone.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      emp.nidNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (emp.roleName && emp.roleName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      emp.designation.toLowerCase().includes(searchQuery.toLowerCase())
-
-    const matchesDept =
-      departmentFilter === "all" ||
-      emp.department.toLowerCase() === departmentFilter.toLowerCase()
-
-    const matchesStatus =
-      statusFilter === "all" ||
-      emp.employmentStatus.toLowerCase() === statusFilter.toLowerCase()
-
-    return matchesSearch && matchesDept && matchesStatus
-  })
-
-  const activeStaffCount = employees.filter(
+  const activeStaffCount = overviewEmployees.filter(
     (e) => e.employmentStatus === "Active"
   ).length
-  const totalPayrollLiability = employees.reduce(
+  const totalPayrollLiability = overviewEmployees.reduce(
     (acc, curr) => acc + curr.salary,
     0
   )
@@ -1142,7 +1161,7 @@ export default function StaffDirectoryPage() {
             </div>
           </div>
           <div className="mt-3 font-mono text-[28px] leading-none font-bold tracking-tight text-slate-900">
-            {employees.length} Staff
+            {overviewEmployees.length} Staff
           </div>
         </Card>
 </PermissionGate>
@@ -1200,46 +1219,39 @@ export default function StaffDirectoryPage() {
       </div>
 
       {/* 3. Search & Filters Bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white p-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Search employee name, ID, role, NID, or phone..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-            <SelectTrigger className="h-8 w-[140px] bg-white text-xs">
-              <SelectValue placeholder="All Departments" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Departments</SelectItem>
-              {departments.map((dept) => (
-                <SelectItem key={dept} value={dept}>
-                  {dept}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 w-[130px] bg-white text-xs">
-              <SelectValue placeholder="All Status" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Active">Active</SelectItem>
-              <SelectItem value="Probationary">Probationary</SelectItem>
-              <SelectItem value="On Leave">On Leave</SelectItem>
-              <SelectItem value="Suspended">Suspended</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <ServerListToolbar
+        search={listQuery.search}
+        onSearchChange={listQuery.setSearch}
+        searchPlaceholder="Search employee name, ID, role, NID, or phone..."
+        loading={loading}
+        filters={[
+          {
+            id: "department",
+            value: listQuery.filters.department || "all",
+            onValueChange: (value) => listQuery.setFilter("department", value),
+            placeholder: "All Departments",
+            widthClassName: "w-[160px]",
+            options: [
+              { value: "all", label: "All Departments" },
+              ...departments.map((dept) => ({ value: dept, label: dept })),
+            ],
+          },
+          {
+            id: "status",
+            value: listQuery.filters.status || "all",
+            onValueChange: (value) => listQuery.setFilter("status", value),
+            placeholder: "All Status",
+            widthClassName: "w-[150px]",
+            options: [
+              { value: "all", label: "All Status" },
+              { value: "Active", label: "Active" },
+              { value: "Probationary", label: "Probationary" },
+              { value: "On Leave", label: "On Leave" },
+              { value: "Suspended", label: "Suspended" },
+            ],
+          },
+        ]}
+      />
 
       {/* 4. Staff Directory Table */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none print:hidden">
@@ -1253,7 +1265,7 @@ export default function StaffDirectoryPage() {
             </p>
           </div>
           <span className="text-xs font-medium text-slate-400">
-            Showing {filteredEmployees.length} Personnel
+            Showing {employees.length} of {totalCount} Personnel
           </span>
         </div>
 
@@ -1302,7 +1314,7 @@ export default function StaffDirectoryPage() {
                   />
                 </TableCell>
               </TableRow>
-            ) : filteredEmployees.length === 0 ? (
+            ) : employees.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={9}
@@ -1313,7 +1325,7 @@ export default function StaffDirectoryPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredEmployees.map((emp) => (
+              employees.map((emp) => (
                 <TableRow
                   key={emp.id}
                   className="border-b border-slate-50 hover:bg-slate-50/50"
@@ -1471,6 +1483,16 @@ export default function StaffDirectoryPage() {
             )}
           </TableBody>
         </Table>
+
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={loading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* 5. Employee Dossier Slide-Over */}

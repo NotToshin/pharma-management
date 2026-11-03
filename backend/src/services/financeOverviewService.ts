@@ -39,14 +39,21 @@ function parseRecordDate(dateVal?: string | Date | null): { month: number; year:
 }
 
 interface OverviewParams {
-  year?: number;
-  month?: number;
+  year?: string | number;
+  month?: string | number;
+  page?: string;
+  limit?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  search?: string;
+  searchTerm?: string;
+  type?: string;
 }
 
 export const financeOverviewService = {
   async getFinancialOverview(params: OverviewParams = {}) {
-    const yearParam = params.year || new Date().getFullYear();
-    const monthParam = params.month !== undefined ? params.month : new Date().getMonth();
+    const yearParam = params.year !== undefined ? parseInt(String(params.year), 10) || new Date().getFullYear() : new Date().getFullYear();
+    const monthParam = params.month !== undefined ? parseInt(String(params.month), 10) : new Date().getMonth();
 
     const [orders, expenses, batches, journalTxs, collections] = await Promise.all([
       prisma.order.findMany({ where: { status: { not: "Cancelled" } }, orderBy: { createdAt: "desc" } }),
@@ -214,6 +221,47 @@ export const financeOverviewService = {
       return timeB - timeA;
     });
 
+    // Server-side search / filter / sort / pagination for the transactions ledger
+    const searchTerm = (params.search || params.searchTerm || "").trim().toLowerCase();
+    const typeFilter = params.type && params.type !== "all" ? params.type : undefined;
+
+    let listedTransactions = transactions.filter((t) => {
+      if (typeFilter && t.type !== typeFilter) return false;
+      if (searchTerm) {
+        const haystack = `${t.trxCode || ""} ${t.partyName || ""} ${t.type || ""} ${t.territory || ""}`.toLowerCase();
+        if (!haystack.includes(searchTerm)) return false;
+      }
+      return true;
+    });
+
+    const allowedSortFields = ["date", "amount", "trxCode", "partyName", "type", "status"];
+    const sortBy = allowedSortFields.includes(params.sortBy || "") ? params.sortBy : "date";
+    const sortOrder = params.sortOrder === "asc" ? 1 : -1;
+    const timeOf = (val: string) => new Date(val).getTime() || 0;
+
+    listedTransactions = [...listedTransactions].sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === "date") cmp = timeOf(a.date) - timeOf(b.date);
+      else if (sortBy === "amount") cmp = Number(a.amount) - Number(b.amount);
+      else cmp = String(a[sortBy as keyof typeof a]).localeCompare(String(b[sortBy as keyof typeof b]));
+      if (cmp === 0) cmp = timeOf(a.date) - timeOf(b.date);
+      return cmp * sortOrder;
+    });
+
+    const page = Math.max(1, parseInt(params.page || "1", 10) || 1);
+    const fetchAll = !params.limit || params.limit === "all" || params.limit === "-1";
+    const limit = fetchAll ? 0 : Math.max(1, parseInt(params.limit || "10", 10) || 10);
+    const skip = limit > 0 ? (page - 1) * limit : 0;
+    const pagedTransactions = limit > 0 ? listedTransactions.slice(skip, skip + limit) : listedTransactions;
+
+    const transactionsMeta = {
+      total: listedTransactions.length,
+      page,
+      limit: limit > 0 ? limit : listedTransactions.length,
+      totalPage: limit > 0 ? Math.ceil(listedTransactions.length / limit) || 1 : 1,
+      totalPages: limit > 0 ? Math.ceil(listedTransactions.length / limit) || 1 : 1,
+    };
+
     return {
       selectedYear: yearParam,
       selectedMonth: monthParam,
@@ -239,7 +287,8 @@ export const financeOverviewService = {
         annualNetProfitBDT,
       },
       monthlyTrend,
-      transactions,
+      transactions: pagedTransactions,
+      transactionsMeta,
     };
   },
 };

@@ -18,17 +18,27 @@ function resolveActorContext(req: Request) {
 }
 
 export const getAllBatches = catchAsync(async (req: Request, res: Response) => {
-  const query = req.query as {
-    search?: string;
-    category?: string;
-    fefoStatus?: string;
-    storageCondition?: string;
-    sort?: string;
-  };
-  const batches = await inventoryService.getAllBatches(query);
-  sendResponse(res, 200, "Inventory batches retrieved successfully", batches, {
-    total: batches.length,
-  });
+  const result = await inventoryService.getAllBatches(
+    req.query as {
+      search?: string;
+      searchTerm?: string;
+      category?: string;
+      fefoStatus?: string;
+      storageCondition?: string;
+      sort?: string;
+      sortBy?: string;
+      sortOrder?: string;
+      page?: number | string;
+      limit?: number | string;
+    }
+  );
+  sendResponse(
+    res,
+    200,
+    "Inventory batches retrieved successfully",
+    result.rows,
+    result.meta
+  );
 });
 
 export const getInventoryStats = catchAsync(async (req: Request, res: Response) => {

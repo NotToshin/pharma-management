@@ -77,23 +77,33 @@ export const paymentService = {
   /**
    * Retrieves all vouchers with optional filters and pagination
    */
-  async getAllVouchers(filters?: QueryVoucherInput) {
+  async getAllVouchers(filters?: QueryVoucherInput & { sortBy?: string; sortOrder?: string; searchTerm?: string }) {
     const where: Record<string, any> = {};
 
-    if (filters?.search?.trim()) {
-      const q = filters.search.trim();
+    const searchText = (filters?.search || filters?.searchTerm || "").trim();
+    if (searchText) {
       where.OR = [
-        { voucherNo: { contains: q, mode: "insensitive" } },
-        { payeeName: { contains: q, mode: "insensitive" } },
-        { notes: { contains: q, mode: "insensitive" } },
-        { poNumber: { contains: q, mode: "insensitive" } },
-        { chequeNumber: { contains: q, mode: "insensitive" } },
-        { sourceDetail: { contains: q, mode: "insensitive" } },
+        { voucherNo: { contains: searchText, mode: "insensitive" } },
+        { payeeName: { contains: searchText, mode: "insensitive" } },
+        { notes: { contains: searchText, mode: "insensitive" } },
+        { poNumber: { contains: searchText, mode: "insensitive" } },
+        { chequeNumber: { contains: searchText, mode: "insensitive" } },
+        { sourceDetail: { contains: searchText, mode: "insensitive" } },
       ];
     }
 
-    if (filters?.status && filters.status !== "all") {
-      where.status = filters.status;
+    // Comma-separated values allow multi-select semantics (e.g. "Pending Approval,Approved")
+    const splitValues = (value?: string) =>
+      (value || "")
+        .split(",")
+        .map((v) => v.trim())
+        .filter((v) => v && v !== "all");
+
+    const statuses = splitValues(filters?.status);
+    if (statuses.length === 1) {
+      where.status = statuses[0];
+    } else if (statuses.length > 1) {
+      where.status = { in: statuses };
     }
 
     if (filters?.category && filters.category !== "all") {
@@ -108,10 +118,27 @@ export const paymentService = {
       where.fundingSource = filters.fundingSource;
     }
 
-    // Pagination calculations
+    // Allowlisted sort fields; unknown keys fall back to createdAt
+    const allowedSortFields = [
+      "createdAt",
+      "paymentDate",
+      "amount",
+      "voucherNo",
+      "payeeName",
+      "category",
+      "status",
+      "fundingSource",
+    ];
+    const sortBy = allowedSortFields.includes(filters?.sortBy || "")
+      ? (filters?.sortBy as string)
+      : "createdAt";
+    const sortOrder = filters?.sortOrder === "asc" ? "asc" : "desc";
+    const orderBy: any = { [sortBy]: sortOrder };
+
+    // Pagination calculations. Backward compatibility: missing limit or "all"/"-1" returns ALL rows
     const page = filters?.page ? Math.max(1, parseInt(filters.page, 10) || 1) : 1;
-    const isFetchAll = filters?.limit === "all" || filters?.limit === "-1";
-    const limit = isFetchAll ? 0 : filters?.limit ? Math.max(1, parseInt(filters.limit, 10) || 10) : 10;
+    const isFetchAll = !filters?.limit || filters.limit === "all" || filters.limit === "-1";
+    const limit = isFetchAll ? 0 : Math.max(1, parseInt(filters.limit || "10", 10) || 10);
     const skip = limit > 0 ? (page - 1) * limit : undefined;
     const take = limit > 0 ? limit : undefined;
 
@@ -119,7 +146,7 @@ export const paymentService = {
       prisma.expenseVoucher.count({ where }),
       prisma.expenseVoucher.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy,
         ...(skip !== undefined ? { skip } : {}),
         ...(take !== undefined ? { take } : {}),
       }),
@@ -134,6 +161,7 @@ export const paymentService = {
         page,
         limit: limit > 0 ? limit : total,
         totalPages,
+        totalPage: totalPages,
       },
     };
   },

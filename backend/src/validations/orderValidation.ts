@@ -60,7 +60,25 @@ export const updateOrderInvoiceSchema = z.object({
   }).strict().refine((value) => Object.keys(value).length > 0, "Provide invoice details to update"),
 });
 
+export const getOrdersQuerySchema = z.object({
+  query: z
+    .object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z
+        .union([z.literal("all"), z.literal("-1"), z.coerce.number().int().min(0)])
+        .optional(),
+      sortBy: z.string().optional(),
+      sortOrder: z.enum(["asc", "desc"]).optional(),
+      search: z.string().optional(),
+      searchTerm: z.string().optional(),
+      status: z.string().optional(),
+      territory: z.string().optional(),
+    })
+    .optional(),
+});
+
 export type UpdateOrderInvoiceInput = z.infer<typeof updateOrderInvoiceSchema>["body"];
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>["body"];
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>["body"];
+export type GetOrdersQueryInput = z.infer<typeof getOrdersQuerySchema>["query"];

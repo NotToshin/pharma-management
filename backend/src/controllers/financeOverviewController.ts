@@ -4,13 +4,9 @@ import { sendResponse } from "../utils/response";
 import { catchAsync } from "../utils/catchAsync";
 
 export const getFinancialOverview = catchAsync(async (req: Request, res: Response) => {
-  const yearParam = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
-  const monthParam = req.query.month !== undefined ? parseInt(req.query.month as string, 10) : undefined;
+  const { transactionsMeta, ...overview } = await financeOverviewService.getFinancialOverview(
+    req.query as { year?: string; month?: string; page?: string; limit?: string; sortBy?: string; sortOrder?: "asc" | "desc"; search?: string; searchTerm?: string; type?: string }
+  );
 
-  const overview = await financeOverviewService.getFinancialOverview({
-    year: yearParam,
-    month: monthParam,
-  });
-
-  sendResponse(res, 200, "Financial overview retrieved successfully", overview);
+  sendResponse(res, 200, "Financial overview retrieved successfully", overview, transactionsMeta);
 });

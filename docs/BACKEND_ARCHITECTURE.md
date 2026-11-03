@@ -64,7 +64,7 @@ Mounted in `app.ts`. Use the first path. Duplicate mounts keep old clients worki
 
 Paths are plural. Create is `POST /`. Update is usually `PUT /:id`. Status-style changes use `PATCH` (`/:id/status`, `/:id/invoice`, `/:id/approve`, `/:id/receive`). Register static paths such as `/bulk-import` before `/:id`. Ids are ObjectId strings.
 
-List queries accept `page`, `limit`, `sortBy`, `sortOrder`, and `searchTerm`. Audit logs also accept `search`. Filter and sort in the service. `meta` includes `total` and `totalPage` (audit logs also send `totalPages`).
+List queries accept `page`, `limit`, `sortBy`, `sortOrder`, and `searchTerm`. Audit logs, purchase orders, account-ledger transactions, payment vouchers, and the finance overview also accept `search`. Targets (`/api/targets`) additionally accept `search`, `territory`, `status`, and `fiscalYear` filters; its computed `status`/`rate` fields are filtered and sorted after enrichment. Missing `limit` (or `all`/`-1`) returns every row for backward compatibility across these endpoints. Filter and sort in the service with an allowlisted `sortBy`. `meta` includes `total` and `totalPage` (audit logs and targets also send `totalPages`).
 
 Doctor route shape:
 

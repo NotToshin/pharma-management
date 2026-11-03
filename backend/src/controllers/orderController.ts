@@ -2,10 +2,17 @@ import { Request, Response } from "express";
 import { orderService } from "../services/orderService";
 import { sendResponse } from "../utils/response";
 import { catchAsync } from "../utils/catchAsync";
+import { GetOrdersQueryInput } from "../validations/orderValidation";
 
 export const getAllOrders = catchAsync(async (req: Request, res: Response) => {
-  const orders = await orderService.getAllOrders();
-  sendResponse(res, 200, "Orders retrieved successfully", orders);
+  const query = req.query as GetOrdersQueryInput;
+  const result = await orderService.getAllOrders(query);
+  sendResponse(res, 200, "Orders retrieved successfully", result.rows, result.meta);
+});
+
+export const getOrderStats = catchAsync(async (req: Request, res: Response) => {
+  const stats = await orderService.getOrderStats();
+  sendResponse(res, 200, "Sales order statistics retrieved successfully", stats);
 });
 
 export const createOrder = catchAsync(async (req: Request, res: Response) => {

@@ -1,27 +1,28 @@
 import { Request, Response } from "express";
 import { catchAsync } from "../utils/catchAsync";
 import { sendResponse } from "../utils/response";
-import { zoneAllocationService } from "../services/zoneAllocationService";
+import { pick } from "../utils/pick";
+import { paginationFields } from "../utils/paginationHelper";
+import {
+  zoneAllocationService,
+  zoneAllocationFilterableFields,
+} from "../services/zoneAllocationService";
 
 export const getAllAllocations = catchAsync(async (req: Request, res: Response) => {
-  const { searchTerm, division, status } = req.query as {
-    searchTerm?: string;
-    division?: string;
-    status?: string;
-  };
+  const filters = pick(req.query, zoneAllocationFilterableFields);
+  const paginationOptions = pick(req.query, paginationFields);
 
-  const allocations = await zoneAllocationService.getAllAllocations({
-    searchTerm,
-    division,
-    status,
-  });
+  const result = await zoneAllocationService.getAllAllocations(
+    filters as any,
+    paginationOptions as any
+  );
 
   sendResponse(
     res,
     200,
     "MIO zone allocations retrieved successfully",
-    allocations,
-    { total: allocations.length }
+    result.data,
+    result.meta
   );
 });
 

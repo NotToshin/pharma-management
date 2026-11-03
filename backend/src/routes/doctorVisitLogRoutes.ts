@@ -6,16 +6,17 @@ import {
   updateVisitLog,
   deleteVisitLog,
 } from "../controllers/doctorVisitLogController";
-import { validateBody, validateParams } from "../utils/validate";
+import { validateBody, validateParams, validateQuery } from "../utils/validate";
 import {
   createVisitLogSchema,
   updateVisitLogSchema,
   visitLogIdParamSchema,
+  getVisitLogsQuerySchema,
 } from "../validations/doctorVisitLogValidation";
 
 const router = Router();
 
-router.get("/", getAllVisitLogs);
+router.get("/", validateQuery(getVisitLogsQuerySchema), getAllVisitLogs);
 router.get("/:id", validateParams(visitLogIdParamSchema), getVisitLogById);
 router.post("/", validateBody(createVisitLogSchema), createVisitLog);
 router.put("/:id", validateParams(visitLogIdParamSchema), validateBody(updateVisitLogSchema), updateVisitLog);

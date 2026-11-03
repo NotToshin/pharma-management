@@ -5,12 +5,15 @@ import { auditLogService } from "./auditLogService";
 import type { Prisma } from "@prisma/client";
 import { loadOrderAttributionSources, normalizeAssignment, resolveOrderMio } from "./orderAttributionService";
 import { territoryService } from "./territoryService";
+import type { QueryTerritoryTargetInput } from "../validations/territoryTargetValidation";
 
 export const territoryTargetService = {
   /**
-   * Retrieves all sales quota targets for MIOs with real-time database orders sync
+   * Retrieves sales quota targets for MIOs with real-time database orders sync.
+   * Search, filter, sort, and pagination are all resolved on the server. Missing
+   * limit (or "all"/"-1") keeps returning every row for backward compatibility.
    */
-  async getAllTargets(filters?: { fiscalYear?: string; territory?: string }) {
+  async getAllTargets(filters?: QueryTerritoryTargetInput) {
     const where: Prisma.TerritoryTargetWhereInput = {};
     if (filters?.fiscalYear && filters.fiscalYear !== "all") {
       where.fiscalYear = { equals: filters.fiscalYear, mode: "insensitive" };
@@ -18,6 +21,28 @@ export const territoryTargetService = {
     if (filters?.territory && filters.territory !== "all") {
       where.territory = { equals: filters.territory, mode: "insensitive" };
     }
+
+    // Pagination parsing (backward compatible: missing limit / "all" / "-1" => all rows)
+    const page = Math.max(1, parseInt(filters?.page || "1", 10) || 1);
+    const rawLimit = filters?.limit;
+    const hasLimit =
+      rawLimit !== undefined && rawLimit !== "" && rawLimit !== "all" && rawLimit !== "-1";
+    const parsedLimit = hasLimit ? parseInt(rawLimit, 10) : 0;
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(500, parsedLimit) : 0;
+
+    // Allowlisted sort fields; rate/achievedRaw/status are derived after enrichment.
+    const allowedSortFields = [
+      "territory",
+      "mio",
+      "targetRaw",
+      "achievedRaw",
+      "rate",
+      "fiscalYear",
+      "createdAt",
+    ];
+    const requestedSortBy = filters?.sortBy || "";
+    const sortBy = allowedSortFields.includes(requestedSortBy) ? requestedSortBy : "territory";
+    const sortOrder = filters?.sortOrder === "asc" ? "asc" : "desc";
 
     const [targets, orders, staffList, attributionSources] = await Promise.all([
       prisma.territoryTarget.findMany({
@@ -135,27 +160,92 @@ export const territoryTargetService = {
       };
     });
 
-    const totalTarget = formattedTargets.reduce((sum, t) => sum + t.targetRaw, 0);
-    const totalAchieved = formattedTargets.reduce((sum, t) => sum + t.achievedRaw, 0);
+    // Status is derived from the computed rate, and search matches enriched empId/phone,
+    // so these filters run on the formatted rows instead of the database.
+    let filtered = formattedTargets;
+    if (filters?.status && filters.status !== "all") {
+      filtered = filtered.filter((t) => t.status === filters.status);
+    }
+    const searchValue = (filters?.search || filters?.searchTerm || "").trim().toLowerCase();
+    if (searchValue) {
+      filtered = filtered.filter(
+        (t) =>
+          t.mio.toLowerCase().includes(searchValue) ||
+          t.territory.toLowerCase().includes(searchValue) ||
+          (t.empId && t.empId.toLowerCase().includes(searchValue)) ||
+          (t.phone && t.phone.toLowerCase().includes(searchValue))
+      );
+    }
+
+    const sorted = [...filtered].sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === "territory") comparison = a.territory.localeCompare(b.territory);
+      else if (sortBy === "mio") comparison = a.mio.localeCompare(b.mio);
+      else if (sortBy === "targetRaw") comparison = a.targetRaw - b.targetRaw;
+      else if (sortBy === "achievedRaw") comparison = a.achievedRaw - b.achievedRaw;
+      else if (sortBy === "rate") comparison = a.rate - b.rate;
+      else if (sortBy === "fiscalYear")
+        comparison = String(a.fiscalYear || "").localeCompare(String(b.fiscalYear || ""));
+      else
+        comparison =
+          new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+
+    const total = filtered.length;
+    const skip = limit > 0 ? (page - 1) * limit : 0;
+    const paged = limit > 0 ? sorted.slice(skip, skip + limit) : sorted;
+    const totalPage = limit > 0 ? Math.max(1, Math.ceil(total / limit)) : 1;
+
+    // Aggregates are computed over the whole filtered set so KPI cards and the
+    // chart stay independent of the current page.
+    const totalTarget = filtered.reduce((sum, t) => sum + t.targetRaw, 0);
+    const totalAchieved = filtered.reduce((sum, t) => sum + t.achievedRaw, 0);
+    const totalMatchingOrders = filtered.reduce((sum, t) => sum + (t.matchingOrdersCount || 0), 0);
     const overallRate = totalTarget > 0 ? Math.round((totalAchieved / totalTarget) * 100) : 0;
     const topPerforming =
-      formattedTargets.length > 0
-        ? formattedTargets.reduce(
-            (max, t) => (t.rate > max.rate ? t : max),
-            formattedTargets[0]
-          )
+      filtered.length > 0
+        ? filtered.reduce((max, t) => (t.rate > max.rate ? t : max), filtered[0])
         : null;
-    const underperformingCount = formattedTargets.filter((t) => t.status === "Behind").length;
+    const underperformingCount = filtered.filter((t) => t.status === "Behind").length;
+    const onTrackCount = filtered.filter(
+      (t) => t.status === "On Track" || t.status === "Surpassed"
+    ).length;
+
+    const chart = filtered.map((item) => ({
+      name: item.mio.split(" ")[0],
+      fullName: item.mio,
+      territory: item.territory,
+      Target: Number((item.targetRaw / 100000).toFixed(2)),
+      Achieved: Number((item.achievedRaw / 100000).toFixed(2)),
+      rate: item.rate,
+      ordersCount: item.matchingOrdersCount || 0,
+    }));
 
     return {
-      targets: formattedTargets,
+      targets: paged,
+      chart,
       summary: {
         totalTarget,
         totalAchieved,
         overallRate,
         topPerformingHub: topPerforming ? `${topPerforming.mio} (${topPerforming.territory})` : "N/A",
+        topPerforming: topPerforming
+          ? { mio: topPerforming.mio, territory: topPerforming.territory, rate: topPerforming.rate }
+          : null,
         underperformingCount,
+        onTrackCount,
         activeZonesCount: formattedTargets.length,
+        totalCount: formattedTargets.length,
+        filteredCount: total,
+        totalMatchingOrders,
+      },
+      meta: {
+        total,
+        page: limit > 0 ? page : 1,
+        limit: limit > 0 ? limit : total,
+        totalPage,
+        totalPages: totalPage,
       },
     };
   },

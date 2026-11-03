@@ -54,10 +54,14 @@ import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-mod
 import { toast } from "sonner"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
+import {
   MapPin,
   Users2,
   Building2,
-  Search,
   Filter,
   Plus,
   ShieldCheck,
@@ -160,10 +164,20 @@ export default function MioZoneAllocationsPage() {
   const [loading, setLoading] = React.useState(true)
   const [isRefreshing, setIsRefreshing] = React.useState(false)
 
-  // Filters
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [divisionFilter, setDivisionFilter] = React.useState("all")
-  const [statusFilter, setStatusFilter] = React.useState("all")
+  // Server-side Pagination, Sort & Filter State (shared global pattern)
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "createdAt",
+    initialSortOrder: "desc",
+    initialFilters: { division: "all", status: "all" },
+  })
+  const [totalCount, setTotalCount] = React.useState(0)
+  const [totalPages, setTotalPages] = React.useState(1)
+  const [metaOverview, setMetaOverview] = React.useState({
+    activeOfficers: 0,
+    connectedDoctors: 0,
+    connectedStores: 0,
+  })
 
   // Create Modal
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
@@ -207,21 +221,29 @@ export default function MioZoneAllocationsPage() {
     isDeleting: false,
   })
 
-  // Fetch all allocations and Staff MIOs from Backend
+  // Fetch allocations (server-driven paging) and Staff MIOs from Backend
   const fetchAllocationsData = React.useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true)
       else setIsRefreshing(true)
 
       const [allocRes, staffRes] = await Promise.all([
-        apiFetch(getEndpoint("/zone-allocations")),
+        apiFetch(getEndpoint(`/zone-allocations?${listQuery.queryKey}`)),
         apiFetch(getEndpoint("/zone-allocations/staff-mios")),
       ])
 
       if (allocRes.ok) {
         const json = await allocRes.json()
         const list = Array.isArray(json) ? json : json.data || []
+        const meta = json.meta || {}
         setAllocations(list)
+        setTotalCount(meta.total ?? list.length)
+        setTotalPages(meta.totalPage ?? meta.totalPages ?? 1)
+        setMetaOverview({
+          activeOfficers: meta.activeOfficers ?? 0,
+          connectedDoctors: meta.connectedDoctors ?? 0,
+          connectedStores: meta.connectedStores ?? 0,
+        })
       } else {
         toast.error("Failed to load zone allocations from backend.")
       }
@@ -238,7 +260,7 @@ export default function MioZoneAllocationsPage() {
       setLoading(false)
       setIsRefreshing(false)
     }
-  }, [])
+  }, [listQuery.queryKey])
 
   React.useEffect(() => {
     fetchAllocationsData()
@@ -359,7 +381,8 @@ export default function MioZoneAllocationsPage() {
           id: toastId,
         })
         setIsCreateOpen(false)
-        fetchAllocationsData(true)
+        if (listQuery.page === 1) fetchAllocationsData(true)
+        else listQuery.setPage(1)
       } else {
         const errorJson = await res.json().catch(() => null)
         toast.error(errorJson?.message || "Failed to create zone allocation.", {
@@ -466,7 +489,8 @@ export default function MioZoneAllocationsPage() {
           officerName: null,
           isDeleting: false,
         })
-        fetchAllocationsData(true)
+        if (listQuery.page === 1) fetchAllocationsData(true)
+        else listQuery.setPage(1)
       } else {
         const errorJson = await res.json().catch(() => null)
         toast.error(errorJson?.message || "Failed to delete zone allocation.", {
@@ -490,32 +514,11 @@ export default function MioZoneAllocationsPage() {
     setIsNetworkSheetOpen(true)
   }
 
-  // Filtered Allocations
-  const filteredAllocations = allocations.filter((item) => {
-    const q = searchQuery.toLowerCase().trim()
-    const matchesSearch =
-      !q ||
-      item.mioName.toLowerCase().includes(q) ||
-      item.employeeId.toLowerCase().includes(q) ||
-      item.territory.toLowerCase().includes(q) ||
-      item.allocatedZone.toLowerCase().includes(q)
-
-    const matchesDivision =
-      divisionFilter === "all" ||
-      item.division.toLowerCase().includes(divisionFilter.toLowerCase())
-
-    const matchesStatus =
-      statusFilter === "all" ||
-      item.status.toLowerCase() === statusFilter.toLowerCase()
-
-    return matchesSearch && matchesDivision && matchesStatus
-  })
-
-  // Aggregated Counts
-  const totalOfficers = allocations.length
-  const activeOfficers = allocations.filter((a) => a.status === "Active").length
-  const totalConnectedDocs = allocations.reduce((acc, curr) => acc + (curr.assignedDoctors || 0), 0)
-  const totalConnectedStores = allocations.reduce((acc, curr) => acc + (curr.assignedPharmacies || 0), 0)
+  // Aggregated Counts (server-provided overview + meta.total)
+  const totalOfficers = totalCount
+  const activeOfficers = metaOverview.activeOfficers
+  const totalConnectedDocs = metaOverview.connectedDoctors
+  const totalConnectedStores = metaOverview.connectedStores
 
   // Selected Staff for Create Modal (to show status preview)
   const currentSelectedStaff = staffMios.find((s) => s.id === selectedStaffId)
@@ -656,65 +659,55 @@ export default function MioZoneAllocationsPage() {
       {/* ─────────────────────────────────────────────
           2. Search & Filter Bar
       ───────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Search MIO name, ID, territory, or zone..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs focus-visible:ring-1 focus-visible:ring-[#0090FF]"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Division Filter */}
-          <Select value={divisionFilter} onValueChange={setDivisionFilter}>
-            <SelectTrigger className="h-8 w-[170px] border-slate-200 bg-white text-xs">
-              <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
-              <SelectValue placeholder="All Divisions" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Divisions</SelectItem>
-              {divisionList.map((div) => (
-                <SelectItem key={div} value={div}>
-                  {div}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Status Filter */}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 w-[140px] border-slate-200 bg-white text-xs">
-              <SelectValue placeholder="All Status" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="probation">Probation</SelectItem>
-              <SelectItem value="on leave">On Leave</SelectItem>
-              <SelectItem value="suspended">Suspended</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {(searchQuery || divisionFilter !== "all" || statusFilter !== "all") && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSearchQuery("")
-                setDivisionFilter("all")
-                setStatusFilter("all")
-              }}
-              className="h-8 px-2.5 text-xs text-slate-500 hover:text-slate-900"
-            >
-              Reset
-            </Button>
-          )}
-        </div>
-      </div>
+      <ServerListToolbar
+        search={listQuery.search}
+        onSearchChange={listQuery.setSearch}
+        searchPlaceholder="Search MIO name, ID, territory, or zone..."
+        loading={loading || isRefreshing}
+        sort={{
+          value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+          onValueChange: (value) => {
+            const [field, order] = value.split(":")
+            listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+          },
+          widthClassName: "w-[170px]",
+          options: [
+            { value: "createdAt:desc", label: "Newest First" },
+            { value: "createdAt:asc", label: "Oldest First" },
+            { value: "mioName:asc", label: "Officer (A → Z)" },
+            { value: "territory:asc", label: "Territory (A → Z)" },
+          ],
+        }}
+        filters={[
+          {
+            id: "division",
+            value: listQuery.filters.division || "all",
+            onValueChange: (value) => listQuery.setFilter("division", value),
+            placeholder: "All Divisions",
+            widthClassName: "w-[170px]",
+            icon: <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />,
+            options: [
+              { value: "all", label: "All Divisions" },
+              ...divisionList.map((div) => ({ value: div, label: div })),
+            ],
+          },
+          {
+            id: "status",
+            value: listQuery.filters.status || "all",
+            onValueChange: (value) => listQuery.setFilter("status", value),
+            placeholder: "All Status",
+            widthClassName: "w-[140px]",
+            options: [
+              { value: "all", label: "All Statuses" },
+              { value: "active", label: "Active" },
+              { value: "probation", label: "Probation" },
+              { value: "on leave", label: "On Leave" },
+              { value: "suspended", label: "Suspended" },
+              { value: "inactive", label: "Inactive" },
+            ],
+          },
+        ]}
+      />
 
       {/* ─────────────────────────────────────────────
           3. Allocations Register Table
@@ -730,7 +723,7 @@ export default function MioZoneAllocationsPage() {
             </p>
           </div>
           <span className="text-xs font-medium text-slate-400">
-            Showing {filteredAllocations.length} of {allocations.length} Officers
+            Showing {allocations.length} of {totalCount} Officers
           </span>
         </div>
 
@@ -739,7 +732,7 @@ export default function MioZoneAllocationsPage() {
             message="Connecting to database and calculating live network..."
             className="py-8"
           />
-        ) : filteredAllocations.length === 0 ? (
+        ) : allocations.length === 0 ? (
           <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 p-8 text-center">
             <Users2 className="h-8 w-8 text-slate-300" />
             <h4 className="text-sm font-semibold text-slate-700">No Zone Allocations Found</h4>
@@ -786,7 +779,7 @@ export default function MioZoneAllocationsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAllocations.map((item) => (
+                {allocations.map((item) => (
                   <TableRow
                     key={item.id}
                     className="border-b border-slate-50 transition-colors hover:bg-slate-50/60"
@@ -922,6 +915,16 @@ export default function MioZoneAllocationsPage() {
             </Table>
           </div>
         )}
+
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={loading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* ─────────────────────────────────────────────

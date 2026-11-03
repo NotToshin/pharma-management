@@ -39,10 +39,64 @@ interface LineItem {
 }
 
 export const orderService = {
-  async getAllOrders() {
-    const [orders, collections, attribution] = await Promise.all([
+  async getAllOrders(query?: {
+    page?: number | string;
+    limit?: number | string;
+    sortBy?: string;
+    sortOrder?: string;
+    search?: string;
+    searchTerm?: string;
+    status?: string;
+    territory?: string;
+  }) {
+    const where: any = {};
+
+    const searchValue = (query?.search || query?.searchTerm || "").trim();
+    if (searchValue) {
+      where.OR = [
+        { orderNumber: { contains: searchValue, mode: "insensitive" } },
+        { pharmacyName: { contains: searchValue, mode: "insensitive" } },
+        { itemsSummary: { contains: searchValue, mode: "insensitive" } },
+        { assignedMio: { contains: searchValue, mode: "insensitive" } },
+        { invoiceNumber: { contains: searchValue, mode: "insensitive" } },
+        { territory: { contains: searchValue, mode: "insensitive" } },
+      ];
+    }
+
+    if (query?.status && query.status !== "all") {
+      where.status = { equals: query.status, mode: "insensitive" };
+    }
+
+    if (query?.territory && query.territory !== "all") {
+      where.territory = { equals: query.territory, mode: "insensitive" };
+    }
+
+    const page = Math.max(1, parseInt(String(query?.page || "1"), 10) || 1);
+    const rawLimit = query?.limit;
+    // Backward compatibility: missing limit, "all" or "-1" returns every row.
+    const limit =
+      rawLimit === undefined || rawLimit === "all" || rawLimit === "-1"
+        ? 0
+        : Math.max(0, parseInt(String(rawLimit), 10) || 0);
+    const allowedSortFields = [
+      "createdAt",
+      "updatedAt",
+      "orderNumber",
+      "pharmacyName",
+      "orderValue",
+      "status",
+    ];
+    const sortBy = allowedSortFields.includes(query?.sortBy || "")
+      ? (query?.sortBy as string)
+      : "createdAt";
+    const sortOrder = query?.sortOrder === "asc" ? "asc" : "desc";
+
+    const [total, orders, collections, attribution] = await Promise.all([
+      prisma.order.count({ where }),
       prisma.order.findMany({
-        orderBy: { createdAt: "desc" },
+        where,
+        orderBy: { [sortBy]: sortOrder },
+        ...(limit > 0 ? { skip: (page - 1) * limit, take: limit } : {}),
       }),
       prisma.deliveryCollection.findMany({
         where: { status: { not: "Bounced / Rejected" } },
@@ -68,7 +122,7 @@ export const orderService = {
       }
     }
 
-    return orders.map((order) => {
+    const rows = orders.map((order) => {
       const total = Number(order.orderValue) || 0;
       const byOrderId = collectedByOrderId.get(order.id) || 0;
       const byInv =
@@ -82,6 +136,59 @@ export const orderService = {
       const paymentStatus = paid <= 0.009 ? "UNPAID" : paid + 0.009 >= total ? "PAID" : "PARTIALLY_PAID";
       return { ...order, assignedMio: resolveOrderMio(order, attribution) || "Unassigned", paidAmount: paid, paymentStatus };
     });
+
+    return {
+      rows,
+      meta: {
+        total,
+        page,
+        limit: limit > 0 ? limit : total,
+        totalPage: limit > 0 ? Math.ceil(total / limit) || 1 : 1,
+      },
+    };
+  },
+
+  async getOrderStats() {
+    const [orders, attribution] = await Promise.all([
+      prisma.order.findMany({
+        select: {
+          pharmacyName: true,
+          territoryId: true,
+          territory: true,
+          assignedMio: true,
+          orderValue: true,
+          status: true,
+        },
+      }),
+      loadOrderAttributionSources(),
+    ]);
+
+    let grossValue = 0;
+    let pendingCredit = 0;
+    let delivered = 0;
+    let nonCancelled = 0;
+    const reps = new Set<string>();
+
+    for (const order of orders) {
+      grossValue += Number(order.orderValue) || 0;
+      const mio = resolveOrderMio(order, attribution) || "Unassigned";
+      if (mio !== "Unassigned") reps.add(mio);
+      if (order.status === "Pending Credit Check") pendingCredit += 1;
+      if (order.status !== "Cancelled") {
+        nonCancelled += 1;
+        if (order.status === "Delivered & Invoiced") delivered += 1;
+      }
+    }
+
+    return {
+      totalOrders: orders.length,
+      grossValue,
+      activeReps: reps.size,
+      pendingCredit,
+      delivered,
+      nonCancelled,
+      otifRate: nonCancelled > 0 ? delivered / nonCancelled : 1,
+    };
   },
 
   async createOrder(data: {

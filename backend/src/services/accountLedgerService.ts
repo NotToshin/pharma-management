@@ -225,20 +225,23 @@ export const accountLedgerService = {
   async getTransactions(query?: {
     page?: string;
     limit?: string;
+    sortBy?: string;
+    sortOrder?: string;
     search?: string;
+    searchTerm?: string;
     flowType?: string;
     accountId?: string;
     reconciliationStatus?: string;
   }) {
     const where: any = {};
 
-    if (query?.search && query.search.trim()) {
-      const s = query.search.trim();
+    const searchQuery = (query?.search || query?.searchTerm || "").trim();
+    if (searchQuery) {
       where.OR = [
-        { refCode: { contains: s, mode: "insensitive" } },
-        { particulars: { contains: s, mode: "insensitive" } },
-        { fundingEntity: { contains: s, mode: "insensitive" } },
-        { method: { contains: s, mode: "insensitive" } },
+        { refCode: { contains: searchQuery, mode: "insensitive" } },
+        { particulars: { contains: searchQuery, mode: "insensitive" } },
+        { fundingEntity: { contains: searchQuery, mode: "insensitive" } },
+        { method: { contains: searchQuery, mode: "insensitive" } },
       ];
     }
 
@@ -247,9 +250,13 @@ export const accountLedgerService = {
     }
 
     if (query?.accountId && query.accountId !== "all") {
-      where.OR = [
-        { sourceAccountId: query.accountId },
-        { destinationAccountId: query.accountId },
+      where.AND = [
+        {
+          OR: [
+            { sourceAccountId: query.accountId },
+            { destinationAccountId: query.accountId },
+          ],
+        },
       ];
     }
 
@@ -257,15 +264,39 @@ export const accountLedgerService = {
       where.reconciliationStatus = { equals: query.reconciliationStatus };
     }
 
-    // If no pagination parameters provided, return all for backwards compatibility
-    if (!query?.page && !query?.limit) {
+    // Allowlisted sort fields; unknown keys fall back to createdAt
+    const allowedSortFields = [
+      "createdAt",
+      "entryDate",
+      "refCode",
+      "amount",
+      "particulars",
+      "flowType",
+      "method",
+      "fundingEntity",
+      "reconciliationStatus",
+    ];
+    const sortBy = allowedSortFields.includes(query?.sortBy || "")
+      ? (query?.sortBy as string)
+      : "createdAt";
+    const sortOrder = query?.sortOrder === "asc" ? "asc" : "desc";
+    const orderBy: any = { [sortBy]: sortOrder };
+
+    // Backward compatibility: missing page/limit or limit "all"/"-1" returns ALL rows
+    const fetchAll =
+      (!query?.page && !query?.limit) ||
+      !query?.limit ||
+      query.limit === "all" ||
+      query.limit === "-1";
+
+    if (fetchAll) {
       return prisma.journalTransaction.findMany({
         where,
         include: {
           sourceAccount: true,
           destinationAccount: true,
         },
-        orderBy: { createdAt: "desc" },
+        orderBy,
       });
     }
 
@@ -281,7 +312,7 @@ export const accountLedgerService = {
           sourceAccount: true,
           destinationAccount: true,
         },
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip,
         take: limit,
       }),
@@ -294,6 +325,7 @@ export const accountLedgerService = {
         page,
         limit,
         totalPages: Math.ceil(total / limit) || 1,
+        totalPage: Math.ceil(total / limit) || 1,
       },
     };
   },

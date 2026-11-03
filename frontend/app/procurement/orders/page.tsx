@@ -11,6 +11,11 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
 import { apiFetch } from "@/lib/api"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -203,11 +208,15 @@ export default function WholesalerPurchaseOrdersPage() {
   const [loading, setLoading] = React.useState(true)
   const [refreshing, setRefreshing] = React.useState(false)
 
-  // Filters
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [statusFilter, setStatusFilter] = React.useState("all")
-  const [priorityFilter, setPriorityFilter] = React.useState("all")
-  const [wholesalerFilter, setWholesalerFilter] = React.useState("all")
+  // Server-side list state (search / filters / sort / pagination)
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "createdAt",
+    initialSortOrder: "desc",
+    initialFilters: { status: "all", priority: "all", wholesaler: "all" },
+  })
+  const [totalPages, setTotalPages] = React.useState(1)
+  const [totalCount, setTotalCount] = React.useState(0)
 
   // Create / Edit Modal State
   const [isOrderModalOpen, setIsOrderModalOpen] = React.useState(false)
@@ -392,7 +401,7 @@ export default function WholesalerPurchaseOrdersPage() {
       else setLoading(true)
 
       const [ordersRes, metricsRes, wholesalersRes, inventoryRes, accRes] = await Promise.all([
-        apiFetch("/procurement/orders"),
+        apiFetch(`/procurement/orders?${listQuery.queryKey}`),
         apiFetch("/procurement/orders/metrics"),
         apiFetch("/wholesalers"),
         apiFetch("/inventory").catch(() => null),
@@ -402,6 +411,9 @@ export default function WholesalerPurchaseOrdersPage() {
       if (ordersRes.ok) {
         const json = await ordersRes.json()
         setOrders(json.data || [])
+        const meta = json.meta || {}
+        setTotalPages(meta.totalPage || meta.totalPages || 1)
+        setTotalCount(meta.total ?? (json.data || []).length)
       }
 
       if (accRes && accRes.ok) {
@@ -442,72 +454,11 @@ export default function WholesalerPurchaseOrdersPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [])
+  }, [listQuery.queryKey])
 
   React.useEffect(() => {
     loadData()
   }, [loadData])
-
-  // Filtered orders list
-  const filteredOrders = React.useMemo(() => {
-    return orders.filter((order) => {
-      // Search
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim()
-        const matchPo = order.poNumber?.toLowerCase().includes(q)
-        const matchWholesaler = order.wholesalerName?.toLowerCase().includes(q)
-        const matchRef = order.requisitionRef?.toLowerCase().includes(q)
-        const matchItems = order.items?.some(
-          (it) =>
-            it.drugName?.toLowerCase().includes(q) ||
-            it.genericName?.toLowerCase().includes(q) ||
-            it.skuCode?.toLowerCase().includes(q)
-        )
-        if (!matchPo && !matchWholesaler && !matchRef && !matchItems) {
-          return false
-        }
-      }
-
-      // Status
-      if (statusFilter !== "all" && order.status !== statusFilter) {
-        return false
-      }
-
-      // Priority
-      if (priorityFilter !== "all" && order.priority !== priorityFilter) {
-        return false
-      }
-
-      // Wholesaler
-      if (wholesalerFilter !== "all") {
-        const selectedWholesaler = wholesalers.find((w) => w.id === wholesalerFilter)
-        if (selectedWholesaler && order.wholesalerName !== selectedWholesaler.name) {
-          return false
-        }
-      }
-
-      return true
-    })
-  }, [orders, searchQuery, statusFilter, priorityFilter, wholesalerFilter, wholesalers])
-
-  // Status counts for filters
-  const statusCounts = React.useMemo(() => {
-    const counts = {
-      all: orders.length,
-      Submitted: 0,
-      Approved: 0,
-      "Partially Received": 0,
-      Received: 0,
-      Draft: 0,
-      Cancelled: 0,
-    }
-    for (const o of orders) {
-      if (o.status in counts) {
-        counts[o.status as keyof typeof counts]++
-      }
-    }
-    return counts
-  }, [orders])
 
   // Filtered wholesalers list for directory modal
   const filteredWholesalers = React.useMemo(() => {
@@ -790,7 +741,8 @@ export default function WholesalerPurchaseOrdersPage() {
       )
 
       setIsOrderModalOpen(false)
-      loadData()
+      if (listQuery.page === 1) loadData()
+      else listQuery.setPage(1)
     } catch (err: any) {
       console.error("Save purchase order error:", err)
       toast.error(err.message || "Failed to save purchase order", { id: toastId })
@@ -1290,7 +1242,7 @@ export default function WholesalerPurchaseOrdersPage() {
   }
 
   const handleFilterByWholesaler = (wholesalerName: string) => {
-    setWholesalerFilter(wholesalerName)
+    listQuery.setFilter("wholesaler", wholesalerName)
     setIsWholesalersModalOpen(false)
     toast.info(`Filtered purchase orders for: ${wholesalerName}`)
   }
@@ -1302,7 +1254,7 @@ export default function WholesalerPurchaseOrdersPage() {
       return
     }
 
-    const dataToExport = filteredOrders.map((o) => ({
+    const dataToExport = orders.map((o) => ({
       "PO Number": o.poNumber,
       "Order Date": o.poDate,
       "Wholesaler Name": o.wholesalerName,
@@ -1452,7 +1404,7 @@ export default function WholesalerPurchaseOrdersPage() {
             </div>
           </div>
           <div className="mt-3 font-mono text-[28px] leading-none font-bold tracking-tight text-slate-900">
-            {orders.length} Orders
+            {metrics?.totalOrdersCount ?? totalCount} Orders
           </div>
           <p className="mt-3 text-[11px] text-slate-400">
             ৳{(metrics?.totalSpendBDT || 0).toLocaleString("en-IN")} Gross Procurement Value
@@ -1521,74 +1473,74 @@ export default function WholesalerPurchaseOrdersPage() {
 </PermissionGate>
       </div>
 
-      {/* 3. Search & Filter Bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white p-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Search PO #, wholesaler, drug name, or SKU..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute top-2 right-2 text-xs text-slate-400 hover:text-slate-600"
-            >
-              ×
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Status Filter */}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 w-[170px] border-slate-200 bg-white text-xs">
-              <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
-              <SelectValue placeholder="All Order Stages" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Stages ({statusCounts.all})</SelectItem>
-              <SelectItem value="Submitted">Pending Approval ({statusCounts.Submitted})</SelectItem>
-              <SelectItem value="Approved">Approved & Inbound ({statusCounts.Approved})</SelectItem>
-              <SelectItem value="Partially Received">Partially Received ({statusCounts["Partially Received"]})</SelectItem>
-              <SelectItem value="Received">Delivered & Invoiced ({statusCounts.Received})</SelectItem>
-              <SelectItem value="Draft">Drafts ({statusCounts.Draft})</SelectItem>
-              <SelectItem value="Cancelled">Cancelled ({statusCounts.Cancelled})</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Priority Filter */}
-          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="h-8 w-[160px] border-slate-200 bg-white text-xs">
-              <SelectValue placeholder="All Priorities" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Priorities</SelectItem>
-              <SelectItem value="Routine">Routine</SelectItem>
-              <SelectItem value="Urgent / Stockout Risk">Urgent / Stockout</SelectItem>
-              <SelectItem value="Emergency Cold-Chain">Emergency Cold-Chain</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Wholesaler Filter */}
-          <Select value={wholesalerFilter} onValueChange={setWholesalerFilter}>
-            <SelectTrigger className="h-8 w-[170px] border-slate-200 bg-white text-xs">
-              <SelectValue placeholder="All Wholesalers" />
-            </SelectTrigger>
-            <SelectContent className="text-xs max-h-56">
-              <SelectItem value="all">All Wholesalers</SelectItem>
-              {wholesalers.map((w) => (
-                <SelectItem key={w.id} value={w.id}>
-                  {w.name}
-                  {w.wholesalerCode ? ` (${w.wholesalerCode})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      {/* 3. Server Search & Filter Bar */}
+      <ServerListToolbar
+        search={listQuery.search}
+        onSearchChange={listQuery.setSearch}
+        searchPlaceholder="Search PO #, wholesaler, drug name, or SKU..."
+        loading={loading}
+        sort={{
+          value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+          onValueChange: (value) => {
+            const [field, order] = value.split(":")
+            listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+          },
+          widthClassName: "w-[180px]",
+          options: [
+            { value: "createdAt:desc", label: "Newest first" },
+            { value: "createdAt:asc", label: "Oldest first" },
+            { value: "poDate:desc", label: "Order date ↓" },
+            { value: "poNumber:asc", label: "PO # A–Z" },
+            { value: "totalAmountBDT:desc", label: "Value high → low" },
+          ],
+        }}
+        filters={[
+          {
+            id: "status",
+            value: listQuery.filters.status || "all",
+            onValueChange: (value) => listQuery.setFilter("status", value),
+            placeholder: "All Order Stages",
+            widthClassName: "w-[170px]",
+            icon: <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />,
+            options: [
+              { value: "all", label: "All Stages" },
+              { value: "Submitted", label: "Pending Approval" },
+              { value: "Approved", label: "Approved & Inbound" },
+              { value: "Partially Received", label: "Partially Received" },
+              { value: "Received", label: "Delivered & Invoiced" },
+              { value: "Draft", label: "Drafts" },
+              { value: "Cancelled", label: "Cancelled" },
+            ],
+          },
+          {
+            id: "priority",
+            value: listQuery.filters.priority || "all",
+            onValueChange: (value) => listQuery.setFilter("priority", value),
+            placeholder: "All Priorities",
+            widthClassName: "w-[160px]",
+            options: [
+              { value: "all", label: "All Priorities" },
+              { value: "Routine", label: "Routine" },
+              { value: "Urgent / Stockout Risk", label: "Urgent / Stockout" },
+              { value: "Emergency Cold-Chain", label: "Emergency Cold-Chain" },
+            ],
+          },
+          {
+            id: "wholesaler",
+            value: listQuery.filters.wholesaler || "all",
+            onValueChange: (value) => listQuery.setFilter("wholesaler", value),
+            placeholder: "All Wholesalers",
+            widthClassName: "w-[170px]",
+            options: [
+              { value: "all", label: "All Wholesalers" },
+              ...wholesalers.map((w) => ({
+                value: w.name,
+                label: `${w.name}${w.wholesalerCode ? ` (${w.wholesalerCode})` : ""}`,
+              })),
+            ],
+          },
+        ]}
+      />
 
       {/* 4. Main Order Ledger Table */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none print:hidden">
@@ -1602,7 +1554,7 @@ export default function WholesalerPurchaseOrdersPage() {
             </p>
           </div>
           <span className="text-xs font-medium text-slate-400">
-            Showing {filteredOrders.length} Orders
+            Showing {orders.length} of {totalCount} Orders
           </span>
         </div>
 
@@ -1630,14 +1582,14 @@ export default function WholesalerPurchaseOrdersPage() {
                   />
                 </TableCell>
               </TableRow>
-            ) : filteredOrders.length === 0 ? (
+            ) : orders.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="py-8 text-center text-xs text-slate-400">
                   No purchase orders found matching current criteria.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredOrders.map((ord) => (
+              orders.map((ord) => (
                 <TableRow
                   key={ord.id}
                   className="border-b border-slate-50 hover:bg-slate-50/50 cursor-pointer"
@@ -1876,6 +1828,16 @@ export default function WholesalerPurchaseOrdersPage() {
             )}
           </TableBody>
         </Table>
+
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={loading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* ─────────────────────────────────────────────

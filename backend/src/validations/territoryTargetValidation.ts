@@ -29,9 +29,20 @@ export const territoryTargetIdParamSchema = z.object({
   }),
 });
 
-export const queryTerritoryTargetSchema = z.object({
-  query: z.object({
-    fiscalYear: z.string().optional(),
-    territory: z.string().optional(),
-  }).optional(),
+export const territoryTargetQueryFieldsSchema = z.object({
+  fiscalYear: z.string().optional(),
+  territory: z.string().optional(),
+  status: z.string().optional(),
+  search: z.string().optional(),
+  searchTerm: z.string().optional(),
+  page: z.string().optional(),
+  limit: z.string().optional(),
+  sortBy: z.string().optional(),
+  sortOrder: z.enum(["asc", "desc"]).optional(),
 });
+
+export const queryTerritoryTargetSchema = z.object({
+  query: territoryTargetQueryFieldsSchema.optional(),
+});
+
+export type QueryTerritoryTargetInput = z.infer<typeof territoryTargetQueryFieldsSchema>;

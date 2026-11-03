@@ -5,6 +5,11 @@ import PermissionGate from "@/components/permission-gate"
 import * as React from "react"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import { apiFetch } from "@/lib/api"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
@@ -42,7 +47,6 @@ import {
   Landmark,
   Plus,
   Download,
-  Search,
   Filter,
   Wallet,
   Building2,
@@ -57,8 +61,6 @@ import {
   Receipt,
   Pencil,
   Copy,
-  ChevronLeft,
-  ChevronRight,
   TrendingUp,
   AlertCircle,
   Clock,
@@ -218,15 +220,15 @@ export default function AccountLedgerPage() {
   const [metrics, setMetrics] = React.useState<LedgerMetrics | null>(null)
   const [loading, setLoading] = React.useState(true)
 
-  // Filters & Search
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [accountFilter, setAccountFilter] = React.useState("all")
-  const [flowFilter, setFlowFilter] = React.useState("all")
-  const [statusFilter, setStatusFilter] = React.useState("all")
-
-  // Pagination
-  const [currentPage, setCurrentPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(10)
+  // Server-side list state (search / filters / sort / pagination)
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "createdAt",
+    initialSortOrder: "desc",
+    initialFilters: { flowType: "all", accountId: "all", reconciliationStatus: "all" },
+  })
+  const [totalPages, setTotalPages] = React.useState(1)
+  const [totalCount, setTotalCount] = React.useState(0)
 
   // Modals
   const [isAddAccountOpen, setIsAddAccountOpen] = React.useState(false)
@@ -272,7 +274,7 @@ export default function AccountLedgerPage() {
       setLoading(true)
       const [accRes, txRes, metricsRes] = await Promise.all([
         apiFetch("/account-ledger/accounts").catch(() => null),
-        apiFetch("/account-ledger/transactions").catch(() => null),
+        apiFetch(`/account-ledger/transactions?${listQuery.queryKey}`).catch(() => null),
         apiFetch("/account-ledger/metrics").catch(() => null),
       ])
 
@@ -302,6 +304,9 @@ export default function AccountLedgerPage() {
             amount: Number(t.amount) || 0,
           }))
         )
+        const meta = json.meta || {}
+        setTotalPages(meta.totalPage || meta.totalPages || 1)
+        setTotalCount(meta.total ?? list.length)
       }
 
       if (metricsRes && metricsRes.ok) {
@@ -314,7 +319,7 @@ export default function AccountLedgerPage() {
     } finally {
       setLoading(false)
     }
-  }, [sourceAccountId])
+  }, [sourceAccountId, listQuery.queryKey])
 
   React.useEffect(() => {
     fetchBackendData()
@@ -334,50 +339,6 @@ export default function AccountLedgerPage() {
   }, [accounts])
 
   const totalCombinedFunds = totalBankLiquidity + totalCashSafeLiquidity
-
-  // Filtered Ledger
-  const filteredLedger = React.useMemo(() => {
-    return ledger.filter((item) => {
-      const q = searchQuery.toLowerCase().trim()
-      const matchesSearch =
-        !q ||
-        item.particulars.toLowerCase().includes(q) ||
-        item.refCode.toLowerCase().includes(q) ||
-        (item.fundingEntity && item.fundingEntity.toLowerCase().includes(q)) ||
-        item.method.toLowerCase().includes(q) ||
-        (item.sourceAccount?.accountTitle &&
-          item.sourceAccount.accountTitle.toLowerCase().includes(q)) ||
-        (item.destinationAccount?.accountTitle &&
-          item.destinationAccount.accountTitle.toLowerCase().includes(q))
-
-      const matchesAccount =
-        accountFilter === "all" ||
-        item.sourceAccountId === accountFilter ||
-        item.destinationAccountId === accountFilter
-
-      const matchesFlow =
-        flowFilter === "all" ||
-        item.flowType.toLowerCase() === flowFilter.toLowerCase()
-
-      const matchesStatus =
-        statusFilter === "all" || item.reconciliationStatus === statusFilter
-
-      return matchesSearch && matchesAccount && matchesFlow && matchesStatus
-    })
-  }, [ledger, searchQuery, accountFilter, flowFilter, statusFilter])
-
-  // Pagination Variables
-  const totalItems = filteredLedger.length
-  const totalPages = Math.ceil(totalItems / pageSize) || 1
-  const paginatedLedger = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize
-    return filteredLedger.slice(startIndex, startIndex + pageSize)
-  }, [filteredLedger, currentPage, pageSize])
-
-  // Reset page when filter changes
-  React.useEffect(() => {
-    setCurrentPage(1)
-  }, [searchQuery, accountFilter, flowFilter, statusFilter, pageSize])
 
   // Create Account Handler
   const handleOpenAddAccount = () => {
@@ -634,7 +595,7 @@ export default function AccountLedgerPage() {
 
   // Excel Export
   const handleExportExcel = () => {
-    const exportRows = filteredLedger.map((item) => ({
+    const exportRows = ledger.map((item) => ({
       "Entry Date": item.entryDate,
       "Ref Code": item.refCode,
       "Flow Type": item.flowType,
@@ -654,7 +615,7 @@ export default function AccountLedgerPage() {
       workbook,
       `AK_Pharma_Central_Treasury_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`
     )
-    toast.success(`Exported ${filteredLedger.length} ledger records to Excel.`)
+    toast.success(`Exported ${ledger.length} ledger records to Excel.`)
   }
 
   // Print Slip
@@ -822,7 +783,7 @@ export default function AccountLedgerPage() {
             </span>
           </div>
           <p className="mt-2 text-[11px] text-slate-400">
-            {metrics?.totalTransactionCount || ledger.length} recorded journal transactions
+            {metrics?.totalTransactionCount || totalCount} recorded journal transactions
           </p>
         </Card>
 </PermissionGate>
@@ -932,9 +893,9 @@ export default function AccountLedgerPage() {
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setFlowFilter(tab.id)}
+              onClick={() => listQuery.setFilter("flowType", tab.id)}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                flowFilter === tab.id
+                listQuery.filters.flowType === tab.id
                   ? "bg-[#0090FF] text-white shadow-xs"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
               }`}
@@ -944,47 +905,58 @@ export default function AccountLedgerPage() {
           ))}
         </div>
 
-        {/* Search & Account / Status Selectors */}
-        <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between shadow-xs">
-          <div className="relative max-w-sm flex-1">
-            <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-            <Input
-              placeholder="Search ref, particulars, lender, or accounts..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={accountFilter} onValueChange={setAccountFilter}>
-              <SelectTrigger className="h-8 w-[210px] border-slate-200 bg-white text-xs">
-                <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
-                <SelectValue placeholder="All Accounts & Drawers" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="all">All Accounts & Drawers</SelectItem>
-                {accounts.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.accountTitle}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-8 w-[150px] border-slate-200 bg-white text-xs">
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Reconciled">Reconciled</SelectItem>
-                <SelectItem value="In Transit">In Transit</SelectItem>
-                <SelectItem value="Unreconciled">Unreconciled</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        {/* Server-driven search, account & status filters */}
+        <ServerListToolbar
+          search={listQuery.search}
+          onSearchChange={listQuery.setSearch}
+          searchPlaceholder="Search ref, particulars, lender, or accounts..."
+          loading={loading}
+          sort={{
+            value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+            onValueChange: (value) => {
+              const [field, order] = value.split(":")
+              listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+            },
+            widthClassName: "w-[180px]",
+            options: [
+              { value: "createdAt:desc", label: "Newest entries first" },
+              { value: "createdAt:asc", label: "Oldest entries first" },
+              { value: "amount:desc", label: "Amount high → low" },
+              { value: "amount:asc", label: "Amount low → high" },
+              { value: "refCode:asc", label: "Ref code A–Z" },
+            ],
+          }}
+          filters={[
+            {
+              id: "accountId",
+              value: listQuery.filters.accountId || "all",
+              onValueChange: (value) => listQuery.setFilter("accountId", value),
+              placeholder: "All Accounts & Drawers",
+              widthClassName: "w-[210px]",
+              icon: <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />,
+              options: [
+                { value: "all", label: "All Accounts & Drawers" },
+                ...accounts.map((a) => ({
+                  value: a.id,
+                  label: a.accountTitle,
+                })),
+              ],
+            },
+            {
+              id: "reconciliationStatus",
+              value: listQuery.filters.reconciliationStatus || "all",
+              onValueChange: (value) => listQuery.setFilter("reconciliationStatus", value),
+              placeholder: "All Statuses",
+              widthClassName: "w-[150px]",
+              options: [
+                { value: "all", label: "All Statuses" },
+                { value: "Reconciled", label: "Reconciled" },
+                { value: "In Transit", label: "In Transit" },
+                { value: "Unreconciled", label: "Unreconciled" },
+              ],
+            },
+          ]}
+        />
       </div>
 
       {/* 5. Main Journal Table */}
@@ -999,7 +971,7 @@ export default function AccountLedgerPage() {
             </p>
           </div>
           <span className="text-xs font-medium text-slate-500">
-            Showing {paginatedLedger.length} of {totalItems} Filtered Records
+            Showing {ledger.length} of {totalCount} Records
           </span>
         </div>
 
@@ -1027,7 +999,7 @@ export default function AccountLedgerPage() {
                     />
                   </TableCell>
                 </TableRow>
-              ) : paginatedLedger.length === 0 ? (
+              ) : ledger.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="py-8 text-center text-xs text-slate-400">
                     No matching journal records found. Click{" "}
@@ -1035,7 +1007,7 @@ export default function AccountLedgerPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedLedger.map((row) => (
+                ledger.map((row) => (
                   <TableRow
                     key={row.id}
                     className="border-b border-slate-50 text-xs hover:bg-slate-50/60 transition-colors"
@@ -1210,69 +1182,16 @@ export default function AccountLedgerPage() {
           </Table>
         </div>
 
-        {/* 6. Pagination Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 pt-4 mt-2 gap-3 bg-white">
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span>
-              Showing{" "}
-              <span className="font-semibold text-slate-800">
-                {totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0}
-              </span>{" "}
-              to{" "}
-              <span className="font-semibold text-slate-800">
-                {Math.min(currentPage * pageSize, totalItems)}
-              </span>{" "}
-              of <span className="font-semibold text-slate-800">{totalItems}</span> journal transactions
-            </span>
-
-            <div className="flex items-center gap-1.5 ml-2">
-              <span className="text-[11px] text-slate-400">Per page:</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(val) => {
-                  setPageSize(Number(val))
-                  setCurrentPage(1)
-                }}
-              >
-                <SelectTrigger className="h-7 w-[68px] text-xs bg-slate-50 border-slate-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="text-xs">
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={currentPage <= 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="h-8 px-2.5 text-xs border-slate-200 disabled:opacity-40"
-            >
-              <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Previous
-            </Button>
-
-            <span className="text-xs font-semibold px-2 text-slate-600">
-              Page {currentPage} of {totalPages}
-            </span>
-
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="h-8 px-2.5 text-xs border-slate-200 disabled:opacity-40"
-            >
-              Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
-            </Button>
-          </div>
-        </div>
+        {/* 6. Server Pagination */}
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={loading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* 7. Modal: Add Bank Account or Cash Drawer */}

@@ -92,7 +92,10 @@ export const queryVoucherSchema = z.object({
   query: z.object({
     page: z.string().optional(),
     limit: z.string().optional(),
+    sortBy: z.string().optional(),
+    sortOrder: z.enum(["asc", "desc"]).optional(),
     search: z.string().optional(),
+    searchTerm: z.string().optional(),
     category: z.string().optional(),
     status: z.string().optional(),
     payeeType: z.string().optional(),

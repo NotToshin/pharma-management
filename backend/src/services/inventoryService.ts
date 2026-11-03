@@ -59,13 +59,30 @@ function formatCurrentDate(): string {
   return `${day} ${month} ${year}`;
 }
 
+const LEGACY_SORT_MAP: Record<string, { field: string; dir: 1 | -1 }> = {
+  fefo_asc: { field: "daysToExpiry", dir: 1 },
+  fefo_desc: { field: "daysToExpiry", dir: -1 },
+  days_asc: { field: "daysToExpiry", dir: 1 },
+  days_desc: { field: "daysToExpiry", dir: -1 },
+  units_desc: { field: "availableUnits", dir: -1 },
+  units_asc: { field: "availableUnits", dir: 1 },
+  valuation_desc: { field: "totalValuation", dir: -1 },
+  val_desc: { field: "totalValuation", dir: -1 },
+  brand_asc: { field: "brandName", dir: 1 },
+};
+
 export const inventoryService = {
   async getAllBatches(query?: {
     search?: string;
+    searchTerm?: string;
     category?: string;
     fefoStatus?: string;
     storageCondition?: string;
     sort?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    page?: number | string;
+    limit?: number | string;
   }) {
     const batches = await prisma.inventoryBatch.findMany({
       orderBy: { expiryDate: "asc" },
@@ -90,8 +107,9 @@ export const inventoryService = {
     // Apply filtering
     let filtered = enriched;
 
-    if (query?.search && query.search.trim()) {
-      const q = query.search.trim().toLowerCase();
+    const searchValue = (query?.search || query?.searchTerm || "").trim();
+    if (searchValue) {
+      const q = searchValue.toLowerCase();
       filtered = filtered.filter(
         (b) =>
           b.brandName.toLowerCase().includes(q) ||
@@ -124,36 +142,51 @@ export const inventoryService = {
       }
     }
 
-    // Apply sorting
-    if (query?.sort) {
-      switch (query.sort) {
-        case "days_asc":
-          filtered.sort((a, b) => a.daysToExpiry - b.daysToExpiry);
-          break;
-        case "days_desc":
-          filtered.sort((a, b) => b.daysToExpiry - a.daysToExpiry);
-          break;
-        case "units_desc":
-          filtered.sort((a, b) => b.availableUnits - a.availableUnits);
-          break;
-        case "units_asc":
-          filtered.sort((a, b) => a.availableUnits - b.availableUnits);
-          break;
-        case "valuation_desc":
-          filtered.sort((a, b) => b.totalValuation - a.totalValuation);
-          break;
-        case "brand_asc":
-          filtered.sort((a, b) => a.brandName.localeCompare(b.brandName));
-          break;
-        default:
-          filtered.sort((a, b) => a.daysToExpiry - b.daysToExpiry);
-      }
-    } else {
-      // Default: FEFO order (earliest expiry first)
-      filtered.sort((a, b) => a.daysToExpiry - b.daysToExpiry);
+    // Apply sorting. Allowlisted sortBy/sortOrder wins, then the legacy `sort` key,
+    // then the default FEFO order (earliest expiry first).
+    const allowedSortFields = ["daysToExpiry", "availableUnits", "totalValuation", "brandName"];
+    let sortField = "daysToExpiry";
+    let sortDir: 1 | -1 = 1;
+    if (query?.sortBy && allowedSortFields.includes(query.sortBy)) {
+      sortField = query.sortBy;
+      sortDir = query.sortOrder === "desc" ? -1 : 1;
+    } else if (query?.sort && LEGACY_SORT_MAP[query.sort]) {
+      const mapped = LEGACY_SORT_MAP[query.sort];
+      sortField = mapped.field;
+      sortDir = mapped.dir;
     }
+    filtered.sort((a, b) => {
+      const av = a[sortField as keyof typeof a];
+      const bv = b[sortField as keyof typeof b];
+      if (typeof av === "string" || typeof bv === "string") {
+        return String(av).localeCompare(String(bv)) * sortDir;
+      }
+      return (Number(av) - Number(bv)) * sortDir;
+    });
 
-    return filtered;
+    // Apply pagination. Missing limit, "all" or "-1" returns every filtered row.
+    const page = Math.max(1, parseInt(String(query?.page || "1"), 10) || 1);
+    const rawLimit = query?.limit;
+    const limit =
+      rawLimit === undefined || rawLimit === "all" || rawLimit === "-1"
+        ? 0
+        : Math.max(0, parseInt(String(rawLimit), 10) || 0);
+
+    const total = filtered.length;
+    const rows =
+      limit > 0
+        ? filtered.slice((page - 1) * limit, (page - 1) * limit + limit)
+        : filtered;
+
+    return {
+      rows,
+      meta: {
+        total,
+        page,
+        limit: limit > 0 ? limit : total,
+        totalPage: limit > 0 ? Math.ceil(total / limit) || 1 : 1,
+      },
+    };
   },
 
   async getBatchById(id: string) {

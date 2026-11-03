@@ -14,6 +14,11 @@ import { Label } from "@/components/ui/label"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -41,7 +46,6 @@ import {
   SlidersHorizontal,
   Plus,
   Download,
-  Search,
   Filter,
   AlertTriangle,
   CheckCircle2,
@@ -93,10 +97,29 @@ export default function StockAdjustmentsPage() {
   const [loading, setLoading] = React.useState(true)
   const [refreshing, setRefreshing] = React.useState(false)
 
-  // Filters
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [typeFilter, setTypeFilter] = React.useState("all")
-  const [statusFilter, setStatusFilter] = React.useState("all")
+  // Server-side Search, Filters & Sort
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "createdAt",
+    initialSortOrder: "desc",
+    initialFilters: { type: "all", status: "all" },
+  })
+  const [totalRecords, setTotalRecords] = React.useState(0)
+  const [totalPages, setTotalPages] = React.useState(1)
+
+  // Live Metric Telemetry (from /stock-adjustments/metrics)
+  const [metrics, setMetrics] = React.useState<{
+    totalRecords: number
+    netImpactBDT: number
+    writeOffCount: number
+    writeOffValue: number
+    quarantineCount: number
+    quarantineValue: number
+    approvedCount: number
+    pendingCount: number
+    rejectedCount: number
+    auditComplianceRate: number
+  } | null>(null)
 
   // Create Modal State
   const [isNewOpen, setIsNewOpen] = React.useState(false)
@@ -132,16 +155,27 @@ export default function StockAdjustmentsPage() {
       if (showToast) setRefreshing(true)
       else setLoading(true)
 
-      const [adjRes, batchRes] = await Promise.all([
-        apiFetch(`${API_URL}/stock-adjustments`),
+      const [adjRes, metricRes, batchRes] = await Promise.all([
+        apiFetch(`${API_URL}/stock-adjustments?${listQuery.queryKey}`),
+        apiFetch(`${API_URL}/stock-adjustments/metrics`).catch(() => null),
         apiFetch(`${API_URL}/inventory`).catch(() => null),
       ])
 
       if (adjRes.ok) {
         const json = await adjRes.json()
         const data = json.data || json
+        const meta = json.meta || {}
         if (Array.isArray(data)) {
           setAdjustments(data)
+        }
+        setTotalRecords(meta.total ?? (Array.isArray(data) ? data.length : 0))
+        setTotalPages(meta.totalPage ?? meta.totalPages ?? 1)
+      }
+
+      if (metricRes && metricRes.ok) {
+        const metricJson = await metricRes.json()
+        if (metricJson?.data) {
+          setMetrics(metricJson.data)
         }
       }
 
@@ -163,7 +197,7 @@ export default function StockAdjustmentsPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [])
+  }, [listQuery.queryKey])
 
   React.useEffect(() => {
     loadData()
@@ -303,82 +337,74 @@ export default function StockAdjustmentsPage() {
     }
   }
 
-  // Export to Excel
-  const handleExportExcel = () => {
-    if (adjustments.length === 0) {
+  // Export to Excel (fetches the full filtered dataset from the server)
+  const handleExportExcel = async () => {
+    if (totalRecords === 0 && adjustments.length === 0) {
       toast.error("No adjustments data available to export")
       return
     }
 
-    const data = adjustments.map((a) => ({
-      "Adjustment Ref": a.adjustmentRef,
-      Date: a.date,
-      "SKU Code": a.skuCode,
-      "Formulation Name": a.formulationName,
-      "Batch Number": a.batchNumber,
-      Location: a.warehouseLocation,
-      "Adjustment Type": a.type,
-      "Quantity Adjusted": a.quantity,
-      "Unit Cost (৳)": a.unitCostBDT,
-      "Total Financial Impact (৳)": a.totalImpactBDT,
-      "Justification / Reason": a.reasonCode,
-      "Authorized Signatory": a.authorizedBy,
-      Status: a.approvalStatus,
-    }))
+    const toastId = toast.loading("Preparing adjustment ledger export...")
+    try {
+      const params = new URLSearchParams(listQuery.params)
+      params.set("page", "1")
+      params.set("limit", "0")
+      const res = await apiFetch(`${API_URL}/stock-adjustments?${params.toString()}`)
+      if (!res.ok) throw new Error("Failed to load the full adjustment ledger")
+      const json = await res.json()
+      const rows = Array.isArray(json) ? json : json.data || []
 
-    const worksheet = XLSX.utils.json_to_sheet(data)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Inventory Adjustments")
-    XLSX.writeFile(
-      workbook,
-      `AK_Pharma_Stock_Adjustments_${new Date().toISOString().slice(0, 10)}.xlsx`
-    )
-    toast.success("Excel ledger exported successfully")
+      const data = rows.map((a: any) => ({
+        "Adjustment Ref": a.adjustmentRef,
+        Date: a.date,
+        "SKU Code": a.skuCode,
+        "Formulation Name": a.formulationName,
+        "Batch Number": a.batchNumber,
+        Location: a.warehouseLocation,
+        "Adjustment Type": a.type,
+        "Quantity Adjusted": a.quantity,
+        "Unit Cost (৳)": a.unitCostBDT,
+        "Total Financial Impact (৳)": a.totalImpactBDT,
+        "Justification / Reason": a.reasonCode,
+        "Authorized Signatory": a.authorizedBy,
+        Status: a.approvalStatus,
+      }))
+
+      const worksheet = XLSX.utils.json_to_sheet(data)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Inventory Adjustments")
+      XLSX.writeFile(
+        workbook,
+        `AK_Pharma_Stock_Adjustments_${new Date().toISOString().slice(0, 10)}.xlsx`
+      )
+      toast.success(`Excel ledger exported successfully (${data.length} records)`, { id: toastId })
+    } catch (err: any) {
+      console.error("Export failed:", err)
+      toast.error("Failed to export adjustment ledger.", { id: toastId })
+    }
   }
 
-  // Filtered adjustments
-  const filteredAdjustments = adjustments.filter((adj) => {
-    const matchesSearch =
-      (adj.adjustmentRef || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (adj.skuCode || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (adj.formulationName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (adj.batchNumber || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (adj.reasonCode || "").toLowerCase().includes(searchQuery.toLowerCase())
-
-    const matchesType =
-      typeFilter === "all" ||
-      (adj.type || "").toLowerCase() === typeFilter.toLowerCase()
-
-    const matchesStatus =
-      statusFilter === "all" ||
-      (adj.approvalStatus || "").toLowerCase() === statusFilter.toLowerCase()
-
-    return matchesSearch && matchesType && matchesStatus
-  })
-
-  // Live Metric Telemetry Calculations
-  const totalNetImpact = adjustments.reduce(
+  // Live Metric Telemetry Calculations (prefer the metrics endpoint; fall back to the page)
+  const totalNetImpact = metrics?.netImpactBDT ?? adjustments.reduce(
     (acc, curr) => acc + (Number(curr.totalImpactBDT) || 0),
     0
   )
-  const writeOffAdjustments = adjustments.filter((a) =>
+  const writeOffCount = metrics?.writeOffCount ?? adjustments.filter((a) =>
     (a.type || "").toLowerCase().includes("write-off")
-  )
-  const writeOffCount = writeOffAdjustments.length
-  const writeOffTotalUnits = writeOffAdjustments.reduce(
-    (acc, curr) => acc + Math.abs(curr.quantity || 0),
-    0
-  )
-
-  const approvedCount = adjustments.filter(
+  ).length
+  const writeOffTotalUnits = adjustments.filter((a) =>
+    (a.type || "").toLowerCase().includes("write-off")
+  ).reduce((acc, curr) => acc + Math.abs(curr.quantity || 0), 0)
+  const writeOffValue = metrics?.writeOffValue ?? 0
+  const approvedCount = metrics?.approvedCount ?? adjustments.filter(
     (a) => a.approvalStatus === "Approved & Adjusted"
   ).length
-  const auditComplianceRate =
-    adjustments.length > 0
+  const auditComplianceRate = metrics?.auditComplianceRate ??
+    (adjustments.length > 0
       ? Math.round((approvedCount / adjustments.length) * 100)
-      : 100
-
-  const quarantinedImpact = adjustments
+      : 100)
+  const quarantinedCount = metrics?.quarantineCount ?? 0
+  const quarantinedImpact = metrics?.quarantineValue ?? adjustments
     .filter(
       (a) =>
         (a.type || "").toLowerCase().includes("quarantine") ||
@@ -729,7 +755,7 @@ export default function StockAdjustmentsPage() {
               : `+৳${totalNetImpact.toLocaleString("en-IN")}`}
           </div>
           <p className="mt-3 text-[11px] font-medium text-slate-400">
-            Real-time value variance across {adjustments.length} adjustment records
+            Real-time value variance across {metrics?.totalRecords ?? totalRecords} adjustment records
           </p>
         </Card>
 </PermissionGate>
@@ -748,7 +774,9 @@ export default function StockAdjustmentsPage() {
             {writeOffCount} Incidents
           </div>
           <p className="mt-3 text-[11px] font-semibold text-amber-600">
-            {writeOffTotalUnits} damaged or compromised units removed
+            {metrics
+              ? `৳${writeOffValue.toLocaleString("en-IN")} written off from active stock`
+              : `${writeOffTotalUnits} damaged or compromised units removed`}
           </p>
         </Card>
 </PermissionGate>
@@ -774,7 +802,7 @@ export default function StockAdjustmentsPage() {
             {auditComplianceRate}% Approved
           </div>
           <p className="mt-3 text-[11px] font-medium text-slate-400">
-            {approvedCount} of {adjustments.length} adjustments holds authorized sign-off
+            {approvedCount} of {metrics?.totalRecords ?? totalRecords} adjustments holds authorized sign-off
           </p>
         </Card>
 </PermissionGate>
@@ -793,52 +821,64 @@ export default function StockAdjustmentsPage() {
             ৳{quarantinedImpact.toLocaleString("en-IN")}
           </div>
           <p className="mt-3 text-[11px] font-medium text-slate-400">
-            Isolated in Quarantine Bay Q-01 for QA testing
+            {quarantinedCount} isolated batches in Quarantine Bay Q-01 for QA testing
           </p>
         </Card>
 </PermissionGate>
       </div>
 
       {/* 3. Search & Filters */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white p-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-          <Input
-            placeholder="Search ref #, SKU, formulation, batch, or reason..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 border-slate-200 bg-slate-50/50 pl-8 text-xs"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="h-8 w-[190px] border-slate-200 bg-white text-xs">
-              <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Adjustment Types</SelectItem>
-              <SelectItem value="write-off (damaged/broken)">Write-offs</SelectItem>
-              <SelectItem value="quarantine transfer">Quarantine Transfers</SelectItem>
-              <SelectItem value="audit count discrepancy">Audit Discrepancies</SelectItem>
-              <SelectItem value="restock inward correction">Inward Corrections</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 w-[160px] border-slate-200 bg-white text-xs">
-              <SelectValue placeholder="All Status" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="approved & adjusted">Approved & Adjusted</SelectItem>
-              <SelectItem value="pending review">Pending Review</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <ServerListToolbar
+        search={listQuery.search}
+        onSearchChange={listQuery.setSearch}
+        searchPlaceholder="Search ref #, SKU, formulation, batch, or reason..."
+        loading={loading}
+        sort={{
+          value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+          onValueChange: (value) => {
+            const [field, order] = value.split(":")
+            listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+          },
+          widthClassName: "w-[180px]",
+          options: [
+            { value: "createdAt:desc", label: "Newest first" },
+            { value: "createdAt:asc", label: "Oldest first" },
+            { value: "totalImpactBDT:desc", label: "Value Impact: High to Low" },
+            { value: "totalImpactBDT:asc", label: "Value Impact: Low to High" },
+            { value: "quantity:desc", label: "Quantity: High to Low" },
+          ],
+        }}
+        filters={[
+          {
+            id: "type",
+            value: listQuery.filters.type || "all",
+            onValueChange: (value) => listQuery.setFilter("type", value),
+            placeholder: "All Categories",
+            widthClassName: "w-[190px]",
+            icon: <Filter className="mr-1.5 h-3.5 w-3.5 text-slate-400" />,
+            options: [
+              { value: "all", label: "All Adjustment Types" },
+              { value: "Write-off (Damaged/Broken)", label: "Write-offs" },
+              { value: "Quarantine Transfer", label: "Quarantine Transfers" },
+              { value: "Audit Count Discrepancy", label: "Audit Discrepancies" },
+              { value: "Restock Inward Correction", label: "Inward Corrections" },
+            ],
+          },
+          {
+            id: "status",
+            value: listQuery.filters.status || "all",
+            onValueChange: (value) => listQuery.setFilter("status", value),
+            placeholder: "All Status",
+            widthClassName: "w-[170px]",
+            options: [
+              { value: "all", label: "All Status" },
+              { value: "Approved & Adjusted", label: "Approved & Adjusted" },
+              { value: "Pending Review", label: "Pending Review" },
+              { value: "Rejected", label: "Rejected" },
+            ],
+          },
+        ]}
+      />
 
       {/* 4. Adjustments Ledger Table */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none print:hidden">
@@ -853,7 +893,7 @@ export default function StockAdjustmentsPage() {
             </p>
           </div>
           <span className="text-xs font-medium text-slate-400">
-            Showing {filteredAdjustments.length} of {adjustments.length} Records
+            Showing {adjustments.length} of {totalRecords} Records
           </span>
         </div>
 
@@ -862,7 +902,7 @@ export default function StockAdjustmentsPage() {
             message="Loading stock adjustments from database..."
             className="py-8"
           />
-        ) : filteredAdjustments.length === 0 ? (
+        ) : adjustments.length === 0 ? (
           <div className="py-12 text-center text-xs text-slate-400">
             <Package className="mx-auto h-8 w-8 text-slate-300" />
             <p className="mt-2 font-medium text-slate-600">No stock adjustment entries found</p>
@@ -902,7 +942,7 @@ export default function StockAdjustmentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAdjustments.map((adj) => (
+                {adjustments.map((adj) => (
                   <TableRow
                     key={adj.id}
                     className="border-b border-slate-50 hover:bg-slate-50/50"
@@ -1068,6 +1108,16 @@ export default function StockAdjustmentsPage() {
             </Table>
           </div>
         )}
+
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalRecords}
+          limit={listQuery.limit}
+          loading={loading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* 5. Printable Adjustment Slip Modal */}

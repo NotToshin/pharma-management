@@ -41,6 +41,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
 import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
+import {
   Table,
   TableBody,
   TableCell,
@@ -65,21 +70,17 @@ import {
   CalendarDays,
   ArrowUpRight,
   Plus,
-  Search,
   RefreshCw,
   MoreHorizontal,
   Pencil,
   Trash2,
   MapPin,
   UserCheck,
-  Filter,
   CheckCircle2,
   Loader2,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  User,
-  SlidersHorizontal,
 } from "lucide-react"
 import { getEndpoint, apiFetch } from "@/lib/api"
 import { toast } from "sonner"
@@ -127,8 +128,23 @@ export interface TargetSummary {
   totalAchieved: number
   overallRate: number
   topPerformingHub: string
+  topPerforming: { mio: string; territory: string; rate: number } | null
   underperformingCount: number
+  onTrackCount: number
   activeZonesCount: number
+  totalCount: number
+  filteredCount: number
+  totalMatchingOrders: number
+}
+
+export interface TargetChartPoint {
+  name: string
+  fullName: string
+  territory: string
+  Target: number
+  Achieved: number
+  rate: number
+  ordersCount: number
 }
 
 export interface MioOption {
@@ -148,17 +164,22 @@ export interface TargetOptions {
 }
 
 type SortField = "territory" | "mio" | "targetRaw" | "achievedRaw" | "rate"
-type SortDirection = "asc" | "desc"
 
 export default function TargetVsAchievementPage() {
   const [targets, setTargets] = React.useState<MioTargetItem[]>([])
+  const [chartData, setChartData] = React.useState<TargetChartPoint[]>([])
   const [summary, setSummary] = React.useState<TargetSummary>({
     totalTarget: 0,
     totalAchieved: 0,
     overallRate: 0,
     topPerformingHub: "N/A",
+    topPerforming: null,
     underperformingCount: 0,
+    onTrackCount: 0,
     activeZonesCount: 0,
+    totalCount: 0,
+    filteredCount: 0,
+    totalMatchingOrders: 0,
   })
   const [options, setOptions] = React.useState<TargetOptions>({
     territories: [],
@@ -173,12 +194,15 @@ export default function TargetVsAchievementPage() {
   const fetchRequest = React.useRef(0)
   const fetchInFlight = React.useRef(false)
 
-  // Filters, Search & Sorting
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [selectedTerritory, setSelectedTerritory] = React.useState<string>("all")
-  const [statusFilter, setStatusFilter] = React.useState<string>("all")
-  const [sortField, setSortField] = React.useState<SortField>("territory")
-  const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc")
+  // Server-driven list query: search, sort, filters, and pagination live on the backend
+  const listQuery = useServerListQuery({
+    initialLimit: 10,
+    initialSortBy: "territory",
+    initialSortOrder: "asc",
+    initialFilters: { territory: "all", status: "all" },
+  })
+  const [totalPages, setTotalPages] = React.useState(1)
+  const [totalCount, setTotalCount] = React.useState(0)
 
   // Create Modal State
   const [isAddOpen, setIsAddOpen] = React.useState(false)
@@ -222,7 +246,7 @@ export default function TargetVsAchievementPage() {
     isDeleting: false,
   })
 
-  // Fetch targets and options from Backend
+  // Fetch targets and options from Backend (server-side search/sort/filter/pagination)
   const fetchData = React.useCallback(async (silent = false, background = false) => {
     if (background && fetchInFlight.current) return
     const requestId = ++fetchRequest.current
@@ -234,7 +258,7 @@ export default function TargetVsAchievementPage() {
       }
 
       const [targetsRes, optionsRes] = await Promise.all([
-        apiFetch(getEndpoint("/targets"), { cache: "no-store" }),
+        apiFetch(getEndpoint(`/targets?${listQuery.queryKey}`), { cache: "no-store" }),
         apiFetch(getEndpoint("/targets/options"), { cache: "no-store" }),
       ])
       if (requestId !== fetchRequest.current) return
@@ -243,13 +267,20 @@ export default function TargetVsAchievementPage() {
         const json = await targetsRes.json()
         if (requestId !== fetchRequest.current) return
         const payload = json.data || json
+        const meta = json.meta || {}
         if (payload.targets && Array.isArray(payload.targets)) {
           setTargets(payload.targets)
+          setChartData(Array.isArray(payload.chart) ? payload.chart : [])
           if (payload.summary) {
             setSummary(payload.summary)
           }
+          setTotalPages(meta.totalPages || meta.totalPage || 1)
+          setTotalCount(meta.total ?? payload.targets.length)
         } else if (Array.isArray(payload)) {
           setTargets(payload)
+          setChartData([])
+          setTotalPages(1)
+          setTotalCount(payload.length)
         }
       } else if (!background) {
         toast.error("Failed to fetch MIO targets from database.")
@@ -277,7 +308,7 @@ export default function TargetVsAchievementPage() {
         setIsRefreshing(false)
       }
     }
-  }, [])
+  }, [listQuery.queryKey])
 
   React.useEffect(() => {
     fetchData()
@@ -340,21 +371,13 @@ export default function TargetVsAchievementPage() {
     }
   }
 
-  // Toggle Sorting column
+  // Toggle Sorting column (server-driven)
   const handleSortToggle = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
+    if (listQuery.sortBy === field) {
+      listQuery.setSort(field, listQuery.sortOrder === "asc" ? "desc" : "asc")
     } else {
-      setSortField(field)
-      setSortDirection("asc")
+      listQuery.setSort(field, "asc")
     }
-  }
-
-  // Handle preset sort selection from dropdown
-  const handleSortDropdownChange = (value: string) => {
-    const [field, dir] = value.split(":") as [SortField, SortDirection]
-    setSortField(field)
-    setSortDirection(dir)
   }
 
   // Custom entries create an explicit master record before assigning a quota.
@@ -428,7 +451,8 @@ export default function TargetVsAchievementPage() {
         setNewTarget("")
         setNewAchieved("")
         setNewNotes("")
-        await fetchData(true)
+        if (listQuery.page === 1) await fetchData(true)
+        else listQuery.setPage(1)
       } else {
         toast.error(json.message || "Failed to save target quota.", {
           id: toastId,
@@ -572,85 +596,26 @@ export default function TargetVsAchievementPage() {
     }
   }
 
-  // Filter and Sort targets
-  const processedTargets = React.useMemo(() => {
-    const filtered = targets.filter((item) => {
-      const q = searchQuery.trim().toLowerCase()
-      const matchesSearch =
-        q === "" ||
-        item.mio.toLowerCase().includes(q) ||
-        item.territory.toLowerCase().includes(q) ||
-        (item.empId && item.empId.toLowerCase().includes(q)) ||
-        (item.phone && item.phone.toLowerCase().includes(q))
-
-      const matchesTerritory =
-        selectedTerritory === "all" ||
-        item.territory.toLowerCase() === selectedTerritory.toLowerCase()
-
-      const matchesStatus =
-        statusFilter === "all" || item.status === statusFilter
-
-      return matchesSearch && matchesTerritory && matchesStatus
-    })
-
-    // Sort according to active sortField and sortDirection
-    return filtered.sort((a, b) => {
-      let comparison = 0
-      if (sortField === "territory") {
-        comparison = a.territory.localeCompare(b.territory)
-      } else if (sortField === "mio") {
-        comparison = a.mio.localeCompare(b.mio)
-      } else if (sortField === "targetRaw") {
-        comparison = a.targetRaw - b.targetRaw
-      } else if (sortField === "achievedRaw") {
-        comparison = a.achievedRaw - b.achievedRaw
-      } else if (sortField === "rate") {
-        comparison = a.rate - b.rate
-      }
-
-      return sortDirection === "asc" ? comparison : -comparison
-    })
-  }, [targets, searchQuery, selectedTerritory, statusFilter, sortField, sortDirection])
-
+  // Search, sort, filters, and pagination are resolved on the server. The
+  // aggregates below arrive in `summary`, computed over the whole filtered set
+  // (not just the current page), so KPI cards and the chart stay intact.
   const isFiltered =
-    selectedTerritory !== "all" ||
-    searchQuery.trim() !== "" ||
-    statusFilter !== "all"
+    (listQuery.filters.territory && listQuery.filters.territory !== "all") ||
+    (listQuery.filters.status && listQuery.filters.status !== "all") ||
+    listQuery.debouncedSearch.trim() !== ""
 
-  const activeList = isFiltered ? processedTargets : targets
+  const totalTarget = summary.totalTarget
+  const totalAchieved = summary.totalAchieved
+  const totalMatchingOrders = summary.totalMatchingOrders
+  const overallRate = summary.overallRate
+  const topPerforming = summary.topPerforming
+  const underperformingCount = summary.underperformingCount
+  const onTrackCount = summary.onTrackCount
+  const allQuotaCount = summary.totalCount ?? targets.length
+  const shownFilteredCount = summary.filteredCount ?? targets.length
 
-  // Aggregated totals computed dynamically from current database targets
-  const totalTarget = activeList.reduce((acc, curr) => acc + curr.targetRaw, 0)
-  const totalAchieved = activeList.reduce((acc, curr) => acc + curr.achievedRaw, 0)
-  const totalMatchingOrders = activeList.reduce(
-    (sum, t) => sum + (t.matchingOrdersCount || 0),
-    0
-  )
-  const overallRate =
-    totalTarget > 0 ? Math.round((totalAchieved / totalTarget) * 100) : 0
-
-  const topPerforming =
-    activeList.length > 0
-      ? activeList.reduce((max, t) => (t.rate > max.rate ? t : max), activeList[0])
-      : null
-
-  const underperformingCount = activeList.filter((t) => t.status === "Behind").length
-  const onTrackCount = activeList.filter(
-    (t) => t.status === "On Track" || t.status === "Surpassed"
-  ).length
-
-  // Chart data formatted from targets per MIO (in Lakhs)
-  const dynamicChartData = processedTargets.map((item) => ({
-    name: item.mio.split(" ")[0],
-    fullName: item.mio,
-    territory: item.territory,
-    Target: Number((item.targetRaw / 100000).toFixed(2)),
-    Achieved: Number((item.achievedRaw / 100000).toFixed(2)),
-    rate: item.rate,
-    ordersCount: item.matchingOrdersCount || 0,
-  }))
-
-  // Distinct territories in database for filtering dropdown
+  // Distinct territories for the filtering dropdown: current page rows plus the
+  // complete master Territory collection (active and inactive) from /options.
   const uniqueTerritories = React.useMemo(() => {
     const terrSet = new Set<string>()
     targets.forEach((t) => {
@@ -659,8 +624,11 @@ export default function TargetVsAchievementPage() {
     options.territories.forEach((t) => {
       if (t?.trim()) terrSet.add(t.trim())
     })
+    options.territoryList?.forEach((t) => {
+      if (t.name?.trim()) terrSet.add(t.name.trim())
+    })
     return Array.from(terrSet).sort((a, b) => a.localeCompare(b))
-  }, [targets, options.territories])
+  }, [targets, options.territories, options.territoryList])
 
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-12">
@@ -928,8 +896,8 @@ export default function TargetVsAchievementPage() {
           </div>
           <p className="mt-3 text-[11px] text-slate-400">
             {isFiltered
-              ? `Filtered (${activeList.length} of ${targets.length} MIO Quotas)`
-              : `Across ${targets.length} Active MIO Field Quotas`}
+              ? `Filtered (${shownFilteredCount} of ${allQuotaCount} MIO Quotas)`
+              : `Across ${allQuotaCount} Active MIO Field Quotas`}
           </p>
         </Card>
 </PermissionGate>
@@ -1041,14 +1009,14 @@ export default function TargetVsAchievementPage() {
               size="sm"
               className="h-full py-0"
             />
-          ) : dynamicChartData.length === 0 ? (
+          ) : chartData.length === 0 ? (
             <div className="flex h-full items-center justify-center text-xs text-slate-400">
               No MIO quotas registered in database yet.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={dynamicChartData}
+                data={chartData}
                 barGap={6}
                 margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
               >
@@ -1128,7 +1096,7 @@ export default function TargetVsAchievementPage() {
       </Card>
 </PermissionGate>
 
-      {/* 4. MIO Performance Ledger with Territory Sorting, Filtering & Search */}
+      {/* 4. MIO Performance Ledger with server-side Sorting, Filtering & Search */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -1144,74 +1112,63 @@ export default function TargetVsAchievementPage() {
               </Badge>
             </div>
             <span className="text-xs text-slate-400">
-              Showing {processedTargets.length} of {targets.length} Designated MIO Field Quotas from Database
+              Showing {targets.length} of {totalCount} Designated MIO Field Quotas from Database
             </span>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Search Input */}
-            <div className="relative w-44 sm:w-56">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-              <Input
-                placeholder="Search MIO or Territory..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-8 pl-8 text-xs bg-slate-50/50"
-              />
-            </div>
-
-            {/* Filter by Territory */}
-            <Select value={selectedTerritory} onValueChange={setSelectedTerritory}>
-              <SelectTrigger className="h-8 text-xs w-[145px] bg-white">
-                <MapPin className="mr-1 h-3 w-3 text-slate-400" />
-                <SelectValue placeholder="All Territories" />
-              </SelectTrigger>
-              <SelectContent className="max-h-60 text-xs">
-                <SelectItem value="all">All Territories</SelectItem>
-                {uniqueTerritories.map((terr) => (
-                  <SelectItem key={terr} value={terr}>
-                    {terr}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Sort Dropdown */}
-            <Select
-              value={`${sortField}:${sortDirection}`}
-              onValueChange={handleSortDropdownChange}
-            >
-              <SelectTrigger className="h-8 text-xs w-[165px] bg-white">
-                <SlidersHorizontal className="mr-1 h-3 w-3 text-slate-400" />
-                <SelectValue placeholder="Sort By" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="territory:asc">Territory: A → Z</SelectItem>
-                <SelectItem value="territory:desc">Territory: Z → A</SelectItem>
-                <SelectItem value="mio:asc">MIO Name: A → Z</SelectItem>
-                <SelectItem value="mio:desc">MIO Name: Z → A</SelectItem>
-                <SelectItem value="rate:desc">Achievement: High → Low</SelectItem>
-                <SelectItem value="rate:asc">Achievement: Low → High</SelectItem>
-                <SelectItem value="targetRaw:desc">Target: High → Low</SelectItem>
-                <SelectItem value="targetRaw:asc">Target: Low → High</SelectItem>
-                <SelectItem value="achievedRaw:desc">Achieved: High → Low</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Status Filter */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-8 text-xs w-[130px] bg-white">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Surpassed">Surpassed (≥100%)</SelectItem>
-                <SelectItem value="On Track">On Track (90-99%)</SelectItem>
-                <SelectItem value="Behind">Behind (&lt;90%)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
+
+        <ServerListToolbar
+          search={listQuery.search}
+          onSearchChange={listQuery.setSearch}
+          searchPlaceholder="Search MIO or Territory..."
+          loading={isLoading}
+          sort={{
+            value: `${listQuery.sortBy}:${listQuery.sortOrder}`,
+            onValueChange: (value) => {
+              const [field, order] = value.split(":")
+              listQuery.setSort(field, order === "asc" ? "asc" : "desc")
+            },
+            widthClassName: "w-[180px]",
+            options: [
+              { value: "territory:asc", label: "Territory: A → Z" },
+              { value: "territory:desc", label: "Territory: Z → A" },
+              { value: "mio:asc", label: "MIO Name: A → Z" },
+              { value: "mio:desc", label: "MIO Name: Z → A" },
+              { value: "rate:desc", label: "Achievement: High → Low" },
+              { value: "rate:asc", label: "Achievement: Low → High" },
+              { value: "targetRaw:desc", label: "Target: High → Low" },
+              { value: "targetRaw:asc", label: "Target: Low → High" },
+              { value: "achievedRaw:desc", label: "Achieved: High → Low" },
+            ],
+          }}
+          filters={[
+            {
+              id: "territory",
+              value: listQuery.filters.territory || "all",
+              onValueChange: (value) => listQuery.setFilter("territory", value),
+              placeholder: "All Territories",
+              widthClassName: "w-[170px]",
+              icon: <MapPin className="mr-1.5 h-3.5 w-3.5 text-slate-400" />,
+              options: [
+                { value: "all", label: "All Territories" },
+                ...uniqueTerritories.map((terr) => ({ value: terr, label: terr })),
+              ],
+            },
+            {
+              id: "status",
+              value: listQuery.filters.status || "all",
+              onValueChange: (value) => listQuery.setFilter("status", value),
+              placeholder: "All Status",
+              widthClassName: "w-[150px]",
+              options: [
+                { value: "all", label: "All Status" },
+                { value: "Surpassed", label: "Surpassed (≥100%)" },
+                { value: "On Track", label: "On Track (90-99%)" },
+                { value: "Behind", label: "Behind (<90%)" },
+              ],
+            },
+          ]}
+        />
 
         <div className="overflow-x-auto">
           <Table>
@@ -1224,8 +1181,8 @@ export default function TargetVsAchievementPage() {
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Medical Information Officer (MIO)</span>
-                    {sortField === "mio" ? (
-                      sortDirection === "asc" ? (
+                    {listQuery.sortBy === "mio" ? (
+                      listQuery.sortOrder === "asc" ? (
                         <ArrowUp className="h-3.5 w-3.5 text-[#0090FF]" />
                       ) : (
                         <ArrowDown className="h-3.5 w-3.5 text-[#0090FF]" />
@@ -1244,8 +1201,8 @@ export default function TargetVsAchievementPage() {
                   <div className="flex items-center gap-1.5">
                     <MapPin className="h-3.5 w-3.5 text-slate-400" />
                     <span>Territory</span>
-                    {sortField === "territory" ? (
-                      sortDirection === "asc" ? (
+                    {listQuery.sortBy === "territory" ? (
+                      listQuery.sortOrder === "asc" ? (
                         <ArrowUp className="h-3.5 w-3.5 text-[#0090FF]" />
                       ) : (
                         <ArrowDown className="h-3.5 w-3.5 text-[#0090FF]" />
@@ -1263,8 +1220,8 @@ export default function TargetVsAchievementPage() {
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Quota Target</span>
-                    {sortField === "targetRaw" ? (
-                      sortDirection === "asc" ? (
+                    {listQuery.sortBy === "targetRaw" ? (
+                      listQuery.sortOrder === "asc" ? (
                         <ArrowUp className="h-3.5 w-3.5 text-[#0090FF]" />
                       ) : (
                         <ArrowDown className="h-3.5 w-3.5 text-[#0090FF]" />
@@ -1282,8 +1239,8 @@ export default function TargetVsAchievementPage() {
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Actual Realized</span>
-                    {sortField === "achievedRaw" ? (
-                      sortDirection === "asc" ? (
+                    {listQuery.sortBy === "achievedRaw" ? (
+                      listQuery.sortOrder === "asc" ? (
                         <ArrowUp className="h-3.5 w-3.5 text-[#0090FF]" />
                       ) : (
                         <ArrowDown className="h-3.5 w-3.5 text-[#0090FF]" />
@@ -1301,8 +1258,8 @@ export default function TargetVsAchievementPage() {
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Target vs. Achievement</span>
-                    {sortField === "rate" ? (
-                      sortDirection === "asc" ? (
+                    {listQuery.sortBy === "rate" ? (
+                      listQuery.sortOrder === "asc" ? (
                         <ArrowUp className="h-3.5 w-3.5 text-[#0090FF]" />
                       ) : (
                         <ArrowDown className="h-3.5 w-3.5 text-[#0090FF]" />
@@ -1337,7 +1294,7 @@ export default function TargetVsAchievementPage() {
                     />
                   </TableCell>
                 </TableRow>
-              ) : processedTargets.length === 0 ? (
+              ) : targets.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={7}
@@ -1347,7 +1304,7 @@ export default function TargetVsAchievementPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                processedTargets.map((row) => (
+                targets.map((row) => (
                   <TableRow
                     key={row.id}
                     className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors"
@@ -1513,6 +1470,16 @@ export default function TargetVsAchievementPage() {
             </TableBody>
           </Table>
         </div>
+
+        <ServerListPagination
+          page={listQuery.page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={listQuery.limit}
+          loading={isLoading}
+          onPageChange={listQuery.setPage}
+          onLimitChange={listQuery.setLimit}
+        />
       </Card>
 
       {/* 5. Edit Target Modal */}

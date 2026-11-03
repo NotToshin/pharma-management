@@ -2,11 +2,18 @@ import { Request, Response } from "express";
 import { catchAsync } from "../utils/catchAsync";
 import { sendResponse } from "../utils/response";
 import { territoryTargetService } from "../services/territoryTargetService";
+import { QueryTerritoryTargetInput } from "../validations/territoryTargetValidation";
 
 export const getAllTargets = catchAsync(async (req: Request, res: Response) => {
-  const { fiscalYear, territory } = req.query as { fiscalYear?: string; territory?: string };
-  const data = await territoryTargetService.getAllTargets({ fiscalYear, territory });
-  sendResponse(res, 200, "Territory targets retrieved successfully", data);
+  const query = (req.query ?? {}) as QueryTerritoryTargetInput;
+  const { targets, chart, summary, meta } = await territoryTargetService.getAllTargets(query);
+  sendResponse(
+    res,
+    200,
+    "Territory targets retrieved successfully",
+    { targets, chart, summary },
+    meta
+  );
 });
 
 export const getTargetOptions = catchAsync(async (_req: Request, res: Response) => {
