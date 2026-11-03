@@ -1,3 +1,4 @@
+import { resolveTerritoryAssignment, hasTerritoryAssignment, doctorTerritoryInput } from "./territoryAssignment";
 import { Prisma, Doctor } from "@prisma/client";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
@@ -15,6 +16,7 @@ export interface IDoctorFilterOptions {
   bmdcRegNumber?: string;
   specialtyAndInstitute?: string;
   chamber?: string;
+  territoryId?: string | null;
   territory?: string;
   territoryAndMio?: string;
   email?: string;
@@ -151,6 +153,7 @@ export const doctorService = {
     bmdcRegNumber: string;
     specialtyAndInstitute: string;
     chamber: string;
+    territoryId?: string | null;
     territory?: string;
     territoryAndMio?: string;
     email: string;
@@ -167,7 +170,8 @@ export const doctorService = {
       );
     }
 
-    const territoryVal = data.territory?.trim() || null;
+    const assignment = await resolveTerritoryAssignment(doctorTerritoryInput(data));
+    const territoryVal = assignment.territory || null;
     const territoryAndMio =
       data.territoryAndMio ||
       (territoryVal ? `${territoryVal}` : "Unassigned");
@@ -179,6 +183,7 @@ export const doctorService = {
         bmdcRegNumber: data.bmdcRegNumber,
         specialtyAndInstitute: data.specialtyAndInstitute,
         chamber: data.chamber,
+        ...assignment,
         territory: territoryVal,
         territoryAndMio,
         email: data.email,
@@ -210,6 +215,7 @@ export const doctorService = {
       bmdcRegNumber?: string;
       specialtyAndInstitute?: string;
       chamber?: string;
+      territoryId?: string | null;
       territory?: string;
       territoryAndMio?: string;
       email?: string;
@@ -231,9 +237,11 @@ export const doctorService = {
       }
     }
 
+    const assignment = hasTerritoryAssignment(data) || data.territoryAndMio !== undefined
+      ? await resolveTerritoryAssignment(doctorTerritoryInput(data), { currentId: existing.territoryId }) : {};
     const updated = await prisma.doctor.update({
       where: { id },
-      data,
+      data: { ...data, ...assignment },
     });
 
     const isTierChanged = data.tier && data.tier !== existing.tier;
@@ -283,6 +291,7 @@ export const doctorService = {
       bmdcRegNumber: string;
       specialtyAndInstitute?: string;
       chamber?: string;
+      territoryId?: string | null;
       territory?: string;
       territoryAndMio?: string;
       email?: string;
@@ -295,13 +304,15 @@ export const doctorService = {
       throw new AppError("No doctors provided for import", 400);
     }
 
+    const assignments = await Promise.all(data.doctors.map(item => resolveTerritoryAssignment(doctorTerritoryInput(item))));
+
     let createdCount = 0;
     let updatedCount = 0;
     let skippedCount = 0;
     const skippedBmdc: string[] = [];
     const errors: string[] = [];
 
-    for (const item of data.doctors) {
+    for (const [index, item] of data.doctors.entries()) {
       const bmdc = item.bmdcRegNumber?.trim();
       if (!bmdc) {
         skippedCount++;
@@ -313,8 +324,9 @@ export const doctorService = {
       const phone = item.phone?.trim() || "+880 1700-000000";
       const specialtyAndInstitute = item.specialtyAndInstitute?.trim() || "General Medicine";
       const chamber = item.chamber?.trim() || "Central Chamber";
-      const territory = item.territory?.trim() || (item.territoryAndMio ? item.territoryAndMio.split("/")[0].trim() : null);
-      const territoryAndMio = item.territoryAndMio?.trim() || (territory ? `${territory} / Unassigned` : "Dhaka / Unassigned");
+      const assignment = assignments[index];
+      const territory = assignment.territory;
+      const territoryAndMio = item.territoryAndMio?.trim() || (territory ? `${territory} / Unassigned` : "Unassigned");
       const email = item.email?.trim() || "doctor@akpharma.com";
       const tier = item.tier?.trim() || "Tier 1 (High Prescriber)";
       const patientVolumeDaily = Number(item.patientVolumeDaily) || 20;
@@ -332,7 +344,7 @@ export const doctorService = {
               phone,
               specialtyAndInstitute,
               chamber,
-              territory,
+              ...assignment,
               territoryAndMio,
               email,
               tier,
@@ -352,7 +364,7 @@ export const doctorService = {
             bmdcRegNumber: bmdc,
             specialtyAndInstitute,
             chamber,
-            territory,
+            ...assignment,
             territoryAndMio,
             email,
             tier,

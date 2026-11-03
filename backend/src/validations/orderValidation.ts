@@ -1,3 +1,4 @@
+import { territoryIdField } from "./territoryValidation";
 import { z } from "zod";
 
 const orderItemSchema = z.object({
@@ -13,6 +14,7 @@ export const createOrderSchema = z.object({
     orderNumber: z.string().optional().or(z.literal("")),
     orderDate: z.string().optional().or(z.literal("")),
     pharmacyName: z.string().min(1, "Pharmacy name is required"),
+    territoryId: territoryIdField,
     territory: z.string().optional().or(z.literal("")),
     assignedMio: z.string().optional().or(z.literal("")),
     itemsSummary: z.string().optional().or(z.literal("")),
@@ -50,6 +52,7 @@ export const updateOrderInvoiceSchema = z.object({
   params: orderIdParamSchema.shape.params,
   body: z.object({
     orderDate: z.iso.date().optional(),
+    territoryId: territoryIdField,
     territory: z.string().trim().min(1).max(200).optional(),
     assignedMio: z.string().trim().min(1).max(200).optional(),
     paymentTerms: z.string().trim().max(200).nullable().optional(),

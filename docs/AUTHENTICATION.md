@@ -45,6 +45,8 @@ The login page calls `POST /api/auth/login` with `fetch`, not `apiFetch`. Auth r
 
 `apiFetch` (`frontend/lib/api.ts`) refreshes if the access token is missing or inside 5 seconds of expiry. Concurrent callers share one refresh. It sends `Authorization: Bearer` plus `x-user-email`, `x-user-name`, and `x-user-role`. Those headers are for audit context, not authorization. On refresh failure it clears storage and redirects to `/login?expired=1`.
 
+Login and refresh user payloads include `territoryId`, `territoryRef`, and the master territory name. Operator provisioning requires a master territory ID; editing credentials without an assignment change preserves it. Territory is an assignment, not an authorization grant or an automatic data-scope restriction. See [BACKEND_ARCHITECTURE.md](./BACKEND_ARCHITECTURE.md#territory-assignments).
+
 Refresh tries each candidate token. A hash mismatch continues to the next candidate so a parallel refresh does not kill the session. `status === "Restricted"` cannot log in or refresh (`403`). A null `refreshTokenHash` is `401`.
 
 ## Where checks live
@@ -57,9 +59,9 @@ Refresh tries each candidate token. A hash mismatch continues to the next candid
 | Buttons | `frontend/components/permission-gate.tsx` | `userCan` in `frontend/lib/permissions.ts`. `view` maps to `read`. Cards use `overview:<key>` |
 | Audit actor | `backend/src/middlewares/actorContextMiddleware.ts` | Every API request. Does **not** reject a missing or invalid token. May attribute the audit from `x-user-email` |
 | API auth | `backend/src/middlewares/requireAuth.ts` | Bearer token first, then the access cookie. Loads the role from the database, not from `x-user-role` |
-| Module action | same file | `requirePermission(moduleName, "read" \| "create" \| "edit" \| "delete")`. **No route calls it today** |
+| Module action | same file | `requirePermission(moduleName, "read" \| "create" \| "edit" \| "delete")`. Used by territory master creation |
 
-Only `/api/rbac/roles` and `/api/rbac/users` call `requireAuth("SUPER_ADMIN")`. Other business routes do not. Do not copy that gap.
+`/api/rbac/roles` and `/api/rbac/users` call `requireAuth("SUPER_ADMIN")`. Territory master creation calls `requireAuth()` and checks `Target Vs Achievement` create permission. Most other business routes do not authenticate. Do not copy that gap.
 
 Super admin on the client (`isUserSuperAdmin`): email contains `superadmin`, or the email is `toshin@akpharma.com`, or the role text normalizes to `SUPERADMIN` / `SUPERADMINISTRATOR`. Those users pass `userCan`. A non-super-admin with an empty `permissions` array also passes. Once any permission rows exist, a missing module is denied.
 

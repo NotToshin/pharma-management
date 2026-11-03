@@ -1,3 +1,4 @@
+import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryAssignment";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { mirrorBatchQuantity } from "./productBatchService";
@@ -87,6 +88,7 @@ export const orderService = {
     orderNumber?: string;
     orderDate?: string;
     pharmacyName: string;
+    territoryId?: string | null;
     territory?: string;
     assignedMio?: string;
     itemsSummary?: string;
@@ -132,9 +134,10 @@ export const orderService = {
       const matchingClients = attribution.clients.filter((client) =>
         client.pharmacyName.trim().toLowerCase() === data.pharmacyName.trim().toLowerCase());
       const finalTerritory = data.territory?.trim() ||
-        (matchingClients.length === 1 ? matchingClients[0].territory?.trim() : "") || "Unassigned";
+        (matchingClients.length === 1 ? matchingClients[0].territory?.trim() : "") || "";
+      const assignment = await resolveTerritoryAssignment({ ...data, territory: finalTerritory }, { required: true, db: tx });
       const assignedMio = resolveOrderMio(
-        { ...data, territory: finalTerritory },
+        { ...data, ...assignment },
         attribution
       ) || "Unassigned";
 
@@ -143,7 +146,7 @@ export const orderService = {
           orderNumber: finalOrderNumber,
           orderDate: formatDate(data.orderDate),
           pharmacyName: data.pharmacyName.trim(),
-          territory: finalTerritory,
+          ...assignment,
           assignedMio,
           itemsSummary:
             data.itemsSummary?.trim() ||
@@ -313,10 +316,13 @@ export const orderService = {
     const existing = await prisma.order.findUnique({ where: { id } });
     if (!existing) throw new AppError("Order not found", 404);
 
+    const assignment = hasTerritoryAssignment(data)
+      ? await resolveTerritoryAssignment(data, { required: true, currentId: existing.territoryId }) : {};
     const updated = await prisma.order.update({
       where: { id },
       data: {
         ...data,
+        ...assignment,
         ...(data.paymentTerms !== undefined ? { paymentTerms: data.paymentTerms?.trim() || null } : {}),
       },
     });

@@ -161,14 +161,14 @@ export function TerritorySearchSelect({
           }}
           className="text-[11px] font-semibold text-[#0090FF] hover:underline"
         >
-          {isCustom ? "Pick from Master Collection" : "+ Enter Custom"}
+          {isCustom ? "Pick from Master Collection" : "+ Create Territory"}
         </button>
       </div>
 
       {isCustom ? (
         <Input
           id="custom-territory-input"
-          placeholder="e.g. Jamalpur Town"
+          placeholder="New master territory name"
           value={customValue}
           onChange={(e) => onCustomChange(e.target.value)}
           required={required}
@@ -307,7 +307,7 @@ export function TerritorySearchSelect({
                         className="mt-2 inline-flex items-center gap-1 rounded-md bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-[#0090FF] hover:bg-blue-100"
                       >
                         <Plus className="h-3 w-3" />
-                        Use &ldquo;{searchQuery.trim()}&rdquo; as custom territory
+                        Use &ldquo;{searchQuery.trim()}&rdquo; as a new master territory
                       </button>
                     )}
                   </div>
@@ -374,7 +374,7 @@ export function TerritorySearchSelect({
                   className="flex w-full items-center justify-center gap-1 rounded-md py-1 text-[11px] font-semibold text-[#0090FF] hover:bg-blue-50"
                 >
                   <Plus className="h-3 w-3" />
-                  Enter custom territory name manually
+                  Create a new master territory
                 </button>
               </div>
             </div>

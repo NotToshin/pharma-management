@@ -61,6 +61,7 @@ const routeTitleMap: Record<string, string> = {
   "/inventory/ledger": "Stock Inventory",
   "/inventory/adjustments": "Stock Adjustments",
   "/procurement/orders": "Wholesale Purchase Orders",
+  "/procurement/suppliers": "Supplier Details",
   "/logistics/orders": "Sales Orders",
   "/sales/clients": "Pharmacy Clients",
   "/finance/overview": "Treasury Overview",
@@ -101,7 +102,7 @@ export default function RootLayout({
     email: "toshin@akpharma.com",
     role: "SUPERADMIN",
     roleName: "Managing Director / Super Admin",
-    territory: "Central HQ",
+    territory: "",
     avatar: "",
     permissions: [] as any[],
   })

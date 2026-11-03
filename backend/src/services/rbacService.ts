@@ -1,3 +1,4 @@
+import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryAssignment";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { AppError } from "../errors";
@@ -629,6 +630,7 @@ export const rbacService = {
       where: whereConditions,
       include: {
         role: { select: { name: true, code: true } },
+        territoryRef: true,
       },
       orderBy: { [safeSortBy]: sortOrder },
     };
@@ -659,7 +661,9 @@ export const rbacService = {
       roleCode: u.role?.code || "",
       roleName: u.role?.name || "",
       roleId: u.roleId,
-      territory: u.territory,
+      territoryId: u.territoryId,
+      territoryRef: u.territoryRef,
+      territory: u.territoryRef?.name ?? u.territory,
       status: u.status,
       lastLogin: u.lastLogin,
       passwordHash: `${u.passwordHash.slice(0, 10)}...${u.passwordHash.slice(-5)}`,
@@ -671,8 +675,9 @@ export const rbacService = {
     };
   },
 
-  async provisionUser(data: { name: string; email: string; password: string; roleCode: string; territory?: string }) {
-    const { name, email, password, roleCode, territory } = data;
+  async provisionUser(data: { name: string; email: string; password: string; roleCode: string; territoryId?: string | null; territory?: string }) {
+    const { name, email, password, roleCode } = data;
+    const assignment = await resolveTerritoryAssignment(data, { required: true });
 
     const cleanEmail = email.trim().toLowerCase();
 
@@ -709,11 +714,12 @@ export const rbacService = {
         email: cleanEmail,
         passwordHash,
         roleId: role.id,
-        territory: territory?.trim() || "Dhaka North Hub",
+        ...assignment,
         status: "Active",
       },
       include: {
         role: { select: { name: true, code: true } },
+        territoryRef: true,
       },
     });
 
@@ -723,14 +729,16 @@ export const rbacService = {
       email: newUser.email,
       roleCode: newUser.role.code,
       roleName: newUser.role.name,
-      territory: newUser.territory,
+      territoryId: newUser.territoryId,
+      territoryRef: newUser.territoryRef,
+      territory: newUser.territoryRef?.name ?? newUser.territory,
       status: newUser.status,
       lastLogin: newUser.lastLogin,
       message: "Operator account provisioned successfully.",
     };
   },
 
-  async updateUser(id: string, data: { name?: string; email?: string; roleCode?: string; territory?: string; password?: string }) {
+  async updateUser(id: string, data: { name?: string; email?: string; roleCode?: string; territoryId?: string | null; territory?: string; password?: string }) {
     const user = await prisma.systemUser.findUnique({
       where: { id },
       include: { role: true },
@@ -743,8 +751,8 @@ export const rbacService = {
     if (data.name && data.name.trim().length > 0) {
       updateData.name = data.name.trim();
     }
-    if (data.territory && data.territory.trim().length > 0) {
-      updateData.territory = data.territory.trim();
+    if (hasTerritoryAssignment(data)) {
+      Object.assign(updateData, await resolveTerritoryAssignment(data, { required: true, currentId: user.territoryId }));
     }
     if (data.email) {
       const cleanEmail = data.email.trim().toLowerCase();
@@ -803,6 +811,7 @@ export const rbacService = {
       data: updateData,
       include: {
         role: { select: { name: true, code: true } },
+        territoryRef: true,
       },
     });
 
@@ -812,7 +821,9 @@ export const rbacService = {
       email: updatedUser.email,
       roleCode: updatedUser.role.code,
       roleName: updatedUser.role.name,
-      territory: updatedUser.territory,
+      territoryId: updatedUser.territoryId,
+      territoryRef: updatedUser.territoryRef,
+      territory: updatedUser.territoryRef?.name ?? updatedUser.territory,
       status: updatedUser.status,
       lastLogin: updatedUser.lastLogin,
       message: "Operator credentials and role updated successfully.",
@@ -870,6 +881,7 @@ export const rbacService = {
         ],
       },
       include: {
+        territoryRef: true,
         role: {
           include: { permissions: true },
         },
@@ -919,7 +931,9 @@ export const rbacService = {
         email: user.email,
         roleCode: user.role.code,
         roleName: user.role.name,
-        territory: user.territory,
+        territoryId: user.territoryId,
+      territoryRef: user.territoryRef,
+      territory: user.territoryRef?.name ?? user.territory,
         permissions: (user.role.permissions || []).map(enrichPermission),
       },
     };

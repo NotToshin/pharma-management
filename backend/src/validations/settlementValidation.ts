@@ -28,6 +28,7 @@ export const querySettlementSchema = z.object({
     search: z.string().optional(),
     status: z.string().optional(),
     partyName: z.string().optional(),
+    method: z.string().optional(),
   }),
 });
 
@@ -35,6 +36,11 @@ export const openBillsQuerySchema = z.object({
   query: z.object({
     direction: z.enum(["OUTGOING", "INCOMING"]),
     partyName: z.string().optional(),
+    search: z.string().optional(),
+    searchTerm: z.string().optional(),
+    status: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
   }),
 });
 

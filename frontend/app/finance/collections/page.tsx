@@ -3,6 +3,9 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { MasterTerritorySelect } from "@/components/master-territory-select"
+import { DivisionTerritoryFields } from "@/components/division-territory-fields"
+import { groupTerritories, useTerritories } from "@/hooks/use-territories"
 import { useSearchParams } from "next/navigation"
 import { API_URL, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
@@ -37,15 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationPrevious,
-  PaginationNext,
-  PaginationEllipsis,
-} from "@/components/ui/pagination"
+import { ServerListPagination } from "@/components/server-list-controls"
 import {
   Search,
   Filter,
@@ -218,6 +213,7 @@ function DeliveryCashCollectionsContent() {
   // Filters & Tabs
   const [activeTab, setActiveTab] = React.useState<"all" | "pending" | "cleared" | "cash" | "cheque" | "bank">("all")
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [debouncedSearch, setDebouncedSearch] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState("all")
   const [territoryFilter, setTerritoryFilter] = React.useState("all")
   const [methodFilter, setMethodFilter] = React.useState("all")
@@ -225,28 +221,44 @@ function DeliveryCashCollectionsContent() {
   // Multi-Selection State for Batch Vault Settlement
   const [selectedIds, setSelectedIds] = React.useState<string[]>([])
 
-  // Pagination State
+  // Server-side Pagination State (Matching RBAC & Audit Logs)
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(10)
+  const [totalItems, setTotalItems] = React.useState(0)
+  const [totalPages, setTotalPages] = React.useState(1)
+
+  // Debounce search query
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+      setCurrentPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   // Reset page when filters change
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, activeTab, statusFilter, territoryFilter, methodFilter])
+  }, [activeTab, statusFilter, territoryFilter, methodFilter])
 
   // Modals
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [isSubmittingForm, setIsSubmittingForm] = React.useState(false)
+  const [isLoadingOrderContext, setIsLoadingOrderContext] = React.useState(false)
+  const [orderContextError, setOrderContextError] = React.useState("")
+  const [loadedOrderContextId, setLoadedOrderContextId] = React.useState("")
   const [detailsTarget, setDetailsTarget] = React.useState<DeliveryCollection | null>(null)
 
   // Create / Edit Form State
+  const { territories: masterTerritories, loading: territoriesLoading, error: territoriesError } = useTerritories()
   const [formData, setFormData] = React.useState({
     receiptNo: "",
     invoiceNo: "",
     orderId: "",
     chemistName: "",
-    territory: "Dhaka North",
+    territory: "",
+    clientCode: "",
     salesRepName: "",
     totalInvoiceAmount: 0,
     amountCollected: 0,
@@ -265,6 +277,14 @@ function DeliveryCashCollectionsContent() {
     notes: "",
   })
 
+  const collectionTerritoryGroups = React.useMemo(() => groupTerritories(
+    masterTerritories,
+    collections.find(collection => collection.id === editingId)?.territory
+  ), [masterTerritories, collections, editingId])
+  const selectedCollectionTerritory = Object.values(collectionTerritoryGroups).flat().find(
+    territory => territory.name.toLowerCase() === formData.territory.trim().toLowerCase()
+  )
+
   // Bulk Settlement Modal State
   const [isSettlementOpen, setIsSettlementOpen] = React.useState(false)
   const [settlementType, setSettlementType] = React.useState<"Cash Drawer" | "Bank Account">("Cash Drawer")
@@ -281,23 +301,57 @@ function DeliveryCashCollectionsContent() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [isDeleting, setIsDeleting] = React.useState(false)
 
-  // Load live data from database
-  const loadData = React.useCallback(async (quiet = false) => {
-    if (!quiet) setIsLoading(true)
-    else setIsRefreshing(true)
+  const fetchCollections = React.useCallback(
+    async (targetPage = currentPage, targetLimit = pageSize) => {
+      try {
+        setIsLoading(true)
+        const params = new URLSearchParams()
+        params.set("page", String(targetPage))
+        params.set("limit", String(targetLimit))
 
+        if (debouncedSearch.trim()) {
+          params.set("search", debouncedSearch.trim())
+        }
+        if (activeTab !== "all") {
+          params.set("tab", activeTab)
+        }
+        if (statusFilter !== "all") {
+          params.set("status", statusFilter)
+        }
+        if (territoryFilter !== "all") {
+          params.set("territory", territoryFilter)
+        }
+        if (methodFilter !== "all") {
+          params.set("paymentMethod", methodFilter)
+        }
+
+        const res = await apiFetch(`/collections?${params.toString()}`)
+        if (res && res.ok) {
+          const json = await res.json()
+          const data: DeliveryCollection[] = json.data || []
+          const meta = json.meta || {}
+          setCollections(data)
+          setTotalItems(meta.total !== undefined ? meta.total : data.length)
+          setTotalPages(meta.totalPages !== undefined ? meta.totalPages : 1)
+        }
+      } catch (err) {
+        console.error("Error loading collections:", err)
+        toast.error("Failed to load collection records from database.")
+      } finally {
+        setIsLoading(false)
+        setIsRefreshing(false)
+      }
+    },
+    [currentPage, pageSize, debouncedSearch, activeTab, statusFilter, territoryFilter, methodFilter]
+  )
+
+  const fetchSupportingData = React.useCallback(async () => {
     try {
-      const [colRes, metRes, accRes, ordRes] = await Promise.all([
-        apiFetch("/collections?limit=all"),
+      const [metRes, accRes, ordRes] = await Promise.all([
         apiFetch("/collections/metrics"),
         apiFetch("/account-ledger/accounts"),
         apiFetch("/orders"),
       ])
-
-      if (colRes.ok) {
-        const json = await colRes.json()
-        setCollections(json.data || [])
-      }
 
       if (metRes.ok) {
         const json = await metRes.json()
@@ -317,17 +371,36 @@ function DeliveryCashCollectionsContent() {
         )
       }
     } catch (err) {
+      console.error("Error loading supporting data:", err)
+    }
+  }, [])
+
+  // Load live data from database
+  const loadData = React.useCallback(async (quiet = false) => {
+    if (!quiet) setIsLoading(true)
+    else setIsRefreshing(true)
+
+    try {
+      await Promise.all([
+        fetchCollections(currentPage, pageSize),
+        fetchSupportingData(),
+      ])
+    } catch (err) {
       console.error("Error loading collections:", err)
       toast.error("Failed to load collection records from database.")
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }, [])
+  }, [fetchCollections, fetchSupportingData, currentPage, pageSize])
 
   React.useEffect(() => {
-    loadData()
-  }, [loadData])
+    fetchSupportingData()
+  }, [fetchSupportingData])
+
+  React.useEffect(() => {
+    fetchCollections(currentPage, pageSize)
+  }, [fetchCollections, currentPage, pageSize, debouncedSearch, activeTab, statusFilter, territoryFilter, methodFilter])
 
   // Automatically trigger create modal with order prefilled when navigated with ?orderId= or ?invoiceNo=
   React.useEffect(() => {
@@ -360,7 +433,8 @@ function DeliveryCashCollectionsContent() {
             invoiceNo: matched.invoiceNumber || matched.orderNumber,
             orderId: matched.id,
             chemistName: matched.pharmacyName,
-            territory: matched.territory || "Dhaka North",
+            territory: "",
+            clientCode: "",
             salesRepName: matched.assignedMio || "General MIO",
             totalInvoiceAmount: invoiceAmt,
             amountCollected: invoiceAmt,
@@ -387,7 +461,8 @@ function DeliveryCashCollectionsContent() {
             orderId: matched.id,
             invoiceNo: matched.invoiceNumber || matched.orderNumber,
             chemistName: matched.pharmacyName,
-            territory: matched.territory || "Dhaka North",
+            territory: "",
+            clientCode: "",
             salesRepName: matched.assignedMio || "General MIO",
             totalInvoiceAmount: invoiceAmt,
             amountCollected: invoiceAmt,
@@ -399,59 +474,60 @@ function DeliveryCashCollectionsContent() {
     }
   }, [targetOrderId, targetInvoiceNo, deliveredOrders, accounts, collections.length])
 
-  // Filtered collections
-  const filteredCollections = React.useMemo(() => {
-    return collections.filter((c) => {
-      // 1. Search Query
-      const q = searchQuery.toLowerCase().trim()
-      if (q) {
-        const matchReceipt = c.receiptNo.toLowerCase().includes(q)
-        const matchInvoice = c.invoiceNo.toLowerCase().includes(q)
-        const matchChemist = c.chemistName.toLowerCase().includes(q)
-        const matchMio = c.salesRepName.toLowerCase().includes(q)
-        const matchTerritory = c.territory.toLowerCase().includes(q)
-        const matchCheque = (c.chequeNumber || "").toLowerCase().includes(q)
-        const matchNotes = (c.notes || "").toLowerCase().includes(q)
-
-        if (!matchReceipt && !matchInvoice && !matchChemist && !matchMio && !matchTerritory && !matchCheque && !matchNotes) {
-          return false
-        }
+  // Resolve new invoice selections against the current pharmacy record.
+  React.useEffect(() => {
+    if (!isCreateOpen || editingId || !formData.orderId) {
+      setIsLoadingOrderContext(false)
+      setOrderContextError("")
+      setLoadedOrderContextId("")
+      return
+    }
+    const orderId = formData.orderId
+    const controller = new AbortController()
+    let sequence = 0
+    const refreshContext = async () => {
+      const request = ++sequence
+      setIsLoadingOrderContext(true)
+      setOrderContextError("")
+      try {
+        const response = await apiFetch(
+          "/collections/order-context/" + encodeURIComponent(orderId),
+          { signal: controller.signal, cache: "no-store" }
+        )
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.message || "Could not load the pharmacy's current territory")
+        if (controller.signal.aborted || request !== sequence) return
+        const context = result.data
+        setFormData(prev => ({
+          ...prev,
+          chemistName: context.chemistName,
+          clientCode: context.clientCode || "",
+          territory: context.territory || "",
+          salesRepName: context.salesRepName || "",
+        }))
+        setLoadedOrderContextId(orderId)
+      } catch (error) {
+        if (controller.signal.aborted || request !== sequence) return
+        const message = error instanceof Error ? error.message : "Could not load the pharmacy's current territory"
+        setOrderContextError(message)
+        setLoadedOrderContextId("")
+      } finally {
+        if (!controller.signal.aborted && request === sequence) setIsLoadingOrderContext(false)
       }
+    }
+    void refreshContext()
+    // Refresh after returning from a tab where the pharmacy assignment was edited.
+    window.addEventListener("focus", refreshContext)
+    return () => {
+      controller.abort()
+      window.removeEventListener("focus", refreshContext)
+    }
+  }, [isCreateOpen, editingId, formData.orderId])
 
-      // 2. Tab Filter
-      if (activeTab === "pending") {
-        if (c.status !== "Pending Vault Clearance") return false
-      } else if (activeTab === "cleared") {
-        if (c.status !== "Cleared & Deposited") return false
-      } else if (activeTab === "cash") {
-        if (c.paymentMethod !== "Cash") return false
-      } else if (activeTab === "cheque") {
-        if (c.paymentMethod !== "Cheque") return false
-      } else if (activeTab === "bank") {
-        if (c.paymentMethod !== "BEFTN / RTGS" && c.paymentMethod !== "bKash / Nagad") return false
-      }
-
-      // 3. Dropdown Filters
-      if (statusFilter !== "all" && c.status !== statusFilter) return false
-      if (territoryFilter !== "all" && c.territory !== territoryFilter) return false
-      if (methodFilter !== "all" && c.paymentMethod !== methodFilter) return false
-
-      return true
-    })
-  }, [collections, searchQuery, activeTab, statusFilter, territoryFilter, methodFilter])
-
-  // Pagination derived variables
-  const totalItems = filteredCollections.length
-  const totalPages = Math.ceil(totalItems / pageSize) || 1
-  const paginatedCollections = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize
-    return filteredCollections.slice(startIndex, startIndex + pageSize)
-  }, [filteredCollections, currentPage, pageSize])
-
-  // Selection helpers
+  // Selection helpers for current page
   const pendingCollections = React.useMemo(() => {
-    return filteredCollections.filter((c) => c.status === "Pending Vault Clearance")
-  }, [filteredCollections])
+    return collections.filter((c) => c.status === "Pending Vault Clearance")
+  }, [collections])
 
   const isAllPendingSelected =
     pendingCollections.length > 0 &&
@@ -500,7 +576,8 @@ function DeliveryCashCollectionsContent() {
       invoiceNo: "",
       orderId: "",
       chemistName: "",
-      territory: "Dhaka North",
+      territory: "",
+      clientCode: "",
       salesRepName: "",
       totalInvoiceAmount: 0,
       amountCollected: 0,
@@ -528,6 +605,7 @@ function DeliveryCashCollectionsContent() {
       setFormData((prev) => ({
         ...prev,
         orderId: "",
+        clientCode: "",
       }))
       return
     }
@@ -543,7 +621,8 @@ function DeliveryCashCollectionsContent() {
         orderId: ord.id,
         invoiceNo: ord.invoiceNumber || ord.orderNumber,
         chemistName: ord.pharmacyName,
-        territory: ord.territory || "Dhaka North",
+        territory: "",
+        clientCode: "",
         salesRepName: ord.assignedMio || "General MIO",
         totalInvoiceAmount: invoiceAmt,
         amountCollected: invoiceAmt,
@@ -560,6 +639,7 @@ function DeliveryCashCollectionsContent() {
       orderId: c.orderId || "",
       chemistName: c.chemistName,
       territory: c.territory,
+      clientCode: c.clientCode || "",
       salesRepName: c.salesRepName,
       totalInvoiceAmount: c.totalInvoiceAmount,
       amountCollected: c.amountCollected,
@@ -585,6 +665,16 @@ function DeliveryCashCollectionsContent() {
       return
     }
 
+    if (!editingId && formData.orderId && (isLoadingOrderContext || orderContextError || loadedOrderContextId !== formData.orderId)) {
+      toast.error(orderContextError || "Please wait for the pharmacy's current assignment to load.")
+      return
+    }
+
+    if (territoriesLoading || territoriesError || !selectedCollectionTerritory) {
+      toast.error(territoriesError || "Please select a division and territory station.")
+      return
+    }
+
     if (formData.amountCollected <= 0) {
       toast.error("Valid positive collection amount is required.")
       return
@@ -601,7 +691,9 @@ function DeliveryCashCollectionsContent() {
         invoiceNo: formData.invoiceNo.trim(),
         orderId: formData.orderId || undefined,
         chemistName: formData.chemistName.trim(),
-        territory: formData.territory.trim(),
+        clientCode: formData.clientCode || undefined,
+        territoryId: selectedCollectionTerritory.id,
+        territory: selectedCollectionTerritory.name,
         salesRepName: formData.salesRepName.trim(),
         totalInvoiceAmount: Number(formData.totalInvoiceAmount),
         amountCollected: Number(formData.amountCollected),
@@ -889,32 +981,57 @@ function DeliveryCashCollectionsContent() {
   }
 
   // Export Excel
-  const handleExportExcel = () => {
-    const data = filteredCollections.map((c) => ({
-      "Receipt #": c.receiptNo,
-      "Invoice #": c.invoiceNo,
-      "Chemist / Pharmacy": c.chemistName,
-      Territory: c.territory,
-      "MIO / Representative": c.salesRepName,
-      "Invoice Amount (BDT)": c.totalInvoiceAmount,
-      "Collected Amount (BDT)": c.amountCollected,
-      "Due Balance (BDT)": c.dueAmountRemaining,
-      "Payment Method": c.paymentMethod,
-      "Cheque / Instrument #": c.chequeNumber || "N/A",
-      Status: c.status,
-      "Destination Safe / Bank": c.destinationName || "N/A",
-      "Cleared By": c.clearedBy || "Pending",
-      Notes: c.notes || "",
-    }))
+  const handleExportExcel = async () => {
+    try {
+      const toastId = toast.loading("Preparing collection records for export...")
+      const params = new URLSearchParams()
+      params.set("limit", "all")
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim())
+      if (activeTab !== "all") params.set("tab", activeTab)
+      if (statusFilter !== "all") params.set("status", statusFilter)
+      if (territoryFilter !== "all") params.set("territory", territoryFilter)
+      if (methodFilter !== "all") params.set("paymentMethod", methodFilter)
 
-    const worksheet = XLSX.utils.json_to_sheet(data)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Delivery Cash Collections")
-    XLSX.writeFile(
-      workbook,
-      `AK_Pharma_Delivery_Collections_${new Date().toISOString().slice(0, 10)}.xlsx`
-    )
-    toast.success("Collections ledger exported to Excel.")
+      const res = await apiFetch(`/collections?${params.toString()}`)
+      const json = res.ok ? await res.json() : null
+      const records: DeliveryCollection[] = json?.data || collections
+
+      if (records.length === 0) {
+        toast.dismiss(toastId)
+        toast.error("No collection records to export.")
+        return
+      }
+
+      const data = records.map((c) => ({
+        "Receipt #": c.receiptNo,
+        "Invoice #": c.invoiceNo,
+        "Chemist / Pharmacy": c.chemistName,
+        Territory: c.territory,
+        "MIO / Representative": c.salesRepName,
+        "Invoice Amount (BDT)": c.totalInvoiceAmount,
+        "Collected Amount (BDT)": c.amountCollected,
+        "Due Balance (BDT)": c.dueAmountRemaining,
+        "Payment Method": c.paymentMethod,
+        "Cheque / Instrument #": c.chequeNumber || "N/A",
+        Status: c.status,
+        "Destination Safe / Bank": c.destinationName || "N/A",
+        "Cleared By": c.clearedBy || "Pending",
+        Notes: c.notes || "",
+      }))
+
+      const worksheet = XLSX.utils.json_to_sheet(data)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Delivery Cash Collections")
+      XLSX.writeFile(
+        workbook,
+        `AK_Pharma_Delivery_Collections_${new Date().toISOString().slice(0, 10)}.xlsx`
+      )
+      toast.dismiss(toastId)
+      toast.success(`Exported ${records.length} collection records to Excel.`)
+    } catch (err) {
+      console.error("Export error:", err)
+      toast.error("Failed to export collection records.")
+    }
   }
 
   const totalRealized = metrics?.totalRealizedBDT ?? collections
@@ -1088,7 +1205,7 @@ function DeliveryCashCollectionsContent() {
                   : "text-slate-600 hover:bg-slate-100"
               }`}
             >
-              All Receipts ({collections.length})
+              All Receipts ({metrics?.totalReceipts ?? totalItems})
             </button>
 
             <button
@@ -1101,11 +1218,11 @@ function DeliveryCashCollectionsContent() {
             >
               <Clock className="h-3 w-3" />
               Pending Vault Clearance
-              {pendingCollections.length > 0 && (
+              {((metrics?.pendingCount ?? pendingCollections.length) > 0) && (
                 <span className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
                   activeTab === "pending" ? "bg-white text-amber-700" : "bg-amber-100 text-amber-800"
                 }`}>
-                  {pendingCollections.length}
+                  {metrics?.pendingCount ?? pendingCollections.length}
                 </span>
               )}
             </button>
@@ -1120,6 +1237,13 @@ function DeliveryCashCollectionsContent() {
             >
               <CheckCircle2 className="h-3 w-3" />
               Cleared & Deposited
+              {((metrics?.realizedCount ?? 0) > 0) && (
+                <span className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                  activeTab === "cleared" ? "bg-white text-emerald-800" : "bg-emerald-100 text-emerald-800"
+                }`}>
+                  {metrics?.realizedCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -1202,20 +1326,7 @@ function DeliveryCashCollectionsContent() {
               </SelectContent>
             </Select>
 
-            <Select value={territoryFilter} onValueChange={setTerritoryFilter}>
-              <SelectTrigger className="h-8 w-[150px] border-slate-200 bg-white text-xs">
-                <SelectValue placeholder="All Territories" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="all">All Territories</SelectItem>
-                <SelectItem value="Dhaka North">Dhaka North</SelectItem>
-                <SelectItem value="Dhaka South">Dhaka South</SelectItem>
-                <SelectItem value="Chittagong Central">Chittagong Central</SelectItem>
-                <SelectItem value="Sylhet Sadar">Sylhet Sadar</SelectItem>
-                <SelectItem value="Rajshahi Metro">Rajshahi Metro</SelectItem>
-                <SelectItem value="Khulna Zone">Khulna Zone</SelectItem>
-              </SelectContent>
-            </Select>
+            <MasterTerritorySelect value={territoryFilter} onValueChange={setTerritoryFilter} all />
 
             <Select value={methodFilter} onValueChange={setMethodFilter}>
               <SelectTrigger className="h-8 w-[140px] border-slate-200 bg-white text-xs">
@@ -1302,7 +1413,7 @@ function DeliveryCashCollectionsContent() {
                     Loading delivery collection records from database...
                   </TableCell>
                 </TableRow>
-              ) : filteredCollections.length === 0 ? (
+              ) : collections.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={10} className="py-12 text-center text-xs text-slate-400">
                     <AlertCircle className="mx-auto h-6 w-6 text-slate-300 mb-2" />
@@ -1310,7 +1421,7 @@ function DeliveryCashCollectionsContent() {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedCollections.map((c) => {
+                collections.map((c) => {
                   const isSelected = selectedIds.includes(c.id)
                   const isPending = c.status === "Pending Vault Clearance"
 
@@ -1518,86 +1629,20 @@ function DeliveryCashCollectionsContent() {
           </Table>
         </div>
 
-        {/* Pagination Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 p-4 gap-3 bg-white rounded-b-xl">
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span>
-              Showing{" "}
-              <span className="font-semibold text-slate-800">
-                {totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0}
-              </span>{" "}
-              to{" "}
-              <span className="font-semibold text-slate-800">
-                {Math.min(currentPage * pageSize, totalItems)}
-              </span>{" "}
-              of <span className="font-semibold text-slate-800">{totalItems}</span> collection receipts
-            </span>
-
-            <div className="flex items-center gap-1.5 ml-2">
-              <span className="text-[11px] text-slate-400">Per page:</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(val) => {
-                  setPageSize(Number(val))
-                  setCurrentPage(1)
-                }}
-              >
-                <SelectTrigger className="h-7 w-[68px] text-xs bg-slate-50 border-slate-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="text-xs">
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {totalPages > 1 && (
-            <Pagination className="mx-0 w-auto justify-end">
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    className={currentPage === 1 ? "pointer-events-none opacity-40 text-xs" : "cursor-pointer text-xs"}
-                  />
-                </PaginationItem>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-                  .map((pageNum, idx, arr) => {
-                    const prev = arr[idx - 1]
-                    return (
-                      <React.Fragment key={pageNum}>
-                        {prev && pageNum - prev > 1 && (
-                          <PaginationItem>
-                            <PaginationEllipsis />
-                          </PaginationItem>
-                        )}
-                        <PaginationItem>
-                          <PaginationLink
-                            isActive={currentPage === pageNum}
-                            onClick={() => setCurrentPage(pageNum)}
-                            className="cursor-pointer text-xs h-7 w-7"
-                          >
-                            {pageNum}
-                          </PaginationLink>
-                        </PaginationItem>
-                      </React.Fragment>
-                    )
-                  })}
-
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    className={currentPage === totalPages || totalPages === 0 ? "pointer-events-none opacity-40 text-xs" : "cursor-pointer text-xs"}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          )}
+        {/* Pagination Bar (ServerListPagination matching RBAC & Audit Logs) */}
+        <div className="px-4 pb-4 bg-white rounded-b-xl">
+          <ServerListPagination
+            page={currentPage}
+            totalPages={totalPages}
+            total={totalItems}
+            limit={pageSize}
+            loading={isLoading}
+            onPageChange={(p) => setCurrentPage(p)}
+            onLimitChange={(l) => {
+              setPageSize(l)
+              setCurrentPage(1)
+            }}
+          />
         </div>
       </Card>
 
@@ -1689,7 +1734,7 @@ function DeliveryCashCollectionsContent() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => setFormData((prev) => ({ ...prev, orderId: "" }))}
+                          onClick={() => setFormData((prev) => ({ ...prev, orderId: "", clientCode: "" }))}
                           className="ml-1 text-slate-400 hover:text-rose-600 font-medium text-[10px] cursor-pointer"
                           title="Unlink order"
                         >
@@ -1757,49 +1802,34 @@ function DeliveryCashCollectionsContent() {
                 <Input
                   placeholder="e.g. Labaid Pharmacy"
                   value={formData.chemistName}
-                  onChange={(e) => setFormData({ ...formData, chemistName: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, chemistName: e.target.value, clientCode: "" })}
                   required
                   className="h-8 font-semibold"
                 />
               </div>
             </div>
 
-            {/* Row 3: Territory & Sales Rep */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">
-                  Territory *
-                </Label>
-                <Select
-                  value={formData.territory}
-                  onValueChange={(val) => setFormData({ ...formData, territory: val })}
-                >
-                  <SelectTrigger className="h-8 bg-white text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="text-xs">
-                    <SelectItem value="Dhaka North">Dhaka North</SelectItem>
-                    <SelectItem value="Dhaka South">Dhaka South</SelectItem>
-                    <SelectItem value="Chittagong Central">Chittagong Central</SelectItem>
-                    <SelectItem value="Sylhet Sadar">Sylhet Sadar</SelectItem>
-                    <SelectItem value="Rajshahi Metro">Rajshahi Metro</SelectItem>
-                    <SelectItem value="Khulna Zone">Khulna Zone</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Row 3: Division & Territory Station */}
+            <DivisionTerritoryFields
+              groups={collectionTerritoryGroups}
+              value={formData.territory}
+              onValueChange={territory => setFormData(prev => ({ ...prev, territory: territory.name }))}
+              loading={territoriesLoading || isLoadingOrderContext}
+              error={territoriesError || orderContextError}
+              idPrefix="collection"
+            />
 
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">
-                  Collecting Sales Rep (MIO) *
-                </Label>
-                <Input
-                  placeholder="e.g. Tanvir Ahmed (MIO)"
-                  value={formData.salesRepName}
-                  onChange={(e) => setFormData({ ...formData, salesRepName: e.target.value })}
-                  required
-                  className="h-8"
-                />
-              </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-slate-700">
+                Collecting Sales Rep (MIO) *
+              </Label>
+              <Input
+                placeholder="e.g. Tanvir Ahmed (MIO)"
+                value={formData.salesRepName}
+                onChange={(e) => setFormData({ ...formData, salesRepName: e.target.value })}
+                required
+                className="h-8"
+              />
             </div>
 
             {/* Row 4: Invoice Amount & Amount Collected */}
@@ -1980,7 +2010,7 @@ function DeliveryCashCollectionsContent() {
 
               <Button
                 type="submit"
-                disabled={isSubmittingForm}
+                disabled={isSubmittingForm || (!editingId && Boolean(formData.orderId) && (isLoadingOrderContext || Boolean(orderContextError) || loadedOrderContextId !== formData.orderId))}
                 className="h-8 bg-[#0090FF] text-xs font-semibold text-white hover:bg-[#0080e5]"
               >
                 {isSubmittingForm ? (

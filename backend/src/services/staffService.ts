@@ -1,3 +1,4 @@
+import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryAssignment";
 import { StaffStatus } from "@prisma/client";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
@@ -50,8 +51,24 @@ const generateNextEmpId = async (): Promise<string> => {
 };
 
 export const staffService = {
-  async getAllStaff() {
+  async getAllStaff(filters?: { role?: string }) {
+    const where: any = {};
+    if (filters?.role) {
+      const r = filters.role.trim().toLowerCase();
+      if (r === "mio" || r.includes("medical information")) {
+        where.OR = [
+          { role: { is: { name: { contains: "MIO", mode: "insensitive" } } } },
+          { role: { is: { name: { contains: "Medical Information", mode: "insensitive" } } } },
+        ];
+      } else {
+        where.role = {
+          is: { name: { contains: filters.role, mode: "insensitive" } },
+        };
+      }
+    }
+
     return prisma.staff.findMany({
+      where,
       include: {
         role: true,
         salaries: true,
@@ -75,6 +92,7 @@ export const staffService = {
     roleName?: string;
     employmentStatus?: string;
     supervisor?: string;
+    territoryId?: string | null;
     territory?: string;
     joiningDate?: string | Date;
     salary?: number;
@@ -112,6 +130,7 @@ export const staffService = {
     const numericSalary = Number(data.salary) || 20000;
     const dbStatus = mapStatusToDb(data.employmentStatus);
 
+    const assignment = await resolveTerritoryAssignment(data);
     const newStaff = await prisma.staff.create({
       data: {
         empId: finalEmpId,
@@ -129,7 +148,8 @@ export const staffService = {
         emergencyRelationship: data.emergencyRelationship ?? null,
         emergencyPhone: data.emergencyPhone ?? null,
         status: dbStatus,
-        territory: data.territory || "Dhaka",
+        territory: assignment.territory || null,
+        ...(assignment.territoryId ? { territoryRef: { connect: { id: assignment.territoryId } } } : {}),
         joiningDate: data.joiningDate ? new Date(data.joiningDate) : new Date(),
         role: { connect: { id: targetRole.id } },
         salaries: {
@@ -180,6 +200,7 @@ export const staffService = {
     employmentStatus?: string;
     supervisor?: string;
     status?: string;
+    territoryId?: string | null;
     territory?: string;
     joiningDate?: string | Date;
     workSchedule?: string;
@@ -204,6 +225,8 @@ export const staffService = {
       roleConnect = { connect: { id: foundRole.id } };
     }
 
+    const assignment = hasTerritoryAssignment(data)
+      ? await resolveTerritoryAssignment(data, { currentId: existing.territoryId }) : undefined;
     const updated = await prisma.staff.update({
       where: { id },
       data: {
@@ -215,7 +238,7 @@ export const staffService = {
         mothersName: data.mothersName,
         address: data.address,
         department: data.department,
-        territory: data.territory,
+        ...(assignment ? { territory: assignment.territory || null, territoryRef: assignment.territoryId ? { connect: { id: assignment.territoryId } } : { disconnect: true } } : {}),
         supervisor: data.supervisor === undefined ? undefined : data.supervisor || null,
         workSchedule: data.workSchedule,
         emergencyName: data.emergencyName,

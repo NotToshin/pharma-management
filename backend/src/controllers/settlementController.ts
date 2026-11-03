@@ -11,7 +11,12 @@ const actorNameFrom = (req: Request) =>
 export const getOpenBills = catchAsync(async (req: Request, res: Response) => {
   const direction = req.query.direction as SettlementDirection;
   const partyName = typeof req.query.partyName === "string" ? req.query.partyName : undefined;
-  const result = await settlementService.getOpenBills(direction, partyName);
+  const result = await settlementService.getOpenBills(direction, partyName, {
+    search: typeof req.query.search === "string" ? req.query.search : undefined,
+    status: typeof req.query.status === "string" ? req.query.status : undefined,
+    page: typeof req.query.page === "string" ? req.query.page : undefined,
+    limit: typeof req.query.limit === "string" ? req.query.limit : undefined,
+  });
   sendResponse(res, 200, "Open bills retrieved successfully", result);
 });
 
@@ -23,6 +28,7 @@ export const getSettlements = catchAsync(async (req: Request, res: Response) => 
     search: typeof req.query.search === "string" ? req.query.search : undefined,
     status: typeof req.query.status === "string" ? req.query.status : undefined,
     partyName: typeof req.query.partyName === "string" ? req.query.partyName : undefined,
+    method: typeof req.query.method === "string" ? req.query.method : undefined,
   });
   sendResponse(res, 200, "Payments retrieved successfully", result.settlements, {
     ...result.meta,

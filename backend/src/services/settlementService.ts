@@ -46,6 +46,7 @@ type OpenBill = {
   createdAt: Date;
   partyName: string;
   partyCode: string | null;
+  partyId: string | null;
   total: number;
   paid: number;
   balance: number;
@@ -54,6 +55,31 @@ type OpenBill = {
   terms: string | null;
   referenceLabel: string;
 };
+
+async function wholesalerIdMaps() {
+  const wholesalers = await prisma.wholesaler.findMany({
+    select: { id: true, wholesalerCode: true, name: true },
+  });
+  const byCode = new Map<string, string>();
+  const byName = new Map<string, string>();
+  for (const wholesaler of wholesalers) {
+    byCode.set(wholesaler.wholesalerCode.trim().toLowerCase(), wholesaler.id);
+    byName.set(wholesaler.name.trim().toLowerCase(), wholesaler.id);
+  }
+  return { byCode, byName };
+}
+
+function resolveWholesalerId(
+  maps: { byCode: Map<string, string>; byName: Map<string, string> },
+  code?: string | null,
+  name?: string | null
+): string | null {
+  const trimmedCode = (code || "").trim().toLowerCase();
+  if (trimmedCode && maps.byCode.has(trimmedCode)) {
+    return maps.byCode.get(trimmedCode) || null;
+  }
+  return maps.byName.get((name || "").trim().toLowerCase()) || null;
+}
 
 async function priorPurchasePaidMap() {
   const vouchers = await prisma.expenseVoucher.findMany({
@@ -87,6 +113,7 @@ async function priorSalesPaidMap() {
 
 async function loadPurchaseBills(partyName?: string): Promise<OpenBill[]> {
   const priorPaid = await priorPurchasePaidMap();
+  const idMaps = await wholesalerIdMaps();
   const orders = await prisma.purchaseOrder.findMany({
     where: {
       status: { notIn: ["Draft", "Cancelled"] },
@@ -108,6 +135,7 @@ async function loadPurchaseBills(partyName?: string): Promise<OpenBill[]> {
       createdAt: order.createdAt,
       partyName: order.wholesalerName,
       partyCode: order.wholesalerCode || null,
+      partyId: resolveWholesalerId(idMaps, order.wholesalerCode, order.wholesalerName),
       total,
       paid,
       balance,
@@ -142,6 +170,7 @@ async function loadSalesBills(partyName?: string): Promise<OpenBill[]> {
       createdAt: order.createdAt,
       partyName: order.pharmacyName,
       partyCode: null,
+      partyId: null,
       total,
       paid,
       balance,
@@ -225,7 +254,11 @@ async function applyDocumentPaid(
 }
 
 export const settlementService = {
-  async getOpenBills(direction: SettlementDirection, partyName?: string) {
+  async getOpenBills(
+    direction: SettlementDirection,
+    partyName?: string,
+    listFilters?: { search?: string; status?: string; page?: string; limit?: string }
+  ) {
     const bills = await loadBills(direction, partyName);
     const advances = await prisma.partySettlement.findMany({
       where: {
@@ -236,12 +269,13 @@ export const settlementService = {
       },
     });
 
-    const partyMap = new Map<string, { name: string; code: string | null; openBalance: number; advanceBalance: number }>();
+    const partyMap = new Map<string, { id: string | null; name: string; code: string | null; openBalance: number; advanceBalance: number }>();
 
     if (direction === "OUTGOING") {
       const wholesalers = await prisma.wholesaler.findMany({ orderBy: { name: "asc" } });
       for (const wholesaler of wholesalers) {
         partyMap.set(wholesaler.name.trim().toLowerCase(), {
+          id: wholesaler.id,
           name: wholesaler.name,
           code: wholesaler.wholesalerCode,
           openBalance: 0,
@@ -252,6 +286,7 @@ export const settlementService = {
       const clients = await prisma.client.findMany({ orderBy: { pharmacyName: "asc" } });
       for (const client of clients) {
         partyMap.set(client.pharmacyName.trim().toLowerCase(), {
+          id: null,
           name: client.pharmacyName,
           code: client.clientCode,
           openBalance: 0,
@@ -263,6 +298,7 @@ export const settlementService = {
     for (const bill of bills) {
       const key = bill.partyName.trim().toLowerCase();
       const current = partyMap.get(key) || {
+        id: bill.partyId,
         name: bill.partyName,
         code: bill.partyCode,
         openBalance: 0,
@@ -276,6 +312,7 @@ export const settlementService = {
     for (const advance of advances) {
       const key = advance.partyName.trim().toLowerCase();
       const current = partyMap.get(key) || {
+        id: null,
         name: advance.partyName,
         code: advance.partyCode || null,
         openBalance: 0,
@@ -285,19 +322,50 @@ export const settlementService = {
       partyMap.set(key, current);
     }
 
+    // Global summary from the unfiltered open bills (overview cards stay stable while the list filters)
     const openBills = bills.filter((bill) => bill.balance > 0.009);
     const outstanding = round2(openBills.reduce((sum, bill) => sum + bill.balance, 0));
     const advanceBalance = round2(
       Array.from(partyMap.values()).reduce((sum, party) => sum + party.advanceBalance, 0)
     );
+    const settledAgg = await prisma.partySettlement.aggregate({
+      where: { direction, status: "COMPLETED" },
+      _sum: { amount: true },
+    });
+
+    // List search, filter, and pagination
+    const q = (listFilters?.search || "").trim().toLowerCase();
+    const status = listFilters?.status && listFilters.status !== "all" ? listFilters.status.trim() : "";
+    const filtered = openBills.filter((bill) => {
+      if (status && bill.documentStatus.toLowerCase() !== status.toLowerCase()) return false;
+      if (!q) return true;
+      return (
+        bill.number.toLowerCase().includes(q) ||
+        bill.partyName.toLowerCase().includes(q) ||
+        (bill.terms || "").toLowerCase().includes(q)
+      );
+    });
+
+    const page = listFilters?.page ? Math.max(1, parseInt(listFilters.page, 10) || 1) : 1;
+    const fetchAll = !listFilters?.limit || listFilters.limit === "all" || listFilters.limit === "-1";
+    const limit = fetchAll ? 0 : Math.max(1, parseInt(listFilters.limit || "10", 10) || 10);
+    const start = limit > 0 ? (page - 1) * limit : 0;
+    const pagedBills = limit > 0 ? filtered.slice(start, start + limit) : filtered;
 
     return {
-      bills: openBills,
+      bills: pagedBills,
       parties: Array.from(partyMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
       summary: {
         openCount: openBills.length,
         outstanding,
         advanceBalance,
+        settled: round2(Number(settledAgg._sum.amount) || 0),
+      },
+      meta: {
+        total: filtered.length,
+        page,
+        limit: limit > 0 ? limit : filtered.length,
+        totalPages: limit > 0 ? Math.ceil(filtered.length / limit) || 1 : 1,
       },
     };
   },
@@ -309,9 +377,11 @@ export const settlementService = {
     search?: string;
     status?: string;
     partyName?: string;
+    method?: string;
   }) {
     const where: Record<string, unknown> = { direction: filters.direction };
     if (filters.status && filters.status !== "all") where.status = filters.status;
+    if (filters.method && filters.method !== "all") where.paymentMethod = filters.method;
     if (filters.partyName?.trim()) {
       where.partyName = { equals: filters.partyName.trim(), mode: "insensitive" };
     }
@@ -342,9 +412,17 @@ export const settlementService = {
       }),
     ]);
 
-    const completed = settlements.filter((row) => row.status === "COMPLETED");
+    const rows = settlements.map((row) => ({ ...row, partyId: null as string | null }));
+    if (filters.direction === "OUTGOING" && rows.length > 0) {
+      const idMaps = await wholesalerIdMaps();
+      for (const row of rows) {
+        row.partyId = resolveWholesalerId(idMaps, row.partyCode, row.partyName);
+      }
+    }
+
+    const completed = rows.filter((row) => row.status === "COMPLETED");
     return {
-      settlements,
+      settlements: rows,
       summary: {
         count: total,
         settledAmount: round2(completed.reduce((sum, row) => sum + (Number(row.amount) || 0), 0)),

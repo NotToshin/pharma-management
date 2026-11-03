@@ -95,12 +95,15 @@ model Doctor {
   specialtyAndInstitute String
   chamber               String
   territory             String?
+  territoryId String? @db.ObjectId
+  territoryRef Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)
   territoryAndMio       String
   email                 String
   tier                  String
   patientVolumeDaily    Int
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  @@index([territoryId])
 }
 
 model DoctorVisitLog {
@@ -110,7 +113,11 @@ model DoctorVisitLog {
   specialty     String
   chamber       String
   mioName       String
-  territory     String
+  mioId         String?  @db.ObjectId
+  mio           Staff?   @relation(fields: [mioId], references: [id])
+  territory     String?
+  territoryId   String?  @db.ObjectId
+  territoryRef  Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)
   visitDate     String
   visitTime     String
   promotedDrugs String
@@ -118,6 +125,8 @@ model DoctorVisitLog {
   feedback      String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  @@index([territoryId])
+  @@index([mioId])
 }
 
 // ─────────────────────────────────────────────
@@ -145,6 +154,8 @@ model Staff {
   address               String?
   department            String?
   territory             String?
+  territoryId String? @db.ObjectId
+  territoryRef Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)
   supervisor            String?
   workSchedule          String?
   emergencyName         String?
@@ -159,6 +170,8 @@ model Staff {
   role     Role?   @relation(fields: [roleId], references: [id])
   salaries Salary[]
   zoneAllocations MioZoneAllocation[]
+  doctorVisitLogs DoctorVisitLog[]
+  @@index([territoryId])
 }
 
 model Salary {
@@ -199,6 +212,8 @@ model Client {
   tradeLicenseNo        String?
   address               String?
   territory             String?
+  territoryId String? @db.ObjectId
+  territoryRef Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)
   assignedMio           String?
   creditLimitBDT        Float    @default(0)
   outstandingBalanceBDT Float    @default(0.00)
@@ -207,6 +222,7 @@ model Client {
   lastBilledDate        String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  @@index([territoryId])
 }
 
 model Order {
@@ -215,6 +231,8 @@ model Order {
   orderDate      String
   pharmacyName   String
   territory      String
+  territoryId String? @db.ObjectId
+  territoryRef Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)
   assignedMio    String
   itemsSummary   String
   itemsDetail    OrderItem[] // Embedded line items (was Json)
@@ -231,6 +249,7 @@ model Order {
   paymentTerms   String?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
+  @@index([territoryId])
 }
 
 // ─────────────────────────────────────────────
@@ -256,6 +275,8 @@ model DeliveryCollection {
   clientCode         String?
   chemistName        String
   territory          String
+  territoryId String? @db.ObjectId
+  territoryRef Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)
   salesRepName       String
   totalInvoiceAmount Float
   amountCollected    Float
@@ -277,6 +298,13 @@ model DeliveryCollection {
   @@index([territory])
   @@index([chemistName])
   @@index([invoiceNo])
+  @@index([territoryId])
+  @@index([createdAt])
+  @@index([paymentMethod])
+  @@index([salesRepName])
+  @@index([orderId])
+  @@index([collectionDate])
+  @@index([status, createdAt])
 }
 
 model ExpenseVoucher {
@@ -523,7 +551,9 @@ model Wholesaler {
   drugLicenseNo      String
   tradeLicense       String?
   address            String
-  territory          String   @default("Dhaka Metro")
+  territory          String
+  territoryId String? @db.ObjectId
+  territoryRef Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)
   paymentTerms       String   @default("Net 30 Days")
   rating             Float    @default(5.0)
   status             String   @default("Active") // "Active" | "Under Review" | "Blacklisted"
@@ -531,6 +561,7 @@ model Wholesaler {
   suppliedCategories String[]
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  @@index([territoryId])
 }
 
 
@@ -578,7 +609,9 @@ model SystemUser {
   email        String     @unique
   passwordHash     String
   refreshTokenHash String?
-  territory        String     @default("Dhaka HQ")
+  territory        String
+  territoryId String? @db.ObjectId
+  territoryRef Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)
   status       String     @default("Active") // "Active" | "Restricted"
   lastLogin    String     @default("Never logged in")
   roleId       String     @db.ObjectId
@@ -587,6 +620,7 @@ model SystemUser {
   updatedAt    DateTime   @updatedAt
 
   auditLogs    AuditLog[]
+  @@index([territoryId])
 }
 
 // ─────────────────────────────────────────────
@@ -641,11 +675,14 @@ model MioZoneAllocation {
   phone         String
   division      String
   territory     String
+  territoryId String? @db.ObjectId
+  territoryRef Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)
   allocatedZone String
   effectiveDate String
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  @@index([territoryId])
 }
 
 // ─────────────────────────────────────────────
@@ -655,7 +692,7 @@ model MioZoneAllocation {
 model TerritoryTarget {
   id             String     @id @default(auto()) @map("_id") @db.ObjectId
   territoryId    String?    @db.ObjectId
-  territoryRef   Territory? @relation(fields: [territoryId], references: [id])
+  territoryRef   Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)
   territory      String
   mioName        String
   targetAmount   Float
@@ -665,6 +702,7 @@ model TerritoryTarget {
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  @@index([territoryId])
 }
 
 // ─────────────────────────────────────────────
@@ -679,4 +717,13 @@ model Territory {
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
   targets   TerritoryTarget[]
+  doctors Doctor[]
+  visitLogs DoctorVisitLog[]
+  staff Staff[]
+  clients Client[]
+  orders Order[]
+  collections DeliveryCollection[]
+  wholesalers Wholesaler[]
+  users SystemUser[]
+  zoneAllocations MioZoneAllocation[]
 }

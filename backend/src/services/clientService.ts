@@ -1,3 +1,4 @@
+import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryAssignment";
 import { Prisma, Client } from "@prisma/client";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
@@ -16,6 +17,7 @@ export interface IClientFilterOptions {
   phone?: string;
   drugLicenseNo?: string;
   tradeLicenseNo?: string;
+  territoryId?: string | null;
   territory?: string;
   assignedMio?: string;
   status?: string;
@@ -162,6 +164,7 @@ export const clientService = {
     drugLicenseNo?: string;
     tradeLicenseNo?: string;
     address?: string;
+    territoryId?: string | null;
     territory?: string;
     assignedMio?: string;
     creditLimitBDT?: number;
@@ -187,6 +190,7 @@ export const clientService = {
       code = generateClientCode();
     }
 
+    const assignment = await resolveTerritoryAssignment(data, { required: true });
     const newClient = await prisma.client.create({
       data: {
         clientCode: code,
@@ -196,7 +200,7 @@ export const clientService = {
         drugLicenseNo: data.drugLicenseNo?.trim() || "N/A",
         tradeLicenseNo: data.tradeLicenseNo?.trim() || "N/A",
         address: data.address?.trim() || "N/A",
-        territory: data.territory?.trim() || "Dhaka North",
+        ...assignment,
         assignedMio: data.assignedMio?.trim() || "Unassigned",
         creditLimitBDT:
           data.creditLimitBDT !== undefined && data.creditLimitBDT !== null
@@ -234,6 +238,7 @@ export const clientService = {
       drugLicenseNo?: string;
       tradeLicenseNo?: string;
       address?: string;
+      territoryId?: string | null;
       territory?: string;
       assignedMio?: string;
       creditLimitBDT?: number;
@@ -262,7 +267,7 @@ export const clientService = {
     if (data.drugLicenseNo !== undefined) updateData.drugLicenseNo = data.drugLicenseNo.trim();
     if (data.tradeLicenseNo !== undefined) updateData.tradeLicenseNo = data.tradeLicenseNo.trim();
     if (data.address !== undefined) updateData.address = data.address.trim();
-    if (data.territory !== undefined) updateData.territory = data.territory.trim();
+    if (hasTerritoryAssignment(data)) Object.assign(updateData, await resolveTerritoryAssignment(data, { required: true, currentId: existing.territoryId }));
     if (data.assignedMio !== undefined) updateData.assignedMio = data.assignedMio.trim();
     if (data.creditLimitBDT !== undefined) updateData.creditLimitBDT = Number(data.creditLimitBDT);
     if (data.outstandingBalanceBDT !== undefined) updateData.outstandingBalanceBDT = Number(data.outstandingBalanceBDT);
@@ -319,6 +324,7 @@ export const clientService = {
       drugLicenseNo?: string;
       tradeLicenseNo?: string;
       address?: string;
+      territoryId?: string | null;
       territory?: string;
       assignedMio?: string;
       creditLimitBDT?: number;
@@ -333,13 +339,15 @@ export const clientService = {
       throw new AppError("No pharmacy clients provided for import", 400);
     }
 
+    const assignments = await Promise.all(data.clients.map(item => resolveTerritoryAssignment(item, { required: true })));
+
     let createdCount = 0;
     let updatedCount = 0;
     let skippedCount = 0;
     const skippedCodes: string[] = [];
     const errors: string[] = [];
 
-    for (const item of data.clients) {
+    for (const [index, item] of data.clients.entries()) {
       const pharmacyName = item.pharmacyName?.trim();
       if (!pharmacyName) {
         skippedCount++;
@@ -352,7 +360,7 @@ export const clientService = {
       const drugLicenseNo = item.drugLicenseNo?.trim() || "N/A";
       const tradeLicenseNo = item.tradeLicenseNo?.trim() || "N/A";
       const address = item.address?.trim() || "N/A";
-      const territory = item.territory?.trim() || "Dhaka North";
+      const assignment = assignments[index];
       const assignedMio = item.assignedMio?.trim() || "Unassigned";
       const creditLimitBDT =
         item.creditLimitBDT !== undefined && item.creditLimitBDT !== null
@@ -398,7 +406,7 @@ export const clientService = {
               drugLicenseNo,
               tradeLicenseNo,
               address,
-              territory,
+              ...assignment,
               assignedMio,
               creditLimitBDT,
               outstandingBalanceBDT,
@@ -429,7 +437,7 @@ export const clientService = {
             drugLicenseNo,
             tradeLicenseNo,
             address,
-            territory,
+            ...assignment,
             assignedMio,
             creditLimitBDT,
             outstandingBalanceBDT,

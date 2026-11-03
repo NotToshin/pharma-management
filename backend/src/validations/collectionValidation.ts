@@ -1,4 +1,11 @@
+import { territoryIdField } from "./territoryValidation";
 import { z } from "zod";
+
+export const collectionOrderContextParamSchema = z.object({
+  params: z.object({
+    orderId: z.string().regex(/^[a-f\d]{24}$/i, "Invalid order ID"),
+  }),
+});
 
 export const createCollectionSchema = z.object({
   body: z.object({
@@ -7,6 +14,7 @@ export const createCollectionSchema = z.object({
     orderId: z.string().optional().nullable(),
     clientCode: z.string().optional().nullable(),
     chemistName: z.string().min(1, "Chemist name is required"),
+    territoryId: territoryIdField,
     territory: z.string().min(1, "Territory is required"),
     salesRepName: z.string().min(1, "Sales representative name is required"),
     totalInvoiceAmount: z.coerce.number().positive("Total invoice amount must be positive"),
@@ -36,6 +44,7 @@ export const updateCollectionSchema = z.object({
     orderId: z.string().optional().nullable(),
     clientCode: z.string().optional().nullable(),
     chemistName: z.string().min(1).optional(),
+    territoryId: territoryIdField,
     territory: z.string().min(1).optional(),
     salesRepName: z.string().min(1).optional(),
     totalInvoiceAmount: z.coerce.number().positive().optional(),
@@ -81,6 +90,9 @@ export const queryCollectionSchema = z.object({
     salesRep: z.string().optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
+    tab: z.string().optional(),
+    sortBy: z.string().optional(),
+    sortOrder: z.enum(["asc", "desc"]).optional(),
   }),
 });
 

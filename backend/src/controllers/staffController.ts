@@ -4,7 +4,8 @@ import { sendResponse } from "../utils/response";
 import { catchAsync } from "../utils/catchAsync";
 
 export const getAllStaff = catchAsync(async (req: Request, res: Response) => {
-  const staffList = await staffService.getAllStaff();
+  const { role } = req.query as { role?: string };
+  const staffList = await staffService.getAllStaff({ role });
   sendResponse(res, 200, "Staff list retrieved successfully", staffList);
 });
 

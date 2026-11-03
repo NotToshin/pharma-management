@@ -3,6 +3,9 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { MasterTerritorySelect } from "@/components/master-territory-select"
+import { DivisionTerritoryFields } from "@/components/division-territory-fields"
+import { groupTerritories, useTerritories } from "@/hooks/use-territories"
 import { getEndpoint, apiFetch } from "@/lib/api"
 import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -109,7 +112,9 @@ interface ParsedDoctorItem {
   designation: string
   specialtyAndInstitute: string
   chamber: string
+  division?: string
   territory: string
+  territoryId?: string
   assignedMio: string
   territoryAndMio: string
   tier: string
@@ -118,7 +123,7 @@ interface ParsedDoctorItem {
   errorReason?: string
 }
 
-function parseDoctorRow(row: any): ParsedDoctorItem {
+function parseDoctorRow(row: any, masterTerritories: any[] = []): ParsedDoctorItem {
   const getCol = (...names: string[]) => {
     for (const name of names) {
       const lower = name.toLowerCase().replace(/[^a-z0-9]/g, "")
@@ -154,7 +159,22 @@ function parseDoctorRow(row: any): ParsedDoctorItem {
   const chamber =
     getCol("Chamber Address", "Chamber", "Clinic", "Practice Location", "Address") ||
     "Central Chamber"
-  const territory = getCol("Territory", "Zone", "Area", "Region") || "Dhaka North"
+
+  const rawDivision = getCol("Division", "Div", "Region")
+  const rawTerritory = getCol("Territory Station", "Territory", "Station", "Area", "Zone")
+
+  const matchedTerritory = masterTerritories.find((t) => {
+    const nameMatches = t.name?.toLowerCase() === rawTerritory.toLowerCase()
+    if (rawDivision && t.division) {
+      return nameMatches && t.division.toLowerCase() === rawDivision.toLowerCase()
+    }
+    return nameMatches
+  })
+
+  const territory = matchedTerritory ? matchedTerritory.name : rawTerritory
+  const division = matchedTerritory?.division || rawDivision || undefined
+  const territoryId = matchedTerritory?.id
+
   const assignedMio = getCol("Assigned MIO", "MIO", "Representative", "Field Officer") || "Unassigned"
   const potentialCategory = getCol("Rx Potential", "Potential", "Category", "Tier", "Grade") || "A"
   const rawPatients = getCol(
@@ -167,7 +187,9 @@ function parseDoctorRow(row: any): ParsedDoctorItem {
   const patientVolumeDaily = parseInt(rawPatients, 10) || 20
 
   const specialtyAndInstitute = institute ? `${specialty} (${institute})` : specialty
-  const territoryAndMio = assignedMio ? `${territory} / MIO: ${assignedMio}` : territory
+  const territoryAndMio = territory
+    ? (assignedMio ? `${territory} / MIO: ${assignedMio}` : territory)
+    : (assignedMio ? `MIO: ${assignedMio}` : "Unassigned")
   const tier =
     potentialCategory.includes("1") || potentialCategory.toUpperCase() === "A+"
       ? "Tier 1 (High Prescriber)"
@@ -191,7 +213,9 @@ function parseDoctorRow(row: any): ParsedDoctorItem {
     designation,
     specialtyAndInstitute,
     chamber,
+    division,
     territory,
+    territoryId,
     assignedMio,
     territoryAndMio,
     tier,
@@ -235,162 +259,6 @@ interface TerritoryItem {
   division?: string
 }
 
-function TerritorySearchSelect({
-  value,
-  onChange,
-  territories,
-  placeholder = "Search or select territory...",
-  id = "territory-search-select",
-}: {
-  value: string
-  onChange: (value: string) => void
-  territories: TerritoryItem[]
-  placeholder?: string
-  id?: string
-}) {
-  const [open, setOpen] = React.useState(false)
-  const [searchTerm, setSearchTerm] = React.useState("")
-  const dropdownRef = React.useRef<HTMLDivElement>(null)
-
-  React.useEffect(() => {
-    if (!open) {
-      setSearchTerm(value)
-    }
-  }, [value, open])
-
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
-  const filtered = React.useMemo(() => {
-    const q = (searchTerm || "").toLowerCase().trim()
-    if (!q) return territories
-    return territories.filter(
-      (t) =>
-        t.name.toLowerCase().includes(q) ||
-        (t.division && t.division.toLowerCase().includes(q))
-    )
-  }, [territories, searchTerm])
-
-  const handleSelect = (name: string) => {
-    onChange(name)
-    setSearchTerm(name)
-    setOpen(false)
-  }
-
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    onChange("")
-    setSearchTerm("")
-  }
-
-  return (
-    <div ref={dropdownRef} className="relative w-full">
-      <div className="relative">
-        <Input
-          id={id}
-          value={open ? searchTerm : value}
-          onChange={(e) => {
-            setSearchTerm(e.target.value)
-            onChange(e.target.value)
-            if (!open) setOpen(true)
-          }}
-          onFocus={() => {
-            setSearchTerm(value)
-            setOpen(true)
-          }}
-          placeholder={placeholder}
-          autoComplete="off"
-          className="h-8 pr-14 text-xs bg-white"
-        />
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          {value && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition"
-              title="Clear territory"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setOpen(!open)}
-            className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition"
-          >
-            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
-          </button>
-        </div>
-      </div>
-
-      {open && (
-        <div className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 text-xs shadow-lg animate-in fade-in-0 zoom-in-95">
-          {filtered.length === 0 ? (
-            <div className="px-3 py-2.5 text-center text-[11px] text-slate-400">
-              {searchTerm ? (
-                <div>
-                  <p>No matching territories found.</p>
-                  <button
-                    type="button"
-                    className="mt-1 text-blue-600 font-medium hover:underline cursor-pointer"
-                    onClick={() => handleSelect(searchTerm)}
-                  >
-                    Use "{searchTerm}" as custom territory
-                  </button>
-                </div>
-              ) : (
-                "No territories available in database."
-              )}
-            </div>
-          ) : (
-            <div className="space-y-0.5">
-              {filtered.map((t) => {
-                const isSelected = value === t.name
-                return (
-                  <button
-                    key={t.id || t.name}
-                    type="button"
-                    onClick={() => handleSelect(t.name)}
-                    className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition ${
-                      isSelected
-                        ? "bg-blue-50 font-semibold text-[#0090FF]"
-                        : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 truncate">
-                      <MapPin
-                        className={`h-3 w-3 shrink-0 ${
-                          isSelected ? "text-[#0090FF]" : "text-slate-400"
-                        }`}
-                      />
-                      <span className="truncate">{t.name}</span>
-                    </div>
-                    {t.division && (
-                      <span className="ml-2 shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-normal text-slate-500">
-                        {t.division.replace(" Division", "")}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function DoctorMasterDatabasePage() {
   const [doctors, setDoctors] = React.useState<DoctorRecord[]>([])
   const [staffList, setStaffList] = React.useState<StaffMember[]>([])
@@ -423,6 +291,7 @@ export default function DoctorMasterDatabasePage() {
   const [designation, setDesignation] = React.useState("")
   const [institute, setInstitute] = React.useState("")
   const [chamberAddress, setChamberAddress] = React.useState("")
+  const { territories: masterTerritories, loading: territoriesLoading, error: territoriesError } = useTerritories()
   const [territory, setTerritory] = React.useState("")
   const [contactNumber, setContactNumber] = React.useState("")
   const [potentialCategory, setPotentialCategory] =
@@ -432,11 +301,33 @@ export default function DoctorMasterDatabasePage() {
   const [email, setEmail] = React.useState("")
   const [formErrors, setFormErrors] = React.useState<Record<string, string>>({})
 
+  const doctorTerritoryGroups = React.useMemo(() => groupTerritories(
+    masterTerritories,
+    territory
+  ), [masterTerritories, territory])
+
+  const selectedDoctorTerritory = React.useMemo(() => (
+    Object.values(doctorTerritoryGroups).flat().find(
+      (t) => t.name.toLowerCase() === territory.trim().toLowerCase()
+    )
+  ), [doctorTerritoryGroups, territory])
+
   // Edit Dialog State
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [editingDoctor, setEditingDoctor] = React.useState<DoctorRecord | null>(
     null
   )
+
+  const editDoctorTerritoryGroups = React.useMemo(() => groupTerritories(
+    masterTerritories,
+    editingDoctor?.territory
+  ), [masterTerritories, editingDoctor?.territory])
+
+  const selectedEditDoctorTerritory = React.useMemo(() => (
+    Object.values(editDoctorTerritoryGroups).flat().find(
+      (t) => t.name.toLowerCase() === (editingDoctor?.territory || "").trim().toLowerCase()
+    )
+  ), [editDoctorTerritoryGroups, editingDoctor?.territory])
 
   // Global Delete Confirmation Modal State
   const [deleteModal, setDeleteModal] = React.useState<{
@@ -687,6 +578,10 @@ export default function DoctorMasterDatabasePage() {
   }
 
   const handleDownloadTemplate = () => {
+    const activeTerritories = masterTerritories.filter((t) => t.status === "Active")
+    const sample1 = activeTerritories[0]
+    const sample2 = activeTerritories[1] || activeTerritories[0]
+
     const sampleData = [
       {
         "Doctor Name": "Prof. Dr. Sayeba Akhter",
@@ -695,7 +590,8 @@ export default function DoctorMasterDatabasePage() {
         Designation: "Professor & Head",
         Institute: "Dhaka Medical College & Hospital",
         "Chamber Address": "Popular Diagnostic Centre, Dhanmondi",
-        Territory: "Dhanmondi North",
+        Division: sample1?.division || "Dhaka Division",
+        "Territory Station": sample1?.name || "Dhanmondi",
         "Assigned MIO": "Rafiqul Islam",
         Contact: "+880 1711-223344",
         Email: "sayebaakhter@gmail.com",
@@ -709,7 +605,8 @@ export default function DoctorMasterDatabasePage() {
         Designation: "Assistant Professor",
         Institute: "National Institute of Cardiovascular Diseases",
         "Chamber Address": "Ibn Sina Diagnostic Centre, Dhanmondi",
-        Territory: "Dhanmondi South",
+        Division: sample2?.division || sample1?.division || "Dhaka Division",
+        "Territory Station": sample2?.name || sample1?.name || "Gulshan",
         "Assigned MIO": "Tanvir Ahmed",
         Contact: "+880 1812-345678",
         Email: "dr.hasan@cardio.org",
@@ -746,7 +643,7 @@ export default function DoctorMasterDatabasePage() {
           return
         }
 
-        const parsed = rows.map(parseDoctorRow)
+        const parsed = rows.map((row) => parseDoctorRow(row, masterTerritories))
         setParsedDoctors(parsed)
         const validCount = parsed.filter((d) => d.isValid).length
         toast.info(`Parsed ${parsed.length} rows (${validCount} valid) from ${file.name}`)
@@ -777,6 +674,8 @@ export default function DoctorMasterDatabasePage() {
           bmdcRegNumber: d.bmdcRegNumber,
           specialtyAndInstitute: d.specialtyAndInstitute,
           chamber: d.chamber,
+          territoryId: d.territoryId,
+          territory: d.territory,
           territoryAndMio: d.territoryAndMio,
           email: d.email,
           tier: d.tier,
@@ -834,7 +733,7 @@ export default function DoctorMasterDatabasePage() {
     setFormErrors({})
 
     const specialtyAndInstitute = institute ? `${specialty} (${institute})` : specialty
-    const cleanTerritory = territory.trim()
+    const cleanTerritory = (selectedDoctorTerritory?.name || territory).trim()
     const territoryAndMio = cleanTerritory
       ? (assignedMio ? `${cleanTerritory} / MIO: ${assignedMio}` : cleanTerritory)
       : (assignedMio ? `MIO: ${assignedMio}` : "Unassigned")
@@ -846,6 +745,7 @@ export default function DoctorMasterDatabasePage() {
       bmdcRegNumber: bmdcReg,
       specialtyAndInstitute,
       chamber: chamberAddress,
+      territoryId: selectedDoctorTerritory?.id || undefined,
       territory: cleanTerritory || undefined,
       territoryAndMio,
       email,
@@ -916,7 +816,7 @@ export default function DoctorMasterDatabasePage() {
       ? `${cleanSpecialty} (${cleanInstitute})`
       : cleanSpecialty
 
-    const cleanTerritory = editingDoctor.territory?.trim() || ""
+    const cleanTerritory = (selectedEditDoctorTerritory?.name || editingDoctor.territory || "").trim()
 
     const updatedPayload = {
       doctorName: editingDoctor.name,
@@ -924,9 +824,10 @@ export default function DoctorMasterDatabasePage() {
       bmdcRegNumber: editingDoctor.bmdcReg,
       specialtyAndInstitute,
       chamber: editingDoctor.chamberAddress,
+      territoryId: selectedEditDoctorTerritory?.id || undefined,
       territory: cleanTerritory || undefined,
-      territoryAndMio: editingDoctor.territory?.trim()
-        ? (editingDoctor.assignedMio ? `${editingDoctor.territory.trim()} / MIO: ${editingDoctor.assignedMio}` : editingDoctor.territory.trim())
+      territoryAndMio: cleanTerritory
+        ? (editingDoctor.assignedMio ? `${cleanTerritory} / MIO: ${editingDoctor.assignedMio}` : cleanTerritory)
         : (editingDoctor.assignedMio ? `MIO: ${editingDoctor.assignedMio}` : "Unassigned"),
       tier:
         editingDoctor.potentialCategory === "A+"
@@ -1158,32 +1059,29 @@ export default function DoctorMasterDatabasePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium text-slate-700">
-                      Affiliated Hospital / Medical College
-                    </Label>
-                    <Input
-                      placeholder="e.g. Dhaka Medical College Hospital"
-                      value={institute}
-                      onChange={(e) => setInstitute(e.target.value)}
-                      required
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium text-slate-700">
-                      Territory <span className="font-normal text-slate-400">(Optional)</span>
-                    </Label>
-                    <TerritorySearchSelect
-                      value={territory}
-                      onChange={setTerritory}
-                      territories={territoryList}
-                      placeholder="Search or select territory..."
-                      id="add-doctor-territory"
-                    />
-                  </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-slate-700">
+                    Affiliated Hospital / Medical College
+                  </Label>
+                  <Input
+                    placeholder="e.g. Dhaka Medical College Hospital"
+                    value={institute}
+                    onChange={(e) => setInstitute(e.target.value)}
+                    required
+                    className="h-8 text-xs"
+                  />
                 </div>
+
+                <DivisionTerritoryFields
+                  groups={doctorTerritoryGroups}
+                  value={territory}
+                  onValueChange={(terr) => {
+                    setTerritory(terr.name)
+                  }}
+                  loading={territoriesLoading}
+                  error={territoriesError}
+                  idPrefix="add-doctor"
+                />
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
@@ -1304,7 +1202,7 @@ export default function DoctorMasterDatabasePage() {
 
           {/* Bulk Import Doctor Dialog (Super Admin) */}
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-            <DialogContent className="max-h-[92vh] overflow-y-auto rounded-xl bg-white sm:max-w-[720px]">
+            <DialogContent className="max-h-[92vh] overflow-y-auto rounded-xl bg-white sm:max-w-[850px]">
               <DialogHeader>
                 <div className="flex items-center justify-between pr-4">
                   <div className="flex items-center gap-2">
@@ -1338,7 +1236,7 @@ export default function DoctorMasterDatabasePage() {
                       Need the official import template?
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      Download our pre-structured Excel template with example records and supported headers.
+                      Download our pre-structured Excel template with example records, Division & Territory Station format, and supported headers.
                     </p>
                   </div>
                   <Button
@@ -1395,7 +1293,7 @@ export default function DoctorMasterDatabasePage() {
                           Click to browse or drop doctor Excel sheet here
                         </p>
                         <p className="text-[11px] text-slate-500">
-                          Supports Microsoft Excel files (.xlsx, .xls). Must contain BMDC Reg. numbers.
+                          Supports Microsoft Excel files (.xlsx, .xls) with Division, Territory Station, and BMDC Reg. numbers.
                         </p>
                       </div>
                     </div>
@@ -1463,6 +1361,8 @@ export default function DoctorMasterDatabasePage() {
                               <TableHead className="h-8 font-semibold text-slate-700">BMDC Reg #</TableHead>
                               <TableHead className="h-8 font-semibold text-slate-700">Doctor Name</TableHead>
                               <TableHead className="h-8 font-semibold text-slate-700">Specialty</TableHead>
+                              <TableHead className="h-8 font-semibold text-slate-700">Division</TableHead>
+                              <TableHead className="h-8 font-semibold text-slate-700">Territory Station</TableHead>
                               <TableHead className="h-8 font-semibold text-slate-700">Contact</TableHead>
                               <TableHead className="h-8 font-semibold text-slate-700">Daily Pts</TableHead>
                               <TableHead className="h-8 font-semibold text-slate-700">Status</TableHead>
@@ -1481,6 +1381,26 @@ export default function DoctorMasterDatabasePage() {
                                 </TableCell>
                                 <TableCell className="py-1.5 text-slate-600">
                                   {doc.specialty}
+                                </TableCell>
+                                <TableCell className="py-1.5 text-slate-600">
+                                  {doc.division || <span className="text-slate-400 italic">—</span>}
+                                </TableCell>
+                                <TableCell className="py-1.5 text-slate-600">
+                                  {doc.territory ? (
+                                    <span className="font-medium text-slate-800">
+                                      {doc.territory}
+                                      {doc.territoryId && (
+                                        <Badge
+                                          variant="outline"
+                                          className="ml-1.5 border-emerald-200 bg-emerald-50 px-1 py-0 text-[9px] font-semibold text-emerald-700"
+                                        >
+                                          Linked
+                                        </Badge>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 italic">—</span>
+                                  )}
                                 </TableCell>
                                 <TableCell className="py-1.5 text-slate-600">
                                   {doc.phone}
@@ -2347,7 +2267,6 @@ export default function DoctorMasterDatabasePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
                     Affiliated Hospital / Medical College
@@ -2364,24 +2283,20 @@ export default function DoctorMasterDatabasePage() {
                     className="h-8 text-xs"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">
-                    Territory <span className="font-normal text-slate-400">(Optional)</span>
-                  </Label>
-                  <TerritorySearchSelect
-                    value={editingDoctor.territory || ""}
-                    onChange={(val) =>
-                      setEditingDoctor({
-                        ...editingDoctor,
-                        territory: val,
-                      })
-                    }
-                    territories={territoryList}
-                    placeholder="Search or select territory..."
-                    id="edit-doctor-territory"
-                  />
-                </div>
-              </div>
+
+                <DivisionTerritoryFields
+                  groups={editDoctorTerritoryGroups}
+                  value={editingDoctor.territory || ""}
+                  onValueChange={(terr) =>
+                    setEditingDoctor({
+                      ...editingDoctor,
+                      territory: terr.name,
+                    })
+                  }
+                  loading={territoriesLoading}
+                  error={territoriesError}
+                  idPrefix="edit-doctor"
+                />
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-slate-700">

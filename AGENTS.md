@@ -59,7 +59,7 @@ Frontend forms that already have schemas use Zod `safeParse` and map issues onto
 
 Whenever an architectural pattern, folder structure, validation strategy, API workflow, or major system behavior changes:
 
-- Update the relevant documentation.
+- Update the relevant existing documentation, especially `docs/FRONTEND_GUIDELINES.md` and `docs/BACKEND_ARCHITECTURE.md`. Do not create a separate documentation file for each feature or logic change unless the user explicitly requests one.
 - Keep source file references accurate.
 - Remove outdated documentation.
 - Update `docs/SYSTEM_OVERVIEW.md` if system behavior changes.

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { MasterTerritorySelect } from "@/components/master-territory-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -40,8 +41,8 @@ export function InvoiceDetailsForm({ order, staff, saving, onSave }: {
         </div>
         <div className="space-y-1">
           <Label htmlFor="invoice-territory">Territory</Label>
-          <Input id="invoice-territory" required maxLength={200} value={draft.territory}
-            onChange={(e) => setDraft({ ...draft, territory: e.target.value })} />
+          <MasterTerritorySelect id="invoice-territory" value={draft.territory}
+            onValueChange={(territory) => setDraft({ ...draft, territory })} />
         </div>
         <div className="space-y-1">
           <Label htmlFor="invoice-mio">MIO/SR name</Label>

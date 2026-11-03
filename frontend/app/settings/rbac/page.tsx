@@ -3,6 +3,7 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { groupTerritories, type MasterTerritory } from "@/hooks/use-territories"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { API_URL, apiFetch } from "@/lib/api"
@@ -103,9 +104,24 @@ interface UserAssignment {
   roleCode: string
   roleName: string
   roleId?: string
+  territoryId?: string | null
   territory: string
   status: "Active" | "Restricted"
   lastLogin: string
+}
+
+interface StaffDirectoryItem {
+  id: string
+  empId: string
+  fullName: string
+  email?: string | null
+  phone?: string | null
+  department?: string | null
+  territory?: string | null
+  role?: {
+    id: string
+    name: string
+  } | null
 }
 
 /**
@@ -150,6 +166,30 @@ export default function RBACManagementPage() {
   const [assignments, setAssignments] = React.useState<UserAssignment[]>([])
   const [loading, setLoading] = React.useState(true)
 
+  // Tab Navigation state: Tab 1 = Operator, Tab 2 = Permissions
+  const [activeTab, setActiveTab] = React.useState<"operator" | "permissions">("operator")
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search)
+      const tabParam = params.get("tab")?.toLowerCase()
+      if (tabParam === "permissions" || tabParam === "templates" || tabParam === "matrix" || tabParam === "roles") {
+        setActiveTab("permissions")
+      } else if (tabParam === "operator" || tabParam === "operators" || tabParam === "credentials" || tabParam === "users" || tabParam === "delegations") {
+        setActiveTab("operator")
+      }
+    }
+  }, [])
+
+  const handleTabChange = (tab: "operator" | "permissions") => {
+    setActiveTab(tab)
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href)
+      url.searchParams.set("tab", tab)
+      window.history.replaceState(null, "", url.toString())
+    }
+  }
+
   // Filtering states
   const [searchUserQuery, setSearchUserQuery] = React.useState("")
   const [roleFilter, setRoleFilter] = React.useState<string>("ALL")
@@ -176,9 +216,18 @@ export default function RBACManagementPage() {
   const [provName, setProvName] = React.useState("")
   const [provEmail, setProvEmail] = React.useState("")
   const [provPassword, setProvPassword] = React.useState("")
-  const [provRoleCode, setProvRoleCode] = React.useState("MIO_FIELD")
-  const [provTerritory, setProvTerritory] = React.useState("Dhaka North Hub")
+  const [provRoleCode, setProvRoleCode] = React.useState("")
+  const [provDivision, setProvDivision] = React.useState("")
+  const [provTerritory, setProvTerritory] = React.useState("")
   const [showProvPassword, setShowProvPassword] = React.useState(false)
+  const [dbTerritories, setDbTerritories] = React.useState<MasterTerritory[]>([])
+
+  // Staff directory & search picker state for operator provisioning
+  const [staffList, setStaffList] = React.useState<StaffDirectoryItem[]>([])
+  const [isStaffLoading, setIsStaffLoading] = React.useState(false)
+  const [isStaffDropdownOpen, setIsStaffDropdownOpen] = React.useState(false)
+  const [staffSearchTerm, setStaffSearchTerm] = React.useState("")
+  const staffDropdownRef = React.useRef<HTMLDivElement | null>(null)
 
   // Edit / Reassign User Modal state
   const [isEditUserOpen, setIsEditUserOpen] = React.useState(false)
@@ -301,6 +350,39 @@ export default function RBACManagementPage() {
     [usersPage, usersLimit, debouncedSearch, roleFilter, statusFilter]
   )
 
+  const fetchTerritories = React.useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_URL}/territories`)
+      if (!res.ok) throw new Error("Could not load territories")
+      if (res.ok) {
+        const json = await res.json()
+        const data: MasterTerritory[] = Array.isArray(json) ? json : json?.data || []
+        if (Array.isArray(data)) {
+          setDbTerritories(data)
+        }
+      }
+    } catch (err) {
+      setDbTerritories([])
+      toast.error("Could not load master territories. Please refresh and try again.")
+    }
+  }, [])
+
+  const fetchStaffList = React.useCallback(async () => {
+    try {
+      setIsStaffLoading(true)
+      const res = await apiFetch(`${API_URL}/staff`)
+      if (res && res.ok) {
+        const json = await res.json()
+        const data: StaffDirectoryItem[] = Array.isArray(json) ? json : json?.data || []
+        setStaffList(data)
+      }
+    } catch (err) {
+      console.error("Error loading staff list:", err)
+    } finally {
+      setIsStaffLoading(false)
+    }
+  }, [])
+
   const fetchRBACData = React.useCallback(
     async (isManualRefresh = false) => {
       try {
@@ -308,27 +390,242 @@ export default function RBACManagementPage() {
         await Promise.all([
           fetchRoles(),
           fetchUsers(usersPage, usersLimit),
+          fetchTerritories(),
+          fetchStaffList(),
         ])
       } finally {
         setLoading(false)
       }
     },
-    [fetchRoles, fetchUsers, usersPage, usersLimit]
+    [fetchRoles, fetchUsers, fetchTerritories, fetchStaffList, usersPage, usersLimit]
   )
 
   React.useEffect(() => {
     if (isAuthorized) {
       fetchRoles()
+      fetchTerritories()
+      fetchStaffList()
     } else if (isAuthorized === false) {
       setLoading(false)
     }
-  }, [isAuthorized, fetchRoles])
+  }, [isAuthorized, fetchRoles, fetchTerritories, fetchStaffList])
 
   React.useEffect(() => {
     if (isAuthorized) {
       fetchUsers(usersPage, usersLimit)
     }
   }, [isAuthorized, fetchUsers, debouncedSearch, roleFilter, statusFilter, usersPage, usersLimit])
+
+  // Click outside to close staff picker dropdown
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        staffDropdownRef.current &&
+        !staffDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsStaffDropdownOpen(false)
+      }
+    }
+    if (isStaffDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [isStaffDropdownOpen])
+
+  const divisionTerritoryMap = React.useMemo(() => groupTerritories(dbTerritories), [dbTerritories])
+  const divisionList = Object.keys(divisionTerritoryMap).sort()
+
+  const matchStaffToRole = React.useCallback(
+    (staff: StaffDirectoryItem, availableRoles: SystemRole[]): string => {
+      const staffRoleName = (staff.role?.name || "").toLowerCase().trim()
+      const dept = (staff.department || "").toLowerCase().trim()
+
+      if (!staffRoleName && !dept) return ""
+
+      // 1. Direct name match
+      const direct = availableRoles.find((r) => r.name.toLowerCase() === staffRoleName)
+      if (direct) return direct.code
+
+      // 2. Direct code match
+      const directCode = availableRoles.find((r) => r.code.toLowerCase() === staffRoleName)
+      if (directCode) return directCode.code
+
+      // 3. Known keywords and department mapping
+      if (staffRoleName.includes("super") || staffRoleName.includes("admin")) {
+        const r = availableRoles.find((x) => x.code === "SUPERADMIN" || x.code === "SUPER_ADMIN")
+        if (r) return r.code
+      }
+      if (
+        staffRoleName.includes("mio") ||
+        staffRoleName.includes("medical") ||
+        dept.includes("sales") ||
+        dept.includes("field")
+      ) {
+        const r = availableRoles.find(
+          (x) =>
+            x.code.includes("MIO") ||
+            x.name.toLowerCase().includes("medical") ||
+            x.name.toLowerCase().includes("mio")
+        )
+        if (r) return r.code
+      }
+      if (
+        staffRoleName.includes("area") ||
+        staffRoleName.includes("manager") ||
+        staffRoleName.includes("rsm") ||
+        staffRoleName.includes("dsm")
+      ) {
+        const r = availableRoles.find(
+          (x) =>
+            x.code.includes("AREA") ||
+            x.code.includes("MGR") ||
+            x.name.toLowerCase().includes("area") ||
+            x.name.toLowerCase().includes("manager")
+        )
+        if (r) return r.code
+      }
+      if (
+        staffRoleName.includes("finance") ||
+        staffRoleName.includes("account") ||
+        dept.includes("finance") ||
+        dept.includes("account")
+      ) {
+        const r = availableRoles.find(
+          (x) =>
+            x.code.includes("FINANCE") ||
+            x.name.toLowerCase().includes("finance") ||
+            x.name.toLowerCase().includes("account")
+        )
+        if (r) return r.code
+      }
+      if (
+        staffRoleName.includes("warehouse") ||
+        staffRoleName.includes("inventory") ||
+        dept.includes("warehouse") ||
+        dept.includes("inventory") ||
+        dept.includes("store")
+      ) {
+        const r = availableRoles.find(
+          (x) =>
+            x.code.includes("WH") ||
+            x.code.includes("INV") ||
+            x.name.toLowerCase().includes("warehouse") ||
+            x.name.toLowerCase().includes("inventory")
+        )
+        if (r) return r.code
+      }
+      if (
+        staffRoleName.includes("hr") ||
+        dept.includes("hr") ||
+        staffRoleName.includes("human")
+      ) {
+        const r = availableRoles.find(
+          (x) => x.code.includes("HR") || x.name.toLowerCase().includes("hr")
+        )
+        if (r) return r.code
+      }
+
+      // 4. Substring fallback across available roles
+      for (const r of availableRoles) {
+        if (
+          r.name.toLowerCase().includes(staffRoleName) ||
+          (staffRoleName && staffRoleName.includes(r.name.toLowerCase()))
+        ) {
+          return r.code
+        }
+      }
+
+      return ""
+    },
+    []
+  )
+
+  const handleSelectStaff = (staff: StaffDirectoryItem) => {
+    // 1. Fill Name
+    setProvName(staff.fullName)
+    setStaffSearchTerm(staff.fullName)
+
+    // 2. Fill Email (cleared if staff has no email)
+    if (staff.email?.trim()) {
+      setProvEmail(staff.email.trim())
+    } else {
+      setProvEmail("")
+    }
+
+    // Ensure password remains empty
+    setProvPassword("")
+
+    // 3. Fill Role
+    const matchedRoleCode = matchStaffToRole(staff, roles)
+    if (matchedRoleCode) {
+      setProvRoleCode(matchedRoleCode)
+    }
+
+    // 4. Fill Territory & Division if staff has assigned territory
+    if (staff.territory) {
+      for (const [div, terrs] of Object.entries(divisionTerritoryMap)) {
+        const found = terrs.find(
+          (t) =>
+            t.id === staff.territory ||
+            t.name.toLowerCase() === staff.territory!.toLowerCase()
+        )
+        if (found) {
+          setProvDivision(div)
+          setProvTerritory(found.id)
+          break
+        }
+      }
+    }
+
+    setIsStaffDropdownOpen(false)
+  }
+
+  const filteredStaffList = React.useMemo(() => {
+    const term = (provName || staffSearchTerm || "").toLowerCase().trim()
+    if (!term) return staffList
+    return staffList.filter((s) => {
+      const name = s.fullName?.toLowerCase() || ""
+      const empId = s.empId?.toLowerCase() || ""
+      const email = s.email?.toLowerCase() || ""
+      const dept = s.department?.toLowerCase() || ""
+      const roleName = s.role?.name?.toLowerCase() || ""
+      return (
+        name.includes(term) ||
+        empId.includes(term) ||
+        email.includes(term) ||
+        dept.includes(term) ||
+        roleName.includes(term)
+      )
+    })
+  }, [staffList, provName, staffSearchTerm])
+
+  const handleOpenProvisionModal = () => {
+    setProvName("")
+    setProvEmail("")
+    setProvPassword("")
+    setShowProvPassword(false)
+    setProvRoleCode("")
+    setProvDivision("")
+    setProvTerritory("")
+    setStaffSearchTerm("")
+    setIsStaffDropdownOpen(false)
+    if (staffList.length === 0) {
+      fetchStaffList()
+    }
+    setIsProvisionOpen(true)
+  }
+
+  const handleProvDivisionChange = (newDivision: string) => {
+    setProvDivision(newDivision)
+    const available = divisionTerritoryMap[newDivision] || []
+    if (available.length > 0) {
+      setProvTerritory(available[0].id)
+    } else {
+      setProvTerritory("")
+    }
+  }
 
   const selectedRole = React.useMemo(() => {
     return roles.find((r) => r.id === selectedRoleId) || roles[0] || null
@@ -518,8 +815,8 @@ export default function RBACManagementPage() {
   // 4. Provision Operator Account
   const handleProvisionOperator = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!provEmail || !provPassword || !provName) {
-      toast.error("Please fill in operator name, email, and password.")
+    if (!provEmail.trim() || !provPassword.trim() || !provName.trim() || !provRoleCode.trim() || !provTerritory.trim()) {
+      toast.error("Please fill in operator name, email, security role, territory, and password.")
       return
     }
 
@@ -538,7 +835,7 @@ export default function RBACManagementPage() {
           email: provEmail.trim(),
           password: provPassword,
           roleCode: provRoleCode,
-          territory: provTerritory.trim(),
+          territoryId: provTerritory,
         }),
       })
 
@@ -555,7 +852,13 @@ export default function RBACManagementPage() {
       setProvEmail("")
       setProvPassword("")
       setShowProvPassword(false)
+      setProvRoleCode("")
+      setProvDivision("")
+      setProvTerritory("")
+      setStaffSearchTerm("")
+      setIsStaffDropdownOpen(false)
       setIsProvisionOpen(false)
+      handleTabChange("operator")
       fetchUsers(usersPage, usersLimit)
     } catch (err: any) {
       toast.error(err.message || "Failed to provision user in database.", { id: toastId })
@@ -577,7 +880,7 @@ export default function RBACManagementPage() {
     setEditName(user.name)
     setEditEmail(user.email)
     setEditRoleCode(user.roleCode)
-    setEditTerritory(user.territory)
+    setEditTerritory(user.territoryId || dbTerritories.find(t => t.name.toLowerCase() === user.territory?.toLowerCase())?.id || "")
     setEditPassword("")
     setIsEditUserOpen(true)
   }
@@ -591,13 +894,15 @@ export default function RBACManagementPage() {
       return
     }
 
+    if (!editTerritory) { toast.error("Select a master territory."); return }
+
     const toastId = toast.loading(`Updating operator credentials for "${editName}"...`)
     try {
       setIsSubmittingEdit(true)
       const payload: any = {
         name: editName,
         roleCode: editRoleCode,
-        territory: editTerritory,
+        territoryId: editTerritory,
       }
       if (editPassword.trim()) {
         payload.password = editPassword.trim()
@@ -618,7 +923,7 @@ export default function RBACManagementPage() {
 
       // If updating current logged in user, keep stored session in sync
       if (currentUser && editingUserId === currentUser.id) {
-        const updatedUser = { ...currentUser, name: editName, territory: editTerritory }
+        const updatedUser = { ...currentUser, name: editName, territoryId: data.data.territoryId, territoryRef: data.data.territoryRef, territory: data.data.territory }
         if (typeof window !== "undefined") {
           localStorage.setItem("user", JSON.stringify(updatedUser))
           localStorage.setItem("ak_user", JSON.stringify(updatedUser))
@@ -878,34 +1183,20 @@ export default function RBACManagementPage() {
             <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${loading ? "animate-spin" : ""}`} />
             Sync
           </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleExportAudit}
-            className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
-          >
-            <Download className="h-3.5 w-3.5 text-emerald-600" />
-            Export Audit
-          </Button>
-
-          <PermissionGate feature="Role Permissions (RBAC)" action="create">
-<Button
-              size="sm"
-              onClick={() => setIsProvisionOpen(true)}
-              className="h-9 gap-1.5 rounded-lg bg-[#0090FF] px-4 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
-            >
-              <Plus className="h-4 w-4" />
-              Provision Operator Account
-            </Button>
-</PermissionGate>
         </div>
       </div>
 
       {/* 2. Top Summary Metrics */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
 <PermissionGate feature="Role Permissions (RBAC)" action="overview:roleClasses">
-<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<Card
+  onClick={() => handleTabChange("permissions")}
+  className={`cursor-pointer rounded-xl border p-5 shadow-none transition-all ${
+    activeTab === "permissions"
+      ? "border-[#0090FF]/40 bg-blue-50/20 ring-1 ring-[#0090FF]/20"
+      : "border-slate-200 bg-white hover:border-slate-300"
+  }`}
+>
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Configured Role Classes
@@ -924,7 +1215,14 @@ export default function RBACManagementPage() {
 </PermissionGate>
 
 <PermissionGate feature="Role Permissions (RBAC)" action="overview:accounts">
-<Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+<Card
+  onClick={() => handleTabChange("operator")}
+  className={`cursor-pointer rounded-xl border p-5 shadow-none transition-all ${
+    activeTab === "operator"
+      ? "border-[#0090FF]/40 bg-blue-50/20 ring-1 ring-[#0090FF]/20"
+      : "border-slate-200 bg-white hover:border-slate-300"
+  }`}
+>
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
               Provisioned Accounts
@@ -934,11 +1232,10 @@ export default function RBACManagementPage() {
             </div>
           </div>
           <div className="mt-3 font-mono text-[28px] leading-none font-extrabold tracking-tight text-slate-900">
-            {assignments.length} Logins
+            {usersTotal} Logins
           </div>
           <p className="mt-2 text-[11px] text-slate-400">
-            {assignments.filter((a) => a.status === "Active").length} active •{" "}
-            {assignments.filter((a) => a.status === "Restricted").length} restricted
+            {totalActiveCount} active • {totalRestrictedCount} restricted
           </p>
         </Card>
 </PermissionGate>
@@ -985,8 +1282,381 @@ export default function RBACManagementPage() {
 </PermissionGate>
       </div>
 
-      {/* 3. Role Selector & Scope Matrix */}
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+      {/* 3. Main Container Card with Navigation Tabs */}
+      <Card className="rounded-xl border border-slate-200 bg-white p-6 shadow-none">
+        {/* Navigation Tabs (White Active State) */}
+        <div className="border-b border-slate-100 pb-4">
+          <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-100/80 p-1">
+            <button
+              type="button"
+              onClick={() => handleTabChange("operator")}
+              className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === "operator"
+                  ? "bg-white text-slate-900 shadow-xs ring-1 ring-slate-900/5 font-bold"
+                  : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+              }`}
+            >
+              <Users className={`h-3.5 w-3.5 ${activeTab === "operator" ? "text-[#0090FF]" : "text-slate-400"}`} />
+              <span>Operator</span>
+              <span
+                className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                  activeTab === "operator"
+                    ? "bg-blue-50 text-[#0090FF]"
+                    : "bg-slate-200/70 text-slate-600"
+                }`}
+              >
+                {usersTotal}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("permissions")}
+              className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === "permissions"
+                  ? "bg-white text-slate-900 shadow-xs ring-1 ring-slate-900/5 font-bold"
+                  : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+              }`}
+            >
+              <Shield className={`h-3.5 w-3.5 ${activeTab === "permissions" ? "text-[#0090FF]" : "text-slate-400"}`} />
+              <span>Permissions</span>
+              <span
+                className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                  activeTab === "permissions"
+                    ? "bg-blue-50 text-[#0090FF]"
+                    : "bg-slate-200/70 text-slate-600"
+                }`}
+              >
+                {roles.length}
+              </span>
+              {hasUnsavedChanges && (
+                <span
+                  className="h-2 w-2 rounded-full bg-amber-500 animate-pulse"
+                  title="Unsaved changes in permission matrix"
+                />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Tab 1: Operator */}
+        {activeTab === "operator" && (
+          <div className="pt-5">
+            {/* Header Row: Title & Primary Action */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900">
+                  Operator Accounts
+                </h3>
+                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-[10px] font-semibold text-slate-600">
+                  {usersTotal} {usersTotal === 1 ? "Operator" : "Operators"}
+                </Badge>
+              </div>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Manage logins, assigned roles, and territory stations.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleExportAudit}
+                className="h-8 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-none hover:bg-slate-50"
+              >
+                <Download className="h-3.5 w-3.5 text-emerald-600" />
+                Export Audit
+              </Button>
+
+              <PermissionGate feature="Role Permissions (RBAC)" action="create">
+                <Button
+                  size="sm"
+                  onClick={handleOpenProvisionModal}
+                  className="h-8 gap-1.5 rounded-lg bg-[#0090FF] px-3.5 text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
+                >
+                  <Plus className="h-4 w-4" />
+                  Provision Operator Account
+                </Button>
+              </PermissionGate>
+            </div>
+          </div>
+
+          {/* Filter Toolbar */}
+          <div className="mt-5 mb-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
+              <Input
+                placeholder="Search operator, email, role..."
+                value={searchUserQuery}
+                onChange={(e) => setSearchUserQuery(e.target.value)}
+                className="h-8 w-full border-slate-200 bg-white pl-8 pr-7 text-xs"
+              />
+              {isUsersLoading && (
+                <RefreshCw className="absolute top-2.5 right-2.5 h-3 w-3 animate-spin text-slate-400" />
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Role Filter */}
+              <Select
+                value={roleFilter}
+                onValueChange={(val) => {
+                  setRoleFilter(val)
+                  setUsersPage(1)
+                }}
+              >
+                <SelectTrigger className="h-8 w-[140px] border-slate-200 bg-white text-xs">
+                  <SelectValue placeholder="All Roles" />
+                </SelectTrigger>
+                <SelectContent className="text-xs">
+                  <SelectItem value="ALL">All Roles</SelectItem>
+                  {roles.map((r) => (
+                    <SelectItem key={r.id} value={r.code}>
+                      {r.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Status Filter */}
+              <Select
+                value={statusFilter}
+                onValueChange={(val) => {
+                  setStatusFilter(val)
+                  setUsersPage(1)
+                }}
+              >
+                <SelectTrigger className="h-8 w-[120px] border-slate-200 bg-white text-xs">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent className="text-xs">
+                  <SelectItem value="ALL">All Status</SelectItem>
+                  <SelectItem value="Active">Active Only</SelectItem>
+                  <SelectItem value="Restricted">Restricted</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {(searchUserQuery || roleFilter !== "ALL" || statusFilter !== "ALL") && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setSearchUserQuery("")
+                    setRoleFilter("ALL")
+                    setStatusFilter("ALL")
+                    setUsersPage(1)
+                  }}
+                  className="h-8 px-2.5 text-xs text-slate-500 hover:text-slate-900"
+                >
+                  Reset
+                </Button>
+              )}
+            </div>
+          </div>
+
+        <Table>
+          <TableHeader>
+            <TableRow className="border-b border-slate-100 text-xs text-slate-600 hover:bg-transparent">
+              <TableHead className="pl-0">Operator & Login Email</TableHead>
+              <TableHead>Assigned Security Role</TableHead>
+              <TableHead>Territory Station</TableHead>
+              <TableHead>
+                <div className="flex items-center gap-1.5">
+                  <span>Last Active Session</span>
+                  <Badge
+                    variant="outline"
+                    className="border-slate-200 bg-slate-50 px-1.5 py-0 font-mono text-[9px] font-normal text-slate-500"
+                  >
+                    UTC+06:00 Dhaka
+                  </Badge>
+                </div>
+              </TableHead>
+              <TableHead className="text-center">Status</TableHead>
+              <TableHead className="pr-0 text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isUsersLoading && assignments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-xs text-slate-400">
+                  <div className="flex items-center justify-center gap-2">
+                    <RefreshCw className="h-4 w-4 animate-spin text-slate-400" />
+                    <span>Loading provisioned credentials...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : assignments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-8 text-center text-xs text-slate-400">
+                  No provisioned users found matching current filters. Click{" "}
+                  <strong>"Provision Operator Account"</strong> to create credentials.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredUsers.map((user) => {
+                const isUserSuperAdminRole =
+                  user.roleCode === "SUPER_ADMIN" || user.roleCode === "SUPERADMIN"
+                const isCurrentSuper = isUserSuperAdmin(currentUser)
+                const canEditOperator = !isUserSuperAdminRole || isCurrentSuper
+                return (
+                  <TableRow
+                    key={user.id}
+                    className="border-b border-slate-50 hover:bg-slate-50/50"
+                  >
+                    <TableCell className="py-3 pl-0">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar className="h-7 w-7 rounded-full border border-slate-200">
+                          <AvatarFallback className="bg-slate-100 text-xs font-semibold text-slate-700">
+                            {(user.name || "OP").slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="block text-xs font-bold text-slate-900">
+                              {user.name}
+                            </span>
+                            {isUserSuperAdminRole && (
+                              <Badge
+                                variant="outline"
+                                className="border-purple-200 bg-purple-50 px-1.5 py-0 text-[9px] font-bold text-purple-700"
+                              >
+                                Master Admin
+                              </Badge>
+                            )}
+                          </div>
+                          <span className="block font-mono text-[10px] text-[#0090FF]">
+                            {user.email}
+                          </span>
+                        </div>
+                      </div>
+                    </TableCell>
+
+                    <TableCell className="py-3">
+                      <Badge
+                        variant="outline"
+                        onClick={() => {
+                          const match = roles.find((r) => r.code === user.roleCode || r.id === user.roleId)
+                          if (match) {
+                            setSelectedRoleId(match.id)
+                            handleTabChange("permissions")
+                          }
+                        }}
+                        className={`cursor-pointer text-[10px] font-semibold transition-opacity hover:opacity-80 ${getRoleBadgeStyle(user.roleCode)}`}
+                        title={`View permissions for ${user.roleName || user.roleCode}`}
+                      >
+                        {user.roleName || user.roleCode}
+                      </Badge>
+                    </TableCell>
+
+                    <TableCell className="py-3 text-xs text-slate-600">
+                      {user.territory}
+                    </TableCell>
+
+                    <TableCell className="py-3 font-mono text-xs text-slate-600">
+                      {formatLastActiveSession(user.lastLogin)}
+                    </TableCell>
+
+                    <TableCell className="py-3 text-center text-xs">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-semibold ${
+                          user.status === "Active"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-rose-200 bg-rose-50 text-rose-700"
+                        }`}
+                      >
+                        {user.status}
+                      </Badge>
+                    </TableCell>
+
+                    <TableCell className="py-3 pr-0 text-right text-xs">
+                      <div className="flex items-center justify-end gap-1">
+                        {/* Edit & Reassign Role Button */}
+                        <PermissionGate feature="Role Permissions (RBAC)" action="edit">
+<Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={!canEditOperator}
+                            onClick={() => canEditOperator && handleOpenEditUser(user)}
+                            className="h-7 w-7 p-0 text-slate-500 hover:bg-slate-100 hover:text-blue-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                            title={
+                              !canEditOperator
+                                ? "Super Administrator credentials can only be edited by a Super Administrator"
+                                : "Edit Operator Credentials & Role"
+                            }
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </Button>
+</PermissionGate>
+
+                        {/* Toggle Account Status */}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={isUserSuperAdminRole}
+                          onClick={() => !isUserSuperAdminRole && handleToggleUserStatus(user)}
+                          className="h-7 w-7 p-0 text-slate-400 hover:bg-slate-100 hover:text-amber-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                          title={
+                            isUserSuperAdminRole
+                              ? "Super Administrator account status is permanent and cannot be restricted"
+                              : user.status === "Active"
+                              ? "Restrict Access"
+                              : "Activate Access"
+                          }
+                        >
+                          {user.status === "Active" ? (
+                            <Ban className="h-3.5 w-3.5" />
+                          ) : (
+                            <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
+                          )}
+                        </Button>
+
+                        {/* Delete / Revoke Account */}
+                        <PermissionGate feature="Role Permissions (RBAC)" action="delete">
+<Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={isUserSuperAdminRole}
+                            onClick={() => !isUserSuperAdminRole && handleOpenDeleteModal(user.id, user.name)}
+                            className="h-7 w-7 p-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                            title={
+                              isUserSuperAdminRole
+                                ? "Super Administrator credentials cannot be deleted or revoked"
+                                : "Revoke Database Account"
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+</PermissionGate>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            )}
+          </TableBody>
+        </Table>
+
+        <ServerListPagination
+          page={usersPage}
+          totalPages={usersTotalPages}
+          total={usersTotal}
+          limit={usersLimit}
+          loading={isUsersLoading}
+          onPageChange={setUsersPage}
+          onLimitChange={(nextLimit) => {
+            setUsersLimit(nextLimit)
+            setUsersPage(1)
+          }}
+        />
+          </div>
+        )}
+
+        {/* Tab 2: Permissions */}
+        {activeTab === "permissions" && (
+          <div className="pt-5">
+            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
         <div className="space-y-3 lg:col-span-4">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-bold tracking-wider text-slate-600 uppercase">
@@ -1024,7 +1694,14 @@ export default function RBACManagementPage() {
                     </div>
                     <Badge
                       variant="outline"
-                      className="bg-white text-[10px] font-medium text-slate-600"
+                      className="cursor-pointer bg-white text-[10px] font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setRoleFilter(r.code)
+                        setUsersPage(1)
+                        handleTabChange("operator")
+                      }}
+                      title={`View operators assigned to ${r.name}`}
                     >
                       {r.userCount ?? 0} Users
                     </Badge>
@@ -1038,7 +1715,7 @@ export default function RBACManagementPage() {
           </div>
         </div>
 
-        <Card className="rounded-xl border border-slate-200 bg-white p-6 shadow-none lg:col-span-8">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-none lg:col-span-8">
           {selectedRole ? (
             <div>
               <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1241,277 +1918,15 @@ export default function RBACManagementPage() {
               Loading permission matrix...
             </div>
           )}
-        </Card>
-      </div>
-
-      {/* 4. Active Database Credential Roster */}
-      <Card className="rounded-xl border border-slate-200 bg-white p-6 shadow-none">
-        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-                PROVISIONED DATABASE CREDENTIALS & OPERATOR DELEGATIONS
-              </span>
-              <Badge variant="outline" className="text-[10px] font-semibold text-slate-600">
-                {usersTotal} {usersTotal === 1 ? "Operator" : "Operators"}
-              </Badge>
+              </div>
             </div>
-            <p className="mt-0.5 text-xs text-slate-400">
-              Closed-access directory: Super admin can reassign roles, update territory stations,
-              and manage operator credentials.
-            </p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
-              <Input
-                placeholder="Search operator, email, role..."
-                value={searchUserQuery}
-                onChange={(e) => setSearchUserQuery(e.target.value)}
-                className="h-8 w-[220px] border-slate-200 bg-slate-50/50 pl-8 pr-7 text-xs"
-              />
-              {isUsersLoading && (
-                <RefreshCw className="absolute top-2.5 right-2.5 h-3 w-3 animate-spin text-slate-400" />
-              )}
-            </div>
-
-            {/* Role Filter */}
-            <Select
-              value={roleFilter}
-              onValueChange={(val) => {
-                setRoleFilter(val)
-                setUsersPage(1)
-              }}
-            >
-              <SelectTrigger className="h-8 w-[140px] bg-white text-xs">
-                <SelectValue placeholder="All Roles" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="ALL">All Roles</SelectItem>
-                {roles.map((r) => (
-                  <SelectItem key={r.id} value={r.code}>
-                    {r.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Status Filter */}
-            <Select
-              value={statusFilter}
-              onValueChange={(val) => {
-                setStatusFilter(val)
-                setUsersPage(1)
-              }}
-            >
-              <SelectTrigger className="h-8 w-[120px] bg-white text-xs">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="ALL">All Status</SelectItem>
-                <SelectItem value="Active">Active Only</SelectItem>
-                <SelectItem value="Restricted">Restricted</SelectItem>
-              </SelectContent>
-            </Select>
-
-
-          </div>
-        </div>
-
-        <Table>
-          <TableHeader>
-            <TableRow className="border-b border-slate-100 text-xs text-slate-600 hover:bg-transparent">
-              <TableHead className="pl-0">Operator & Login Email</TableHead>
-              <TableHead>Assigned Security Role</TableHead>
-              <TableHead>Territory Station</TableHead>
-              <TableHead>
-                <div className="flex items-center gap-1.5">
-                  <span>Last Active Session</span>
-                  <Badge
-                    variant="outline"
-                    className="border-slate-200 bg-slate-50 px-1.5 py-0 font-mono text-[9px] font-normal text-slate-500"
-                  >
-                    UTC+06:00 Dhaka
-                  </Badge>
-                </div>
-              </TableHead>
-              <TableHead className="text-center">Status</TableHead>
-              <TableHead className="pr-0 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isUsersLoading && assignments.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="py-12 text-center text-xs text-slate-400">
-                  <div className="flex items-center justify-center gap-2">
-                    <RefreshCw className="h-4 w-4 animate-spin text-slate-400" />
-                    <span>Loading provisioned credentials...</span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : assignments.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-xs text-slate-400">
-                  No provisioned users found matching current filters. Click{" "}
-                  <strong>"Provision Operator Account"</strong> to create credentials.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredUsers.map((user) => {
-                const isUserSuperAdminRole =
-                  user.roleCode === "SUPER_ADMIN" || user.roleCode === "SUPERADMIN"
-                const isCurrentSuper = isUserSuperAdmin(currentUser)
-                const canEditOperator = !isUserSuperAdminRole || isCurrentSuper
-                return (
-                  <TableRow
-                    key={user.id}
-                    className="border-b border-slate-50 hover:bg-slate-50/50"
-                  >
-                    <TableCell className="py-3 pl-0">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar className="h-7 w-7 rounded-full border border-slate-200">
-                          <AvatarFallback className="bg-slate-100 text-xs font-semibold text-slate-700">
-                            {(user.name || "OP").slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="block text-xs font-bold text-slate-900">
-                              {user.name}
-                            </span>
-                            {isUserSuperAdminRole && (
-                              <Badge
-                                variant="outline"
-                                className="border-purple-200 bg-purple-50 px-1.5 py-0 text-[9px] font-bold text-purple-700"
-                              >
-                                Master Admin
-                              </Badge>
-                            )}
-                          </div>
-                          <span className="block font-mono text-[10px] text-[#0090FF]">
-                            {user.email}
-                          </span>
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="py-3">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] font-semibold ${getRoleBadgeStyle(user.roleCode)}`}
-                      >
-                        {user.roleName || user.roleCode}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell className="py-3 text-xs text-slate-600">
-                      {user.territory}
-                    </TableCell>
-
-                    <TableCell className="py-3 font-mono text-xs text-slate-600">
-                      {formatLastActiveSession(user.lastLogin)}
-                    </TableCell>
-
-                    <TableCell className="py-3 text-center text-xs">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] font-semibold ${
-                          user.status === "Active"
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "border-rose-200 bg-rose-50 text-rose-700"
-                        }`}
-                      >
-                        {user.status}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell className="py-3 pr-0 text-right text-xs">
-                      <div className="flex items-center justify-end gap-1">
-                        {/* Edit & Reassign Role Button */}
-                        <PermissionGate feature="Role Permissions (RBAC)" action="edit">
-<Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={!canEditOperator}
-                            onClick={() => canEditOperator && handleOpenEditUser(user)}
-                            className="h-7 w-7 p-0 text-slate-500 hover:bg-slate-100 hover:text-blue-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                            title={
-                              !canEditOperator
-                                ? "Super Administrator credentials can only be edited by a Super Administrator"
-                                : "Edit Operator Credentials & Role"
-                            }
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </Button>
-</PermissionGate>
-
-                        {/* Toggle Account Status */}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={isUserSuperAdminRole}
-                          onClick={() => !isUserSuperAdminRole && handleToggleUserStatus(user)}
-                          className="h-7 w-7 p-0 text-slate-400 hover:bg-slate-100 hover:text-amber-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                          title={
-                            isUserSuperAdminRole
-                              ? "Super Administrator account status is permanent and cannot be restricted"
-                              : user.status === "Active"
-                              ? "Restrict Access"
-                              : "Activate Access"
-                          }
-                        >
-                          {user.status === "Active" ? (
-                            <Ban className="h-3.5 w-3.5" />
-                          ) : (
-                            <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
-                          )}
-                        </Button>
-
-                        {/* Delete / Revoke Account */}
-                        <PermissionGate feature="Role Permissions (RBAC)" action="delete">
-<Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={isUserSuperAdminRole}
-                            onClick={() => !isUserSuperAdminRole && handleOpenDeleteModal(user.id, user.name)}
-                            className="h-7 w-7 p-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                            title={
-                              isUserSuperAdminRole
-                                ? "Super Administrator credentials cannot be deleted or revoked"
-                                : "Revoke Database Account"
-                            }
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-</PermissionGate>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
-
-        <ServerListPagination
-          page={usersPage}
-          totalPages={usersTotalPages}
-          total={usersTotal}
-          limit={usersLimit}
-          loading={isUsersLoading}
-          onPageChange={setUsersPage}
-          onLimitChange={(nextLimit) => {
-            setUsersLimit(nextLimit)
-            setUsersPage(1)
-          }}
-        />
+        )}
       </Card>
 
       {/* 5. Provision Operator Modal */}
       <Dialog open={isProvisionOpen} onOpenChange={setIsProvisionOpen}>
-        <DialogContent className="rounded-xl bg-white sm:max-w-[480px]">
+        <DialogContent className="rounded-xl bg-white sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900">
               Database Credential Provisioning
@@ -1523,31 +1938,159 @@ export default function RBACManagementPage() {
           </DialogHeader>
 
           <form onSubmit={handleProvisionOperator} className="space-y-3.5 py-2 text-xs">
-            <div className="space-y-1">
-              <Label className="font-semibold text-slate-700">Operator Full Name *</Label>
-              <Input
-                placeholder="e.g. Toshin Bin Azad"
-                value={provName}
-                onChange={(e) => setProvName(e.target.value)}
-                required
-                className="h-8 text-xs"
-              />
-            </div>
-
+            {/* Row 1: Operator Full Name & Login Email */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="font-semibold text-slate-700">Login Email (Username) *</Label>
+              <div className="space-y-1.5 relative" ref={staffDropdownRef}>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-slate-700">Operator Full Name *</Label>
+                  <span className="text-[10px] text-slate-400">
+                    {staffList.length > 0 ? `${staffList.length} staff` : "Staff directory"}
+                  </span>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                  <Input
+                    placeholder="Search staff or type name..."
+                    value={provName}
+                    onChange={(e) => {
+                      setProvName(e.target.value)
+                      setStaffSearchTerm(e.target.value)
+                      setIsStaffDropdownOpen(true)
+                    }}
+                    onFocus={() => setIsStaffDropdownOpen(true)}
+                    required
+                    className="h-8 pl-8 pr-7 text-xs"
+                    autoComplete="off"
+                  />
+                  {provName && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProvName("")
+                        setStaffSearchTerm("")
+                        setProvEmail("")
+                        setProvPassword("")
+                        setProvRoleCode("")
+                        setIsStaffDropdownOpen(true)
+                      }}
+                      className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Searchable Staff Dropdown Menu (Name & ID Only) */}
+                {isStaffDropdownOpen && (
+                  <div className="absolute top-[100%] left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg ring-1 ring-black/5 animate-in fade-in-0 zoom-in-95">
+                    {isStaffLoading ? (
+                      <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        <span>Loading staff directory...</span>
+                      </div>
+                    ) : filteredStaffList.length === 0 ? (
+                      <div className="py-4 text-center text-xs text-slate-400">
+                        No matching staff found.
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          You can still use "{provName}" as custom operator name.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-0.5">
+                        <div className="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                          Select Staff ({filteredStaffList.length})
+                        </div>
+                        {filteredStaffList.slice(0, 50).map((staff) => (
+                          <div
+                            key={staff.id}
+                            onClick={() => handleSelectStaff(staff)}
+                            className="flex cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 hover:bg-slate-100 transition-colors text-xs"
+                          >
+                            <span className="font-medium text-slate-800 truncate mr-2">
+                              {staff.fullName}
+                            </span>
+                            <span className="font-mono text-[11px] text-slate-500 shrink-0 font-medium">
+                              {staff.empId}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Login Email (Username) *</Label>
                 <Input
                   type="email"
                   placeholder="name@akpharma.com"
                   value={provEmail}
                   onChange={(e) => setProvEmail(e.target.value)}
                   required
+                  autoComplete="off"
                   className="h-8 font-mono text-xs"
                 />
               </div>
-              <div className="space-y-1">
-                <Label className="font-semibold text-slate-700">Database Password *</Label>
+            </div>
+
+            {/* Row 2: Division & Territory Station (Like New MIO Zone Allocation) */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Division (Dropdown) *</Label>
+                <Select value={provDivision} onValueChange={handleProvDivisionChange}>
+                  <SelectTrigger className="h-8 bg-white text-xs">
+                    <SelectValue placeholder="Select Division" />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs">
+                    {divisionList.map((div) => (
+                      <SelectItem key={div} value={div}>
+                        {div}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Territory Station (Dropdown) *</Label>
+                <Select value={provTerritory} onValueChange={setProvTerritory} disabled={!provDivision}>
+                  <SelectTrigger className="h-8 bg-white text-xs">
+                    <SelectValue placeholder={provDivision ? "Select Territory" : "Choose Division First"} />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs max-h-56">
+                    {(divisionTerritoryMap[provDivision] || []).map((terr) => (
+                      <SelectItem key={terr.id} value={terr.id}>
+                        {terr.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {dbTerritories.length === 0 && <p className="text-xs text-amber-700">No territories available. Create a master territory in Target Vs Achievement before provisioning.</p>}
+
+            {/* Row 3 (Last Row): Assign Security Role & Database Password */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Assign Security Role *</Label>
+                <Select value={provRoleCode} onValueChange={setProvRoleCode}>
+                  <SelectTrigger className="h-8 bg-white text-xs">
+                    <SelectValue placeholder="Select Security Role" />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs">
+                    {roles.map((r) => (
+                      <SelectItem key={r.id} value={r.code}>
+                        {r.name} ({r.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Database Password *</Label>
                 <div className="relative">
                   <Lock className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
                   <Input
@@ -1557,6 +2100,7 @@ export default function RBACManagementPage() {
                     onChange={(e) => setProvPassword(e.target.value)}
                     required
                     minLength={6}
+                    autoComplete="new-password"
                     className="h-8 pl-8 pr-8 font-mono text-xs"
                   />
                   <button
@@ -1573,35 +2117,6 @@ export default function RBACManagementPage() {
                     )}
                   </button>
                 </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="font-semibold text-slate-700">Assign Security Role *</Label>
-                <Select value={provRoleCode} onValueChange={setProvRoleCode}>
-                  <SelectTrigger className="h-8 bg-white text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="text-xs">
-                    {roles.map((r) => (
-                      <SelectItem key={r.id} value={r.code}>
-                        {r.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="font-semibold text-slate-700">Territory Station</Label>
-                <Input
-                  placeholder="e.g. Dhaka North Hub"
-                  value={provTerritory}
-                  onChange={(e) => setProvTerritory(e.target.value)}
-                  required
-                  className="h-8 text-xs"
-                />
               </div>
             </div>
 
@@ -1669,12 +2184,14 @@ export default function RBACManagementPage() {
 
               <div className="space-y-1">
                 <Label className="font-semibold text-slate-700">Territory Station</Label>
-                <Input
-                  value={editTerritory}
-                  onChange={(e) => setEditTerritory(e.target.value)}
-                  required
-                  className="h-8 text-xs"
-                />
+                <Select value={editTerritory} onValueChange={setEditTerritory}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select territory" /></SelectTrigger>
+                  <SelectContent className="max-h-60 text-xs">
+                    {dbTerritories.filter(t => t.status === "Active" || t.id === editTerritory).map(t => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

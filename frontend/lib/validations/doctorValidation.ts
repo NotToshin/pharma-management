@@ -6,6 +6,7 @@ export const doctorFormSchema = z.object({
   bmdcRegNumber: z.string().min(1, "BMDC registration number is required"),
   specialtyAndInstitute: z.string().min(1, "Specialty & Institute is required"),
   chamber: z.string().min(1, "Chamber address is required"),
+  territoryId: z.string().regex(/^[a-f\d]{24}$/i, "Invalid territory ID").nullable().optional(),
   territory: z.string().optional().or(z.literal("")),
   territoryAndMio: z.string().optional().default("Unassigned"),
   email: z.string().min(1, "Email address is required").email("Invalid email format"),

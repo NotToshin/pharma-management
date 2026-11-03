@@ -8,6 +8,7 @@ export const clientFormSchema = z.object({
   drugLicenseNo: z.string().optional().or(z.literal("")),
   tradeLicenseNo: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),
+  territoryId: z.string().regex(/^[a-f\d]{24}$/i, "Invalid territory ID").nullable().optional(),
   territory: z.string().min(1, "Territory is required"),
   assignedMio: z.string().optional().or(z.literal("")),
   creditLimitBDT: z.coerce

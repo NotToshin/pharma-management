@@ -1,3 +1,4 @@
+import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryAssignment";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
@@ -40,6 +41,37 @@ const generateNextReceiptNumber = async (): Promise<string> => {
 };
 
 export const collectionService = {
+  // New receipts use the pharmacy's current assignment, not an older invoice snapshot.
+  async getOrderContext(orderId: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { territoryRef: true },
+    });
+    if (!order) throw new AppError("Sales order not found", 404);
+    if (order.status === "Cancelled") throw new AppError("Cannot collect against a cancelled order", 400);
+
+    // Legacy orders identify clients by pharmacy name. Never guess between duplicates.
+    const clients = await prisma.client.findMany({
+      where: { pharmacyName: { equals: order.pharmacyName.trim(), mode: "insensitive" } },
+      take: 2,
+      select: {
+        clientCode: true, pharmacyName: true, territoryId: true, territory: true, assignedMio: true,
+        territoryRef: { select: { id: true, name: true } },
+      },
+    });
+    if (clients.length > 1) throw new AppError("Multiple pharmacy clients match this invoice. Resolve the duplicate pharmacy names before linking a collection.", 409);
+    const client = clients[0];
+    const source = client || order;
+    return {
+      orderId: order.id,
+      clientCode: client?.clientCode || null,
+      chemistName: client?.pharmacyName || order.pharmacyName,
+      territoryId: source.territoryRef?.id || source.territoryId || null,
+      territory: source.territoryRef?.name ?? source.territory ?? "",
+      salesRepName: client?.assignedMio || order.assignedMio || "",
+    };
+  },
+
   /**
    * Generates sequential collection receipt number
    */
@@ -66,6 +98,21 @@ export const collectionService = {
       ];
     }
 
+    // Tab-level quick filters
+    if (filters?.tab && filters.tab !== "all") {
+      if (filters.tab === "pending") {
+        where.status = "Pending Vault Clearance";
+      } else if (filters.tab === "cleared") {
+        where.status = "Cleared & Deposited";
+      } else if (filters.tab === "cash") {
+        where.paymentMethod = "Cash";
+      } else if (filters.tab === "cheque") {
+        where.paymentMethod = "Cheque";
+      } else if (filters.tab === "bank") {
+        where.paymentMethod = { in: ["BEFTN / RTGS", "bKash / Nagad"] };
+      }
+    }
+
     if (filters?.status && filters.status !== "all") {
       where.status = filters.status;
     }
@@ -82,6 +129,17 @@ export const collectionService = {
       where.salesRepName = filters.salesRep;
     }
 
+    if (filters?.startDate || filters?.endDate) {
+      where.createdAt = {};
+      if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
+      if (filters.endDate) where.createdAt.lte = new Date(filters.endDate);
+    }
+
+    // Sorting
+    const sortField = filters?.sortBy || "createdAt";
+    const sortOrder = filters?.sortOrder || "desc";
+    const orderBy: Record<string, any> = { [sortField]: sortOrder };
+
     // Pagination calculations
     const page = filters?.page ? Math.max(1, parseInt(filters.page, 10) || 1) : 1;
     const isFetchAll = filters?.limit === "all" || filters?.limit === "-1";
@@ -93,7 +151,7 @@ export const collectionService = {
       prisma.deliveryCollection.count({ where }),
       prisma.deliveryCollection.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy,
         ...(skip !== undefined ? { skip } : {}),
         ...(take !== undefined ? { take } : {}),
       }),
@@ -124,67 +182,73 @@ export const collectionService = {
   },
 
   /**
-   * Aggregated KPI metrics for delivery cash collections & vault clearance
+   * Aggregated KPI metrics for delivery cash collections & vault clearance (Optimized with DB Aggregations)
    */
   async getCollectionMetrics() {
-    const all = await prisma.deliveryCollection.findMany();
+    const [
+      overallStats,
+      clearedStats,
+      pendingStats,
+      methodGroups,
+      territoryGroups,
+    ] = await Promise.all([
+      prisma.deliveryCollection.aggregate({
+        _count: { id: true },
+        _sum: {
+          totalInvoiceAmount: true,
+          amountCollected: true,
+          dueAmountRemaining: true,
+        },
+      }),
+      prisma.deliveryCollection.aggregate({
+        where: { status: "Cleared & Deposited" },
+        _count: { id: true },
+        _sum: { amountCollected: true },
+      }),
+      prisma.deliveryCollection.aggregate({
+        where: { status: "Pending Vault Clearance" },
+        _count: { id: true },
+        _sum: { amountCollected: true },
+      }),
+      prisma.deliveryCollection.groupBy({
+        by: ["paymentMethod"],
+        _count: { id: true },
+        _sum: { amountCollected: true },
+      }),
+      prisma.deliveryCollection.groupBy({
+        by: ["territory"],
+        _count: { id: true },
+        _sum: { amountCollected: true },
+      }),
+    ]);
 
-    let totalRealizedBDT = 0;
-    let totalPendingClearanceBDT = 0;
-    let totalInvoicedBDT = 0;
-    let outstandingDueBDT = 0;
-    let realizedCount = 0;
-    let pendingCount = 0;
-
-    const territoryMap: Record<string, { count: number; amount: number }> = {};
-    const methodMap: Record<string, { count: number; amount: number }> = {};
-
-    for (const c of all) {
-      const collected = Number(c.amountCollected) || 0;
-      const invoiced = Number(c.totalInvoiceAmount) || 0;
-      const due = Number(c.dueAmountRemaining) || Math.max(0, invoiced - collected);
-
-      totalInvoicedBDT += invoiced;
-      outstandingDueBDT += due;
-
-      if (c.status === "Cleared & Deposited") {
-        totalRealizedBDT += collected;
-        realizedCount++;
-      } else if (c.status === "Pending Vault Clearance") {
-        totalPendingClearanceBDT += collected;
-        pendingCount++;
-      }
-
-      // Territory
-      const terr = c.territory || "Unassigned";
-      if (!territoryMap[terr]) territoryMap[terr] = { count: 0, amount: 0 };
-      territoryMap[terr].count++;
-      territoryMap[terr].amount += collected;
-
-      // Payment method
-      const meth = c.paymentMethod || "Cash";
-      if (!methodMap[meth]) methodMap[meth] = { count: 0, amount: 0 };
-      methodMap[meth].count++;
-      methodMap[meth].amount += collected;
-    }
+    const totalReceipts = overallStats._count.id || 0;
+    const totalInvoicedBDT = overallStats._sum.totalInvoiceAmount || 0;
+    const totalRealizedBDT = clearedStats._sum.amountCollected || 0;
+    const totalPendingClearanceBDT = pendingStats._sum.amountCollected || 0;
+    const realizedCount = clearedStats._count.id || 0;
+    const pendingCount = pendingStats._count.id || 0;
+    const outstandingDueBDT =
+      overallStats._sum.dueAmountRemaining ??
+      Math.max(0, totalInvoicedBDT - (overallStats._sum.amountCollected || 0));
 
     return {
-      totalReceipts: all.length,
+      totalReceipts,
       totalRealizedBDT,
       totalPendingClearanceBDT,
       totalInvoicedBDT,
       outstandingDueBDT,
       realizedCount,
       pendingCount,
-      territoryBreakdown: Object.entries(territoryMap).map(([territory, stats]) => ({
-        territory,
-        count: stats.count,
-        amount: stats.amount,
+      territoryBreakdown: territoryGroups.map((g) => ({
+        territory: g.territory || "Unassigned",
+        count: g._count.id || 0,
+        amount: g._sum.amountCollected || 0,
       })),
-      paymentMethodBreakdown: Object.entries(methodMap).map(([method, stats]) => ({
-        method,
-        count: stats.count,
-        amount: stats.amount,
+      paymentMethodBreakdown: methodGroups.map((g) => ({
+        method: g.paymentMethod || "Cash",
+        count: g._count.id || 0,
+        amount: g._sum.amountCollected || 0,
       })),
     };
   },
@@ -210,6 +274,7 @@ export const collectionService = {
     const dateFormatted = formatDate(data.collectionDate);
 
     const created = await prisma.$transaction(async (txClient) => {
+      const assignment = await resolveTerritoryAssignment(data, { required: true, db: txClient });
       let targetAccountId = data.financialAccountId;
 
       // 1. Resolve or find matching order
@@ -284,14 +349,11 @@ export const collectionService = {
       // Decrement client outstanding dues if registered
       // ALWAYS reduce pharmacy due balance as soon as cash collection is recorded from pharmacy
       if (data.chemistName) {
-        const client = await txClient.client.findFirst({
-          where: {
-            OR: [
-              { pharmacyName: { equals: data.chemistName.trim(), mode: "insensitive" } },
-              ...(data.clientCode ? [{ clientCode: data.clientCode.trim() }] : []),
-            ],
-          },
-        });
+        const client = data.clientCode?.trim()
+          ? await txClient.client.findUnique({ where: { clientCode: data.clientCode.trim() } })
+          : await txClient.client.findFirst({
+            where: { pharmacyName: { equals: data.chemistName.trim(), mode: "insensitive" } },
+          });
         if (client) {
           const currentBal = Number(client.outstandingBalanceBDT) || 0;
           const newBal = Math.max(0, Math.round((currentBal - collected) * 100) / 100);
@@ -341,7 +403,7 @@ export const collectionService = {
           orderId: finalOrderId,
           clientCode: data.clientCode || null,
           chemistName: data.chemistName.trim(),
-          territory: data.territory.trim(),
+          ...assignment,
           salesRepName: data.salesRepName.trim(),
           totalInvoiceAmount: invoiced,
           amountCollected: collected,
@@ -391,7 +453,7 @@ export const collectionService = {
     if (data.orderId !== undefined) updateData.orderId = data.orderId;
     if (data.clientCode !== undefined) updateData.clientCode = data.clientCode;
     if (data.chemistName !== undefined) updateData.chemistName = data.chemistName.trim();
-    if (data.territory !== undefined) updateData.territory = data.territory.trim();
+    if (hasTerritoryAssignment(data)) Object.assign(updateData, await resolveTerritoryAssignment(data, { required: true, currentId: existing.territoryId }));
     if (data.salesRepName !== undefined) updateData.salesRepName = data.salesRepName.trim();
     if (data.totalInvoiceAmount !== undefined) updateData.totalInvoiceAmount = Number(data.totalInvoiceAmount);
     if (data.amountCollected !== undefined) updateData.amountCollected = Number(data.amountCollected);

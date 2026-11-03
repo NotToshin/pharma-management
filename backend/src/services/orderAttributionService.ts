@@ -16,7 +16,7 @@ export const loadOrderAttributionSources = async (
 ) => {
   const [clients, allocations, targets] = await Promise.all([
     db.client.findMany({
-      select: { pharmacyName: true, territory: true, assignedMio: true },
+      select: { pharmacyName: true, territoryId: true, territory: true, assignedMio: true },
     }),
     db.mioZoneAllocation.findMany({
       select: {
@@ -25,12 +25,12 @@ export const loadOrderAttributionSources = async (
         employeeId: true,
         phone: true,
         division: true,
-        territory: true,
+        territoryId: true, territory: true,
         allocatedZone: true,
       },
     }),
     db.territoryTarget.findMany({
-      select: { territory: true, mioName: true },
+      select: { territoryId: true, territory: true, mioName: true },
     }),
   ]);
   return { clients, allocations, targets };
@@ -41,13 +41,15 @@ type AttributionSources = Awaited<ReturnType<typeof loadOrderAttributionSources>
 // Explicit order assignments take precedence. Legacy placeholder assignments may
 // use a client or a unique territory owner, but must never credit multiple MIOs.
 export const resolveOrderMio = (
-  order: { assignedMio?: string | null; territory?: string | null; pharmacyName: string },
+  order: { assignedMio?: string | null; territory?: string | null; territoryId?: string | null; pharmacyName: string },
   sources: AttributionSources
 ): string | null => {
   const explicit = assignedName(order.assignedMio);
   if (explicit) return explicit;
 
   const territory = normalizeAssignment(order.territory);
+  const sameTerritory = (row: { territoryId?: string | null; territory?: string | null }) =>
+    order.territoryId && row.territoryId ? order.territoryId === row.territoryId : normalizeAssignment(row.territory) === territory;
   const uniqueNames = (names: Array<string | null | undefined>) => {
     const result = new Map<string, string>();
     for (const name of names) {
@@ -62,17 +64,17 @@ export const resolveOrderMio = (
   const clientOwners = uniqueNames(sources.clients
     .filter((client) =>
       normalizeAssignment(client.pharmacyName) === normalizeAssignment(order.pharmacyName) &&
-      (!territory || !client.territory || normalizeAssignment(client.territory) === territory))
+      (!territory || !client.territory || sameTerritory(client)))
     .map((client) => client.assignedMio));
   if (clientOwners.size) return onlyName(clientOwners);
   if (!territory) return null;
 
   const allocatedOwners = uniqueNames(sources.allocations
-    .filter((allocation) => normalizeAssignment(allocation.territory) === territory)
+    .filter((allocation) => sameTerritory(allocation))
     .map((allocation) => allocation.mioName));
   if (allocatedOwners.size) return onlyName(allocatedOwners);
 
   return onlyName(uniqueNames(sources.targets
-    .filter((target) => normalizeAssignment(target.territory) === territory)
+    .filter((target) => sameTerritory(target))
     .map((target) => target.mioName)));
 };

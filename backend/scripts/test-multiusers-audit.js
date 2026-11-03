@@ -40,6 +40,11 @@ async function runMultiUserAuditTest() {
   // -------------------------------------------------------------
   console.log('--- USER 1: Super Administrator Actions ---');
   const adminAuth = await loginUser('superadmin@pharma.com', 'admin123456');
+  const territoryResponse = await fetch(`${BASE_URL}/territories`, { headers: adminAuth.headers });
+  if (!territoryResponse.ok) throw new Error('Could not load master territories for the test');
+  const territoryData = await territoryResponse.json();
+  const territory = territoryData.data.find(item => item.status === 'Active');
+  if (!territory) throw new Error('Create an active master territory before running this test');
 
   // Action 1.1: Register Doctor (Clinical Registry)
   const bmdcReg = `BMDC-E2E-${Date.now().toString().slice(-5)}`;
@@ -55,7 +60,8 @@ async function runMultiUserAuditTest() {
       bmdcRegNumber: bmdcReg,
       specialtyAndInstitute: 'Cardiology (National Heart Foundation)',
       chamber: 'Mirpur Diagnostic Complex, Suite 402',
-      territory: 'Dhaka North - Mirpur',
+      territoryId: territory.id,
+      territory: territory.name,
       email: 'dr.shahadat@cardio-bd.org',
       tier: 'Tier B',
       patientVolumeDaily: 45,
@@ -118,7 +124,8 @@ async function runMultiUserAuditTest() {
       specialty: 'Cardiology',
       chamber: 'Mirpur Diagnostic Complex',
       mioName: 'Yeasin',
-      territory: 'Dhaka North - Mirpur',
+      territoryId: territory.id,
+      territory: territory.name,
       visitDate: '2026-10-26',
       visitTime: '10:15 AM',
       promotedDrugs: 'CardioFix 50mg, AtenoPlus 25mg',
@@ -145,7 +152,8 @@ async function runMultiUserAuditTest() {
       drugLicenseNo: `DL-DH-${Date.now().toString().slice(-4)}`,
       tradeLicenseNo: `TL-DH-${Date.now().toString().slice(-4)}`,
       address: 'House 12, Road 4, Dhanmondi, Dhaka',
-      territory: 'Dhaka South - Dhanmondi',
+      territoryId: territory.id,
+      territory: territory.name,
       assignedMio: 'Yeasin',
       creditLimitBDT: 150000,
       creditTermDays: 30,
@@ -177,7 +185,8 @@ async function runMultiUserAuditTest() {
       department: 'Quality Assurance',
       designation: 'Senior QA Inspector',
       salary: 45000,
-      territory: 'Dhaka Central HQ',
+      territoryId: territory.id,
+      territory: territory.name,
       supervisor: 'Toshin Bin Azad (Head of HR)',
       employmentStatus: 'Active',
     }),

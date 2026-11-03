@@ -99,13 +99,17 @@ async function seed() {
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(defaultPassword, salt);
 
+    const territoryName = process.env.SUPERADMIN_TERRITORY?.trim() || "Head Office";
+    const territory = await prisma.territory.findFirst({ where: { name: { equals: territoryName, mode: "insensitive" } } })
+      ?? await prisma.territory.create({ data: { name: territoryName, status: "Active" } });
     const newUser = await prisma.systemUser.create({
       data: {
         name: "Super Administrator",
         email: adminEmail.trim().toLowerCase(),
         passwordHash,
         roleId: superadminRole.id,
-        territory: "Dhaka Central HQ",
+        territoryId: territory.id,
+        territory: territory.name,
         status: "Active",
       },
     });

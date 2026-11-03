@@ -3,6 +3,12 @@ import { collectionService } from "../services/collectionService";
 import { sendResponse } from "../utils/response";
 import { catchAsync } from "../utils/catchAsync";
 
+export const getCollectionOrderContext = catchAsync(async (req: Request, res: Response) => {
+  const context = await collectionService.getOrderContext(req.params.orderId);
+  res.setHeader("Cache-Control", "no-store");
+  sendResponse(res, 200, "Current pharmacy collection assignment retrieved", context);
+});
+
 export const getNextReceiptNumber = catchAsync(async (req: Request, res: Response) => {
   const nextNumber = await collectionService.getNextReceiptNumber();
   sendResponse(res, 200, "Next collection receipt number generated", { nextReceiptNo: nextNumber });

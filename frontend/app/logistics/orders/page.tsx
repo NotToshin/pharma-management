@@ -3,6 +3,9 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import { MasterTerritorySelect } from "@/components/master-territory-select"
+import { DivisionTerritoryFields } from "@/components/division-territory-fields"
+import { groupTerritories, useTerritories } from "@/hooks/use-territories"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { API_URL, apiFetch } from "@/lib/api"
@@ -51,6 +54,7 @@ import {
   Search,
   Filter,
   Plus,
+  ChevronDown,
   Download,
   CheckCircle2,
   AlertTriangle,
@@ -283,7 +287,22 @@ function LogisticsOrdersContent() {
     number | null
   >(null)
 
+  React.useEffect(() => {
+    if (activeSuggestionRow === null) return
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest("[data-product-dropdown]")) {
+        setActiveSuggestionRow(null)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [activeSuggestionRow])
+
   const [isNewOrderOpen, setIsNewOrderOpen] = React.useState(false)
+  const { territories: masterTerritories, loading: territoriesLoading, error: territoriesError } = useTerritories()
   const [territory, setTerritory] = React.useState("")
   const [assignedMio, setAssignedMio] = React.useState("")
   const [deliveryMethod, setDeliveryMethod] = React.useState<
@@ -291,6 +310,17 @@ function LogisticsOrdersContent() {
   >("Sales Representative")
   const [orderComments, setOrderComments] = React.useState("")
   const [discountPercent, setDiscountPercent] = React.useState<number>(0)
+
+  const orderTerritoryGroups = React.useMemo(() => groupTerritories(
+    masterTerritories,
+    territory
+  ), [masterTerritories, territory])
+
+  const selectedOrderTerritory = React.useMemo(() => (
+    Object.values(orderTerritoryGroups).flat().find(
+      (t) => t.name.toLowerCase() === territory.trim().toLowerCase()
+    )
+  ), [orderTerritoryGroups, territory])
 
   const [lineItems, setLineItems] = React.useState<InvoiceItem[]>([
     { no: 1, description: "", quantity: 1, unitCost: 0, total: 0 },
@@ -531,20 +561,26 @@ function LogisticsOrdersContent() {
     )
   }
 
+  const handleAddLineItem = () => {
+    setLineItems((prev) => [
+      ...prev,
+      {
+        no: prev.length + 1,
+        description: "",
+        quantity: 1,
+        unitCost: 0,
+        total: 0,
+      },
+    ])
+  }
+
   const handleUpdateLineItem = (
     index: number,
     field: keyof InvoiceItem,
     value: any
   ) => {
-    setLineItems((prev) => {
-      const isLastRow = index === prev.length - 1
-      const isEnteringDescription =
-        field === "description" &&
-        typeof value === "string" &&
-        value.trim() !== ""
-      const wasPreviouslyEmpty = prev[index].description.trim() === ""
-
-      const updatedList = prev.map((item, i) => {
+    setLineItems((prev) =>
+      prev.map((item, i) => {
         if (i === index) {
           const updated = { ...item, [field]: value }
           if (field === "quantity" || field === "unitCost") {
@@ -558,30 +594,12 @@ function LogisticsOrdersContent() {
         }
         return item
       })
-
-      if (isLastRow && isEnteringDescription && wasPreviouslyEmpty) {
-        updatedList.push({
-          no: updatedList.length + 1,
-          description: "",
-          quantity: 1,
-          unitCost: 0,
-          total: 0,
-        })
-      }
-
-      return updatedList.map((item, idx) => ({
-        ...item,
-        no: idx + 1,
-      }))
-    })
+    )
   }
 
   const handleSelectStockProduct = (index: number, prod: StockProduct) => {
-    setLineItems((prev) => {
-      const isLastRow = index === prev.length - 1
-      const wasEmpty = prev[index].description.trim() === ""
-
-      const updatedList = prev.map((item, i) => {
+    setLineItems((prev) =>
+      prev.map((item, i) => {
         if (i === index) {
           return {
             ...item,
@@ -592,22 +610,7 @@ function LogisticsOrdersContent() {
         }
         return item
       })
-
-      if (isLastRow && wasEmpty) {
-        updatedList.push({
-          no: updatedList.length + 1,
-          description: "",
-          quantity: 1,
-          unitCost: 0,
-          total: 0,
-        })
-      }
-
-      return updatedList.map((item, idx) => ({
-        ...item,
-        no: idx + 1,
-      }))
-    })
+    )
     setActiveSuggestionRow(null)
   }
 
@@ -659,6 +662,11 @@ function LogisticsOrdersContent() {
       toast.error("Please specify a pharmacy or chemist name.")
       return
     }
+    if (territoriesLoading || territoriesError || !territory.trim() || !selectedOrderTerritory) {
+      const message = territoriesError || "Please select a division and territory station."
+      toast.error(message)
+      return
+    }
     if (validLineItems.length === 0) {
       toast.error("Please specify at least one product description.")
       return
@@ -676,7 +684,8 @@ function LogisticsOrdersContent() {
           year: "numeric",
         }),
         pharmacyName: pharmacyInput.trim(),
-        territory,
+        territory: selectedOrderTerritory?.name || territory.trim(),
+        territoryId: selectedOrderTerritory?.id,
         assignedMio,
         itemsSummary: itemsSummaryString,
         itemsDetail: validLineItems,
@@ -1104,87 +1113,64 @@ function LogisticsOrdersContent() {
               )}
 
               <form onSubmit={handleCreateOrder} className="space-y-4 py-2">
-                <div className="relative space-y-1.5">
-                  <Label
-                    htmlFor="pharmacy"
-                    className="text-xs font-medium text-slate-700"
-                  >
-                    Chemist / Pharmacy Outlet (Type to search) *
-                  </Label>
-                  <Input
-                    id="pharmacy"
-                    placeholder="Type pharmacy name or code (e.g. Al-Madina)..."
-                    value={pharmacyInput}
-                    onChange={(e) => handlePharmacyTyping(e.target.value)}
-                    required
-                    className="h-8 text-xs font-semibold"
-                    autoComplete="off"
-                  />
-                  {pharmacySuggestions.length > 0 && (
-                    <div className="absolute right-0 left-0 z-50 mt-1 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                      {pharmacySuggestions.map((c) => (
-                        <div
-                          key={c.id}
-                          onClick={() => handleSelectPharmacy(c)}
-                          className="flex cursor-pointer items-center justify-between border-b border-slate-50 px-3 py-2 text-xs last:border-0 hover:bg-blue-50"
-                        >
-                          <div>
-                            <strong className="block text-slate-900">
-                              {c.pharmacyName}
-                            </strong>
-                            <span className="text-[10px] text-slate-400">
-                              {c.territory} • Code: {c.clientCode}
-                            </span>
-                          </div>
-                          <Badge variant="outline" className="text-[9px]">
-                            {c.status}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1.5">
+                {/* Row 1: Chemist Outlet (half) & Sales Representative (half) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="relative space-y-1.5">
                     <Label
-                      htmlFor="ter"
-                      className="text-xs font-medium text-slate-700"
+                      htmlFor="pharmacy"
+                      className="text-xs font-semibold text-slate-700"
                     >
-                      Territory Hub
+                      Chemist / Pharmacy Outlet (Type to search) *
                     </Label>
-                    <Select value={territory} onValueChange={setTerritory}>
-                      <SelectTrigger className="h-8 bg-white text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="text-xs">
-                        <SelectItem value="Dhaka North">Dhaka North</SelectItem>
-                        <SelectItem value="Dhaka South">Dhaka South</SelectItem>
-                        <SelectItem value="Chittagong Central">
-                          Chittagong Central
-                        </SelectItem>
-                        <SelectItem value="Sylhet Sadar">
-                          Sylhet Sadar
-                        </SelectItem>
-                        <SelectItem value="Rajshahi Metro">
-                          Rajshahi Metro
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      id="pharmacy"
+                      placeholder="Type pharmacy name or code (e.g. Al-Madina)..."
+                      value={pharmacyInput}
+                      onChange={(e) => handlePharmacyTyping(e.target.value)}
+                      required
+                      className="h-8 text-xs font-semibold"
+                      autoComplete="off"
+                    />
+                    {pharmacySuggestions.length > 0 && (
+                      <div className="absolute right-0 left-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                        {pharmacySuggestions.map((c) => (
+                          <div
+                            key={c.id}
+                            onClick={() => handleSelectPharmacy(c)}
+                            className="flex cursor-pointer items-center justify-between border-b border-slate-50 px-3 py-2 text-xs last:border-0 hover:bg-blue-50"
+                          >
+                            <div>
+                              <strong className="block text-slate-900">
+                                {c.pharmacyName}
+                              </strong>
+                              <span className="text-[10px] text-slate-400">
+                                {c.territory} • Code: {c.clientCode}
+                              </span>
+                            </div>
+                            <Badge variant="outline" className="text-[9px]">
+                              {c.status}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
                     <Label
                       htmlFor="mio"
-                      className="text-xs font-medium text-slate-700"
+                      className="text-xs font-semibold text-slate-700"
                     >
                       Sales Representative
                     </Label>
                     <Select value={assignedMio} onValueChange={setAssignedMio}>
-                      <SelectTrigger className="h-8 bg-white text-xs">
+                      <SelectTrigger id="mio" className="h-8 bg-white text-xs">
                         <SelectValue placeholder="Select Sales Rep" />
                       </SelectTrigger>
-                      <SelectContent className="max-h-40 text-xs">
+                      <SelectContent className="max-h-48 text-xs">
+                        {assignedMio && !staffList.some((s) => s.fullName === assignedMio) && (
+                          <SelectItem value={assignedMio}>{assignedMio}</SelectItem>
+                        )}
                         {staffList.map((staff) => (
                           <SelectItem key={staff.id} value={staff.fullName}>
                             {staff.fullName} (
@@ -1197,11 +1183,23 @@ function LogisticsOrdersContent() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
 
-                  <div className="space-y-1.5">
+                {/* Row 2: Division, Territory Station & Logistics Fleet (3 fields) */}
+                <DivisionTerritoryFields
+                  groups={orderTerritoryGroups}
+                  value={territory}
+                  onValueChange={(terr) => {
+                    setTerritory(terr.name)
+                  }}
+                  loading={territoriesLoading}
+                  error={territoriesError}
+                  idPrefix="order"
+                >
+                  <div className="space-y-1">
                     <Label
                       htmlFor="delivery-method"
-                      className="text-xs font-medium text-slate-700"
+                      className="text-xs font-semibold text-slate-700"
                     >
                       Logistics Fleet
                     </Label>
@@ -1211,7 +1209,7 @@ function LogisticsOrdersContent() {
                         setDeliveryMethod(val as SalesOrder["deliveryMethod"])
                       }
                     >
-                      <SelectTrigger className="h-8 bg-white text-xs">
+                      <SelectTrigger id="delivery-method" className="h-8 bg-white text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="text-xs">
@@ -1227,18 +1225,29 @@ function LogisticsOrdersContent() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
+                </DivisionTerritoryFields>
 
                 <div className="space-y-2 pt-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-                      Invoice Line Items & Products (Connected with Stock
-                      Management)
-                    </Label>
-                    <span className="text-[10px] text-slate-500 italic">
-                      * Auto-creates consecutive rows & automatically updates
-                      inventory
-                    </span>
+                    <div>
+                      <Label className="text-xs font-bold tracking-wide text-slate-900 uppercase">
+                        Invoice Line Items & Products (Connected with Stock
+                        Management)
+                      </Label>
+                      <p className="text-[10px] text-slate-400">
+                        Pick formulations from inventory to allocate FEFO stock and populate unit costs.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddLineItem}
+                      className="h-7 gap-1 border-slate-200 bg-white text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-[#0090FF]" />
+                      Add Row
+                    </Button>
                   </div>
 
                   <div className="overflow-visible rounded-lg border border-black">
@@ -1273,67 +1282,86 @@ function LogisticsOrdersContent() {
                               {item.no}
                             </td>
                             <td className="relative border-r border-slate-200 px-2 py-1.5 text-left">
-                              <Input
-                                placeholder="Choose or search stock product..."
-                                value={item.description}
-                                onChange={(e) => {
-                                  handleUpdateLineItem(
-                                    idx,
-                                    "description",
-                                    e.target.value
-                                  )
-                                  setActiveSuggestionRow(idx)
-                                }}
-                                onFocus={() => setActiveSuggestionRow(idx)}
-                                className="h-7 border-slate-200 text-xs font-medium"
-                              />
-                              {activeSuggestionRow === idx && (
-                                <div className="absolute right-2 left-2 z-50 mt-0.5 max-h-48 overflow-y-auto rounded border border-slate-300 bg-white shadow-lg">
-                                  {productCatalog
-                                    .filter((p) =>
-                                      p.name
-                                        .toLowerCase()
-                                        .includes(
-                                          (item.description || "").toLowerCase()
-                                        )
+                              <div className="relative" data-product-dropdown="true">
+                                <Input
+                                  placeholder="Choose or search stock product..."
+                                  value={item.description}
+                                  onChange={(e) => {
+                                    handleUpdateLineItem(
+                                      idx,
+                                      "description",
+                                      e.target.value
                                     )
-                                    .map((prod) => (
-                                      <div
-                                        key={prod.id}
-                                        onClick={() =>
-                                          handleSelectStockProduct(idx, prod)
-                                        }
-                                        className="flex cursor-pointer items-center justify-between border-b border-slate-100 px-3 py-2 text-xs last:border-0 hover:bg-blue-50"
-                                      >
-                                        <div>
-                                          <span className="block font-bold text-slate-900">
-                                            {prod.name}
-                                          </span>
-                                          <span className="font-mono text-[11px] font-semibold text-emerald-600">
-                                            Stock: {prod.stockQty} boxes
-                                          </span>
-                                        </div>
-                                        <span className="font-mono text-xs font-bold text-slate-700">
-                                          ৳
-                                          {prod.unitPrice.toLocaleString(
-                                            "en-IN"
-                                          )}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  {productCatalog.filter((p) =>
-                                    p.name
-                                      .toLowerCase()
-                                      .includes(
-                                        (item.description || "").toLowerCase()
+                                    setActiveSuggestionRow(idx)
+                                  }}
+                                  onFocus={() => setActiveSuggestionRow(idx)}
+                                  onClick={() => setActiveSuggestionRow(idx)}
+                                  className="h-7 border-slate-200 pr-7 text-xs font-medium"
+                                  autoComplete="off"
+                                />
+                                <button
+                                  type="button"
+                                  tabIndex={-1}
+                                  onClick={() =>
+                                    setActiveSuggestionRow((prev) =>
+                                      prev === idx ? null : idx
+                                    )
+                                  }
+                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                                >
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                </button>
+                                {activeSuggestionRow === idx && (() => {
+                                  const query = (item.description || "").trim().toLowerCase()
+                                  const isExactMatch = productCatalog.some(
+                                    (p) => p.name.toLowerCase() === query
+                                  )
+                                  const filtered = (!query || isExactMatch)
+                                    ? productCatalog
+                                    : productCatalog.filter((p) =>
+                                        p.name.toLowerCase().includes(query)
                                       )
-                                  ).length === 0 && (
-                                    <div className="px-3 py-2 text-xs text-slate-400 italic">
-                                      No matching inventory products found
+                                  return (
+                                    <div className="absolute right-0 left-0 z-50 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                                      {filtered.map((prod) => {
+                                        const isSelected =
+                                          prod.name.toLowerCase() === query
+                                        return (
+                                          <div
+                                            key={prod.id}
+                                            onClick={() =>
+                                              handleSelectStockProduct(idx, prod)
+                                            }
+                                            className={`flex cursor-pointer items-center justify-between border-b border-slate-100 px-3 py-2 text-xs last:border-0 hover:bg-blue-50 ${
+                                              isSelected ? "bg-blue-50/60 font-semibold" : ""
+                                            }`}
+                                          >
+                                            <div className="min-w-0 pr-2">
+                                              <span className="block truncate font-bold text-slate-900">
+                                                {prod.name}
+                                              </span>
+                                              <span className="font-mono text-[10px] font-semibold text-emerald-600">
+                                                Stock: {prod.stockQty} boxes
+                                              </span>
+                                            </div>
+                                            <span className="shrink-0 font-mono text-xs font-bold text-slate-700">
+                                              ৳
+                                              {prod.unitPrice.toLocaleString("en-IN")}
+                                            </span>
+                                          </div>
+                                        )
+                                      })}
+                                      {filtered.length === 0 && (
+                                        <div className="px-3 py-2 text-xs text-slate-400 italic">
+                                          {productCatalog.length === 0
+                                            ? "No inventory products available"
+                                            : "No matching inventory products found"}
+                                        </div>
+                                      )}
                                     </div>
-                                  )}
-                                </div>
-                              )}
+                                  )
+                                })()}
+                              </div>
                             </td>
                             <td className="border-r border-slate-200 px-2 py-1.5">
                               <Input
@@ -1592,21 +1620,7 @@ function LogisticsOrdersContent() {
             </SelectContent>
           </Select>
 
-          <Select value={territoryFilter} onValueChange={setTerritoryFilter}>
-            <SelectTrigger className="h-8 w-[150px] border-slate-200 bg-white text-xs">
-              <SelectValue placeholder="All Territories" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              <SelectItem value="all">All Territories</SelectItem>
-              <SelectItem value="dhaka north">Dhaka North</SelectItem>
-              <SelectItem value="dhaka south">Dhaka South</SelectItem>
-              <SelectItem value="chittagong central">
-                Chittagong Central
-              </SelectItem>
-              <SelectItem value="sylhet sadar">Sylhet Sadar</SelectItem>
-              <SelectItem value="rajshahi metro">Rajshahi Metro</SelectItem>
-            </SelectContent>
-          </Select>
+          <MasterTerritorySelect value={territoryFilter} onValueChange={setTerritoryFilter} all />
         </div>
       </div>
 

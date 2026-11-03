@@ -1,3 +1,4 @@
+import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryAssignment";
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
@@ -5,12 +6,22 @@ import { auditLogService } from "./auditLogService";
 export const doctorVisitLogService = {
   async getAllVisitLogs() {
     return prisma.doctorVisitLog.findMany({
+      include: {
+        mio: { select: { id: true, fullName: true, empId: true, phone: true } },
+        territoryRef: true,
+      },
       orderBy: { createdAt: "desc" },
     });
   },
 
   async getVisitLogById(id: string) {
-    const log = await prisma.doctorVisitLog.findUnique({ where: { id } });
+    const log = await prisma.doctorVisitLog.findUnique({
+      where: { id },
+      include: {
+        mio: { select: { id: true, fullName: true, empId: true, phone: true } },
+        territoryRef: true,
+      },
+    });
     if (!log) {
       throw new AppError(`Doctor visit log with ID '${id}' not found`, 404);
     }
@@ -23,6 +34,8 @@ export const doctorVisitLogService = {
     specialty: string;
     chamber: string;
     mioName: string;
+    mioId?: string | null;
+    territoryId?: string | null;
     territory: string;
     visitDate: string;
     visitTime: string;
@@ -32,19 +45,34 @@ export const doctorVisitLogService = {
   }) {
     const dcrCode = data.dcrCode || `DCR-2026-${Date.now().toString().slice(-4)}`;
 
+    let mioName = data.mioName;
+    const mioId = data.mioId || null;
+    if (mioId) {
+      const staff = await prisma.staff.findUnique({ where: { id: mioId } });
+      if (staff) {
+        mioName = staff.fullName;
+      }
+    }
+
+    const assignment = await resolveTerritoryAssignment(data, { required: true });
     const newLog = await prisma.doctorVisitLog.create({
       data: {
         dcrCode,
         doctorName: data.doctorName,
         specialty: data.specialty,
         chamber: data.chamber,
-        mioName: data.mioName,
-        territory: data.territory,
+        mioName,
+        mioId,
+        ...assignment,
         visitDate: data.visitDate,
         visitTime: data.visitTime,
         promotedDrugs: data.promotedDrugs,
         samplesGiven: data.samplesGiven,
         feedback: data.feedback,
+      },
+      include: {
+        mio: { select: { id: true, fullName: true, empId: true, phone: true } },
+        territoryRef: true,
       },
     });
 
@@ -71,6 +99,8 @@ export const doctorVisitLogService = {
       specialty?: string;
       chamber?: string;
       mioName?: string;
+      mioId?: string | null;
+      territoryId?: string | null;
       territory?: string;
       visitDate?: string;
       visitTime?: string;
@@ -81,9 +111,23 @@ export const doctorVisitLogService = {
   ) {
     const existing = await this.getVisitLogById(id);
 
+    const updateData: any = { ...data };
+    if (data.mioId) {
+      const staff = await prisma.staff.findUnique({ where: { id: data.mioId } });
+      if (staff) {
+        updateData.mioName = staff.fullName;
+      }
+    }
+
+    const assignment = hasTerritoryAssignment(data)
+      ? await resolveTerritoryAssignment(data, { required: true, currentId: existing.territoryId }) : {};
     const updated = await prisma.doctorVisitLog.update({
       where: { id },
-      data,
+      data: { ...updateData, ...assignment },
+      include: {
+        mio: { select: { id: true, fullName: true, empId: true, phone: true } },
+        territoryRef: true,
+      },
     });
 
     await auditLogService.recordAuditEvent({
