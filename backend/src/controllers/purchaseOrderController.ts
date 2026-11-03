@@ -8,14 +8,27 @@ import { catchAsync } from "../utils/catchAsync";
 // ─────────────────────────────────────────────
 
 export const getAllPurchaseOrders = catchAsync(async (req: Request, res: Response) => {
-  const { search, status, priority, wholesaler } = req.query as {
+  const { search, status, priority, wholesaler, page, limit, sortBy, sortOrder } = req.query as {
     search?: string;
     status?: string;
     priority?: string;
     wholesaler?: string;
+    page?: string;
+    limit?: string;
+    sortBy?: string;
+    sortOrder?: string;
   };
-  const orders = await purchaseOrderService.getAllPurchaseOrders({ search, status, priority, wholesaler });
-  sendResponse(res, 200, "Purchase orders retrieved successfully", orders);
+  const result = await purchaseOrderService.getAllPurchaseOrders({
+    search,
+    status,
+    priority,
+    wholesaler,
+    page,
+    limit,
+    sortBy,
+    sortOrder,
+  });
+  sendResponse(res, 200, "Purchase orders retrieved successfully", result.orders, result.meta);
 });
 
 export const getProcurementMetrics = catchAsync(async (req: Request, res: Response) => {

@@ -5,6 +5,11 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -28,7 +33,6 @@ import {
   Star,
   Clock,
   Package,
-  Banknote,
   Wallet,
   ArrowUpRight,
   FileText,
@@ -71,6 +75,16 @@ interface Settlement {
   status: string
 }
 
+interface PurchaseOrder {
+  id: string
+  poNumber: string
+  poDate: string
+  status: string
+  totalAmountBDT: number
+  paidAmountBDT: number
+  paymentStatus: string
+}
+
 const money = (value: number) =>
   `৳${(Number(value) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -80,6 +94,24 @@ function statusClass(status: string) {
   if (status === "Blacklisted") return "border-rose-200 bg-rose-50 text-rose-700"
   return "border-slate-200 bg-slate-50 text-slate-700"
 }
+
+function poStatusClass(status: string) {
+  if (status === "Received") return "border-emerald-200 bg-emerald-50 text-emerald-700"
+  if (status === "Approved") return "border-blue-200 bg-blue-50 text-blue-700"
+  if (status === "Submitted" || status === "Partially Received") return "border-amber-200 bg-amber-50 text-amber-700"
+  if (status === "Cancelled") return "border-rose-200 bg-rose-50 text-rose-700"
+  return "border-slate-200 bg-slate-50 text-slate-700"
+}
+
+const PO_STATUS_OPTIONS = [
+  { value: "all", label: "All Statuses" },
+  { value: "Draft", label: "Draft" },
+  { value: "Submitted", label: "Submitted" },
+  { value: "Approved", label: "Approved" },
+  { value: "Partially Received", label: "Partially Received" },
+  { value: "Received", label: "Received" },
+  { value: "Cancelled", label: "Cancelled" },
+]
 
 export default function SupplierDetailsPage() {
   const params = useParams<{ id: string }>()
@@ -91,6 +123,50 @@ export default function SupplierDetailsPage() {
   const [balances, setBalances] = React.useState({ openBalance: 0, advanceBalance: 0 })
   const [loading, setLoading] = React.useState(true)
   const [notFound, setNotFound] = React.useState(false)
+  const [activeTab, setActiveTab] = React.useState<"orders" | "register">("orders")
+
+  // Server-driven purchase order list (search, filter, pagination)
+  const ordersQuery = useServerListQuery({ initialLimit: 10, initialFilters: { status: "all" } })
+  const [orders, setOrders] = React.useState<PurchaseOrder[]>([])
+  const [ordersMeta, setOrdersMeta] = React.useState({ total: 0, totalPages: 1 })
+  const [ordersLoading, setOrdersLoading] = React.useState(false)
+
+  const ordersQueryString = React.useMemo(() => {
+    const params = new URLSearchParams(ordersQuery.queryKey)
+    if (supplier) params.set("wholesaler", supplier.name)
+    return params.toString()
+  }, [ordersQuery.queryKey, supplier])
+
+  React.useEffect(() => {
+    if (!supplier) return
+    let cancelled = false
+
+    const loadOrders = async () => {
+      setOrdersLoading(true)
+      try {
+        const res = await apiFetch(`/procurement/orders?${ordersQueryString}`)
+        const json = await res.json()
+        if (cancelled) return
+        if (!res.ok) throw new Error(json.message || "Failed to load purchase orders")
+        setOrders(Array.isArray(json.data) ? json.data : [])
+        setOrdersMeta({
+          total: json.meta?.total || 0,
+          totalPages: json.meta?.totalPage || json.meta?.totalPages || 1,
+        })
+      } catch (error) {
+        if (!cancelled) {
+          toast.error(error instanceof Error ? error.message : "Failed to load purchase orders")
+        }
+      } finally {
+        if (!cancelled) setOrdersLoading(false)
+      }
+    }
+
+    loadOrders()
+    return () => {
+      cancelled = true
+    }
+  }, [ordersQueryString, supplier])
 
   React.useEffect(() => {
     if (!supplierId) return
@@ -354,50 +430,127 @@ export default function SupplierDetailsPage() {
       </div>
 
       <Card className="border-slate-200 p-4 shadow-none">
-        <div className="mb-3 flex items-center gap-2">
-          <ArrowUpRight className="h-4 w-4 text-rose-500" />
-          <h2 className="text-sm font-bold text-slate-900">Open purchase orders</h2>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-xs">Order</TableHead>
-              <TableHead className="text-xs">Status</TableHead>
-              <TableHead className="text-right text-xs">Total</TableHead>
-              <TableHead className="text-right text-xs">Paid</TableHead>
-              <TableHead className="text-right text-xs">Balance</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {bills.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-xs text-slate-400">
-                  No open purchase orders for this supplier.
-                </TableCell>
-              </TableRow>
-            ) : (
-              bills.map((bill) => (
-                <TableRow key={bill.id}>
-                  <TableCell className="py-3">
-                    <span className="block font-mono text-xs font-bold text-[#0090FF]">{bill.number}</span>
-                    <span className="text-[10px] text-slate-400">{bill.date}</span>
-                  </TableCell>
-                  <TableCell className="py-3 text-xs text-slate-600">{bill.documentStatus}</TableCell>
-                  <TableCell className="py-3 text-right font-mono text-xs">{money(bill.total)}</TableCell>
-                  <TableCell className="py-3 text-right font-mono text-xs text-slate-500">{money(bill.paid)}</TableCell>
-                  <TableCell className="py-3 text-right font-mono text-xs font-bold">{money(bill.balance)}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+        {/* Navigation Tabs (White Active State, RBAC style) */}
+        <div className="mb-3 border-b border-slate-100 pb-3">
+          <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-100/80 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("orders")}
+              className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === "orders"
+                  ? "bg-white font-bold text-slate-900 shadow-xs ring-1 ring-slate-900/5"
+                  : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+              }`}
+            >
+              <ArrowUpRight className={`h-3.5 w-3.5 ${activeTab === "orders" ? "text-[#0090FF]" : "text-slate-400"}`} />
+              <span>Purchase Order</span>
+              <span
+                className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                  activeTab === "orders" ? "bg-blue-50 text-[#0090FF]" : "bg-slate-200/70 text-slate-600"
+                }`}
+              >
+                {ordersMeta.total}
+              </span>
+            </button>
 
-      <Card className="border-slate-200 p-4 shadow-none">
-        <div className="mb-3 flex items-center gap-2">
-          <Banknote className="h-4 w-4 text-[#0090FF]" />
-          <h2 className="text-sm font-bold text-slate-900">Payment history</h2>
+            <button
+              type="button"
+              onClick={() => setActiveTab("register")}
+              className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === "register"
+                  ? "bg-white font-bold text-slate-900 shadow-xs ring-1 ring-slate-900/5"
+                  : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+              }`}
+            >
+              <Wallet className={`h-3.5 w-3.5 ${activeTab === "register" ? "text-[#0090FF]" : "text-slate-400"}`} />
+              <span>Payment Register</span>
+              <span
+                className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                  activeTab === "register" ? "bg-blue-50 text-[#0090FF]" : "bg-slate-200/70 text-slate-600"
+                }`}
+              >
+                {payments.length}
+              </span>
+            </button>
+          </div>
         </div>
+
+        {activeTab === "orders" && (
+        <div className="space-y-3">
+          <ServerListToolbar
+            search={ordersQuery.search}
+            onSearchChange={ordersQuery.setSearch}
+            searchPlaceholder="Search PO number, ref, or contact..."
+            loading={ordersLoading}
+            filters={[
+              {
+                id: "status",
+                value: ordersQuery.filters.status || "all",
+                onValueChange: (value) => ordersQuery.setFilter("status", value),
+                options: PO_STATUS_OPTIONS,
+                placeholder: "All Statuses",
+                widthClassName: "w-[190px]",
+              },
+            ]}
+          />
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Order</TableHead>
+                <TableHead className="text-xs">Status</TableHead>
+                <TableHead className="text-right text-xs">Total</TableHead>
+                <TableHead className="text-right text-xs">Paid</TableHead>
+                <TableHead className="text-right text-xs">Balance</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {ordersLoading && orders.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-xs text-slate-400">
+                    Loading purchase orders...
+                  </TableCell>
+                </TableRow>
+              ) : orders.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-xs text-slate-400">
+                    No purchase orders match this search or filter.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                orders.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="py-3">
+                      <span className="block font-mono text-xs font-bold text-[#0090FF]">{order.poNumber}</span>
+                      <span className="text-[10px] text-slate-400">{order.poDate}</span>
+                    </TableCell>
+                    <TableCell className="py-3">
+                      <Badge variant="outline" className={`text-[10px] ${poStatusClass(order.status)}`}>
+                        {order.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-3 text-right font-mono text-xs">{money(order.totalAmountBDT)}</TableCell>
+                    <TableCell className="py-3 text-right font-mono text-xs text-slate-500">{money(order.paidAmountBDT)}</TableCell>
+                    <TableCell className="py-3 text-right font-mono text-xs font-bold">
+                      {money(Math.max(0, (Number(order.totalAmountBDT) || 0) - (Number(order.paidAmountBDT) || 0)))}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          <ServerListPagination
+            page={ordersQuery.page}
+            totalPages={ordersMeta.totalPages}
+            total={ordersMeta.total}
+            limit={ordersQuery.limit}
+            onPageChange={ordersQuery.setPage}
+            onLimitChange={ordersQuery.setLimit}
+            loading={ordersLoading}
+          />
+        </div>
+        )}
+
+        {activeTab === "register" && (
         <Table>
           <TableHeader>
             <TableRow>
@@ -428,6 +581,7 @@ export default function SupplierDetailsPage() {
             )}
           </TableBody>
         </Table>
+        )}
       </Card>
 
       <p className="flex items-center gap-1.5 text-[11px] text-slate-400">

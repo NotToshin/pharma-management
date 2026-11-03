@@ -6,6 +6,11 @@ import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api"
+import {
+  ServerListPagination,
+  ServerListToolbar,
+  useServerListQuery,
+} from "@/components/server-list-controls"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -38,7 +43,6 @@ import {
 } from "@/components/ui/table"
 import {
   Banknote,
-  Search,
   Plus,
   RotateCcw,
   Trash2,
@@ -128,6 +132,16 @@ function statusClass(status: string) {
   return "border-slate-200 bg-slate-50 text-slate-700"
 }
 
+const PO_STATUS_OPTIONS = [
+  { value: "all", label: "All Statuses" },
+  { value: "Draft", label: "Draft" },
+  { value: "Submitted", label: "Submitted" },
+  { value: "Approved", label: "Approved" },
+  { value: "Partially Received", label: "Partially Received" },
+  { value: "Received", label: "Received" },
+  { value: "Cancelled", label: "Cancelled" },
+]
+
 export function PartySettlementPage({
   direction,
   presetDocumentId,
@@ -143,19 +157,40 @@ export function PartySettlementPage({
   const methods = ["Cash", "Cheque", "BEFTN / RTGS", "bKash / Nagad", "Advance Adjustment"]
 
   const [bills, setBills] = React.useState<OpenBill[]>([])
+  const [billsMeta, setBillsMeta] = React.useState({ total: 0, totalPages: 1 })
+  const [billsLoading, setBillsLoading] = React.useState(true)
   const [parties, setParties] = React.useState<PartyOption[]>([])
-  const [summary, setSummary] = React.useState({ openCount: 0, outstanding: 0, advanceBalance: 0 })
+  const [summary, setSummary] = React.useState({ openCount: 0, outstanding: 0, advanceBalance: 0, settled: 0 })
   const [payments, setPayments] = React.useState<Settlement[]>([])
+  const [paymentsMeta, setPaymentsMeta] = React.useState({ total: 0, totalPages: 1 })
+  const [paymentsLoading, setPaymentsLoading] = React.useState(true)
   const [accounts, setAccounts] = React.useState<FinancialAccount[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [search, setSearch] = React.useState("")
-  const [partyFilter, setPartyFilter] = React.useState("all")
+  const [dialogBills, setDialogBills] = React.useState<OpenBill[]>([])
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [deleteTarget, setDeleteTarget] = React.useState<Settlement | null>(null)
   const [reverseTarget, setReverseTarget] = React.useState<Settlement | null>(null)
   const [working, setWorking] = React.useState(false)
+  const [activeTab, setActiveTab] = React.useState<"orders" | "register">("orders")
   const presetHandled = React.useRef(false)
+  const presetResolving = React.useRef(false)
+
+  // Server-driven list state (search, filter, pagination) per tab
+  const billsQuery = useServerListQuery({ initialLimit: 10, initialFilters: { partyName: "all", status: "all" } })
+  const paymentsQuery = useServerListQuery({ initialLimit: 10, initialFilters: { partyName: "all", method: "all" } })
+
+  const billsQueryString = React.useMemo(() => {
+    const params = new URLSearchParams(billsQuery.queryKey)
+    params.set("direction", direction ?? "OUTGOING")
+    return params.toString()
+  }, [billsQuery.queryKey, direction])
+
+  const paymentsQueryString = React.useMemo(() => {
+    const params = new URLSearchParams(paymentsQuery.queryKey)
+    params.set("direction", direction ?? "OUTGOING")
+    return params.toString()
+  }, [paymentsQuery.queryKey, direction])
 
   const [partyName, setPartyName] = React.useState("")
   const [amount, setAmount] = React.useState("")
@@ -169,46 +204,90 @@ export function PartySettlementPage({
   const preferredBillId = React.useRef<string | null>(null)
 
   const partyBills = React.useMemo(
-    () => bills.filter((bill) => bill.partyName.trim().toLowerCase() === partyName.trim().toLowerCase()),
-    [bills, partyName]
+    () => dialogBills.filter((bill) => bill.partyName.trim().toLowerCase() === partyName.trim().toLowerCase()),
+    [dialogBills, partyName]
   )
 
   const selectedParty = parties.find(
     (party) => party.name.trim().toLowerCase() === partyName.trim().toLowerCase()
   )
 
-  const load = React.useCallback(async () => {
-    setLoading(true)
+  const loadAccounts = React.useCallback(async () => {
     try {
-      const [billRes, payRes, accountRes] = await Promise.all([
-        apiFetch(`/settlements/open-bills?direction=${direction}`),
-        apiFetch(`/settlements?direction=${direction}&limit=all`),
-        apiFetch("/account-ledger/accounts"),
-      ])
-      const billJson = await billRes.json()
-      const payJson = await payRes.json()
-      const accountJson = await accountRes.json()
-      if (!billRes.ok) throw new Error(billJson.message || "Failed to load open bills")
-      if (!payRes.ok) throw new Error(payJson.message || "Failed to load payments")
-      setBills(billJson.data?.bills || [])
-      setParties(billJson.data?.parties || [])
-      setSummary(billJson.data?.summary || { openCount: 0, outstanding: 0, advanceBalance: 0 })
-      setPayments(Array.isArray(payJson.data) ? payJson.data : [])
-      const loadedAccounts = (accountJson.data || []) as FinancialAccount[]
+      const res = await apiFetch("/account-ledger/accounts")
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.message || "Failed to load accounts")
+      const loadedAccounts = (json.data || []) as FinancialAccount[]
       setAccounts(loadedAccounts.filter((account) => account.id))
       setAccountId((current) => current || loadedAccounts[0]?.id || "")
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load payments")
+      toast.error(error instanceof Error ? error.message : "Failed to load accounts")
+    }
+  }, [])
+
+  const loadBills = React.useCallback(async () => {
+    setBillsLoading(true)
+    try {
+      const res = await apiFetch(`/settlements/open-bills?${billsQueryString}`)
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.message || "Failed to load open bills")
+      setBills(json.data?.bills || [])
+      setParties(json.data?.parties || [])
+      setSummary(json.data?.summary || { openCount: 0, outstanding: 0, advanceBalance: 0, settled: 0 })
+      setBillsMeta({
+        total: json.data?.meta?.total || 0,
+        totalPages: json.data?.meta?.totalPage || json.data?.meta?.totalPages || 1,
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load open bills")
     } finally {
+      setBillsLoading(false)
       setLoading(false)
     }
-  }, [direction])
+  }, [billsQueryString])
+
+  const loadPayments = React.useCallback(async () => {
+    setPaymentsLoading(true)
+    try {
+      const res = await apiFetch(`/settlements?${paymentsQueryString}`)
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.message || "Failed to load payments")
+      setPayments(Array.isArray(json.data) ? json.data : [])
+      setPaymentsMeta({
+        total: json.meta?.total || 0,
+        totalPages: json.meta?.totalPage || json.meta?.totalPages || 1,
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load payments")
+    } finally {
+      setPaymentsLoading(false)
+    }
+  }, [paymentsQueryString])
 
   React.useEffect(() => {
-    load()
-  }, [load])
+    loadBills()
+  }, [loadBills])
 
-  const fillLines = React.useCallback((nextParty: string, nextAmount: number, source = bills) => {
+  React.useEffect(() => {
+    loadPayments()
+  }, [loadPayments])
+
+  React.useEffect(() => {
+    loadAccounts()
+  }, [loadAccounts])
+
+  const loadDialogBills = React.useCallback(
+    async (name: string): Promise<OpenBill[]> => {
+      if (!name) return []
+      const res = await apiFetch(`/settlements/open-bills?direction=${direction}&partyName=${encodeURIComponent(name)}`)
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.message || "Failed to load supplier orders")
+      return (json.data?.bills || []) as OpenBill[]
+    },
+    [direction]
+  )
+
+  const fillLines = React.useCallback((nextParty: string, nextAmount: number, source: OpenBill[]) => {
     const open = source.filter(
       (bill) => bill.partyName.trim().toLowerCase() === nextParty.trim().toLowerCase() && bill.balance > 0
     )
@@ -232,10 +311,10 @@ export function PartySettlementPage({
         }
       })
     )
-  }, [bills])
+  }, [])
 
   const openDialogFor = React.useCallback(
-    (bill?: OpenBill) => {
+    async (bill?: OpenBill) => {
       preferredBillId.current = bill?.id || null
       const name = bill?.partyName || ""
       const due = bill ? bill.balance : 0
@@ -246,35 +325,77 @@ export function PartySettlementPage({
       setTransactionRef("")
       setNotes(bill ? `Settlement against ${bill.number}` : "")
       setAutoAllocate(true)
-      if (name) fillLines(name, due)
-      else setLines([])
       setDialogOpen(true)
+      if (name) {
+        try {
+          const open = await loadDialogBills(name)
+          setDialogBills(open)
+          fillLines(name, due, open)
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Failed to load supplier orders")
+          setDialogBills([])
+          setLines([])
+        }
+      } else {
+        setDialogBills([])
+        setLines([])
+      }
     },
-    [fillLines]
+    [fillLines, loadDialogBills]
   )
 
   React.useEffect(() => {
-    if (presetHandled.current || loading || !presetDocumentId) return
+    if (presetHandled.current || presetResolving.current || loading || !presetDocumentId) return
     const match = bills.find((bill) => bill.id === presetDocumentId)
-    if (!match) return
-    presetHandled.current = true
-    openDialogFor(match)
-  }, [bills, loading, openDialogFor, presetDocumentId])
+    if (match) {
+      presetHandled.current = true
+      openDialogFor(match)
+      return
+    }
+    // The preset order is not on the loaded page — resolve it once from the full list
+    presetResolving.current = true
+    apiFetch(`/settlements/open-bills?direction=${direction}`)
+      .then((res) => res.json())
+      .then((json) => {
+        const full = (json.data?.bills || []) as OpenBill[]
+        const found = full.find((bill) => bill.id === presetDocumentId)
+        if (found && !presetHandled.current) {
+          presetHandled.current = true
+          openDialogFor(found)
+        }
+      })
+      .catch(() => {
+        // ignore — the operator can still pay manually
+      })
+      .finally(() => {
+        presetResolving.current = false
+      })
+  }, [bills, direction, loading, openDialogFor, presetDocumentId])
 
-  const onPartyChange = (name: string) => {
+  const onPartyChange = async (name: string) => {
     preferredBillId.current = null
     setPartyName(name)
     setAutoAllocate(true)
-    const due = bills
-      .filter((bill) => bill.partyName.trim().toLowerCase() === name.trim().toLowerCase())
-      .reduce((sum, bill) => sum + bill.balance, 0)
-    setAmount(due > 0 ? String(round2(due)) : "")
-    fillLines(name, due)
+    if (!name) {
+      setDialogBills([])
+      setLines([])
+      setAmount("")
+      return
+    }
+    try {
+      const open = await loadDialogBills(name)
+      setDialogBills(open)
+      const due = open.reduce((sum, bill) => sum + bill.balance, 0)
+      setAmount(due > 0 ? String(round2(due)) : "")
+      fillLines(name, due, open)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load supplier orders")
+    }
   }
 
   const onAmountChange = (value: string) => {
     setAmount(value)
-    if (autoAllocate) fillLines(partyName, Number(value) || 0)
+    if (autoAllocate) fillLines(partyName, Number(value) || 0, dialogBills)
   }
 
   const allocatedNow = round2(
@@ -283,33 +404,6 @@ export function PartySettlementPage({
   const enteredAmount = Number(amount) || 0
   const leftover = round2(enteredAmount - allocatedNow)
   const advanceMode = method.toLowerCase().includes("advance")
-
-  const visibleBills = bills.filter((bill) => {
-    const partyOk = partyFilter === "all" || bill.partyName === partyFilter
-    const q = search.trim().toLowerCase()
-    const searchOk =
-      !q ||
-      bill.number.toLowerCase().includes(q) ||
-      bill.partyName.toLowerCase().includes(q) ||
-      (bill.terms || "").toLowerCase().includes(q)
-    return partyOk && searchOk
-  })
-
-  const visiblePayments = payments.filter((payment) => {
-    const partyOk = partyFilter === "all" || payment.partyName === partyFilter
-    const q = search.trim().toLowerCase()
-    const searchOk =
-      !q ||
-      payment.paymentNumber.toLowerCase().includes(q) ||
-      payment.partyName.toLowerCase().includes(q) ||
-      (payment.transactionRef || "").toLowerCase().includes(q) ||
-      payment.allocations.some((line) => line.documentNumber.toLowerCase().includes(q))
-    return partyOk && searchOk
-  })
-
-  const settledTotal = payments
-    .filter((payment) => payment.status === "COMPLETED")
-    .reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0)
 
   const submit = async () => {
     if (!partyName) {
@@ -365,7 +459,7 @@ export function PartySettlementPage({
       if (!res.ok) throw new Error(json.message || "Failed to record payment")
       toast.success(json.message || "Payment recorded", { id: toastId })
       setDialogOpen(false)
-      await load()
+      await Promise.all([loadBills(), loadPayments()])
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to record payment", { id: toastId })
     } finally {
@@ -383,7 +477,7 @@ export function PartySettlementPage({
       if (!res.ok) throw new Error(json.message || "Failed to reverse payment")
       toast.success("Payment reversed and balances restored", { id: toastId })
       setReverseTarget(null)
-      await load()
+      await Promise.all([loadBills(), loadPayments()])
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to reverse payment", { id: toastId })
     } finally {
@@ -401,7 +495,7 @@ export function PartySettlementPage({
       if (!res.ok) throw new Error(json.message || "Failed to delete payment")
       toast.success("Payment deleted", { id: toastId })
       setDeleteTarget(null)
-      await load()
+      await Promise.all([loadBills(), loadPayments()])
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete payment", { id: toastId })
     } finally {
@@ -460,43 +554,92 @@ export function PartySettlementPage({
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
             {outgoing ? "Paid to suppliers" : "Collected from buyers"}
           </p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">{money(settledTotal)}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{money(summary.settled || 0)}</p>
           <p className="mt-1 text-[11px] text-slate-400">Unapplied advance {money(summary.advanceBalance)}</p>
         </Card>
 </PermissionGate>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={`Search ${partyLabel.toLowerCase()}, order, or receipt`}
-            className="h-9 pl-9 text-xs"
-          />
-        </div>
-        <Select value={partyFilter} onValueChange={setPartyFilter}>
-          <SelectTrigger className="h-9 w-full text-xs sm:w-64">
-            <SelectValue placeholder={`All ${partyLabel}s`} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All {partyLabel}s</SelectItem>
-            {parties.map((party) => (
-              <SelectItem key={party.name} value={party.name}>
-                {party.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
       <Card className="border-slate-200 p-4 shadow-none">
-        <div className="mb-3 flex items-center gap-2">
-          {outgoing ? <ArrowUpRight className="h-4 w-4 text-rose-500" /> : <ArrowDownLeft className="h-4 w-4 text-emerald-600" />}
-          <h2 className="text-sm font-bold text-slate-900">Open {outgoing ? "purchase orders" : "sales orders"}</h2>
+        {/* Navigation Tabs (White Active State, RBAC style) */}
+        <div className="mb-3 border-b border-slate-100 pb-3">
+          <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-100/80 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("orders")}
+              className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === "orders"
+                  ? "bg-white font-bold text-slate-900 shadow-xs ring-1 ring-slate-900/5"
+                  : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+              }`}
+            >
+              {outgoing ? (
+                <ArrowUpRight className={`h-3.5 w-3.5 ${activeTab === "orders" ? "text-[#0090FF]" : "text-slate-400"}`} />
+              ) : (
+                <ArrowDownLeft className={`h-3.5 w-3.5 ${activeTab === "orders" ? "text-[#0090FF]" : "text-slate-400"}`} />
+              )}
+              <span>{outgoing ? "Purchase Order" : "Sales Order"}</span>
+              <span
+                className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                  activeTab === "orders" ? "bg-blue-50 text-[#0090FF]" : "bg-slate-200/70 text-slate-600"
+                }`}
+              >
+                {billsMeta.total}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("register")}
+              className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === "register"
+                  ? "bg-white font-bold text-slate-900 shadow-xs ring-1 ring-slate-900/5"
+                  : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+              }`}
+            >
+              <Wallet className={`h-3.5 w-3.5 ${activeTab === "register" ? "text-[#0090FF]" : "text-slate-400"}`} />
+              <span>Payment Register</span>
+              <span
+                className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                  activeTab === "register" ? "bg-blue-50 text-[#0090FF]" : "bg-slate-200/70 text-slate-600"
+                }`}
+              >
+                {paymentsMeta.total}
+              </span>
+            </button>
+          </div>
         </div>
-        <Table>
+
+        {activeTab === "orders" && (
+        <div className="space-y-3">
+          <ServerListToolbar
+            search={billsQuery.search}
+            onSearchChange={billsQuery.setSearch}
+            searchPlaceholder={`Search order, ${partyLabel.toLowerCase()}, or terms...`}
+            loading={billsLoading}
+            filters={[
+              {
+                id: "partyName",
+                value: billsQuery.filters.partyName || "all",
+                onValueChange: (value) => billsQuery.setFilter("partyName", value),
+                options: [
+                  { value: "all", label: `All ${partyLabel}s` },
+                  ...parties.map((party) => ({ value: party.name, label: party.name })),
+                ],
+                placeholder: `All ${partyLabel}s`,
+                widthClassName: "w-[190px]",
+              },
+              {
+                id: "status",
+                value: billsQuery.filters.status || "all",
+                onValueChange: (value) => billsQuery.setFilter("status", value),
+                options: PO_STATUS_OPTIONS,
+                placeholder: "All Statuses",
+                widthClassName: "w-[190px]",
+              },
+            ]}
+          />
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="text-xs">Order</TableHead>
@@ -510,18 +653,18 @@ export function PartySettlementPage({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
+            {billsLoading && bills.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="py-8 text-center text-xs text-slate-400">Loading open orders...</TableCell>
               </TableRow>
-            ) : visibleBills.length === 0 ? (
+            ) : bills.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="py-8 text-center text-xs text-slate-400">
-                  No open balances. New {outgoing ? "purchase" : "sales"} orders appear here until they are paid.
+                  No open balances match this search or filter.
                 </TableCell>
               </TableRow>
             ) : (
-              visibleBills.map((bill) => (
+              bills.map((bill) => (
                 <TableRow key={bill.id}>
                   <TableCell className="py-3">
                     <span className="block font-mono text-xs font-bold text-[#0090FF]">{bill.number}</span>
@@ -557,15 +700,52 @@ export function PartySettlementPage({
               ))
             )}
           </TableBody>
-        </Table>
-      </Card>
-
-      <Card className="border-slate-200 p-4 shadow-none">
-        <div className="mb-3 flex items-center gap-2">
-          <Wallet className="h-4 w-4 text-[#0090FF]" />
-          <h2 className="text-sm font-bold text-slate-900">Payment register</h2>
+          </Table>
+          <ServerListPagination
+            page={billsQuery.page}
+            totalPages={billsMeta.totalPages}
+            total={billsMeta.total}
+            limit={billsQuery.limit}
+            onPageChange={billsQuery.setPage}
+            onLimitChange={billsQuery.setLimit}
+            loading={billsLoading}
+          />
         </div>
-        <Table>
+        )}
+
+        {activeTab === "register" && (
+        <div className="space-y-3">
+          <ServerListToolbar
+            search={paymentsQuery.search}
+            onSearchChange={paymentsQuery.setSearch}
+            searchPlaceholder={`Search receipt, ${partyLabel.toLowerCase()}, or ref...`}
+            loading={paymentsLoading}
+            filters={[
+              {
+                id: "partyName",
+                value: paymentsQuery.filters.partyName || "all",
+                onValueChange: (value) => paymentsQuery.setFilter("partyName", value),
+                options: [
+                  { value: "all", label: `All ${partyLabel}s` },
+                  ...parties.map((party) => ({ value: party.name, label: party.name })),
+                ],
+                placeholder: `All ${partyLabel}s`,
+                widthClassName: "w-[190px]",
+              },
+              {
+                id: "method",
+                value: paymentsQuery.filters.method || "all",
+                onValueChange: (value) => paymentsQuery.setFilter("method", value),
+                options: [
+                  { value: "all", label: "All Methods" },
+                  ...methods.map((item) => ({ value: item, label: item })),
+                ],
+                placeholder: "All Methods",
+                widthClassName: "w-[190px]",
+              },
+            ]}
+          />
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="text-xs">Receipt</TableHead>
@@ -578,16 +758,18 @@ export function PartySettlementPage({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
+            {paymentsLoading && payments.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="py-8 text-center text-xs text-slate-400">Loading payments...</TableCell>
               </TableRow>
-            ) : visiblePayments.length === 0 ? (
+            ) : payments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-xs text-slate-400">No payments recorded yet.</TableCell>
+                <TableCell colSpan={7} className="py-8 text-center text-xs text-slate-400">
+                  No payments match this search or filter.
+                </TableCell>
               </TableRow>
             ) : (
-              visiblePayments.map((payment) => (
+              payments.map((payment) => (
                 <TableRow key={payment.id}>
                   <TableCell className="py-3">
                     <span className="block font-mono text-xs font-bold text-slate-800">{payment.paymentNumber}</span>
@@ -646,7 +828,18 @@ export function PartySettlementPage({
               ))
             )}
           </TableBody>
-        </Table>
+          </Table>
+          <ServerListPagination
+            page={paymentsQuery.page}
+            totalPages={paymentsMeta.totalPages}
+            total={paymentsMeta.total}
+            limit={paymentsQuery.limit}
+            onPageChange={paymentsQuery.setPage}
+            onLimitChange={paymentsQuery.setLimit}
+            loading={paymentsLoading}
+          />
+        </div>
+        )}
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

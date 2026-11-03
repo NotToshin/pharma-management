@@ -151,9 +151,14 @@ export const purchaseOrderIdParamSchema = z.object({
 export const queryPurchaseOrderSchema = z.object({
   query: z.object({
     search: z.string().optional(),
+    searchTerm: z.string().optional(),
     status: z.string().optional(),
     priority: z.string().optional(),
     wholesaler: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    sortBy: z.string().optional(),
+    sortOrder: z.string().optional(),
   }),
 });
 

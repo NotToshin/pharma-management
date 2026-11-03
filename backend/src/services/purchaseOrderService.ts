@@ -25,6 +25,10 @@ export const purchaseOrderService = {
     status?: string;
     priority?: string;
     wholesaler?: string;
+    page?: string;
+    limit?: string;
+    sortBy?: string;
+    sortOrder?: string;
   }) {
 
     const where: any = {};
@@ -52,10 +56,31 @@ export const purchaseOrderService = {
       where.wholesalerName = { contains: filters.wholesaler.trim(), mode: "insensitive" };
     }
 
-    const [orders, vouchers] = await Promise.all([
+    const page = filters?.page ? Math.max(1, parseInt(filters.page, 10) || 1) : 1;
+    const fetchAll = !filters?.limit || filters.limit === "all" || filters.limit === "-1";
+    const limit = fetchAll ? 0 : Math.max(1, parseInt(filters.limit || "10", 10) || 10);
+    const skip = limit > 0 ? (page - 1) * limit : undefined;
+    const take = limit > 0 ? limit : undefined;
+
+    const sortFields: Record<string, string> = {
+      createdAt: "createdAt",
+      poDate: "poDate",
+      poNumber: "poNumber",
+      status: "status",
+      priority: "priority",
+      totalAmountBDT: "totalAmountBDT",
+    };
+    const sortBy = sortFields[filters?.sortBy || ""] || "createdAt";
+    const sortOrder = filters?.sortOrder === "asc" ? "asc" : "desc";
+    const orderBy: any = { [sortBy]: sortOrder };
+
+    const [total, orders, vouchers] = await Promise.all([
+      prisma.purchaseOrder.count({ where }),
       prisma.purchaseOrder.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy,
+        ...(skip !== undefined ? { skip } : {}),
+        ...(take !== undefined ? { take } : {}),
       }),
       prisma.expenseVoucher.findMany({
         where: { status: "Disbursed" },
@@ -70,12 +95,22 @@ export const purchaseOrderService = {
       voucherPaid.set(key, (voucherPaid.get(key) || 0) + (Number(voucher.amount) || 0));
     }
 
-    return orders.map((order) => {
-      const total = Number(order.totalAmountBDT) || 0;
-      const paid = Math.min(total, (Number(order.paidAmountBDT) || 0) + (voucherPaid.get(order.poNumber) || 0));
-      const paymentStatus = paid <= 0.009 ? "UNPAID" : paid + 0.009 >= total ? "PAID" : "PARTIALLY_PAID";
+    const mapped = orders.map((order) => {
+      const totalAmount = Number(order.totalAmountBDT) || 0;
+      const paid = Math.min(totalAmount, (Number(order.paidAmountBDT) || 0) + (voucherPaid.get(order.poNumber) || 0));
+      const paymentStatus = paid <= 0.009 ? "UNPAID" : paid + 0.009 >= totalAmount ? "PAID" : "PARTIALLY_PAID";
       return { ...order, paidAmountBDT: paid, paymentStatus };
     });
+
+    return {
+      orders: mapped,
+      meta: {
+        total,
+        page,
+        limit: limit > 0 ? limit : total,
+        totalPages: limit > 0 ? Math.ceil(total / limit) || 1 : 1,
+      },
+    };
   },
 
   async getProcurementMetrics() {

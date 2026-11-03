@@ -3,7 +3,8 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
-import { MasterTerritorySelect } from "@/components/master-territory-select"
+import { DivisionTerritoryFields } from "@/components/division-territory-fields"
+import { groupTerritories, useTerritories } from "@/hooks/use-territories"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -346,6 +347,16 @@ export default function WholesalerPurchaseOrdersPage() {
     suppliedCategories: [],
   })
   const [isSavingWholesaler, setIsSavingWholesaler] = React.useState(false)
+
+  // Master territory assignments for the wholesaler registry form
+  const { territories: masterTerritories, loading: territoriesLoading, error: territoriesError } = useTerritories()
+  const wholesalerTerritoryGroups = React.useMemo(
+    () => groupTerritories(masterTerritories, editingWholesaler?.territory),
+    [masterTerritories, editingWholesaler]
+  )
+  const selectedWholesalerTerritory = Object.values(wholesalerTerritoryGroups)
+    .flat()
+    .find((territory) => territory.name.toLowerCase() === newWholesalerForm.territory.trim().toLowerCase())
 
   // Wholesaler Delete Confirmation State
   const [deleteWholesalerTarget, setDeleteWholesalerTarget] = React.useState<Wholesaler | null>(null)
@@ -1204,6 +1215,12 @@ export default function WholesalerPurchaseOrdersPage() {
       return
     }
 
+    if (territoriesLoading || territoriesError || !selectedWholesalerTerritory) {
+      const message = territoriesError || "Please select a division and territory station."
+      toast.error(message)
+      return
+    }
+
     const toastId = toast.loading(editingWholesaler ? "Updating wholesaler profile..." : "Registering new wholesaler...")
     setIsSavingWholesaler(true)
 
@@ -1214,7 +1231,11 @@ export default function WholesalerPurchaseOrdersPage() {
       const res = await apiFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newWholesalerForm),
+        body: JSON.stringify({
+          ...newWholesalerForm,
+          territory: selectedWholesalerTerritory.name,
+          territoryId: selectedWholesalerTerritory.id,
+        }),
       })
 
       const json = await res.json()
@@ -2734,28 +2755,17 @@ export default function WholesalerPurchaseOrdersPage() {
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs font-medium text-slate-700">Commercial Territory</Label>
-                  <MasterTerritorySelect value={newWholesalerForm.territory} onValueChange={(val) => setNewWholesalerForm((p) => ({ ...p, territory: val }))}  />
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs font-medium text-slate-700">Default Payment Terms</Label>
-                  <Select
-                    value={newWholesalerForm.paymentTerms}
-                    onValueChange={(val) => setNewWholesalerForm((p) => ({ ...p, paymentTerms: val }))}
-                  >
-                    <SelectTrigger className="h-8 border-slate-200 bg-white text-xs">
-                      <SelectValue placeholder="Payment Terms" />
-                    </SelectTrigger>
-                    <SelectContent className="text-xs">
-                      {PAYMENT_TERMS_OPTIONS.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="sm:col-span-2">
+                  <DivisionTerritoryFields
+                    groups={wholesalerTerritoryGroups}
+                    value={newWholesalerForm.territory}
+                    onValueChange={(territory) =>
+                      setNewWholesalerForm((p) => ({ ...p, territory: territory.name }))
+                    }
+                    loading={territoriesLoading}
+                    error={territoriesError}
+                    idPrefix="wholesaler"
+                  />
                 </div>
 
                 <div className="space-y-1">
@@ -2800,7 +2810,7 @@ export default function WholesalerPurchaseOrdersPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-1 sm:col-span-2">
+                <div className="space-y-1">
                   <Label className="text-xs font-medium text-slate-700">Physical Depot / Warehouse Address *</Label>
                   <Input
                     value={newWholesalerForm.address}
@@ -2811,7 +2821,7 @@ export default function WholesalerPurchaseOrdersPage() {
                   />
                 </div>
 
-                <div className="space-y-1 sm:col-span-1">
+                <div className="space-y-1">
                   <Label className="text-xs font-medium text-slate-700">Supplied Categories</Label>
                   <Input
                     value={newWholesalerForm.suppliedCategories.join(", ")}
@@ -2824,6 +2834,25 @@ export default function WholesalerPurchaseOrdersPage() {
                     placeholder="Antibiotic, Cold Chain, Cardiovascular"
                     className="h-8 text-xs bg-white"
                   />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-slate-700">Default Payment Terms</Label>
+                  <Select
+                    value={newWholesalerForm.paymentTerms}
+                    onValueChange={(val) => setNewWholesalerForm((p) => ({ ...p, paymentTerms: val }))}
+                  >
+                    <SelectTrigger className="h-8 border-slate-200 bg-white text-xs">
+                      <SelectValue placeholder="Payment Terms" />
+                    </SelectTrigger>
+                    <SelectContent className="text-xs">
+                      {PAYMENT_TERMS_OPTIONS.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

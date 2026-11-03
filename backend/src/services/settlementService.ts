@@ -254,7 +254,11 @@ async function applyDocumentPaid(
 }
 
 export const settlementService = {
-  async getOpenBills(direction: SettlementDirection, partyName?: string) {
+  async getOpenBills(
+    direction: SettlementDirection,
+    partyName?: string,
+    listFilters?: { search?: string; status?: string; page?: string; limit?: string }
+  ) {
     const bills = await loadBills(direction, partyName);
     const advances = await prisma.partySettlement.findMany({
       where: {
@@ -318,19 +322,50 @@ export const settlementService = {
       partyMap.set(key, current);
     }
 
+    // Global summary from the unfiltered open bills (overview cards stay stable while the list filters)
     const openBills = bills.filter((bill) => bill.balance > 0.009);
     const outstanding = round2(openBills.reduce((sum, bill) => sum + bill.balance, 0));
     const advanceBalance = round2(
       Array.from(partyMap.values()).reduce((sum, party) => sum + party.advanceBalance, 0)
     );
+    const settledAgg = await prisma.partySettlement.aggregate({
+      where: { direction, status: "COMPLETED" },
+      _sum: { amount: true },
+    });
+
+    // List search, filter, and pagination
+    const q = (listFilters?.search || "").trim().toLowerCase();
+    const status = listFilters?.status && listFilters.status !== "all" ? listFilters.status.trim() : "";
+    const filtered = openBills.filter((bill) => {
+      if (status && bill.documentStatus.toLowerCase() !== status.toLowerCase()) return false;
+      if (!q) return true;
+      return (
+        bill.number.toLowerCase().includes(q) ||
+        bill.partyName.toLowerCase().includes(q) ||
+        (bill.terms || "").toLowerCase().includes(q)
+      );
+    });
+
+    const page = listFilters?.page ? Math.max(1, parseInt(listFilters.page, 10) || 1) : 1;
+    const fetchAll = !listFilters?.limit || listFilters.limit === "all" || listFilters.limit === "-1";
+    const limit = fetchAll ? 0 : Math.max(1, parseInt(listFilters.limit || "10", 10) || 10);
+    const start = limit > 0 ? (page - 1) * limit : 0;
+    const pagedBills = limit > 0 ? filtered.slice(start, start + limit) : filtered;
 
     return {
-      bills: openBills,
+      bills: pagedBills,
       parties: Array.from(partyMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
       summary: {
         openCount: openBills.length,
         outstanding,
         advanceBalance,
+        settled: round2(Number(settledAgg._sum.amount) || 0),
+      },
+      meta: {
+        total: filtered.length,
+        page,
+        limit: limit > 0 ? limit : filtered.length,
+        totalPages: limit > 0 ? Math.ceil(filtered.length / limit) || 1 : 1,
       },
     };
   },
@@ -342,9 +377,11 @@ export const settlementService = {
     search?: string;
     status?: string;
     partyName?: string;
+    method?: string;
   }) {
     const where: Record<string, unknown> = { direction: filters.direction };
     if (filters.status && filters.status !== "all") where.status = filters.status;
+    if (filters.method && filters.method !== "all") where.paymentMethod = filters.method;
     if (filters.partyName?.trim()) {
       where.partyName = { equals: filters.partyName.trim(), mode: "insensitive" };
     }
