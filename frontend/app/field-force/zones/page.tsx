@@ -554,9 +554,9 @@ export default function MioZoneAllocationsPage() {
       {/* ─────────────────────────────────────────────
           1. Page Header & Key Metrics
       ───────────────────────────────────────────── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
               MIO Zone Allocations
             </h1>
@@ -569,7 +569,7 @@ export default function MioZoneAllocationsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Button
             variant="outline"
             size="sm"
@@ -594,7 +594,7 @@ export default function MioZoneAllocationsPage() {
       </div>
 
       {/* KPI Stats Strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:grid-cols-4">
 <PermissionGate feature="MIO Zone Allocation" action="overview:allocations">
 <Card className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-none">
           <div className="flex items-center justify-between">
@@ -713,7 +713,7 @@ export default function MioZoneAllocationsPage() {
           3. Allocations Register Table
       ───────────────────────────────────────────── */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
-        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div>
             <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
               FIELD FORCE TERRITORIAL ALLOCATIONS REGISTER
@@ -972,7 +972,7 @@ export default function MioZoneAllocationsPage() {
             </div>
 
             {/* Officer Details Preview */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="create-empId" className="text-xs font-medium text-slate-700">
                   Employee ID *
@@ -1002,7 +1002,7 @@ export default function MioZoneAllocationsPage() {
             </div>
 
             {/* Division & Territory Dropdowns */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="create-division" className="text-xs font-semibold text-slate-700">
                   Division (Dropdown) *
@@ -1059,7 +1059,7 @@ export default function MioZoneAllocationsPage() {
             </div>
 
             {/* Effective Date & Notes */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="create-date" className="text-xs font-medium text-slate-700">
                   Effective Date
@@ -1147,7 +1147,7 @@ export default function MioZoneAllocationsPage() {
               </div>
 
               {/* Division & Territory */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="edit-division" className="text-xs font-semibold text-slate-700">
                     Division (Dropdown) *
@@ -1213,7 +1213,7 @@ export default function MioZoneAllocationsPage() {
               </div>
 
               {/* Effective Date & Notes */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="edit-date" className="text-xs font-medium text-slate-700">
                     Effective Date

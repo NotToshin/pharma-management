@@ -1066,7 +1066,7 @@ function LogisticsOrdersContent() {
       `}</style>
 
       {/* 1. Page Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between print:hidden">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
             Order Fulfillment & Logistics Dispatch
@@ -1077,7 +1077,7 @@ function LogisticsOrdersContent() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Button
             size="sm"
             variant="outline"
@@ -1465,7 +1465,7 @@ function LogisticsOrdersContent() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 items-start gap-4 pt-2">
+                <div className="grid grid-cols-1 items-start gap-4 pt-2 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs font-medium text-slate-700">
                       Comments / Logistics Notes
@@ -1996,12 +1996,12 @@ function LogisticsOrdersContent() {
               </div>
 
               {/* On-screen Preview */}
-              <div className="flex max-h-[78vh] flex-col items-center overflow-y-auto bg-slate-100/90 p-6">
-                <details className="mb-4 w-full max-w-[760px] shrink-0 rounded-lg border border-slate-200 bg-white p-4 print:hidden">
+              <div className="flex max-h-[78vh] flex-col items-start overflow-x-auto overflow-y-auto bg-slate-100/90 p-3 sm:p-6">
+                <details className="mx-auto mb-4 w-full max-w-[760px] shrink-0 rounded-lg border border-slate-200 bg-white p-4 print:hidden">
                   <summary className="mb-3 cursor-pointer text-sm font-semibold">Edit invoice details</summary>
                   <InvoiceDetailsForm order={selectedOrder} staff={staffList} saving={isSavingInvoice} onSave={handleSaveInvoiceDetails} />
                 </details>
-                <div className="w-full max-w-[760px] shrink-0 border border-slate-300 bg-white p-8 text-black shadow-md">
+                <div className="mx-auto w-full min-w-[640px] max-w-[760px] shrink-0 border border-slate-300 bg-white p-4 text-black shadow-md sm:p-8">
                   <OrderInvoiceSheet
                     order={selectedOrder}
                     client={matchedClient}

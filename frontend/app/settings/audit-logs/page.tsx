@@ -430,9 +430,9 @@ export default function AuditLogsPage() {
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-12 print:p-0 print:m-0">
       {/* 1. Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between print:hidden">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
               Statutory Audit Trail & Compliance Activity Logs
             </h1>
@@ -648,7 +648,7 @@ export default function AuditLogsPage() {
 
       {/* 4. Main Audit Trail Register Table */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
-        <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2">
           <div>
             <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
               CHRONOLOGICAL AUDIT EVENT JOURNAL (21 CFR PART 11)
@@ -1374,7 +1374,7 @@ export default function AuditLogsPage() {
           </DialogHeader>
 
           <form onSubmit={handleCreateComplianceLog} className="mt-3 space-y-3.5">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-700">Subsystem Module *</Label>
                 <Select
@@ -1413,7 +1413,7 @@ export default function AuditLogsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-700">Action Type / Event *</Label>
                 <Input

@@ -708,7 +708,7 @@ export default function StaffDirectoryPage() {
       <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
 
       {/* 1. Page Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between print:hidden">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
             Staff Directory & Roles
@@ -718,7 +718,7 @@ export default function StaffDirectoryPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* Create Role Button (Super Admin) */}
           <PermissionGate feature="Staff Directory & Roles" action="create">
 <Button
@@ -1608,7 +1608,7 @@ export default function StaffDirectoryPage() {
           {printProfile && (
             <div>
               {/* Header Toolbar (Hidden while printing) */}
-              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4 print:hidden">
+              <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 p-4 print:hidden sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 <DialogTitle className="text-xs font-bold text-slate-700">
                   Official Personnel Dossier Preview
                 </DialogTitle>
@@ -1634,11 +1634,11 @@ export default function StaffDirectoryPage() {
 
               {/* Printable Body Content */}
               <div
-                className="max-h-[calc(92vh-60px)] overflow-y-auto p-8 font-sans text-slate-900"
+                className="max-h-[calc(92vh-60px)] overflow-auto p-4 font-sans text-slate-900 sm:p-8"
                 id="staff-dossier-printable"
               >
                 {/* Letterhead */}
-                <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
+                <div className="flex flex-col gap-3 border-b-2 border-slate-900 pb-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h2 className="text-lg font-extrabold tracking-tight uppercase">
                       AK PHARMA
@@ -1661,7 +1661,7 @@ export default function StaffDirectoryPage() {
                 </div>
 
                 {/* Core Credentials */}
-                <div className="grid grid-cols-2 gap-4 border-b border-slate-200 py-4 text-xs">
+                <div className="grid grid-cols-1 gap-4 border-b border-slate-200 py-4 text-xs sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <div>
                       <span className="text-slate-400">Full Name: </span>
@@ -1725,7 +1725,7 @@ export default function StaffDirectoryPage() {
                   <h4 className="mb-1 font-bold tracking-wider text-slate-900 uppercase">
                     Family & Residence Details
                   </h4>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <span className="text-slate-400">Father's Name: </span>
                       <strong>{printProfile.fathersName}</strong>
@@ -1746,7 +1746,7 @@ export default function StaffDirectoryPage() {
                   <h4 className="mb-1 font-bold tracking-wider text-slate-900 uppercase">
                     Supervision & Work Schedule
                   </h4>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <span className="text-slate-400">Supervisor: </span>
                       <strong>{printProfile.supervisor}</strong>
@@ -1763,7 +1763,7 @@ export default function StaffDirectoryPage() {
                   <h4 className="mb-1 font-bold tracking-wider text-slate-900 uppercase">
                     Emergency Contact Particulars
                   </h4>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div>
                       <span className="text-slate-400">Name: </span>
                       <strong>{printProfile.emergencyName}</strong>
@@ -1782,7 +1782,7 @@ export default function StaffDirectoryPage() {
                 </div>
 
                 {/* Signature / Footer */}
-                <div className="mt-12 flex items-center justify-between border-t border-slate-200 pt-6 text-[11px] text-slate-400">
+                <div className="mt-12 grid grid-cols-1 gap-6 border-t border-slate-200 pt-6 text-[11px] text-slate-400 sm:grid-cols-3">
                   <div className="text-center">
                     <div className="mb-1 w-32 border-b border-slate-300" />
                     <span>Employee Signature</span>

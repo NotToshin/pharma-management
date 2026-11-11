@@ -1106,7 +1106,7 @@ export default function GeneralPaymentsPage() {
   return (
     <div className="mx-auto max-w-[1420px] space-y-6 pb-20 font-sans text-neutral-900">
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 animate-pulse rounded-full bg-[#0090FF]" />
@@ -1664,7 +1664,7 @@ export default function GeneralPaymentsPage() {
 
           <form onSubmit={handleSaveForm} className="space-y-4 py-2 text-xs">
             {/* Row 1: Voucher Number & Payment Date */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Voucher Serial # *
@@ -1695,7 +1695,7 @@ export default function GeneralPaymentsPage() {
             </div>
 
             {/* Row 2: Payee Classification & Wholesaler Selection */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Payee Classification *
@@ -1767,7 +1767,7 @@ export default function GeneralPaymentsPage() {
               </div>
 
               {formData.payeeType === "Wholesaler / Vendor" && wholesalers.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Select
                     value={selectedWholesalerSelectValue}
                     onValueChange={handleSelectWholesaler}
@@ -1832,7 +1832,7 @@ export default function GeneralPaymentsPage() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 <div className="space-y-1">
                   <Label className="text-[11px] font-medium text-slate-600">
                     Gross Amount (BDT) *
@@ -1927,7 +1927,7 @@ export default function GeneralPaymentsPage() {
 
             {/* Funding Channel & Live Account Selection */}
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium text-slate-700">
                     Disbursement Channel *
@@ -2163,7 +2163,7 @@ export default function GeneralPaymentsPage() {
                 <Label className="text-xs font-semibold text-slate-700">
                   Select Action *
                 </Label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <button
                     type="button"
                     onClick={() => setAuthAction("disburse")}
@@ -2301,8 +2301,8 @@ export default function GeneralPaymentsPage() {
         <DialogContent className="max-h-[95vh] overflow-y-auto rounded-xl bg-white sm:max-w-[700px]">
           {printTarget && (
             <div className="space-y-6">
-              <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-6 text-xs text-neutral-900">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 text-xs text-neutral-900 sm:p-6">
+                <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-lg font-extrabold text-slate-900 uppercase">
                       AK PHARMA
@@ -2321,7 +2321,7 @@ export default function GeneralPaymentsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-4 text-xs">
+                <div className="grid grid-cols-1 gap-4 rounded-lg bg-slate-50 p-4 text-xs sm:grid-cols-2">
                   <div>
                     <p className="font-medium text-slate-500">Payee / Beneficiary:</p>
                     <p className="mt-0.5 text-sm font-bold text-slate-900">
@@ -2393,7 +2393,7 @@ export default function GeneralPaymentsPage() {
                       </table>
                     </div>
                   ) : (
-                    <div className="flex justify-between py-1 text-slate-600">
+                    <div className="flex flex-col gap-1 py-1 text-slate-600 sm:flex-row sm:justify-between">
                       <span>General disbursement to {printTarget.payeeName}</span>
                       <span className="font-mono text-sm font-bold text-slate-900">
                         ৳{(printTarget.grossAmount || printTarget.amount).toLocaleString("en-IN")}
@@ -2401,7 +2401,7 @@ export default function GeneralPaymentsPage() {
                     </div>
                   )}
 
-                  <div className="border-t border-slate-100 pt-2 flex justify-between text-[11px] text-slate-500">
+                  <div className="flex flex-col gap-1 border-t border-slate-100 pt-2 text-[11px] text-slate-500 sm:flex-row sm:justify-between">
                     <span>TDS Withholding: -৳{(printTarget.tdsAmount || 0).toLocaleString("en-IN")}</span>
                     <span>VDS Withholding: -৳{(printTarget.vdsAmount || 0).toLocaleString("en-IN")}</span>
                     <strong className="text-emerald-700 font-mono text-xs">
@@ -2410,14 +2410,14 @@ export default function GeneralPaymentsPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
+                <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                   <span className="font-medium text-slate-500">Net in Words:</span>
                   <strong className="text-slate-900 italic">
                     {numberToWordsBDT(printTarget.amount)}
                   </strong>
                 </div>
 
-                <div className="flex justify-between border-t border-slate-200 pt-10 text-[11px] text-slate-500">
+                <div className="grid grid-cols-1 gap-6 border-t border-slate-200 pt-10 text-[11px] text-slate-500 sm:grid-cols-3">
                   <div className="text-center">
                     <div className="mx-auto mb-1 w-32 border-b border-slate-400" />
                     <strong className="block text-slate-900">

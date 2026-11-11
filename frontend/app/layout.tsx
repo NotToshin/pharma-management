@@ -268,10 +268,10 @@ export default function RootLayout({
             >
               <AppSidebar />
               <SidebarInset className="min-w-0 bg-[#FDFDFD]">
-                <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-6">
-                  <div className="flex items-center gap-3">
-                    <SidebarTrigger className="-ml-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900" />
-                    <span className="text-sm font-semibold text-slate-900">
+                <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white px-4 sm:px-6">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+                    <SidebarTrigger className="-ml-1 shrink-0 text-slate-600 hover:bg-slate-100 hover:text-slate-900" />
+                    <span className="min-w-0 truncate text-sm font-semibold text-slate-900">
                       {getPageTitle(pathname)}
                     </span>
                   </div>
@@ -280,8 +280,11 @@ export default function RootLayout({
                   <div className="flex items-center gap-2.5">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button className="flex cursor-pointer items-center gap-2.5 rounded-lg p-1 transition-colors outline-none hover:bg-slate-100">
-                          <Avatar className="h-8 w-8 rounded-lg border border-slate-200">
+                        <button
+                          aria-label="Open account menu"
+                          className="flex max-w-full cursor-pointer items-center gap-2.5 rounded-lg p-1 transition-colors outline-none hover:bg-slate-100"
+                        >
+                          <Avatar className="h-8 w-8 shrink-0 rounded-lg border border-slate-200">
                             {userData.avatar ? (
                               <AvatarImage
                                 src={userData.avatar}
@@ -292,11 +295,11 @@ export default function RootLayout({
                               {userData.name.slice(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
-                          <div className="grid text-left leading-none">
-                            <span className="text-xs font-bold text-slate-900">
+                          <div className="hidden min-w-0 text-left leading-none md:grid">
+                            <span className="max-w-[9rem] truncate text-xs font-bold text-slate-900">
                               {userData.name}
                             </span>
-                            <span className="mt-1 text-[10px] text-slate-500">
+                            <span className="mt-1 max-w-[9rem] truncate text-[10px] text-slate-500">
                               {userData.roleName}
                             </span>
                           </div>
@@ -349,12 +352,12 @@ export default function RootLayout({
                   </div>
                 </header>
 
-                <main className="flex-1 p-6 md:p-8">
+                <main className="flex-1 p-4 sm:p-6 md:p-8">
                   {isCurrentPageAllowed ? (
                     children
                   ) : (
-                    <div className="mx-auto flex min-h-[60vh] max-w-[620px] flex-col items-center justify-center p-6 text-center">
-                      <div className="w-full rounded-2xl border border-rose-200 bg-rose-50/40 p-8 shadow-xs">
+                    <div className="mx-auto flex min-h-[60vh] max-w-[620px] flex-col items-center justify-center p-0 text-center sm:p-6">
+                      <div className="w-full rounded-2xl border border-rose-200 bg-rose-50/40 p-5 shadow-xs sm:p-8">
                         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 ring-6 ring-rose-50">
                           <ShieldAlert className="h-7 w-7" />
                         </div>
@@ -364,7 +367,7 @@ export default function RootLayout({
                         >
                           Access Denied • 403 Forbidden
                         </Badge>
-                        <h2 className="mt-4 text-xl font-black tracking-tight text-slate-900">
+                        <h2 className="mt-4 text-lg font-black tracking-tight text-slate-900 sm:text-xl">
                           Module Access Restricted: {getPageTitle(pathname)}
                         </h2>
                         <p className="mt-2.5 text-xs leading-relaxed text-slate-600">
@@ -395,7 +398,7 @@ export default function RootLayout({
 
           {/* 1. Account Overview & Profile Picture Upload Dialog */}
           <Dialog open={isAccountOpen} onOpenChange={setIsAccountOpen}>
-            <DialogContent className="rounded-2xl bg-white p-6 sm:max-w-[420px]">
+            <DialogContent className="rounded-2xl bg-white p-4 sm:max-w-[420px] sm:p-6">
               <DialogHeader>
                 <DialogTitle className="text-base font-bold text-slate-900">
                   Account Overview
@@ -454,7 +457,7 @@ export default function RootLayout({
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="font-semibold text-slate-700">
                       Security Role
@@ -499,7 +502,7 @@ export default function RootLayout({
 
           {/* 2. Role Privileges Dialog */}
           <Dialog open={isPrivilegesOpen} onOpenChange={setIsPrivilegesOpen}>
-            <DialogContent className="rounded-2xl bg-white p-6 sm:max-w-[540px]">
+            <DialogContent className="rounded-2xl bg-white p-4 sm:max-w-[540px] sm:p-6">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
                   <Shield className="h-4 w-4 text-[#0090FF]" />
@@ -541,7 +544,7 @@ export default function RootLayout({
                       userData.permissions.map((p: any, i: number) => (
                         <div
                           key={i}
-                          className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-2.5"
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50 p-2.5"
                         >
                           <div>
                             <span className="block font-bold text-slate-900">

@@ -537,7 +537,7 @@ export default function FinanceOverviewPage() {
       `}</style>
 
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 animate-pulse rounded-full bg-[#0090FF]" />
@@ -554,7 +554,7 @@ export default function FinanceOverviewPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Button
             size="sm"
             variant="outline"
@@ -688,7 +688,7 @@ export default function FinanceOverviewPage() {
       <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
 <PermissionGate feature="Treasury Overview" action="overview:cashFlow">
 <Card className="rounded-xl border border-slate-200 bg-white p-6 shadow-none lg:col-span-8">
-          <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <div>
               <h2 className="text-sm font-bold text-slate-900">
                 FY {selectedYear} Cash Flow Run-Rate (in Lakh ৳)
@@ -925,7 +925,7 @@ export default function FinanceOverviewPage() {
       />
 
       <Card className="rounded-xl border border-slate-200 bg-white p-6 shadow-none">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div>
             <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
               RECENT COMMERCIAL INVOICES & FIELD DISBURSEMENTS
@@ -1097,7 +1097,7 @@ export default function FinanceOverviewPage() {
                   <span className="mb-2 block text-[10px] font-black text-slate-400 uppercase">
                     Fiscal {q.quarter} {selectedYear}
                   </span>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {q.months.map((mIdx) => {
                       const isSelected = selectedMonth === mIdx
                       const monthData = monthlyTrend[mIdx] || { Revenue: 0 }
@@ -1148,8 +1148,8 @@ export default function FinanceOverviewPage() {
 
       {/* 6. Annual Statement Modal */}
       <Dialog open={isStatementOpen} onOpenChange={setIsStatementOpen}>
-        <DialogContent className="max-h-[95vh] overflow-y-auto rounded-2xl bg-white p-0 sm:max-w-[760px]">
-          <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4 print:hidden">
+        <DialogContent className="max-h-[95vh] overflow-auto rounded-2xl bg-white p-0 sm:max-w-[760px]">
+          <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 p-4 print:hidden sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-[#0090FF]" />
               <span className="text-xs font-bold text-slate-800">
@@ -1178,7 +1178,7 @@ export default function FinanceOverviewPage() {
 
           <div
             id="printable-annual-statement"
-            className="bg-white p-8 font-sans text-xs text-slate-900"
+            className="min-w-[620px] bg-white p-4 font-sans text-xs text-slate-900 sm:p-8"
           >
             <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
               <div>
@@ -1203,7 +1203,7 @@ export default function FinanceOverviewPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-3 border-b border-slate-200 py-4">
+            <div className="grid grid-cols-2 gap-3 border-b border-slate-200 py-4 sm:grid-cols-4">
               <div className="rounded border border-slate-200 bg-slate-50 p-2.5">
                 <span className="block text-[9px] font-bold text-slate-500 uppercase">
                   Total Billed Turnover
@@ -1279,9 +1279,9 @@ export default function FinanceOverviewPage() {
               </table>
             </div>
 
-            <div className="mt-16 grid grid-cols-2 gap-8 border-t-2 border-slate-200 pt-6 text-center text-[10px]">
+            <div className="mt-16 grid grid-cols-1 gap-6 border-t-2 border-slate-200 pt-6 text-center text-[10px] sm:grid-cols-2">
               <div>
-                <div className="mx-auto mb-1 w-40 border-b border-slate-400" />
+                <div className="mx-auto mb-1 w-24 border-b border-slate-400 sm:w-40" />
                 <strong className="block text-xs text-slate-900">
                   Chief Executive Officer (CEO)
                 </strong>
@@ -1290,7 +1290,7 @@ export default function FinanceOverviewPage() {
                 </span>
               </div>
               <div>
-                <div className="mx-auto mb-1 w-40 border-b border-slate-400" />
+                <div className="mx-auto mb-1 w-24 border-b border-slate-400 sm:w-40" />
                 <strong className="block text-xs text-slate-900">
                   Managing Director (MD)
                 </strong>

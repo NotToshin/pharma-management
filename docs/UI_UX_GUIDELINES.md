@@ -29,9 +29,13 @@ No custom spacing scale. Header `h-14 px-6`. Main `p-6 md:p-8`. Dialog buttons a
 
 ## Layout and breakpoints
 
-Authenticated shell: `AppSidebar` in `SidebarProvider` (default open, `19rem`) plus `SidebarInset` with a sticky header (`SidebarTrigger`, page title, profile menu) and `<main>`. Content is full width. Dialogs set `sm:max-w-[420px]` or `sm:max-w-[540px]`. Login has no sidebar. A 12-column grid is not defined. Short forms use `grid-cols-2`.
+Authenticated shell: `AppSidebar` in `SidebarProvider` (default open, `19rem`) plus `SidebarInset` with a sticky header (`SidebarTrigger`, page title, profile menu) and `<main>`. The sidebar auto-collapses to the `3.5rem` icon rail below 1024px; the user can expand it manually. The header title truncates, and the profile name/role hide below `md` so only the avatar remains on phones. Main content uses `p-4 sm:p-6 md:p-8`. Content is full width, capped by each page's `max-w-[1360px]`–`[1420px]` wrapper. Login has no sidebar. A 12-column grid is not defined.
 
-The only coded breakpoint is 768px in `frontend/hooks/use-mobile.ts`. Below that the sidebar is a sheet and closes on navigation. Tailwind `sm`/`md`/`lg` values are not overridden. The shell is desktop-first. Keep the `md:` split and avoid horizontal overflow.
+`frontend/hooks/use-mobile.ts` defines the 768px sheet boundary. Below it the sidebar is a full-height sheet that closes on navigation. Tailwind `sm`/`md`/`lg` values are not overridden. The shell is desktop-first; keep the `md:` split and avoid horizontal overflow.
+
+Dialogs use the base `max-w-[calc(100vw-2rem)]` mobile gutter and `max-h-[calc(100dvh-2rem)]` with internal scroll. Add `sm:max-w-*` for larger screens; do not replace the base max-width with a bare `max-w-*`, which removes the phone gutter. Short form rows use `grid-cols-1 gap-3 sm:grid-cols-2`; do not force two columns below 640px. Print/PDF previews inside dialogs use a `min-w-[620px]`–`[680px]` sheet inside an `overflow-x-auto` wrapper so phone users scroll a readable document instead of clipping it.
+
+Wide tables scroll inside their card through the `Table` primitive's `.table-scroll` wrapper; the page itself must not scroll horizontally. Pagination wraps. iOS inputs receive a 16px font below 640px from `globals.css` so Safari does not auto-zoom on focus.
 
 Sidebar groups, in order: Overview & Analytics, Doctor Management, Inventory & Warehouse, Sales & Deliveries, Finance & Treasury, HR & System Control. Collapsible parents open for the current path. Items the user cannot view are omitted. The Pharmacy Clients badge comes from the API. Header menu: Account Overview, Role Privileges, Log out.
 

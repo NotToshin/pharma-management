@@ -842,7 +842,7 @@ export default function DoctorVisitLogsPage() {
       />
 
       {/* 1. Page Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between print:hidden">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
             Daily Call Reports (DCR) — Doctor Visit Logs
@@ -911,7 +911,7 @@ export default function DoctorVisitLogsPage() {
               </DialogHeader>
 
               <form onSubmit={handleAddLog} className="space-y-3.5 py-2">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div ref={addDoctorContainerRef} className="relative space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label
@@ -992,7 +992,7 @@ export default function DoctorVisitLogsPage() {
                 </div>
 
                 {/* Row 2: Hospital Address & Field MIO in the same row */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label
                       htmlFor="chamber"
@@ -1072,7 +1072,7 @@ export default function DoctorVisitLogsPage() {
                   idPrefix="add-log"
                 />
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label
                       htmlFor="visitDate"
@@ -1107,7 +1107,7 @@ export default function DoctorVisitLogsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label
                       htmlFor="drugs"
@@ -1527,7 +1527,7 @@ export default function DoctorVisitLogsPage() {
 
           {editingLog && (
             <form onSubmit={handleSaveEdit} className="space-y-3.5 py-2">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div ref={editDoctorContainerRef} className="relative space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
                     Doctor Name
@@ -1592,7 +1592,7 @@ export default function DoctorVisitLogsPage() {
               </div>
 
               {/* Row 2: Hospital Address & Field MIO in the same row */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
                     Chamber / Hospital Address *
@@ -1654,7 +1654,7 @@ export default function DoctorVisitLogsPage() {
                 idPrefix="edit-log"
               />
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
                     Visit Date
@@ -1690,7 +1690,7 @@ export default function DoctorVisitLogsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
                     Promoted Formulations

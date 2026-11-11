@@ -783,7 +783,7 @@ export default function ClientsDirectoryPage() {
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-12">
       {/* Top Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-700">
@@ -1168,7 +1168,7 @@ export default function ClientsDirectoryPage() {
 
       {/* Excel Bulk Ingestion Dialog (Super Admin / Master Ingestion) */}
       <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-        <DialogContent className="max-w-3xl overflow-hidden rounded-xl border border-slate-200 bg-white p-6 shadow-xl sm:max-w-4xl">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-xl sm:max-w-4xl sm:p-6">
           <DialogHeader>
             <div className="flex items-center gap-2">
               <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
@@ -1187,7 +1187,7 @@ export default function ClientsDirectoryPage() {
 
           <div className="space-y-4 pt-2">
             {/* Template Download & File Selector */}
-            <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50/60 p-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <div>
                 <span className="block text-xs font-bold text-slate-800">
                   Standard Chemist Import Template
@@ -1340,7 +1340,7 @@ export default function ClientsDirectoryPage() {
 
       {/* Edit / Quick Add Modal */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-4 shadow-xl sm:max-w-2xl sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900">
               {editingId ? "Edit Pharmacy Client Profile" : "Enroll New Chemist Client"}
@@ -1638,7 +1638,7 @@ export default function ClientsDirectoryPage() {
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-1">
                     <div>
                       <span className="text-[11px] text-slate-500">Credit Facility:</span>
                       <p className="font-mono text-sm font-bold text-slate-900">

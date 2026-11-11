@@ -416,7 +416,7 @@ export default function StockAdjustmentsPage() {
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-12">
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:justify-between print:hidden">
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs sm:flex-row sm:flex-wrap sm:items-center sm:justify-between print:hidden">
         <div>
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 animate-pulse rounded-full bg-[#0090FF]" />
@@ -510,7 +510,7 @@ export default function StockAdjustmentsPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-slate-700">
                       SKU Code *
@@ -537,7 +537,7 @@ export default function StockAdjustmentsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-slate-700">
                       Batch Lot Number *
@@ -587,7 +587,7 @@ export default function StockAdjustmentsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-slate-700">
                       Adjustment Classification *
@@ -638,7 +638,7 @@ export default function StockAdjustmentsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-slate-700">
                       Unit Quantity (use '-' for deduction) *
@@ -1122,11 +1122,11 @@ export default function StockAdjustmentsPage() {
 
       {/* 5. Printable Adjustment Slip Modal */}
       <Dialog open={isSlipOpen} onOpenChange={setIsSlipOpen}>
-        <DialogContent className="overflow-hidden rounded-2xl bg-white p-0 sm:max-w-[620px]">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl bg-white p-0 sm:max-w-[620px]">
           {selectedAdjustment && (
             <div>
               {/* Toolbar Bar */}
-              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4 print:hidden">
+              <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 p-4 print:hidden sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 <span className="text-xs font-bold text-slate-800">
                   Official Stock Adjustment Certificate — {selectedAdjustment.adjustmentRef}
                 </span>
@@ -1151,7 +1151,7 @@ export default function StockAdjustmentsPage() {
               </div>
 
               {/* Printable Body Content */}
-              <div className="p-8 font-sans text-xs leading-relaxed text-slate-900">
+              <div className="p-4 font-sans text-xs leading-relaxed text-slate-900 sm:p-8">
                 {/* Official Letterhead */}
                 <div className="flex items-start justify-between border-b-2 border-slate-900 pb-3">
                   <div>
@@ -1179,7 +1179,7 @@ export default function StockAdjustmentsPage() {
                 </div>
 
                 {/* Primary Meta Strip */}
-                <div className="grid grid-cols-2 gap-4 border-b border-slate-200 py-4 text-xs">
+                <div className="grid grid-cols-1 gap-4 border-b border-slate-200 py-4 text-xs sm:grid-cols-2">
                   <div className="space-y-1">
                     <div>
                       <span className="block text-[10px] font-bold text-slate-400 uppercase">
@@ -1224,7 +1224,7 @@ export default function StockAdjustmentsPage() {
                   <span className="block text-xs font-bold tracking-wider text-slate-800 uppercase">
                     Inventory Ledger Impact
                   </span>
-                  <div className="grid grid-cols-3 gap-4 pt-1 text-xs">
+                  <div className="grid grid-cols-1 gap-3 pt-1 text-xs sm:grid-cols-3">
                     <div>
                       <span className="block text-[11px] text-slate-500">
                         Quantity Adjusted:
@@ -1272,7 +1272,7 @@ export default function StockAdjustmentsPage() {
                 </div>
 
                 {/* Sign-off Blocks */}
-                <div className="mt-12 grid grid-cols-3 gap-6 border-t-2 border-slate-200 pt-6 text-center text-[11px]">
+                <div className="mt-12 grid grid-cols-1 gap-6 border-t-2 border-slate-200 pt-6 text-center text-[11px] sm:grid-cols-3">
                   <div>
                     <div className="mx-auto mb-1.5 w-32 border-b border-slate-400" />
                     <span className="block font-bold text-slate-900">

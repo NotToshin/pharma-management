@@ -355,9 +355,9 @@ export default function TerritorySalesBreakdownPage() {
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-12">
       {/* 1. Page Header with Controls */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-slate-200/80 pb-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between border-b border-slate-200/80 pb-5">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               Territory Sales Breakdown
             </h1>
@@ -1141,7 +1141,7 @@ export default function TerritorySalesBreakdownPage() {
 
       {/* 6. Territory Drill-Down Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-2xl bg-white p-6 rounded-xl border border-slate-200">
+        <DialogContent className="max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-4 sm:max-w-2xl sm:p-6">
           <DialogHeader className="border-b border-slate-100 pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1174,7 +1174,7 @@ export default function TerritorySalesBreakdownPage() {
           {activeTerritory && (
             <div className="space-y-4 pt-3">
               {/* Quick Metrics */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="rounded-lg bg-slate-50 p-3 border border-slate-100">
                   <span className="text-[11px] font-medium text-slate-500 uppercase">
                     Total Revenue

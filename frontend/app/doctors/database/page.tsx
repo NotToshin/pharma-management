@@ -878,7 +878,7 @@ export default function DoctorMasterDatabasePage() {
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-10">
       {/* 1. Page Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
             Doctor Registry — Master Database
@@ -889,7 +889,7 @@ export default function DoctorMasterDatabasePage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Button
             size="sm"
             variant="outline"
@@ -937,7 +937,7 @@ export default function DoctorMasterDatabasePage() {
               </DialogHeader>
 
               <form onSubmit={handleAddDoctor} className="space-y-3.5 py-2">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-slate-700">
                       Doctor Full Name
@@ -964,7 +964,7 @@ export default function DoctorMasterDatabasePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-slate-700">
                       Specialty
@@ -1027,7 +1027,7 @@ export default function DoctorMasterDatabasePage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-slate-700">
                       Phone Number *
@@ -1055,7 +1055,7 @@ export default function DoctorMasterDatabasePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-slate-700">
                       Rx Tier
@@ -1543,7 +1543,7 @@ export default function DoctorMasterDatabasePage() {
 
       {/* 4. Table with Clickable Doctor Name & Visible Phone */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div>
             <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
               DOCTOR MASTER DIRECTORY
@@ -1851,7 +1851,7 @@ export default function DoctorMasterDatabasePage() {
                   <h4 className="mb-2.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                     Prescription Capacity
                   </h4>
-                  <div className="grid grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                     <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-2.5 text-center">
                       <span className="block text-[10px] text-slate-400">
                         Daily Footfall
@@ -2003,7 +2003,7 @@ export default function DoctorMasterDatabasePage() {
 
           {editingDoctor && (
             <form onSubmit={handleSaveEdit} className="space-y-3.5 py-2">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
                     Doctor Full Name
@@ -2038,7 +2038,7 @@ export default function DoctorMasterDatabasePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {/* Specialty with Autocomplete Dropdown & Writing support */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
@@ -2152,7 +2152,7 @@ export default function DoctorMasterDatabasePage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
                     Contact Number
@@ -2187,7 +2187,7 @@ export default function DoctorMasterDatabasePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">
                     Rx Tier

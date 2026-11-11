@@ -638,7 +638,7 @@ export default function AccountLedgerPage() {
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-12 font-sans text-slate-900">
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 sm:flex-row sm:items-center sm:justify-between shadow-xs">
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between shadow-xs">
         <div>
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 animate-pulse rounded-full bg-[#0090FF]" />
@@ -961,7 +961,7 @@ export default function AccountLedgerPage() {
 
       {/* 5. Main Journal Table */}
       <Card className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
-        <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2">
           <div>
             <h3 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
               BANK & CASH JOURNAL LEDGER
@@ -1299,7 +1299,7 @@ export default function AccountLedgerPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Account # / Vault Identifier
@@ -1324,7 +1324,7 @@ export default function AccountLedgerPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">Account Class</Label>
                 <Input
@@ -1390,7 +1390,7 @@ export default function AccountLedgerPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Account # / Vault Identifier
@@ -1411,7 +1411,7 @@ export default function AccountLedgerPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">Account Class</Label>
                 <Input
@@ -1490,7 +1490,7 @@ export default function AccountLedgerPage() {
 
             {/* Transfer Mode */}
             {txFlow === "TRANSFER" && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium text-slate-700">
                     From Account / Drawer *
@@ -1530,7 +1530,7 @@ export default function AccountLedgerPage() {
 
             {/* Loan Mode */}
             {txFlow === "LOAN" && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium text-slate-700">
                     Lender / Financial Source *
@@ -1563,7 +1563,7 @@ export default function AccountLedgerPage() {
 
             {/* Inflow Mode */}
             {txFlow === "INFLOW" && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium text-slate-700">
                     Depositor / Payer Entity
@@ -1614,7 +1614,7 @@ export default function AccountLedgerPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">Amount (৳) *</Label>
                 <Input
@@ -1646,7 +1646,7 @@ export default function AccountLedgerPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Particulars / Description
@@ -1695,7 +1695,7 @@ export default function AccountLedgerPage() {
 
       {/* 10. Modal: Printable A4 Voucher Slip */}
       <Dialog open={isPrintOpen} onOpenChange={setIsPrintOpen}>
-        <DialogContent className="max-w-[650px] bg-white p-6 rounded-2xl shadow-xl">
+        <DialogContent className="rounded-2xl bg-white p-4 shadow-xl sm:max-w-[650px] sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-sm font-bold text-slate-800">
               Official Central Treasury Journal Voucher
@@ -1706,9 +1706,9 @@ export default function AccountLedgerPage() {
           </DialogHeader>
 
           {printTarget && (
-            <div className="mt-4 border border-slate-300 rounded-xl p-6 bg-white text-slate-900 font-sans print:border-none print:p-0">
+            <div className="mt-4 rounded-xl border border-slate-300 bg-white p-4 font-sans text-slate-900 sm:p-6 print:border-none print:p-0">
               {/* Slip Header */}
-              <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
+              <div className="flex flex-col gap-4 border-b-2 border-slate-900 pb-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-xl font-black tracking-tight text-slate-900">
                     AK PHARMA LIMITED
@@ -1735,7 +1735,7 @@ export default function AccountLedgerPage() {
               </div>
 
               {/* Transaction Metadata Grid */}
-              <div className="grid grid-cols-2 gap-4 py-4 text-xs border-b border-slate-200">
+              <div className="grid grid-cols-1 gap-4 border-b border-slate-200 py-4 text-xs sm:grid-cols-2">
                 <div>
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">
                     Operation Flow
@@ -1792,7 +1792,7 @@ export default function AccountLedgerPage() {
                   </p>
                 )}
 
-                <div className="mt-4 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <div className="mt-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">
                       Amount in Words
@@ -1813,7 +1813,7 @@ export default function AccountLedgerPage() {
               </div>
 
               {/* Formal Signatures */}
-              <div className="mt-12 grid grid-cols-3 gap-6 pt-4 text-center text-xs text-slate-500">
+              <div className="mt-12 grid grid-cols-1 gap-6 pt-4 text-center text-xs text-slate-500 sm:grid-cols-3">
                 <div className="border-t border-slate-400 pt-1">
                   <span className="font-semibold block text-slate-800">Treasury Officer</span>
                   <span className="text-[10px]">Prepared By</span>

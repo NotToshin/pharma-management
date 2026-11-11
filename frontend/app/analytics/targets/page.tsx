@@ -633,9 +633,9 @@ export default function TargetVsAchievementPage() {
   return (
     <div className="mx-auto max-w-[1360px] space-y-6 pb-12">
       {/* 1. Page Header with Refresh and "Add MIO Target" Button */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
               Target vs. Achievement
             </h1>
@@ -794,7 +794,7 @@ export default function TargetVsAchievementPage() {
                 />
 
                 {/* Quota Target & Baseline Achieved */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label
                       htmlFor="target"
@@ -981,7 +981,7 @@ export default function TargetVsAchievementPage() {
       {/* 3. Bar Chart based on current real database MIO targets */}
 <PermissionGate feature="Target Vs Achievement" action="overview:varianceChart">
 <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
-        <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
               MIO Quota vs. Achievement Variance (in Lakh ৳)
@@ -1098,7 +1098,7 @@ export default function TargetVsAchievementPage() {
 
       {/* 4. MIO Performance Ledger with server-side Sorting, Filtering & Search */}
       <Card className="rounded-xl border border-slate-200/90 bg-white p-6 shadow-none">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold tracking-tight text-slate-900 uppercase">
@@ -1536,7 +1536,7 @@ export default function TargetVsAchievementPage() {
               placeholder="Search & select territory from Master Collection..."
             />
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="edit-target" className="text-xs font-semibold text-slate-700">
                   Quota Target (৳) *

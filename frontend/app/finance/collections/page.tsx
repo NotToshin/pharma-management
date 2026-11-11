@@ -1052,7 +1052,7 @@ function DeliveryCashCollectionsContent() {
   return (
     <div className="mx-auto max-w-[1420px] space-y-6 pb-20 font-sans text-neutral-900">
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-600" />
@@ -1302,7 +1302,7 @@ function DeliveryCashCollectionsContent() {
         </div>
 
         {/* Filter Controls Row */}
-        <div className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="relative max-w-sm flex-1">
             <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-slate-400" />
             <Input
@@ -1751,7 +1751,7 @@ function DeliveryCashCollectionsContent() {
             )}
 
             {/* Row 1: Receipt # & Date */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Collection Receipt # *
@@ -1784,7 +1784,7 @@ function DeliveryCashCollectionsContent() {
             </div>
 
             {/* Row 2: Invoice # & Chemist */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Delivery Invoice # *
@@ -1836,7 +1836,7 @@ function DeliveryCashCollectionsContent() {
             </div>
 
             {/* Row 4: Invoice Amount & Amount Collected */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Total Invoice (৳) *
@@ -1895,7 +1895,7 @@ function DeliveryCashCollectionsContent() {
             </div>
 
             {/* Row 5: Payment Method & Instrument */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Payment Method *
@@ -1930,7 +1930,7 @@ function DeliveryCashCollectionsContent() {
             </div>
 
             {/* Row 6: Initial Status & Destination */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-slate-700">
                   Clearance Status *
@@ -2201,7 +2201,7 @@ function DeliveryCashCollectionsContent() {
                   <h3 className="flex items-center gap-2 border-b border-slate-100 pb-2 font-bold text-slate-900">
                     <Building2 className="h-4 w-4 text-[#0090FF]" /> Chemist & Invoice
                   </h3>
-                  <dl className="grid grid-cols-2 gap-3">
+                  <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="col-span-2">
                       <dt className="text-slate-500">Chemist / Pharmacy</dt>
                       <dd className="mt-1 break-words text-sm font-bold text-slate-900">{detailsTarget.chemistName}</dd>
@@ -2229,7 +2229,7 @@ function DeliveryCashCollectionsContent() {
                   <h3 className="flex items-center gap-2 border-b border-slate-100 pb-2 font-bold text-slate-900">
                     <Landmark className="h-4 w-4 text-[#0090FF]" /> Payment & Vault Clearance
                   </h3>
-                  <dl className="grid grid-cols-2 gap-3">
+                  <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
                       <dt className="text-slate-500">Payment Method</dt>
                       <dd className="mt-1 font-semibold">{detailsTarget.paymentMethod}</dd>
@@ -2310,8 +2310,8 @@ function DeliveryCashCollectionsContent() {
         <DialogContent className="max-h-[95vh] overflow-y-auto rounded-xl bg-white sm:max-w-[680px]">
           {printTarget && (
             <div className="space-y-6">
-              <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-6 text-xs text-neutral-900">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 text-xs text-neutral-900 sm:p-6">
+                <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-lg font-extrabold text-slate-900 uppercase">
                       AK PHARMA
@@ -2330,7 +2330,7 @@ function DeliveryCashCollectionsContent() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-4 text-xs">
+                <div className="grid grid-cols-1 gap-4 rounded-lg bg-slate-50 p-4 text-xs sm:grid-cols-2">
                   <div>
                     <p className="font-medium text-slate-500">Chemist / Pharmacy:</p>
                     <p className="mt-0.5 text-sm font-bold text-slate-900">
@@ -2362,7 +2362,7 @@ function DeliveryCashCollectionsContent() {
                   <p className="border-b border-slate-100 pb-2 font-bold text-slate-900">
                     Collection Particulars
                   </p>
-                  <div className="flex justify-between py-1">
+                  <div className="flex flex-col gap-2 py-1 sm:flex-row sm:justify-between">
                     <span className="text-slate-600 italic">
                       "{printTarget.notes || "Official delivery collection receipt."}"
                     </span>
@@ -2371,20 +2371,20 @@ function DeliveryCashCollectionsContent() {
                     </span>
                   </div>
 
-                  <div className="border-t border-slate-100 pt-2 flex justify-between text-[11px] text-slate-500 font-mono">
+                  <div className="flex flex-col gap-1 border-t border-slate-100 pt-2 font-mono text-[11px] text-slate-500 sm:flex-row sm:justify-between">
                     <span>Total Invoice: ৳{printTarget.totalInvoiceAmount.toLocaleString("en-IN")}</span>
                     <span>Remaining Due: ৳{printTarget.dueAmountRemaining.toLocaleString("en-IN")}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
+                <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                   <span className="font-medium text-slate-500">Amount in Words:</span>
                   <strong className="text-slate-900 italic">
                     {numberToWordsBDT(printTarget.amountCollected)}
                   </strong>
                 </div>
 
-                <div className="flex justify-between border-t border-slate-200 pt-10 text-[11px] text-slate-500">
+                <div className="grid grid-cols-1 gap-6 border-t border-slate-200 pt-10 text-[11px] text-slate-500 sm:grid-cols-3">
                   <div className="text-center">
                     <div className="mx-auto mb-1 w-32 border-b border-slate-400" />
                     <strong className="block text-slate-900">{printTarget.salesRepName}</strong>

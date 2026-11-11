@@ -268,8 +268,8 @@ export default function SupplierDetailsPage() {
   const totalPaid = payments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0)
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto max-w-[1360px] space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white">
             <Building2 className="h-5 w-5 text-[#0090FF]" />

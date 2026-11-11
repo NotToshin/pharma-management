@@ -312,7 +312,7 @@ export default function PendingApprovalsPage() {
 
               <div className="space-y-4 py-2 text-xs">
                 {/* Territory & Schedule */}
-                <div className="grid grid-cols-2 gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                <div className="grid grid-cols-1 gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3 sm:grid-cols-2">
                   <div>
                     <span className="block text-[10px] font-semibold text-slate-400 uppercase">
                       Territory

@@ -1324,7 +1324,7 @@ export default function WholesalerPurchaseOrdersPage() {
       `}</style>
 
       {/* 1. Page Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between print:hidden">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
             Wholesaler Purchase Orders
@@ -2412,9 +2412,9 @@ export default function WholesalerPurchaseOrdersPage() {
           MODAL 4: Official Printable Purchase Order Voucher
       ───────────────────────────────────────────── */}
       <Dialog open={isVoucherModalOpen} onOpenChange={setIsVoucherModalOpen}>
-        <DialogContent className="w-full sm:max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 print:p-0 shadow-2xl">
+        <DialogContent className="w-full max-h-[92vh] overflow-auto rounded-2xl bg-white p-4 shadow-2xl sm:max-w-4xl sm:p-6 print:p-0">
           <DialogHeader className="print:hidden">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <FileText className="h-5 w-5 text-blue-600" />
                 Formal Purchase Order Voucher
@@ -2431,9 +2431,9 @@ export default function WholesalerPurchaseOrdersPage() {
           </DialogHeader>
 
           {voucherOrder && (
-            <div id="print-standalone-voucher" className="p-6 bg-white border border-slate-200 rounded-xl space-y-6 text-slate-900 font-sans print:border-none print:p-0">
+            <div id="print-standalone-voucher" className="min-w-[640px] space-y-6 rounded-xl border border-slate-200 bg-white p-4 font-sans text-slate-900 sm:p-6 print:border-none print:p-0">
               {/* Header Letterhead */}
-              <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
+              <div className="flex flex-col gap-4 border-b-2 border-slate-900 pb-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-xl font-extrabold tracking-tight text-slate-900">
                     AK PHARMACEUTICALS LTD.
@@ -2459,7 +2459,7 @@ export default function WholesalerPurchaseOrdersPage() {
               </div>
 
               {/* Vendor & Delivery Details */}
-              <div className="grid grid-cols-2 gap-6 text-xs">
+              <div className="grid grid-cols-1 gap-4 text-xs sm:grid-cols-2">
                 <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 space-y-1">
                   <span className="font-bold text-slate-800 uppercase tracking-wider text-[10px]">
                     Vendor / Wholesaler:
@@ -3659,7 +3659,7 @@ export default function WholesalerPurchaseOrdersPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label className="text-[11px] font-semibold text-slate-700">Funding Source</Label>
                   <Select
@@ -3720,7 +3720,7 @@ export default function WholesalerPurchaseOrdersPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label className="text-[11px] font-semibold text-slate-700">Payment Method</Label>
                   <Select
@@ -3750,7 +3750,7 @@ export default function WholesalerPurchaseOrdersPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label className="text-[11px] font-semibold text-slate-700">Payment Amount (BDT)</Label>
                   <Input

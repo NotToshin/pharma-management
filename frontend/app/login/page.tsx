@@ -108,7 +108,7 @@ function LoginForm() {
       </div>
 
       {/* Card Component */}
-      <div className="w-full rounded-2xl border border-slate-200/90 bg-white p-8 shadow-sm">
+      <div className="w-full rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm sm:p-8">
         <div className="mb-6 space-y-1">
           <h1 className="text-xl font-bold tracking-tight text-slate-950">
             Login to your account
@@ -130,7 +130,7 @@ function LoginForm() {
         {errorMessage && (
           <div className="mb-5 flex animate-in items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 duration-200 fade-in">
             <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
-            <span>{errorMessage}</span>
+            <span className="break-words">{errorMessage}</span>
           </div>
         )}
 
@@ -158,7 +158,7 @@ function LoginForm() {
               required
               disabled={loading}
               autoComplete="email"
-              className="h-10 rounded-lg border-slate-200 text-xs placeholder:text-slate-400 focus-visible:ring-1 focus-visible:ring-slate-950"
+              className="h-10 rounded-lg border-slate-200 text-base placeholder:text-slate-400 focus-visible:ring-1 focus-visible:ring-slate-950 sm:text-xs"
             />
           </div>
 
@@ -228,7 +228,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-between bg-[#FAFAFA] px-4 py-12 selection:bg-slate-900 selection:text-white">
+    <div className="flex min-h-screen w-full flex-col items-center justify-between bg-[#FAFAFA] px-4 py-8 selection:bg-slate-900 selection:text-white sm:py-12">
       <div className="w-full" />
 
       <React.Suspense

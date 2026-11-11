@@ -92,6 +92,24 @@ function SidebarProvider({
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
   }, [isMobile, setOpen, setOpenMobile])
 
+  // Keep the expanded 19rem rail from crowding tablet layouts. The sidebar
+  // stays in icon mode below 1024px and the user can still expand it manually.
+  const setOpenRef = React.useRef(setOpen)
+  React.useEffect(() => {
+    setOpenRef.current = setOpen
+  }, [setOpen])
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || isMobile) return
+    const tablet = window.matchMedia("(max-width: 1023px)")
+    const collapseForTablet = () => {
+      if (tablet.matches) setOpenRef.current(false)
+    }
+    collapseForTablet()
+    tablet.addEventListener("change", collapseForTablet)
+    return () => tablet.removeEventListener("change", collapseForTablet)
+  }, [isMobile])
+
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
