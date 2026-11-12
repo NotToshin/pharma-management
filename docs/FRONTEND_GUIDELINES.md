@@ -51,6 +51,14 @@ Add a page to `routeTitleMap` in `app/layout.tsx` (title `AK-Pharma | <page>`), 
 
 The sidebar hides items the user cannot `view`. The Pharmacy Clients badge is replaced by the `/api/clients` count.
 
+## PWA
+
+The app is installable on Android Chrome (and iOS via Add to Home Screen) through `app/manifest.ts` (`/manifest.webmanifest`), `public/sw.js`, and `public/offline.html`. `app/layout.tsx` is a server component exporting `metadata` and `viewport`; the client shell lives in `components/app-shell.tsx`. `components/PwaInstall.tsx` is mounted once in the root layout, registers the service worker only when `NODE_ENV === "production"`, and owns the install prompt with a 14-day localStorage snooze.
+
+The service worker caches only same-origin GET `/_next/static/*` and `/icons/*` cache-first, plus `/offline.html` during install. Navigations are network-only with the offline page as fallback; `/api`, RSC payloads, HTML pages, non-GET, and cross-origin requests are never cached. There is no `skipWaiting`, and old caches are deleted on activate. `next.config.ts` sends `Cache-Control: no-cache, no-store, must-revalidate` for `/sw.js`. `middleware.ts` excludes `manifest.webmanifest`, `sw.js`, `offline.html`, and `icons/` so install assets never redirect to login.
+
+Icons live in `public/icons/` (`icon-192.png`, `icon-512.png`, `maskable-512.png`); the maskable icon keeps the mark inside the safe zone on the `#FDFDFD` canvas. Manifest colours are `theme_color #0090FF` and `background_color #FDFDFD`.
+
 ## State and API
 
 Page state is `useState`. There is no server-data cache. After a mutation, call that page's `fetchData()`. Session keys and refresh behavior are in [AUTHENTICATION.md](./AUTHENTICATION.md). `usePermission` reads the stored user and the `ak-permissions-updated` window event.

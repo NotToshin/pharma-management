@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0090FF" />
+    <title>AK Pharma — Offline</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        padding: calc(2rem + env(safe-area-inset-top)) 1.5rem
+          calc(2rem + env(safe-area-inset-bottom));
+        background: #fdfdfd;
+        color: #0f172a;
+        font-family:
+          ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: 100%;
+        max-width: 420px;
+        text-align: center;
+      }
+
+      .mark {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 1.25rem;
+        display: grid;
+        place-items: center;
+        border-radius: 18px;
+        background: #0090ff;
+        color: #fff;
+        font-weight: 800;
+        font-size: 20px;
+        letter-spacing: -0.04em;
+      }
+
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.35rem;
+        letter-spacing: -0.02em;
+      }
+
+      p {
+        margin: 0 auto;
+        max-width: 34ch;
+        color: #64748b;
+        font-size: 0.875rem;
+        line-height: 1.6;
+      }
+
+      button {
+        margin-top: 1.5rem;
+        height: 2.5rem;
+        padding: 0 1.25rem;
+        border: 0;
+        border-radius: 0.625rem;
+        background: #0090ff;
+        color: #fff;
+        font: inherit;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #0080e5;
+      }
+
+      .hint {
+        margin-top: 1rem;
+        font-size: 0.75rem;
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-hidden="true">AK</div>
+      <h1>You're offline</h1>
+      <p>
+        AK Pharma needs a connection to load live stock, orders, and treasury
+        data. Reconnect and try again.
+      </p>
+      <button type="button" onclick="window.location.reload()">
+        Try again
+      </button>
+      <p class="hint">Your session stays signed in on this device.</p>
+    </main>
+  </body>
+</html>
