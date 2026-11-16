@@ -14,6 +14,7 @@ export const createOrderSchema = z.object({
     orderNumber: z.string().optional().or(z.literal("")),
     orderDate: z.string().optional().or(z.literal("")),
     pharmacyName: z.string().min(1, "Pharmacy name is required"),
+    contactNo: z.string().trim().min(1, "Contact number is required"),
     territoryId: territoryIdField,
     territory: z.string().optional().or(z.literal("")),
     assignedMio: z.string().optional().or(z.literal("")),
@@ -78,6 +79,25 @@ export const getOrdersQuerySchema = z.object({
 });
 
 export type UpdateOrderInvoiceInput = z.infer<typeof updateOrderInvoiceSchema>["body"];
+
+export const updateOrderSchema = z.object({
+  params: z.object({ id: z.string().regex(/^[a-f\d]{24}$/i, "Invalid order ID") }),
+  body: z.object({
+    pharmacyName: z.string().trim().min(1).max(200),
+    contactNo: z.string().trim().min(1, "Contact number is required"),
+    territoryId: territoryIdField,
+    territory: z.string().trim().min(1).max(200),
+    assignedMio: z.string().trim().max(200),
+    itemsDetail: z.array(orderItemSchema.extend({
+      description: z.string().trim().min(1),
+    })).min(1, "Add at least one product"),
+    discountPercent: z.coerce.number().min(0).max(100),
+    comments: z.string().trim().max(2000),
+    deliveryMethod: z.enum(["Sales Representative", "Medical Information Officer", "Third Party Courier"]),
+  }).strict(),
+});
+
+export type UpdateOrderInput = z.infer<typeof updateOrderSchema>["body"];
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>["body"];
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>["body"];

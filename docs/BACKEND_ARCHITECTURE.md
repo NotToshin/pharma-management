@@ -119,6 +119,7 @@ Token helpers and `requireAuth` / `requirePermission` behavior are in [AUTHENTIC
 | `/api/auth/*`, `/api/rbac/login` | Public. The service checks the password |
 | `POST /api/territories` | `requireAuth()` plus `requirePermission("Target Vs Achievement", "create")` |
 | `GET /api/collections/order-context/:orderId` | `requireAuth()` plus `requirePermission("Delivery Cash Collections", "read")` |
+| `PATCH /api/orders/:id` | `requireAuth()` plus `requirePermission("Sales Orders", "edit")` |
 | Other business routes | No `requireAuth` |
 
 That gap is real. New routes that change users, money, or stock still call `requireAuth()`, and `requirePermission(moduleName, action)` when the module catalog has that name. `req.user` is typed in `src/types/express.d.ts`.
@@ -187,6 +188,16 @@ npm run territories:backfill -- --apply
 The script loads assignment fields and logs counts without credentials or connection details. Review master divisions after importing legacy labels. Restart running API processes after regenerating Prisma; on Windows, a running process may lock its engine DLL. `npm run test:territories` compiles the API and runs isolated regression tests using database stubs. Frontend validation is checked with `npm run typecheck` in `frontend`.
 
 Maintain this existing guide and the frontend guide when contracts or workflows change. Do not create separate documentation files for individual features or logic changes unless requested.
+
+## Sales order corrections
+
+Both `POST /api/orders` and `PATCH /api/orders/:id` require a trimmed, non-empty `contactNo` string, without a phone-number pattern. It is stored on `Order.contactNo`, independently of the pharmacy client's phone. The Prisma field is nullable for existing MongoDB orders; no backfill is required. Regenerate Prisma Client after updating the schema. Invoice rendering falls back to the client phone only when an older order has no contact number.
+
+`PATCH /api/orders/:id` updates an existing order through `updateOrderSchema`, `orderController.updateOrder`, and `orderService.updateOrder`. The existing `PUT /api/orders/:id` remains the status endpoint; `PATCH /api/orders/:id/invoice` remains the invoice-metadata endpoint. The edit body accepts pharmacy, master territory, representative, delivery method, product rows, discount percentage (0–100), and comments. It rejects identity, status, payment, and total overrides. The service recalculates line totals, box counts, summary, whole-taka discount, and order value, preserving document numbers, date, and payment terms.
+
+Order, stock, mirrored product-batch quantities, and customer receivable changes run in one transaction. Product quantity differences are aggregated by normalized description so price edits and splitting rows do not allocate stock again. Additional units use exact brand/SKU matches and FEFO order, excluding expired, invalid-expiry, or quarantined batches; insufficient stock rejects the entire edit. Historical orders have no per-batch allocation ledger: reductions can restore stock only when a single matching batch exists. Ambiguous returns and legacy orders without saved line items require reconciliation before order editing; invoice metadata remains editable separately.
+
+Cancelled orders are rejected. Non-rejected collections matched by order ID or invoice/order number, together with the saved paid amount, prevent reducing the new total below payments or transferring a paid order to another pharmacy. Unpaid pharmacy changes transfer receivables; duplicate pharmacy matches reject the transaction. A previously Settled order with a new outstanding balance becomes Delivered & Invoiced. Receipt records retain their historical values. Successful edits record a Sales Order Updated audit event after the transaction. `npm run test:orders` compiles and runs isolated service, validation, rollback, and route-guard regression tests without a database connection.
 
 ## Other constraints
 

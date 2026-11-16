@@ -2,9 +2,10 @@ import { resolveTerritoryAssignment, hasTerritoryAssignment } from "./territoryA
 import prisma from "../utils/prisma";
 import { AppError } from "../errors";
 import { mirrorBatchQuantity } from "./productBatchService";
+import { calculateFefoMeta } from "./inventoryService";
 import { auditLogService } from "./auditLogService";
 import { loadOrderAttributionSources, resolveOrderMio } from "./orderAttributionService";
-import type { UpdateOrderInvoiceInput } from "../validations/orderValidation";
+import type { UpdateOrderInput, UpdateOrderInvoiceInput } from "../validations/orderValidation";
 
 const generateUniqueOrderNumber = async (tx: any): Promise<string> => {
   const count = await tx.order.count();
@@ -195,6 +196,7 @@ export const orderService = {
     orderNumber?: string;
     orderDate?: string;
     pharmacyName: string;
+    contactNo: string;
     territoryId?: string | null;
     territory?: string;
     assignedMio?: string;
@@ -253,6 +255,7 @@ export const orderService = {
           orderNumber: finalOrderNumber,
           orderDate: formatDate(data.orderDate),
           pharmacyName: data.pharmacyName.trim(),
+          contactNo: data.contactNo.trim(),
           ...assignment,
           assignedMio,
           itemsSummary:
@@ -416,6 +419,151 @@ export const orderService = {
       reasonForChange: "Order lifecycle delivery and fulfillment update.",
     });
 
+    return updated;
+  },
+
+  async updateOrder(id: string, data: UpdateOrderInput) {
+    const { existing, updated } = await prisma.$transaction(async (tx) => {
+      const existing = await tx.order.findUnique({ where: { id } });
+      if (!existing) throw new AppError("Order not found", 404);
+      if (existing.status === "Cancelled") throw new AppError("Cancelled orders cannot be edited", 400);
+      if (!existing.itemsDetail.length) {
+        throw new AppError("This legacy order has no saved product quantities. Reconcile its line items before editing the order; invoice details can still be updated separately.", 400);
+      }
+
+      const assignment = await resolveTerritoryAssignment(data, {
+        required: true, currentId: existing.territoryId, db: tx,
+      });
+      const roundMoney = (value: number) => Math.round(value * 100) / 100;
+      const items = data.itemsDetail.map((item, index) => ({
+        no: index + 1,
+        description: item.description.trim(),
+        quantity: item.quantity,
+        unitCost: roundMoney(item.unitCost),
+        total: roundMoney(item.quantity * roundMoney(item.unitCost)),
+      }));
+      const subtotal = roundMoney(items.reduce((sum, item) => sum + item.total, 0));
+      // Match the booking form's whole-taka percentage discount.
+      const discount = Math.round(subtotal * data.discountPercent / 100);
+      const orderValue = Math.max(0, roundMoney(subtotal - discount));
+      if (!Number.isFinite(orderValue)) throw new AppError("Order total is too large", 400);
+
+      const invoiceReferences = [existing.invoiceNumber, existing.orderNumber].filter((value): value is string => !!value);
+      const collections = await tx.deliveryCollection.findMany({
+        where: {
+          OR: [
+            { orderId: id },
+            ...invoiceReferences.map(invoiceNo => ({ invoiceNo: { equals: invoiceNo, mode: "insensitive" as const } })),
+          ],
+          status: { not: "Bounced / Rejected" },
+        },
+        select: { amountCollected: true },
+      });
+      const paidAmount = Math.max(existing.paidAmount || 0,
+        roundMoney(collections.reduce((sum, receipt) => sum + receipt.amountCollected, 0)));
+      if (orderValue + 0.009 < paidAmount) {
+        throw new AppError("Order total cannot be less than the amount already collected", 400);
+      }
+      const pharmacyChanged = existing.pharmacyName.trim().toLowerCase() !== data.pharmacyName.toLowerCase();
+      if (pharmacyChanged && (paidAmount > 0 || collections.length > 0)) {
+        throw new AppError("An order with collections cannot be moved to another pharmacy", 400);
+      }
+
+      // Apply only quantity differences; price-only edits must not allocate stock again.
+      const deltas = new Map<string, number>();
+      const addQuantity = (description: string, quantity: number) => {
+        const key = description.replace(/\s*\(\d+\)$/, "").trim().toLowerCase();
+        deltas.set(key, (deltas.get(key) || 0) + quantity);
+      };
+      for (const item of existing.itemsDetail) addQuantity(item.description, -item.quantity);
+      for (const item of items) addQuantity(item.description, item.quantity);
+      for (const [description, delta] of deltas) {
+        if (!delta) continue;
+        const batches = await tx.inventoryBatch.findMany({
+          where: { OR: [
+            { brandName: { equals: description, mode: "insensitive" } },
+            { skuCode: { equals: description, mode: "insensitive" } },
+          ] },
+          orderBy: [{ expiryDate: "asc" }, { id: "asc" }],
+        });
+        if (!batches.length) {
+          throw new AppError(`Cannot adjust stock for '${description}': no matching inventory batch`, 400);
+        }
+        // Historical orders do not record batch allocations. Never guess which lot to return.
+        if (delta < 0 && batches.length > 1) {
+          throw new AppError(`Cannot reduce '${description}' automatically: multiple batches exist and this order has no batch allocation history. Reconcile the stock allocation before changing its quantity.`, 400);
+        }
+        if (delta < 0) {
+          const restored = await tx.inventoryBatch.update({
+            where: { id: batches[0].id }, data: { availableUnits: { increment: -delta } },
+          });
+          await mirrorBatchQuantity(tx, restored.id, restored.availableUnits);
+          continue;
+        }
+        const allocatableBatches = batches.filter(batch => {
+          const meta = calculateFefoMeta(batch.expiryDate, batch.warehouseBin);
+          return Number.isFinite(Date.parse(batch.expiryDate)) && !meta.isExpired && !meta.isQuarantined;
+        }).sort((left, right) => Date.parse(left.expiryDate) - Date.parse(right.expiryDate));
+        if (allocatableBatches.reduce((sum, batch) => sum + Math.max(0, batch.availableUnits), 0) < delta) {
+          throw new AppError(`Insufficient stock for '${description}' to increase the order quantity`, 400);
+        }
+        let remaining = delta;
+        for (const batch of allocatableBatches) {
+          const quantity = Math.min(Math.max(0, batch.availableUnits), remaining);
+          if (!quantity) continue;
+          const allocated = await tx.inventoryBatch.update({
+            where: { id: batch.id }, data: { availableUnits: { decrement: quantity } },
+          });
+          await mirrorBatchQuantity(tx, allocated.id, allocated.availableUnits);
+          remaining -= quantity;
+          if (!remaining) break;
+        }
+      }
+
+      const adjustClientBalance = async (pharmacyName: string, difference: number) => {
+        if (!difference) return;
+        const clients = await tx.client.findMany({
+          where: { pharmacyName: { equals: pharmacyName, mode: "insensitive" } },
+          select: { id: true },
+        });
+        if (clients.length > 1) throw new AppError("Multiple clients match this pharmacy; resolve the duplicate before editing the order", 409);
+        if (clients[0]) await tx.client.update({
+          where: { id: clients[0].id },
+          data: { outstandingBalanceBDT: { increment: difference } },
+        });
+      };
+      if (pharmacyChanged) {
+        await adjustClientBalance(existing.pharmacyName, -remainingOrderDue(existing));
+        await adjustClientBalance(data.pharmacyName, orderValue);
+      } else {
+        await adjustClientBalance(existing.pharmacyName, roundMoney(orderValue - existing.orderValue));
+      }
+      const paymentStatus = paidAmount <= 0.009 ? "UNPAID" : paidAmount + 0.009 >= orderValue ? "PAID" : "PARTIALLY_PAID";
+      const updated = await tx.order.update({
+        where: { id },
+        data: {
+          pharmacyName: data.pharmacyName,
+          contactNo: data.contactNo.trim(),
+          ...assignment,
+          assignedMio: data.assignedMio,
+          itemsDetail: items,
+          itemsSummary: items.map(item => `${item.description} (${item.quantity})`).join(", "),
+          totalBoxes: items.reduce((sum, item) => sum + item.quantity, 0),
+          orderValue, discount, paidAmount, paymentStatus,
+          comments: data.comments,
+          deliveryMethod: data.deliveryMethod,
+          ...(existing.status === "Settled" && paymentStatus !== "PAID" ? { status: "Delivered & Invoiced" } : {}),
+        },
+      });
+      return { existing, updated };
+    });
+    await auditLogService.recordAuditEvent({
+      module: "Sales & Deliveries", actionType: "Sales Order Updated", severity: "Routine",
+      entityTarget: `${updated.orderNumber} (${updated.pharmacyName})`, entityType: "Order", entityId: id,
+      changeSummary: `Sales order ${updated.orderNumber} edited. Value: ${existing.orderValue} to ${updated.orderValue}.`,
+      priorPayload: existing, newPayload: updated,
+      reasonForChange: "Order correction before printing the invoice.",
+    });
     return updated;
   },
 

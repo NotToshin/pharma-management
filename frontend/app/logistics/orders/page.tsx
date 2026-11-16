@@ -67,6 +67,7 @@ import {
   MoreHorizontal,
   Store,
   Printer,
+  Pencil,
   ShieldAlert,
   Trash2,
   UserCheck,
@@ -74,7 +75,6 @@ import {
   Wallet,
 } from "lucide-react"
 import { OrderInvoiceSheet } from "@/components/logistics/order-invoice"
-import { InvoiceDetailsForm, type InvoiceDetailsInput } from "@/components/logistics/invoice-details-form"
 
 interface InvoiceItem {
   no: number
@@ -89,7 +89,9 @@ interface SalesOrder {
   orderNumber: string
   orderDate: string
   pharmacyName: string
+  contactNo?: string | null
   territory: string
+  territoryId?: string | null
   assignedMio: string
   itemsSummary: string
   itemsDetail: InvoiceItem[]
@@ -249,7 +251,9 @@ function mapSalesOrder(item: any, idx: number): SalesOrder {
       `SO-2026-${String(idx + 1).padStart(4, "0")}`,
     orderDate: item.orderDate || "",
     pharmacyName: item.pharmacyName,
+    contactNo: item.contactNo ?? null,
     territory: item.territory || "",
+    territoryId: item.territoryId || null,
     assignedMio: item.assignedMio || "",
     paymentTerms: item.paymentTerms ?? null,
     itemsSummary: item.itemsSummary || "General Formulations",
@@ -368,6 +372,7 @@ function LogisticsOrdersContent() {
   const [productCatalog, setProductCatalog] = React.useState<StockProduct[]>([])
 
   const [pharmacyInput, setPharmacyInput] = React.useState("")
+  const [contactNo, setContactNo] = React.useState("")
   const [pharmacySuggestions, setPharmacySuggestions] = React.useState<
     ClientOption[]
   >([])
@@ -390,8 +395,11 @@ function LogisticsOrdersContent() {
   }, [activeSuggestionRow])
 
   const [isNewOrderOpen, setIsNewOrderOpen] = React.useState(false)
+  const [editingOrder, setEditingOrder] = React.useState<SalesOrder | null>(null)
+  const [isSavingOrder, setIsSavingOrder] = React.useState(false)
   const { territories: masterTerritories, loading: territoriesLoading, error: territoriesError } = useTerritories()
   const [territory, setTerritory] = React.useState("")
+  const [orderTerritoryId, setOrderTerritoryId] = React.useState("")
   const [assignedMio, setAssignedMio] = React.useState("")
   const [deliveryMethod, setDeliveryMethod] = React.useState<
     SalesOrder["deliveryMethod"]
@@ -405,10 +413,11 @@ function LogisticsOrdersContent() {
   ), [masterTerritories, territory])
 
   const selectedOrderTerritory = React.useMemo(() => (
+    Object.values(orderTerritoryGroups).flat().find((t) => t.id === orderTerritoryId) ??
     Object.values(orderTerritoryGroups).flat().find(
       (t) => t.name.toLowerCase() === territory.trim().toLowerCase()
     )
-  ), [orderTerritoryGroups, territory])
+  ), [orderTerritoryGroups, orderTerritoryId, territory])
 
   const [lineItems, setLineItems] = React.useState<InvoiceItem[]>([
     { no: 1, description: "", quantity: 1, unitCost: 0, total: 0 },
@@ -418,9 +427,7 @@ function LogisticsOrdersContent() {
     status: string
     avail: string
   } | null>(null)
-  const [selectedOrderId, setSelectedOrderId] = React.useState<string | null>(null)
-  const selectedOrder = orders.find((order) => order.id === selectedOrderId) || null
-  const [isSavingInvoice, setIsSavingInvoice] = React.useState(false)
+  const [selectedOrder, setSelectedOrder] = React.useState<SalesOrder | null>(null)
   const [isInspectOpen, setIsInspectOpen] = React.useState(false)
 
   const fetchOrders = React.useCallback(async (queryString = listQuery.queryKey) => {
@@ -434,12 +441,13 @@ function LogisticsOrdersContent() {
       const rawOrders = Array.isArray(ordData) ? ordData : ordData?.data || []
       const meta = ordData.meta || {}
 
-      setOrders(rawOrders.map((item: any, idx: number) => mapSalesOrder(item, idx)))
+      const mappedOrders = rawOrders.map((item: any, idx: number) => mapSalesOrder(item, idx))
+      setOrders(mappedOrders)
       setTotalPages(meta.totalPages || meta.totalPage || 1)
       setTotalCount(meta.total ?? rawOrders.length)
 
       setLoading(false)
-      return true
+      return mappedOrders as SalesOrder[]
     } catch (err) {
       console.error("Error loading logistics records:", err)
       setLoading(false)
@@ -574,7 +582,9 @@ function LogisticsOrdersContent() {
 
   const handleSelectPharmacy = (client: ClientOption) => {
     setPharmacyInput(client.pharmacyName)
+    setContactNo(client.phone || "")
     setTerritory(client.territory || "")
+    setOrderTerritoryId("")
     setAssignedMio(client.assignedMio || "")
     const avail = Math.max(
       0,
@@ -625,13 +635,13 @@ function LogisticsOrdersContent() {
     setLineItems((prev) =>
       prev.map((item, i) => {
         if (i === index) {
-          const updated = { ...item, [field]: value }
+          const updated = { ...item, [field]: field === "quantity" || field === "unitCost" ? Number(value) : value }
           if (field === "quantity" || field === "unitCost") {
             const qty =
               field === "quantity" ? Number(value) || 0 : item.quantity
             const cost =
               field === "unitCost" ? Number(value) || 0 : item.unitCost
-            updated.total = qty * cost
+            updated.total = Math.round(qty * cost * 100) / 100
           }
           return updated
         }
@@ -699,10 +709,73 @@ function LogisticsOrdersContent() {
 
   const nextSerialInvoiceNo = `INV-2026-${String(totalCount + 1).padStart(4, "0")}`
 
-  const handleCreateOrder = async (e: React.FormEvent) => {
+  const resetOrderForm = () => {
+    setPharmacyInput("")
+    setContactNo("")
+    setPharmacySuggestions([])
+    setAssignedMio("")
+    setTerritory("")
+    setOrderTerritoryId("")
+    setLineItems([{ no: 1, description: "", quantity: 1, unitCost: 0, total: 0 }])
+    setDiscountPercent(0)
+    setOrderComments("")
+    setDeliveryMethod("Sales Representative")
+    setClientCreditNotice(null)
+    setActiveSuggestionRow(null)
+  }
+
+  const handleOrderDialogChange = (open: boolean) => {
+    if (isSavingOrder) return
+    setIsNewOrderOpen(open)
+    if (!open && editingOrder) {
+      setEditingOrder(null)
+      resetOrderForm()
+    }
+  }
+
+  const handleEditOrder = async (order: SalesOrder) => {
+    if (isSavingOrder || order.status === "Cancelled") return
+    const toastId = toast.loading("Loading current order details...")
+    const currentOrders = await fetchOrders(listQuery.queryKey)
+    const currentOrder = currentOrders && currentOrders.find((item) => item.id === order.id)
+    if (!currentOrder) {
+      toast.error("Unable to load current order details. Please try again.", { id: toastId })
+      return
+    }
+    if (currentOrder.status === "Cancelled") {
+      toast.error("Cancelled orders cannot be edited.", { id: toastId })
+      return
+    }
+    toast.dismiss(toastId)
+    setEditingOrder(currentOrder)
+    setPharmacyInput(currentOrder.pharmacyName)
+    const matchingClients = clientList.filter((client) =>
+      client.pharmacyName.trim().toLowerCase() === currentOrder.pharmacyName.trim().toLowerCase())
+    setContactNo(currentOrder.contactNo || (matchingClients.length === 1 ? matchingClients[0].phone || "" : ""))
+    setPharmacySuggestions([])
+    setAssignedMio(currentOrder.assignedMio)
+    setTerritory(currentOrder.territory)
+    setOrderTerritoryId(currentOrder.territoryId || "")
+    setLineItems(currentOrder.itemsDetail.map((item) => ({ ...item })))
+    setDiscountPercent(currentOrder.discountPercent)
+    setOrderComments(currentOrder.comments)
+    setDeliveryMethod(currentOrder.deliveryMethod)
+    setClientCreditNotice(null)
+    setActiveSuggestionRow(null)
+    setIsInspectOpen(false)
+    setIsNewOrderOpen(true)
+    void fetchSupportData()
+  }
+
+  const handleSaveOrder = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSavingOrder) return
     if (!pharmacyInput.trim()) {
       toast.error("Please specify a pharmacy or chemist name.")
+      return
+    }
+    if (!contactNo.trim()) {
+      toast.error("Please enter a contact number.")
       return
     }
     if (territoriesLoading || territoriesError || !territory.trim() || !selectedOrderTerritory) {
@@ -714,8 +787,13 @@ function LogisticsOrdersContent() {
       toast.error("Please specify at least one product description.")
       return
     }
+    if (validLineItems.some((item) => !Number.isInteger(item.quantity) || item.quantity <= 0 || !Number.isFinite(item.unitCost) || item.unitCost < 0)) {
+      toast.error("Enter positive whole quantities and valid non-negative unit prices.")
+      return
+    }
 
-    const toastId = toast.loading("Submitting sales order to warehouse...")
+    const toastId = toast.loading(editingOrder ? "Saving sales order..." : "Submitting sales order to warehouse...")
+    setIsSavingOrder(true)
     try {
       const isHold = clientCreditNotice?.status === "Credit Hold"
 
@@ -727,6 +805,7 @@ function LogisticsOrdersContent() {
           year: "numeric",
         }),
         pharmacyName: pharmacyInput.trim(),
+        contactNo: contactNo.trim(),
         territory: selectedOrderTerritory?.name || territory.trim(),
         territoryId: selectedOrderTerritory?.id,
         assignedMio,
@@ -742,37 +821,50 @@ function LogisticsOrdersContent() {
         invoiceNumber: nextSerialInvoiceNo,
       }
 
-      const res = await apiFetch(`${API_URL}/orders`, {
-        method: "POST",
+      const editPayload = {
+        pharmacyName: payload.pharmacyName,
+        contactNo: payload.contactNo,
+        territory: payload.territory,
+        territoryId: payload.territoryId,
+        assignedMio,
+        itemsDetail: validLineItems,
+        discountPercent,
+        comments: orderComments,
+        deliveryMethod,
+      }
+      const res = await apiFetch(editingOrder ? `${API_URL}/orders/${editingOrder.id}` : `${API_URL}/orders`, {
+        method: editingOrder ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(editingOrder ? editPayload : payload),
       })
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}))
-        throw new Error(errJson.message || "Failed to submit sales order")
+        throw new Error(errJson.message || "Failed to save sales order")
       }
 
-      toast.success("Sales order submitted successfully!", { id: toastId })
+      if (editingOrder) {
+        const { data } = await res.json()
+        const saved = mapSalesOrder(data, 0)
+        setSelectedOrder(saved)
+        setOrders((previous) => previous.map((order) => order.id === saved.id ? saved : order))
+        setEditingOrder(null)
+        setIsInspectOpen(true)
+      }
+      toast.success(editingOrder ? "Order updated. The invoice is ready to print." : "Sales order submitted successfully!", { id: toastId })
       setIsNewOrderOpen(false)
-      setPharmacyInput("")
-      setAssignedMio("")
-      setTerritory("")
-      setLineItems([
-        { no: 1, description: "", quantity: 1, unitCost: 0, total: 0 },
-      ])
-      setDiscountPercent(0)
-      setOrderComments("")
-      setClientCreditNotice(null)
-      if (listQuery.page === 1) {
+      resetOrderForm()
+      if (editingOrder || listQuery.page === 1) {
         fetchOrders(listQuery.queryKey)
       } else {
         listQuery.setPage(1)
       }
       fetchOrderStats()
+      void fetchSupportData()
     } catch (error: any) {
-      console.error("Error creating sales order:", error)
-      toast.error(error.message || "Failed to submit order to warehouse.", { id: toastId })
+      toast.error(error.message || "Failed to save sales order.", { id: toastId })
+    } finally {
+      setIsSavingOrder(false)
     }
   }
 
@@ -802,45 +894,12 @@ function LogisticsOrdersContent() {
     }
   }
 
-  const handleSaveInvoiceDetails = async (details: InvoiceDetailsInput) => {
-    if (!selectedOrder || isSavingInvoice) return
-    const id = selectedOrder.id
-    const toastId = toast.loading("Saving invoice details...")
-    setIsSavingInvoice(true)
-    try {
-      const res = await apiFetch(`${API_URL}/orders/${id}/invoice`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(details),
-      })
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}))
-        throw new Error(errJson.message || "Failed to save invoice details")
-      }
-
-      const { data: saved } = await res.json()
-      setOrders((previous) => previous.map((order) => order.id === id ? {
-        ...order,
-        orderDate: saved.orderDate,
-        territory: saved.territory,
-        assignedMio: saved.assignedMio,
-        paymentTerms: saved.paymentTerms,
-        comments: saved.comments || "",
-        invoiceNumber: saved.invoiceNumber || "",
-      } : order))
-      toast.success("Invoice details saved", { id: toastId })
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save invoice details", { id: toastId })
-    } finally {
-      setIsSavingInvoice(false)
-    }
-  }
-
   const handleOpenInvoice = async (order: SalesOrder) => {
     const toastId = toast.loading("Loading current invoice details...")
-    if (await fetchOrders(listQuery.queryKey)) {
-      setSelectedOrderId(order.id)
+    const currentOrders = await fetchOrders(listQuery.queryKey)
+    const currentOrder = currentOrders && currentOrders.find((item) => item.id === order.id)
+    if (currentOrder) {
+      setSelectedOrder(currentOrder)
       setIsInspectOpen(true)
       toast.dismiss(toastId)
     } else {
@@ -1100,7 +1159,7 @@ function LogisticsOrdersContent() {
             </Link>
           </Button>
 
-          <Dialog open={isNewOrderOpen} onOpenChange={setIsNewOrderOpen}>
+          <Dialog open={isNewOrderOpen} onOpenChange={handleOrderDialogChange}>
             <PermissionGate feature="Sales Orders" action="create">
 <DialogTrigger asChild>
                 <Button
@@ -1115,11 +1174,12 @@ function LogisticsOrdersContent() {
             <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 sm:max-w-[800px]">
               <DialogHeader>
                 <DialogTitle className="text-base font-bold text-slate-900">
-                  Book New Commercial Order & Invoice
+                  {editingOrder ? `Edit Order — ${editingOrder.orderNumber}` : "Book New Commercial Order & Invoice"}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-slate-500">
-                  Select destination chemist, pick formulations from inventory,
-                  and generate sequential invoice.
+                  {editingOrder
+                    ? "Update the order, then save to preview and print the revised invoice."
+                    : "Select destination chemist, pick formulations from inventory, and generate sequential invoice."}
                 </DialogDescription>
               </DialogHeader>
 
@@ -1162,9 +1222,10 @@ function LogisticsOrdersContent() {
                 </div>
               )}
 
-              <form onSubmit={handleCreateOrder} className="space-y-4 py-2">
-                {/* Row 1: Chemist Outlet (half) & Sales Representative (half) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <form onSubmit={handleSaveOrder} className="py-2">
+                <fieldset disabled={isSavingOrder} className="min-w-0 space-y-4">
+                {/* Row 1: Chemist Outlet, Contact No. & Sales Representative */}
+                <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3">
                   <div className="relative space-y-1.5">
                     <Label
                       htmlFor="pharmacy"
@@ -1176,6 +1237,7 @@ function LogisticsOrdersContent() {
                       id="pharmacy"
                       placeholder="Type pharmacy name or code (e.g. Al-Madina)..."
                       value={pharmacyInput}
+                      disabled={!!editingOrder && (editingOrder.paidAmount || 0) > 0}
                       onChange={(e) => handlePharmacyTyping(e.target.value)}
                       required
                       className="h-8 text-xs font-semibold"
@@ -1204,6 +1266,22 @@ function LogisticsOrdersContent() {
                         ))}
                       </div>
                     )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="order-contact-no" className="text-xs font-semibold text-slate-700">
+                      Contact No. *
+                    </Label>
+                    <Input
+                      id="order-contact-no"
+                      type="tel"
+                      autoComplete="tel"
+                      placeholder="Enter contact number"
+                      value={contactNo}
+                      onChange={(e) => setContactNo(e.target.value)}
+                      required
+                      className="h-8 text-xs"
+                    />
                   </div>
 
                   <div className="space-y-1.5">
@@ -1239,8 +1317,10 @@ function LogisticsOrdersContent() {
                 <DivisionTerritoryFields
                   groups={orderTerritoryGroups}
                   value={territory}
+                  selectedTerritoryId={orderTerritoryId}
                   onValueChange={(terr) => {
                     setTerritory(terr.name)
+                    setOrderTerritoryId(terr.id)
                   }}
                   loading={territoriesLoading}
                   error={territoriesError}
@@ -1432,6 +1512,7 @@ function LogisticsOrdersContent() {
                               <Input
                                 type="number"
                                 min="0"
+                                step="0.01"
                                 value={item.unitCost}
                                 onChange={(e) =>
                                   handleUpdateLineItem(
@@ -1499,7 +1580,7 @@ function LogisticsOrdersContent() {
                             type="number"
                             min="0"
                             max="100"
-                            step="0.5"
+                            step="any"
                             value={discountPercent}
                             onChange={(e) =>
                               setDiscountPercent(
@@ -1534,7 +1615,7 @@ function LogisticsOrdersContent() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setIsNewOrderOpen(false)}
+                    onClick={() => handleOrderDialogChange(false)}
                     className="h-8 text-xs"
                   >
                     Cancel
@@ -1543,9 +1624,10 @@ function LogisticsOrdersContent() {
                     type="submit"
                     className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
                   >
-                    Submit Order & Deduct Stock
+                    {isSavingOrder ? "Saving..." : editingOrder ? "Save Order & Preview Invoice" : "Submit Order & Deduct Stock"}
                   </Button>
                 </DialogFooter>
+                </fieldset>
               </form>
             </DialogContent>
           </Dialog>
@@ -1872,6 +1954,16 @@ function LogisticsOrdersContent() {
                           <FileText className="mr-2 h-3.5 w-3.5 text-slate-500" />
                           View / Print Invoice
                         </DropdownMenuItem>
+                        <PermissionGate feature="Sales Orders" action="edit">
+                          <DropdownMenuItem
+                            onClick={() => void handleEditOrder(ord)}
+                            disabled={loading || isSavingOrder || ord.status === "Cancelled"}
+                            className="cursor-pointer text-xs font-semibold text-amber-700"
+                          >
+                            <Pencil className="mr-2 h-3.5 w-3.5 text-amber-600" />
+                            Edit Order
+                          </DropdownMenuItem>
+                        </PermissionGate>
                         <DropdownMenuSeparator />
 
                         {ord.status !== "Cancelled" && (
@@ -1977,7 +2069,7 @@ function LogisticsOrdersContent() {
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
                     size="sm"
-                    disabled={isSavingInvoice}
+                    disabled={isSavingOrder}
                     onClick={() => window.print()}
                     className="h-8 gap-1.5 bg-[#0090FF] text-xs font-semibold text-white shadow-none hover:bg-[#0080e5]"
                   >
@@ -1997,10 +2089,6 @@ function LogisticsOrdersContent() {
 
               {/* On-screen Preview */}
               <div className="flex max-h-[78vh] flex-col items-start overflow-x-auto overflow-y-auto bg-slate-100/90 p-3 sm:p-6">
-                <details className="mx-auto mb-4 w-full max-w-[760px] shrink-0 rounded-lg border border-slate-200 bg-white p-4 print:hidden">
-                  <summary className="mb-3 cursor-pointer text-sm font-semibold">Edit invoice details</summary>
-                  <InvoiceDetailsForm order={selectedOrder} staff={staffList} saving={isSavingInvoice} onSave={handleSaveInvoiceDetails} />
-                </details>
                 <div className="mx-auto w-full min-w-[640px] max-w-[760px] shrink-0 border border-slate-300 bg-white p-4 text-black shadow-md sm:p-8">
                   <OrderInvoiceSheet
                     order={selectedOrder}

@@ -185,6 +185,7 @@ async function runTests() {
   await logStep("5. Sell Something (Order Creation & FEFO Inventory Deduction)", async () => {
     const orderPayload = {
       pharmacyName: "Labaid Pharmacy (Gulshan)",
+      contactNo: "01700 123456",
       territoryId: territory.id,
       territory: territory.name,
       assignedMio: "Tanvir Ahmed",

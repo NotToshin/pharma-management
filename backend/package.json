@@ -12,7 +12,8 @@
     "test:audit": "node scripts/test-multiusers-audit.js",
     "test:staff": "node --require tsx/cjs --test scripts/test-staff-onboarding.cjs",
     "territories:backfill": "tsx scripts/backfill-territories.ts",
-    "test:territories": "tsc && node --test scripts/test-territory-relations.cjs"
+    "test:territories": "tsc && node --test scripts/test-territory-relations.cjs",
+    "test:orders": "tsc && node --test scripts/test-order-edit.cjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -15,7 +15,9 @@ export interface OrderInvoiceData {
   orderNumber: string
   orderDate: string
   pharmacyName: string
+  contactNo?: string | null
   territory: string
+  territoryId?: string | null
   assignedMio: string
   invoiceNumber: string
   paymentTerms?: string | null
@@ -222,7 +224,7 @@ export function OrderInvoiceSheet({
             </p>
             <p>
               <span className="font-normal">Phone Number: </span>
-              <span className="font-semibold">{client?.phone || "On Record"}</span>
+              <span className="font-semibold">{order.contactNo || client?.phone || "On Record"}</span>
             </p>
           </div>
         </div>

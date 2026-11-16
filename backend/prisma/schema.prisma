@@ -230,6 +230,7 @@ model Order {
   orderNumber    String      @unique
   orderDate      String
   pharmacyName   String
+  contactNo      String?
   territory      String
   territoryId String? @db.ObjectId
   territoryRef Territory? @relation(fields: [territoryId], references: [id], onDelete: Restrict)

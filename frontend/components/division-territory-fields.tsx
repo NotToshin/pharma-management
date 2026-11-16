@@ -8,6 +8,7 @@ import type { MasterTerritory } from "@/hooks/use-territories"
 export function DivisionTerritoryFields({
   groups,
   value,
+  selectedTerritoryId,
   onValueChange,
   loading,
   error,
@@ -19,6 +20,7 @@ export function DivisionTerritoryFields({
 }: {
   groups: Record<string, MasterTerritory[]>
   value: string
+  selectedTerritoryId?: string
   onValueChange: (territory: MasterTerritory) => void
   loading: boolean
   error: string
@@ -30,7 +32,10 @@ export function DivisionTerritoryFields({
 }) {
   const [requestedDivision, setRequestedDivision] = React.useState("")
   const divisions = Object.keys(groups).sort()
-  const selected = Object.values(groups).flat().find(territory => territory.name.toLowerCase() === value.trim().toLowerCase())
+  const territories = React.useMemo(() => Object.values(groups).flat(), [groups])
+  // Prefer the stored master ID so same-named stations in other divisions are not swapped.
+  const selected = (selectedTerritoryId ? territories.find(territory => territory.id === selectedTerritoryId) : undefined)
+    ?? territories.find(territory => territory.name.toLowerCase() === value.trim().toLowerCase())
   const division = selected ? selected.division || "General Division" : requestedDivision
   const resolvedGridClassName = gridClassName || (children ? "grid grid-cols-1 gap-3 sm:grid-cols-3" : "grid grid-cols-1 gap-3 sm:grid-cols-2")
 

@@ -61,7 +61,7 @@ Refresh tries each candidate token. A hash mismatch continues to the next candid
 | API auth | `backend/src/middlewares/requireAuth.ts` | Bearer token first, then the access cookie. Loads the role from the database, not from `x-user-role` |
 | Module action | same file | `requirePermission(moduleName, "read" \| "create" \| "edit" \| "delete")`. Used by territory master creation |
 
-`/api/rbac/roles` and `/api/rbac/users` call `requireAuth("SUPER_ADMIN")`. Territory master creation calls `requireAuth()` and checks `Target Vs Achievement` create permission. Most other business routes do not authenticate. Do not copy that gap.
+`/api/rbac/roles` and `/api/rbac/users` call `requireAuth("SUPER_ADMIN")`. Territory master creation calls `requireAuth()` and checks `Target Vs Achievement` create permission. `PATCH /api/orders/:id` calls `requireAuth()` and checks `Sales Orders` edit permission. Most other business routes do not authenticate. Do not copy that gap.
 
 Super admin on the client (`isUserSuperAdmin`): email contains `superadmin`, or the email is `toshin@akpharma.com`, or the role text normalizes to `SUPERADMIN` / `SUPERADMINISTRATOR`. Those users pass `userCan`. A non-super-admin with an empty `permissions` array also passes. Once any permission rows exist, a missing module is denied.
 

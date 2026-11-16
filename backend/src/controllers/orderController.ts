@@ -38,3 +38,8 @@ export const updateOrderInvoice = catchAsync(async (req: Request, res: Response)
   const order = await orderService.updateOrderInvoice(req.params.id, req.body);
   sendResponse(res, 200, "Invoice details updated successfully", order);
 });
+
+export const updateOrder = catchAsync(async (req: Request, res: Response) => {
+  const order = await orderService.updateOrder(req.params.id, req.body);
+  sendResponse(res, 200, "Sales order updated successfully", order);
+});
