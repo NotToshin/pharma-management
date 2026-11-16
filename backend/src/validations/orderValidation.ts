@@ -91,10 +91,14 @@ export const updateOrderSchema = z.object({
     itemsDetail: z.array(orderItemSchema.extend({
       description: z.string().trim().min(1),
     })).min(1, "Add at least one product"),
-    discountPercent: z.coerce.number().min(0).max(100),
+    discountPercent: z.coerce.number().min(0).max(100).optional(),
+    discountAmount: z.coerce.number().min(0).optional(),
     comments: z.string().trim().max(2000),
     deliveryMethod: z.enum(["Sales Representative", "Medical Information Officer", "Third Party Courier"]),
-  }).strict(),
+  }).strict().refine(
+    (value) => (value.discountPercent === undefined) !== (value.discountAmount === undefined),
+    "Choose either a discount percentage or a fixed discount amount, not both"
+  ),
 });
 
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>["body"];

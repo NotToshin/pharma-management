@@ -86,6 +86,16 @@ test('price and discount edits recalculate totals, adjust receivables and preser
   assert.equal(auditLogService.recordAuditEvent.mock.callCount(), 1);
 });
 
+test('fixed-amount discounts are applied exactly and cannot exceed the subtotal', async () => {
+  const saved = await orderService.updateOrder(id, input({ discountPercent: undefined, discountAmount: 25 }));
+  assert.equal(saved.discount, 25);
+  assert.equal(saved.orderValue, 75);
+  await assert.rejects(
+    orderService.updateOrder(id, input({ discountPercent: undefined, discountAmount: 101 })),
+    /cannot exceed the order subtotal/
+  );
+});
+
 test('increased quantity consumes only the extra units across FEFO batches and mirrors their quantities', async () => {
   state.stock[0].availableUnits = 2;
   state.stock.push({ ...state.stock[0], id: 'batch-b', availableUnits: 10, expiryDate: '2031-01-01' });
@@ -165,6 +175,9 @@ test('validation rejects empty items, invalid quantities, negative prices, exces
     { discountPercent: 101 }, { invoiceNumber: 'REPLACED' }, { status: 'Cancelled' }, { orderValue: 1 },
   ]) assert.equal(updateOrderSchema.safeParse({ params: { id }, body: input(overrides) }).success, false);
   assert.equal(updateOrderSchema.safeParse({ params: { id }, body: input() }).success, true);
+  assert.equal(updateOrderSchema.safeParse({ params: { id }, body: input({ discountAmount: 10 }) }).success, false);
+  assert.equal(updateOrderSchema.safeParse({ params: { id }, body: input({ discountPercent: undefined }) }).success, false);
+  assert.equal(updateOrderSchema.safeParse({ params: { id }, body: input({ discountPercent: undefined, discountAmount: 10 }) }).success, true);
 });
 
 test('the edit route requires authentication and Sales Orders edit permission before validation or writes', async () => {
@@ -187,6 +200,25 @@ test('create and edit require contact numbers as strings without imposing a phon
     const parsed = schema.parse({ params: { id }, body: input({ contactNo: '  +880 1700-123456 ext 2  ' }) });
     assert.equal(parsed.body.contactNo, '+880 1700-123456 ext 2');
   }
+});
+
+test('creating an order persists a fixed discount amount independently of percentage', async () => {
+  mock.method(prisma, '$transaction', async callback => callback({
+    order: {
+      findUnique: async () => null,
+      create: async ({ data }) => ({ id, ...data }),
+    },
+    territory: { findUnique: async () => ({ id: territoryId, name: 'Test Territory', status: 'Active' }) },
+    client: { findMany: async () => [], updateMany: async () => ({ count: 0 }) },
+    mioZoneAllocation: { findMany: async () => [] },
+    territoryTarget: { findMany: async () => [] },
+  }));
+  const created = await orderService.createOrder({
+    ...input(), orderNumber: 'SO-DISCOUNT', itemsDetail: [],
+    discountPercent: undefined, discountAmount: 25, orderValue: 75,
+  });
+  assert.equal(created.discount, 25);
+  assert.equal(created.orderValue, 75);
 });
 
 test('creating an order persists its contact number independently of the client master', async () => {

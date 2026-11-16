@@ -84,6 +84,8 @@ interface InvoiceItem {
   total: number
 }
 
+type DiscountMethod = "percent" | "amount"
+
 interface SalesOrder {
   id: string
   orderNumber: string
@@ -241,8 +243,10 @@ function mapSalesOrder(item: any, idx: number): SalesOrder {
   // The backend's discount field stores a monetary amount.
   const monetaryDiscount = Number(item.discountAmount ?? item.discount ??
     Math.round((computedSubtotal * Number(item.discountPercent ?? 0)) / 100))
-  const pct = Number(item.discountPercent ??
+  const rawPct = Number(item.discountPercent ??
     (computedSubtotal > 0 ? (monetaryDiscount / computedSubtotal) * 100 : 0))
+  // Keep edit recalculation exact while trimming binary float noise for display.
+  const pct = Math.max(0, Math.round(rawPct * 1e6) / 1e6)
 
   return {
     id: item.id,
@@ -405,7 +409,9 @@ function LogisticsOrdersContent() {
     SalesOrder["deliveryMethod"]
   >("Sales Representative")
   const [orderComments, setOrderComments] = React.useState("")
+  const [discountMethod, setDiscountMethod] = React.useState<DiscountMethod>("percent")
   const [discountPercent, setDiscountPercent] = React.useState<number>(0)
+  const [discountAmount, setDiscountAmount] = React.useState<number>(0)
 
   const orderTerritoryGroups = React.useMemo(() => groupTerritories(
     masterTerritories,
@@ -682,13 +688,38 @@ function LogisticsOrdersContent() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [isDeletingOrder, setIsDeletingOrder] = React.useState(false)
 
-  const calculatedDiscountAmount = Math.round(
-    (calculatedSubtotal * (discountPercent || 0)) / 100
-  )
+  const calculatedDiscountAmount = React.useMemo(() => {
+    if (discountMethod === "amount") {
+      return Math.min(calculatedSubtotal, Math.max(0, Math.round(discountAmount || 0)))
+    }
+    return Math.min(
+      calculatedSubtotal,
+      Math.round((calculatedSubtotal * (discountPercent || 0)) / 100)
+    )
+  }, [calculatedSubtotal, discountAmount, discountMethod, discountPercent])
+
+  // The inactive method mirrors the active one so both boxes show the same deduction.
+  const effectiveDiscountPercent = calculatedSubtotal > 0
+    ? Math.round((calculatedDiscountAmount / calculatedSubtotal) * 10000) / 100
+    : 0
+  const discountPercentDisplay = discountMethod === "percent"
+    ? (Number.isFinite(discountPercent) ? Number(discountPercent.toFixed(2)) : 0)
+    : effectiveDiscountPercent
+
   const calculatedGrandTotal = Math.max(
     0,
     calculatedSubtotal - calculatedDiscountAmount
   )
+
+  const handleDiscountMethodChange = (method: DiscountMethod) => {
+    if (method === discountMethod) return
+    if (method === "amount") {
+      setDiscountAmount(calculatedDiscountAmount)
+    } else {
+      setDiscountPercent(effectiveDiscountPercent)
+    }
+    setDiscountMethod(method)
+  }
 
   const totalBoxesCalculated = React.useMemo(
     () =>
@@ -717,7 +748,9 @@ function LogisticsOrdersContent() {
     setTerritory("")
     setOrderTerritoryId("")
     setLineItems([{ no: 1, description: "", quantity: 1, unitCost: 0, total: 0 }])
+    setDiscountMethod("percent")
     setDiscountPercent(0)
+    setDiscountAmount(0)
     setOrderComments("")
     setDeliveryMethod("Sales Representative")
     setClientCreditNotice(null)
@@ -757,7 +790,9 @@ function LogisticsOrdersContent() {
     setTerritory(currentOrder.territory)
     setOrderTerritoryId(currentOrder.territoryId || "")
     setLineItems(currentOrder.itemsDetail.map((item) => ({ ...item })))
+    setDiscountMethod("percent")
     setDiscountPercent(currentOrder.discountPercent)
+    setDiscountAmount(currentOrder.discountAmount)
     setOrderComments(currentOrder.comments)
     setDeliveryMethod(currentOrder.deliveryMethod)
     setClientCreditNotice(null)
@@ -791,6 +826,10 @@ function LogisticsOrdersContent() {
       toast.error("Enter positive whole quantities and valid non-negative unit prices.")
       return
     }
+    if (discountMethod === "amount" && discountAmount > calculatedSubtotal) {
+      toast.error("Discount amount cannot exceed the order subtotal.")
+      return
+    }
 
     const toastId = toast.loading(editingOrder ? "Saving sales order..." : "Submitting sales order to warehouse...")
     setIsSavingOrder(true)
@@ -813,7 +852,7 @@ function LogisticsOrdersContent() {
         itemsDetail: validLineItems,
         totalBoxes: totalBoxesCalculated,
         orderValue: calculatedGrandTotal,
-        discountPercent: discountPercent,
+        discountPercent: discountMethod === "percent" ? discountPercent : effectiveDiscountPercent,
         discountAmount: calculatedDiscountAmount,
         comments: orderComments,
         deliveryMethod,
@@ -828,7 +867,9 @@ function LogisticsOrdersContent() {
         territoryId: payload.territoryId,
         assignedMio,
         itemsDetail: validLineItems,
-        discountPercent,
+        ...(discountMethod === "percent"
+          ? { discountPercent }
+          : { discountAmount: calculatedDiscountAmount }),
         comments: orderComments,
         deliveryMethod,
       }
@@ -964,7 +1005,7 @@ function LogisticsOrdersContent() {
         "Assigned MIO": o.assignedMio,
         "Item Breakdown": o.itemsSummary,
         Boxes: o.totalBoxes,
-        "Discount (%)": `${o.discountPercent}%`,
+        "Discount (%)": Number(o.discountPercent.toFixed(2)),
         "Discount Value (৳)": o.discountAmount,
         "Total Amount (৳)": o.orderValue,
         "Logistics Method": o.deliveryMethod,
@@ -1569,34 +1610,83 @@ function LogisticsOrdersContent() {
                       </div>
                     </div>
 
-                    {/* Discount in % */}
-                    <div className="flex items-center border-b border-black">
-                      <div className="flex w-28 items-center bg-black px-2 py-1.5 text-[10px] font-bold text-white uppercase">
-                        DISCOUNT (%)
+                    {/* Discount: choose percentage or fixed amount */}
+                    <div className="flex border-b border-black">
+                      <div className="flex w-28 shrink-0 items-center bg-black px-2 py-1.5 text-[10px] font-bold text-white uppercase">
+                        DISCOUNT
                       </div>
-                      <div className="flex flex-1 items-center justify-end gap-2 px-2">
-                        <div className="flex items-center gap-1">
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="any"
-                            value={discountPercent}
-                            onChange={(e) =>
-                              setDiscountPercent(
-                                Math.min(
-                                  100,
-                                  Math.max(0, Number(e.target.value) || 0)
+                      <div className="min-w-0 flex-1 space-y-1.5 px-2 py-1.5">
+                        <label className="flex cursor-pointer items-center justify-between gap-2">
+                          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+                            <input
+                              type="radio"
+                              name="discount-method"
+                              value="percent"
+                              checked={discountMethod === "percent"}
+                              onChange={() => handleDiscountMethodChange("percent")}
+                              className="h-3 w-3 accent-[#0090FF]"
+                            />
+                            Percentage
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="any"
+                              aria-label="Discount percentage"
+                              value={discountPercentDisplay}
+                              disabled={discountMethod !== "percent"}
+                              onChange={(e) =>
+                                setDiscountPercent(
+                                  Math.min(
+                                    100,
+                                    Math.max(0, Number(e.target.value) || 0)
+                                  )
                                 )
-                              )
-                            }
-                            className="h-6 w-16 border-slate-200 bg-white px-1.5 py-0 text-right font-mono text-xs"
-                          />
-                          <span className="font-bold text-slate-700">%</span>
+                              }
+                              className="h-6 w-16 border-slate-200 bg-white px-1.5 py-0 text-right font-mono text-xs"
+                            />
+                            <span className="w-2 font-bold text-slate-700">%</span>
+                          </span>
+                        </label>
+                        <label className="flex cursor-pointer items-center justify-between gap-2">
+                          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+                            <input
+                              type="radio"
+                              name="discount-method"
+                              value="amount"
+                              checked={discountMethod === "amount"}
+                              onChange={() => handleDiscountMethodChange("amount")}
+                              className="h-3 w-3 accent-[#0090FF]"
+                            />
+                            Fixed amount
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              aria-label="Discount amount"
+                              aria-invalid={discountMethod === "amount" && discountAmount > calculatedSubtotal}
+                              value={discountMethod === "amount" ? discountAmount : calculatedDiscountAmount}
+                              disabled={discountMethod !== "amount"}
+                              onChange={(e) =>
+                                setDiscountAmount(
+                                  Math.max(0, Math.round(Number(e.target.value) || 0))
+                                )
+                              }
+                              className="h-6 w-20 border-slate-200 bg-white px-1.5 py-0 text-right font-mono text-xs"
+                            />
+                            <span className="w-2 font-bold text-slate-700">৳</span>
+                          </span>
+                        </label>
+                        <div className="flex items-center justify-between border-t border-slate-200 pt-1 text-[10px] text-slate-500">
+                          <span>Applied discount</span>
+                          <span className="font-mono font-semibold text-slate-600">
+                            -৳{calculatedDiscountAmount.toLocaleString("en-IN")}
+                          </span>
                         </div>
-                        <span className="font-mono text-[11px] text-slate-500">
-                          (-৳{calculatedDiscountAmount.toLocaleString("en-IN")})
-                        </span>
                       </div>
                     </div>
 
@@ -1896,7 +1986,7 @@ function LogisticsOrdersContent() {
                       )}
                       {ord.discountPercent > 0 && (
                         <span className="block text-[10px] font-normal text-emerald-600">
-                          {ord.discountPercent}% OFF
+                          {Number(ord.discountPercent.toFixed(2))}% OFF
                         </span>
                       )}
                     </div>

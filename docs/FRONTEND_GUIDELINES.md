@@ -116,11 +116,13 @@ New form, matching `handleAddDoctor` in `app/doctors/database/page.tsx`:
 
 ## Sales order editing and printing
 
-`app/logistics/orders/page.tsx` exposes **Edit Order** in each row's **Actions** menu for users with Sales Orders edit permission. It reloads the selected order and reuses the booking form, prefilled with the pharmacy, representative, territory ID, delivery method, products, quantities, unit prices, discount, and comments. Saving calls `PATCH /api/orders/:id` and opens the invoice preview using the saved server response; **Print / Save PDF** then prints that response. Cancelling returns to the orders list without saving. The selected invoice is independent of the current list page so refreshing a filtered list cannot remove the printable document.
+`app/logistics/orders/page.tsx` exposes **Edit Order** in each row's **Actions** menu for users with Sales Orders edit permission. It reloads the selected order and reuses the booking form, prefilled with the pharmacy, representative, territory ID, delivery method, products, quantities, unit prices, discount method and value, and comments. Saving calls `PATCH /api/orders/:id` and opens the invoice preview using the saved server response; **Print / Save PDF** then prints that response. Cancelling returns to the orders list without saving. The selected invoice is independent of the current list page so refreshing a filtered list cannot remove the printable document.
 
 Invoice Preview contains no order or invoice-details editing controls. Order edits preserve the existing order, invoice, and challan numbers, date, and payment terms. Saving disables the form and duplicate submissions. Cancelled orders cannot be edited. Stock reconciliation and payment restrictions are enforced by the API; see the sales order contract in the backend guide.
 
 The first row of both Create Sales Order and Edit Order contains Pharmacy, Contact No., and Sales Representative, stacking on mobile. Contact No. is a required string without a phone pattern. Selecting a client prefills its phone; editing uses the order's saved `contactNo`, falling back to a uniquely matched client's phone for legacy orders. The value is saved on the order, independently of the client master, and takes precedence over the client phone on preview and printed invoices.
+
+The booking form's Discount block exposes **Percentage** and **Fixed amount** inputs with radios; exactly one is editable at a time and the inactive input mirrors the active deduction. Switching methods carries the current deduction across so the grand total does not jump. A fixed amount above the subtotal is rejected before saving. Create sends the resulting monetary `discountAmount`; edit sends exactly one of `discountPercent` or `discountAmount` because `updateOrderSchema` rejects both together and neither. The orders table and Excel export show the derived percentage rounded to two decimals.
 
 ## Division and territory selection
 

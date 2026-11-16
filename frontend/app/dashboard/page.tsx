@@ -710,7 +710,7 @@ export default function MasterExecutiveDashboardPage() {
           <ShieldCheck className="h-4 w-4 text-[#23496D]" />
           <span>
             Version :{" "}
-            <strong>v1.1.2 &amp; Frontend UI/UX & Backend Bugs and Features</strong>
+            <strong>v1.2.2 &amp; Frontend UI/UX & Backend Bugs and Features</strong>
           </span>
         </div>
         <div className="flex items-center gap-4 text-[11px] font-medium">

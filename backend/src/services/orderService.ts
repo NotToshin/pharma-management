@@ -443,8 +443,13 @@ export const orderService = {
         total: roundMoney(item.quantity * roundMoney(item.unitCost)),
       }));
       const subtotal = roundMoney(items.reduce((sum, item) => sum + item.total, 0));
-      // Match the booking form's whole-taka percentage discount.
-      const discount = Math.round(subtotal * data.discountPercent / 100);
+      // The booking form applies a whole-taka discount from either a percentage or a fixed amount.
+      const discount = data.discountAmount !== undefined
+        ? Math.round(data.discountAmount)
+        : Math.round(subtotal * (data.discountPercent ?? 0) / 100);
+      if (discount > subtotal + 0.009) {
+        throw new AppError("Discount amount cannot exceed the order subtotal", 400);
+      }
       const orderValue = Math.max(0, roundMoney(subtotal - discount));
       if (!Number.isFinite(orderValue)) throw new AppError("Order total is too large", 400);
 
