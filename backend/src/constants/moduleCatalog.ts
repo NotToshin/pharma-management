@@ -56,7 +56,7 @@ export const ALL_SYSTEM_MODULES: SystemModule[] = [
     route: "/analytics/territories",
     category: "Overview & Analytics",
     specialAction: "Export Analytical Raw Data",
-    actions: ["read"],
+    actions: CRUD,
     overviews: [
       { key: "grossRegional", label: "Gross Regional Sales" },
       { key: "activeHubs", label: "Active Operational Hubs" },

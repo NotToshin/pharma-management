@@ -258,7 +258,7 @@ export function AppShell({
 
                       <DropdownMenuContent
                         align="end"
-                        className="w-56 rounded-xl border border-slate-200 bg-white p-1.5 text-xs shadow-lg"
+                        className="w-56 rounded-xl border border-slate-200 bg-white p-1.5 text-xs shadow-lg [--accent-foreground:var(--color-slate-700)]"
                       >
                         <DropdownMenuLabel className="px-2 py-1.5 font-normal">
                           <div className="flex flex-col space-y-1">
@@ -292,7 +292,7 @@ export function AppShell({
 
                         <DropdownMenuItem
                           onClick={handleLogout}
-                          className="cursor-pointer gap-2 rounded-lg py-2 font-semibold text-rose-600 focus:bg-rose-50 focus:text-rose-600"
+                          className="cursor-pointer gap-2 rounded-lg py-2 font-semibold text-rose-600 [--accent-foreground:var(--color-rose-600)] focus:bg-rose-50 focus:text-rose-600"
                         >
                           <LogOut className="h-4 w-4" />
                           <span>Log out</span>

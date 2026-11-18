@@ -59,9 +59,9 @@ Refresh tries each candidate token. A hash mismatch continues to the next candid
 | Buttons | `frontend/components/permission-gate.tsx` | `userCan` in `frontend/lib/permissions.ts`. `view` maps to `read`. Cards use `overview:<key>` |
 | Audit actor | `backend/src/middlewares/actorContextMiddleware.ts` | Every API request. Does **not** reject a missing or invalid token. May attribute the audit from `x-user-email` |
 | API auth | `backend/src/middlewares/requireAuth.ts` | Bearer token first, then the access cookie. Loads the role from the database, not from `x-user-role` |
-| Module action | same file | `requirePermission(moduleName, "read" \| "create" \| "edit" \| "delete")`. Used by territory master creation |
+| Module action | same file | `requirePermission(moduleName, "read" \| "create" \| "edit" \| "delete")`. A module-name array accepts that action on any listed module; single-module checks are unchanged |
 
-`/api/rbac/roles` and `/api/rbac/users` call `requireAuth("SUPER_ADMIN")`. Territory master creation calls `requireAuth()` and checks `Target Vs Achievement` create permission. `PATCH /api/orders/:id` calls `requireAuth()` and checks `Sales Orders` edit permission. Most other business routes do not authenticate. Do not copy that gap.
+`/api/rbac/roles` and `/api/rbac/users` call `requireAuth("SUPER_ADMIN")`. Territory master creation calls `requireAuth()` and accepts create permission on `Territory Sales Breakdown` or `Target Vs Achievement`. Territory update and delete authenticate and require the matching action on `Territory Sales Breakdown`. `PATCH /api/orders/:id` calls `requireAuth()` and checks `Sales Orders` edit permission. Most other business routes do not authenticate. Do not copy that gap.
 
 Super admin on the client (`isUserSuperAdmin`): email contains `superadmin`, or the email is `toshin@akpharma.com`, or the role text normalizes to `SUPERADMIN` / `SUPERADMINISTRATOR`. Those users pass `userCan`. A non-super-admin with an empty `permissions` array also passes. Once any permission rows exist, a missing module is denied.
 

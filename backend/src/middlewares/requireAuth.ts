@@ -138,7 +138,7 @@ export const requireAuth = (...allowedRoles: string[]) => {
  * Enforces module-level action permission (e.g. read, create, edit, delete)
  */
 export const requirePermission = (
-  moduleName: string,
+  moduleName: string | readonly string[],
   action: "read" | "create" | "edit" | "delete"
 ) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -154,13 +154,14 @@ export const requirePermission = (
       }
 
       const permissions = req.user.role?.permissions || [];
-      const modulePerm = permissions.find(
-        (p: any) => p.module.toLowerCase() === moduleName.toLowerCase()
+      const modules = typeof moduleName === "string" ? [moduleName] : moduleName;
+      const allowed = permissions.some(
+        (p: any) => modules.some(name => p.module.toLowerCase() === name.toLowerCase()) && p[action]
       );
 
-      if (!modulePerm || !modulePerm[action]) {
+      if (!allowed) {
         throw new AppError(
-          `Forbidden: You do not have permission to ${action} ${moduleName}.`,
+          `Forbidden: You do not have permission to ${action} ${modules.join(" or ")}.`,
           403
         );
       }

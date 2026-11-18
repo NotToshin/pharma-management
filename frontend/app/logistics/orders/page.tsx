@@ -1265,18 +1265,18 @@ function LogisticsOrdersContent() {
 
               <form onSubmit={handleSaveOrder} className="py-2">
                 <fieldset disabled={isSavingOrder} className="min-w-0 space-y-4">
-                {/* Row 1: Chemist Outlet, Contact No. & Sales Representative */}
+                {/* Row 1: Client Name, Contact No. & Sales Representative */}
                 <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3">
                   <div className="relative space-y-1.5">
                     <Label
                       htmlFor="pharmacy"
                       className="text-xs font-semibold text-slate-700"
                     >
-                      Chemist / Pharmacy Outlet (Type to search) *
+                      Client Name *
                     </Label>
                     <Input
                       id="pharmacy"
-                      placeholder="Type pharmacy name or code (e.g. Al-Madina)..."
+                      placeholder="Type client name or code (e.g. Al-Madina)..."
                       value={pharmacyInput}
                       disabled={!!editingOrder && (editingOrder.paidAmount || 0) > 0}
                       onChange={(e) => handlePharmacyTyping(e.target.value)}

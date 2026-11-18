@@ -84,6 +84,13 @@ import {
 import { apiFetch } from "@/lib/api"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Label } from "@/components/ui/label"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { ServerListToolbar, ServerListPagination, useServerListQuery } from "@/components/server-list-controls"
+import { usePermission } from "@/hooks/usePermission"
+import { useTerritories, type MasterTerritory } from "@/hooks/use-territories"
+import { territoryFormSchema } from "@/lib/validations/territoryValidation"
+import { Plus, Pencil, Trash2 } from "lucide-react"
 
 export interface TerritoryLedgerItem {
   territory: string
@@ -174,11 +181,556 @@ export interface AnalyticsPayload {
   }
 }
 
+function TerritoryManager({
+  onClose,
+  onChanged,
+}: {
+  onClose: () => void
+  onChanged: () => void
+}) {
+  const { can } = usePermission()
+  const {
+    territories,
+    loading: divisionsLoading,
+    error: divisionsError,
+    reload: reloadDivisions,
+  } = useTerritories()
+  const list = useServerListQuery({
+    initialSortBy: "name",
+    initialSortOrder: "asc",
+  })
+  const { queryKey, setPage } = list
+  const [rows, setRows] = React.useState<MasterTerritory[]>([])
+  const [meta, setMeta] = React.useState({ total: 0, totalPage: 1 })
+  const [loading, setLoading] = React.useState(true)
+  const [loadError, setLoadError] = React.useState("")
+  const [revision, setRevision] = React.useState(0)
+  const [editor, setEditor] = React.useState<{ id?: string } | null>(null)
+  const [form, setForm] = React.useState({
+    name: "",
+    division: "",
+    status: "Active",
+  })
+  const [errors, setErrors] = React.useState<Record<string, string>>({})
+  const [saving, setSaving] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
+  const [deleteTarget, setDeleteTarget] =
+    React.useState<MasterTerritory | null>(null)
+  const mutationPending = React.useRef(false)
+  const busy = saving || deleting
+  const divisions = React.useMemo(
+    () =>
+      Array.from(
+        new Set([
+          "General Division",
+          ...territories.map(
+            (territory) => territory.division?.trim() || "General Division"
+          ),
+          ...(form.division ? [form.division] : []),
+        ])
+      ).sort(),
+    [territories, form.division]
+  )
+
+  React.useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+    setLoading(true)
+    setLoadError("")
+    void (async () => {
+      try {
+        const response = await apiFetch(`/territories?${queryKey}`, {
+          signal: controller.signal,
+        })
+        const result = await response.json()
+        if (!response.ok)
+          throw new Error(result.message || "Could not load territories")
+        if (cancelled) return
+        setRows(result.data)
+        setMeta(result.meta)
+        setPage(result.meta.page)
+      } catch (error) {
+        if (!cancelled)
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Could not load territories"
+          )
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [queryKey, revision, setPage])
+
+  const openEditor = (territory?: MasterTerritory) => {
+    setEditor(territory ? { id: territory.id } : {})
+    setForm({
+      name: territory?.name || "",
+      division: territory?.division || "General Division",
+      status: territory?.status || "Active",
+    })
+    setErrors({})
+  }
+
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!editor || mutationPending.current) return
+    if (divisionsLoading || divisionsError) {
+      toast.error(divisionsError || "Please wait for divisions to load")
+      return
+    }
+    const parsed = territoryFormSchema.safeParse(form)
+    if (!parsed.success) {
+      const next: Record<string, string> = {}
+      parsed.error.issues.forEach((issue) => {
+        next[String(issue.path[0])] = issue.message
+      })
+      setErrors(next)
+      toast.error("Please correct the highlighted fields")
+      return
+    }
+    if (!can("Territory Sales Breakdown", editor.id ? "edit" : "create")) return
+    mutationPending.current = true
+    setSaving(true)
+    setErrors({})
+    const toastId = toast.loading(
+      editor.id ? "Saving territory..." : "Creating territory..."
+    )
+    try {
+      const response = await apiFetch(
+        editor.id ? `/territories/${editor.id}` : "/territories",
+        {
+          method: editor.id ? "PUT" : "POST",
+          body: JSON.stringify(parsed.data),
+        }
+      )
+      const result = await response.json()
+      if (!response.ok) {
+        const next: Record<string, string> = {}
+        for (const issue of result.errors || [])
+          next[String(issue.field).replace(/^body\./, "")] = issue.message
+        setErrors(next)
+        throw new Error(result.message || "Could not save territory")
+      }
+      toast.success(editor.id ? "Territory updated" : "Territory created", {
+        id: toastId,
+      })
+      setEditor(null)
+      setRevision((value) => value + 1)
+      void reloadDivisions()
+      onChanged()
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not save territory",
+        { id: toastId }
+      )
+    } finally {
+      mutationPending.current = false
+      setSaving(false)
+    }
+  }
+
+  const remove = async () => {
+    if (
+      !deleteTarget ||
+      mutationPending.current ||
+      !can("Territory Sales Breakdown", "delete")
+    )
+      return
+    mutationPending.current = true
+    setDeleting(true)
+    const toastId = toast.loading("Deleting territory...")
+    try {
+      const response = await apiFetch(`/territories/${deleteTarget.id}`, {
+        method: "DELETE",
+      })
+      const result = await response.json()
+      if (!response.ok)
+        throw new Error(result.message || "Could not delete territory")
+      toast.success("Territory deleted", { id: toastId })
+      setDeleteTarget(null)
+      setRevision((value) => value + 1)
+      void reloadDivisions()
+      onChanged()
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not delete territory",
+        { id: toastId }
+      )
+    } finally {
+      mutationPending.current = false
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose()
+      }}
+    >
+      <DialogContent
+        className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 sm:max-w-3xl"
+        showCloseButton={!busy}
+      >
+        <DialogHeader>
+          <DialogTitle className="text-base font-bold text-slate-900">
+            {editor
+              ? editor.id
+                ? "Edit Territory"
+                : "Create Territory"
+              : "Manage Territories"}
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-500">
+            {editor
+              ? "Set the territory name, division, and availability for new assignments."
+              : "Manage the territories used across sales, clients, and field force assignments."}
+          </DialogDescription>
+        </DialogHeader>
+        {editor ? (
+          <form onSubmit={save} noValidate>
+            <fieldset disabled={saving} className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="territory-name"
+                    className="text-xs font-semibold"
+                  >
+                    Territory Name *
+                  </Label>
+                  <Input
+                    id="territory-name"
+                    autoFocus
+                    required
+                    maxLength={200}
+                    value={form.name}
+                    onChange={(event) =>
+                      setForm({ ...form, name: event.target.value })
+                    }
+                    aria-invalid={!!errors.name}
+                    aria-describedby={
+                      errors.name ? "territory-name-error" : undefined
+                    }
+                    placeholder="Enter territory name"
+                  />
+                  {errors.name && (
+                    <p
+                      id="territory-name-error"
+                      className="text-xs text-rose-600"
+                    >
+                      {errors.name}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="territory-division"
+                    className="text-xs font-semibold"
+                  >
+                    Division
+                  </Label>
+                  <Select
+                    value={form.division}
+                    onValueChange={(division) => setForm({ ...form, division })}
+                    disabled={saving || divisionsLoading || !!divisionsError}
+                  >
+                    <SelectTrigger
+                      id="territory-division"
+                      className="h-8 w-full text-xs"
+                      aria-invalid={!!errors.division || !!divisionsError}
+                      aria-describedby={
+                        errors.division || divisionsError
+                          ? "territory-division-error"
+                          : undefined
+                      }
+                    >
+                      <SelectValue
+                        placeholder={
+                          divisionsLoading
+                            ? "Loading divisions..."
+                            : "Select Division"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-56 text-xs">
+                      {divisions.map((division) => (
+                        <SelectItem key={division} value={division}>
+                          {division}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(errors.division || divisionsError) && (
+                    <p
+                      id="territory-division-error"
+                      role="alert"
+                      className="text-xs text-rose-600"
+                    >
+                      {divisionsError || errors.division}
+                      {divisionsError && (
+                        <Button
+                          type="button"
+                          variant="link"
+                          className="h-auto px-2 py-0 text-xs"
+                          onClick={() => void reloadDivisions()}
+                        >
+                          Retry
+                        </Button>
+                      )}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label
+                  htmlFor="territory-status"
+                  className="text-xs font-semibold"
+                >
+                  Status
+                </Label>
+                <Select
+                  value={form.status}
+                  onValueChange={(status) => setForm({ ...form, status })}
+                  disabled={saving}
+                >
+                  <SelectTrigger
+                    id="territory-status"
+                    className="h-8 w-full text-xs"
+                    aria-invalid={!!errors.status}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.status && (
+                  <p className="text-xs text-rose-600">{errors.status}</p>
+                )}
+                <p className="text-xs text-slate-500">
+                  Inactive territories retain existing assignments and cannot
+                  receive new assignments.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-xs"
+                  onClick={() => setEditor(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={divisionsLoading || !!divisionsError}
+                  className="bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
+                >
+                  {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {saving
+                    ? "Saving..."
+                    : editor.id
+                      ? "Save Changes"
+                      : "Create Territory"}
+                </Button>
+              </div>
+            </fieldset>
+          </form>
+        ) : (
+          <div className="min-w-0 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-500">
+                Delete unused territories or mark assigned territories inactive.
+              </p>
+              <PermissionGate
+                feature="Territory Sales Breakdown"
+                action="create"
+              >
+                <Button
+                  className="bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
+                  onClick={() => openEditor()}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  New Territory
+                </Button>
+              </PermissionGate>
+            </div>
+            <ServerListToolbar
+              search={list.search}
+              onSearchChange={list.setSearch}
+              searchPlaceholder="Search territories or divisions..."
+              loading={loading}
+              filters={[
+                {
+                  id: "status",
+                  value: list.filters.status || "all",
+                  onValueChange: (value) => list.setFilter("status", value),
+                  options: [
+                    { value: "all", label: "All statuses" },
+                    { value: "Active", label: "Active" },
+                    { value: "Inactive", label: "Inactive" },
+                  ],
+                },
+              ]}
+              sort={{
+                value: `${list.sortBy}:${list.sortOrder}`,
+                onValueChange: (value) => {
+                  const [field, order] = value.split(":")
+                  list.setSort(field, order as "asc" | "desc")
+                },
+                options: [
+                  { value: "name:asc", label: "Name A–Z" },
+                  { value: "name:desc", label: "Name Z–A" },
+                  { value: "division:asc", label: "Division A–Z" },
+                  { value: "createdAt:desc", label: "Newest first" },
+                ],
+              }}
+            />
+            {loadError ? (
+              <div
+                role="alert"
+                className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700"
+              >
+                {loadError}
+                <Button
+                  variant="outline"
+                  className="ml-3 text-xs"
+                  onClick={() => setRevision((value) => value + 1)}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Territory</TableHead>
+                      <TableHead>Division</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={4}
+                          className="py-8 text-center text-xs text-slate-500"
+                        >
+                          Loading territories...
+                        </TableCell>
+                      </TableRow>
+                    ) : rows.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={4}
+                          className="py-8 text-center text-xs text-slate-500"
+                        >
+                          No territories found. Create one or adjust your
+                          search.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      rows.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell className="text-xs font-semibold">
+                            {row.name}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {row.division || "General Division"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={
+                                row.status === "Active"
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : "border-slate-200 bg-slate-50 text-slate-600"
+                              }
+                            >
+                              {row.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-1">
+                              <PermissionGate
+                                feature="Territory Sales Breakdown"
+                                action="edit"
+                              >
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label={`Edit ${row.name}`}
+                                  onClick={() => openEditor(row)}
+                                  className="h-7 w-7 text-amber-600"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </PermissionGate>
+                              <PermissionGate
+                                feature="Territory Sales Breakdown"
+                                action="delete"
+                              >
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label={`Delete ${row.name}`}
+                                  onClick={() => setDeleteTarget(row)}
+                                  className="h-7 w-7 text-rose-600"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </PermissionGate>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+                <ServerListPagination
+                  page={list.page}
+                  totalPages={meta.totalPage}
+                  total={meta.total}
+                  limit={list.limit}
+                  onPageChange={list.setPage}
+                  onLimitChange={list.setLimit}
+                  loading={loading}
+                />
+              </>
+            )}
+          </div>
+        )}
+        <DeleteConfirmationModal
+          open={!!deleteTarget}
+          onOpenChange={(open) => {
+            if (!open && !deleting) setDeleteTarget(null)
+          }}
+          onConfirm={remove}
+          isDeleting={deleting}
+          title="Delete Territory"
+          itemName={deleteTarget?.name}
+          confirmText="Delete Territory"
+          description="Delete this unused territory permanently? Territories assigned to existing records cannot be deleted; set them to Inactive instead."
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function TerritorySalesBreakdownPage() {
   const [data, setData] = React.useState<AnalyticsPayload | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
   const [isTableLoading, setIsTableLoading] = React.useState(false)
   const [isRefreshing, setIsRefreshing] = React.useState(false)
+  const [isManagingTerritories, setIsManagingTerritories] = React.useState(false)
 
   // Server-side Pagination, Sort & Filter State (Exact match to Doctor Registry — Master Database)
   const [currentPage, setCurrentPage] = React.useState(1)
@@ -376,6 +928,12 @@ export default function TerritorySalesBreakdownPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <PermissionGate feature="Territory Sales Breakdown" action="view">
+            <Button variant="outline" className="h-9 gap-1.5 text-xs" onClick={() => setIsManagingTerritories(true)}>
+              <MapPin className="h-3.5 w-3.5" />
+              Manage Territories
+            </Button>
+          </PermissionGate>
           {/* Division Selector */}
           <Select
             value={selectedDivision}
@@ -427,6 +985,10 @@ export default function TerritorySalesBreakdownPage() {
 </PermissionGate>
         </div>
       </div>
+
+      {isManagingTerritories && (
+        <TerritoryManager onClose={() => setIsManagingTerritories(false)} onChanged={() => { void fetchData() }} />
+      )}
 
       {/* 2. Key Performance Metric Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

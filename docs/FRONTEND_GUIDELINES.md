@@ -126,6 +126,8 @@ The booking form's Discount block exposes **Percentage** and **Fixed amount** in
 
 ## Division and territory selection
 
+`app/analytics/territories/page.tsx` provides **Manage Territories** alongside sales analytics. Its master list uses `useServerListQuery`, `ServerListToolbar`, and `ServerListPagination` with backend search, status filtering, sorting, and pagination. The create/edit form uses `lib/validations/territoryValidation.ts` (`safeParse` and field errors) and edits name, division, and Active/Inactive status. Mutations use Sonner, disable duplicate submissions, and refresh both the master list and analytics. Deletes use `DeleteConfirmationModal`; assigned territories must be made inactive instead. Controls use the existing `Territory Sales Breakdown` read/create/edit/delete permissions, whose CRUD columns are exposed by the backend module catalog. Existing target-screen territory creation remains supported.
+
 `Territory` is the source of names, divisions, and active status. Load records with `useTerritories` from `hooks/use-territories.ts`. Use `groupTerritories` to group active records by their stored division; `General Division` labels a missing division without guessing geography. Pass the original territory name when editing to retain an existing inactive assignment.
 
 - Forms requiring division and territory use linked **Division** and **Territory Station** dropdowns, following RBAC provisioning. `components/division-territory-fields.tsx` supplies the shared controls used by Enroll New Chemist Client, client editing, delivery cash collection, and the Sales Order editor. Reuse these controls instead of copying dropdown markup and state logic.
