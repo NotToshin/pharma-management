@@ -139,6 +139,12 @@ The booking form's Discount block exposes **Percentage** and **Fixed amount** in
 
 Backend relation contracts, inactive-assignment rules, and existing-data backfill commands are in [BACKEND_ARCHITECTURE.md](./BACKEND_ARCHITECTURE.md#territory-assignments). Update these existing guides when this pattern changes; do not create a new documentation file for each feature or logic change unless requested.
 
+## Bank accounts and statements
+
+`app/finance/bank-ledger/page.tsx` manages bank accounts and cash drawers. The add/edit form lives in `components/finance/account-form-dialog.tsx`; it validates with `lib/validations/bankAccountValidation.ts` and uses `lib/bank-institutions.ts` for the bank/drawer lists and the custom "Other" option. Do not recreate the form or the bank list on the page.
+
+Each account links to `app/finance/bank-ledger/[id]/page.tsx`, which loads `GET /api/account-ledger/accounts/:id` for the header and summary and pages the account statement through `GET /api/account-ledger/transactions?accountId=...` with `useServerListQuery`, `ServerListToolbar`, and `ServerListPagination`. The detail route is covered by the `/finance/bank-ledger` permission prefix. The statement labels generated `Opening Balance` and `Balance Adjustment` entries. Account cards disable Delete when `canDelete` is false; opening-balance entries do not block deletion, but the API still returns 409 if a business transaction or linked source record is added after the page loaded.
+
 ## Permissions in the UI
 
 1. Middleware checks a session cookie. Only `/settings/rbac` has a role check there.

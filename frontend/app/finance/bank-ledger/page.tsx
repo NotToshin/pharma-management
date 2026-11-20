@@ -3,7 +3,12 @@
 import PermissionGate from "@/components/permission-gate"
 
 import * as React from "react"
+import Link from "next/link"
 import { GlobalLoadingSpinner } from "@/components/ui/global-loading-spinner"
+import {
+  AccountFormDialog,
+  type FinancialAccountRecord,
+} from "@/components/finance/account-form-dialog"
 import { apiFetch } from "@/lib/api"
 import {
   ServerListPagination,
@@ -21,9 +26,7 @@ import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -50,6 +53,7 @@ import {
   Filter,
   Wallet,
   Building2,
+  ArrowRight,
   ArrowRightLeft,
   Trash2,
   CheckCircle2,
@@ -58,59 +62,13 @@ import {
   Coins,
   RefreshCw,
   Printer,
-  Receipt,
   Pencil,
   Copy,
   TrendingUp,
-  AlertCircle,
-  Clock,
+  Search,
 } from "lucide-react"
 
-export const BANGLADESH_BANKS = {
-  conventional: [
-    "Eastern Bank PLC",
-    "BRAC Bank PLC",
-    "City Bank PLC",
-    "Dutch-Bangla Bank PLC",
-    "United Commercial Bank (UCB)",
-    "Prime Bank PLC",
-    "Mutual Trust Bank (MTB)",
-    "Dhaka Bank PLC",
-    "Bank Asia PLC",
-    "Pubali Bank PLC",
-  ],
-  islamic: [
-    "Islami Bank Bangladesh PLC",
-    "Al-Arafah Islami Bank PLC",
-    "Shahjalal Islami Bank PLC",
-    "Social Islami Bank PLC (SIBL)",
-    "EXIM Bank Bangladesh PLC",
-  ],
-  foreign: [
-    "Standard Chartered Bank",
-    "HSBC Bangladesh",
-    "Citibank N.A.",
-    "Commercial Bank of Ceylon",
-  ],
-  cashCounters: [
-    "Head Office Cash Safe",
-    "Sales Counter Cash Drawer",
-    "Mirpur Depot Petty Safe",
-    "Factory Plant Cash Vault",
-  ],
-}
-
-interface AccountRecord {
-  id: string
-  accountTitle: string
-  category: "BANK" | "CASH"
-  institution: string
-  accountNumber: string
-  branch: string
-  accountClass: string
-  balance: number
-  isActive?: boolean
-}
+type AccountRecord = FinancialAccountRecord
 
 interface TransactionRecord {
   id: string
@@ -214,6 +172,28 @@ function numberToWordsBDT(num: number): string {
   return inWords(rounded).trim() + " Taka Only"
 }
 
+function linkedRecordSummary(account: AccountRecord): string {
+  const parts: string[] = []
+  const journal =
+    Number(
+      account.blockingTransactionCount !== undefined
+        ? account.blockingTransactionCount
+        : account.transactionCount
+    ) || 0
+  const collections = Number(account.linkedCollections) || 0
+  const expenses = Number(account.linkedExpenses) || 0
+  const settlements = Number(account.linkedSettlements) || 0
+
+  if (journal > 0) {
+    parts.push(`${journal} business transaction${journal === 1 ? "" : "s"}`)
+  }
+  if (collections > 0) parts.push(`${collections} collection${collections === 1 ? "" : "s"}`)
+  if (expenses > 0) parts.push(`${expenses} expense voucher${expenses === 1 ? "" : "s"}`)
+  if (settlements > 0) parts.push(`${settlements} settlement${settlements === 1 ? "" : "s"}`)
+
+  return parts.join(", ")
+}
+
 export default function AccountLedgerPage() {
   const [accounts, setAccounts] = React.useState<AccountRecord[]>([])
   const [ledger, setLedger] = React.useState<TransactionRecord[]>([])
@@ -231,11 +211,17 @@ export default function AccountLedgerPage() {
   const [totalCount, setTotalCount] = React.useState(0)
 
   // Modals
-  const [isAddAccountOpen, setIsAddAccountOpen] = React.useState(false)
-  const [isEditAccountOpen, setIsEditAccountOpen] = React.useState(false)
+  const [isAccountFormOpen, setIsAccountFormOpen] = React.useState(false)
+  const [editingAccount, setEditingAccount] = React.useState<AccountRecord | null>(null)
   const [isTxOpen, setIsTxOpen] = React.useState(false)
   const [isPrintOpen, setIsPrintOpen] = React.useState(false)
   const [printTarget, setPrintTarget] = React.useState<TransactionRecord | null>(null)
+
+  // Account list filters
+  const [accountSearch, setAccountSearch] = React.useState("")
+  const [accountCategoryFilter, setAccountCategoryFilter] = React.useState<"all" | "BANK" | "CASH">(
+    "all"
+  )
 
   // Global Delete Modal State
   const [deleteItem, setDeleteItem] = React.useState<{
@@ -245,17 +231,6 @@ export default function AccountLedgerPage() {
   } | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [isDeleting, setIsDeleting] = React.useState(false)
-
-  // Add / Edit Account Form State
-  const [editingAccountId, setEditingAccountId] = React.useState<string | null>(null)
-  const [accCategory, setAccCategory] = React.useState<"BANK" | "CASH">("BANK")
-  const [accInstitution, setAccInstitution] = React.useState(BANGLADESH_BANKS.conventional[0])
-  const [accTitle, setAccTitle] = React.useState("")
-  const [accNumber, setAccNumber] = React.useState("")
-  const [accBranch, setAccBranch] = React.useState("")
-  const [accClass, setAccClass] = React.useState("Current")
-  const [accBalance, setAccBalance] = React.useState("")
-  const [isSavingAccount, setIsSavingAccount] = React.useState(false)
 
   // Post Transaction Form State
   const [txFlow, setTxFlow] = React.useState<"INFLOW" | "OUTFLOW" | "TRANSFER" | "LOAN">("TRANSFER")
@@ -285,6 +260,15 @@ export default function AccountLedgerPage() {
         const formatted = list.map((a: any) => ({
           ...a,
           balance: Number(a.balance) || 0,
+          transactionCount: Number(a.transactionCount) || 0,
+          blockingTransactionCount:
+            a.blockingTransactionCount !== undefined
+              ? Number(a.blockingTransactionCount) || 0
+              : Number(a.transactionCount) || 0,
+          linkedCollections: Number(a.linkedCollections) || 0,
+          linkedExpenses: Number(a.linkedExpenses) || 0,
+          linkedSettlements: Number(a.linkedSettlements) || 0,
+          canDelete: a.canDelete !== false,
         }))
         setAccounts(formatted)
 
@@ -340,89 +324,28 @@ export default function AccountLedgerPage() {
 
   const totalCombinedFunds = totalBankLiquidity + totalCashSafeLiquidity
 
-  // Create Account Handler
+  const filteredAccounts = React.useMemo(() => {
+    const term = accountSearch.trim().toLowerCase()
+    return accounts.filter((account) => {
+      if (accountCategoryFilter !== "all" && account.category !== accountCategoryFilter) {
+        return false
+      }
+      if (!term) return true
+      return [account.accountTitle, account.institution, account.accountNumber, account.branch]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term))
+    })
+  }, [accounts, accountCategoryFilter, accountSearch])
+
+  // Create / Edit Account Handlers
   const handleOpenAddAccount = () => {
-    setEditingAccountId(null)
-    setAccCategory("BANK")
-    setAccInstitution(BANGLADESH_BANKS.conventional[0])
-    setAccTitle("")
-    setAccNumber("")
-    setAccBranch("")
-    setAccClass("Current")
-    setAccBalance("0")
-    setIsAddAccountOpen(true)
+    setEditingAccount(null)
+    setIsAccountFormOpen(true)
   }
 
   const handleOpenEditAccount = (acc: AccountRecord) => {
-    setEditingAccountId(acc.id)
-    setAccCategory(acc.category)
-    setAccInstitution(acc.institution)
-    setAccTitle(acc.accountTitle)
-    setAccNumber(acc.accountNumber)
-    setAccBranch(acc.branch)
-    setAccClass(acc.accountClass)
-    setAccBalance(String(acc.balance))
-    setIsEditAccountOpen(true)
-  }
-
-  const handleSaveAccount = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!accTitle.trim()) {
-      toast.error("Please enter an account title.")
-      return
-    }
-
-    setIsSavingAccount(true)
-    const isEdit = Boolean(editingAccountId)
-    const toastId = toast.loading(
-      isEdit ? `Updating account ${accTitle}...` : `Creating treasury account ${accTitle}...`
-    )
-
-    try {
-      const payload: any = {
-        accountTitle: accTitle.trim(),
-        category: accCategory,
-        institution: accInstitution,
-        accountNumber: accNumber.trim() || (accCategory === "CASH" ? "CASH-VAULT" : "N/A"),
-        branch: accBranch.trim() || "Main Office",
-        accountClass: accClass,
-      }
-
-      if (isEdit) {
-        payload.balance = parseFloat(accBalance) || 0
-      } else {
-        payload.initialBalance = parseFloat(accBalance) || 0
-      }
-
-      const res = await apiFetch(
-        isEdit ? `/account-ledger/accounts/${editingAccountId}` : "/account-ledger/accounts",
-        {
-          method: isEdit ? "PUT" : "POST",
-          body: JSON.stringify(payload),
-        }
-      )
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}))
-        throw new Error(errJson.message || "Failed to save treasury account")
-      }
-
-      toast.success(
-        isEdit
-          ? `Account "${accTitle}" updated successfully.`
-          : `Treasury account "${accTitle}" registered in central ledger.`,
-        { id: toastId }
-      )
-
-      setIsAddAccountOpen(false)
-      setIsEditAccountOpen(false)
-      fetchBackendData()
-    } catch (err: any) {
-      console.error("Account save error:", err)
-      toast.error(err.message || "Failed to save account.", { id: toastId })
-    } finally {
-      setIsSavingAccount(false)
-    }
+    setEditingAccount(acc)
+    setIsAccountFormOpen(true)
   }
 
   // Post Transaction Handler
@@ -578,7 +501,7 @@ export default function AccountLedgerPage() {
 
       toast.success(
         isAcc
-          ? `Account "${deleteItem.title}" unlinked from central ledger.`
+          ? `Account "${deleteItem.title}" removed from the treasury ledger.`
           : `${deleteItem.title} reversed and removed. Balances rolled back.`,
         { id: toastId }
       )
@@ -791,91 +714,192 @@ export default function AccountLedgerPage() {
 
       {/* 3. Dynamic Cash Counters & Banks Strip */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold tracking-wider text-slate-800 uppercase">
-            Active Vaults, Drawers & Banks ({accounts.length})
-          </h2>
-          <span className="text-[11px] text-slate-400">
-            Balances synchronize automatically on journal postings
-          </span>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+              Active Vaults, Drawers & Banks ({filteredAccounts.length}
+              {filteredAccounts.length !== accounts.length ? ` of ${accounts.length}` : ""})
+            </h2>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Open any account to see every posted transaction, opening balance, and balance
+              adjustment. Accounts with business transactions cannot be deleted.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={accountSearch}
+                onChange={(event) => setAccountSearch(event.target.value)}
+                placeholder="Search accounts..."
+                className="h-8 w-[190px] pl-8 text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+              {[
+                { id: "all", label: "All" },
+                { id: "BANK", label: "Bank Accounts" },
+                { id: "CASH", label: "Cash Drawers" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() =>
+                    setAccountCategoryFilter(tab.id as "all" | "BANK" | "CASH")
+                  }
+                  aria-pressed={accountCategoryFilter === tab.id}
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                    accountCategoryFilter === tab.id
+                      ? "bg-[#0090FF] text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {accounts.length === 0 && !loading ? (
+        {loading && accounts.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <GlobalLoadingSpinner message="Loading accounts..." className="py-0" />
+          </div>
+        ) : accounts.length === 0 ? (
           <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white p-6 text-center text-xs text-slate-400">
             No bank accounts or cash drawers configured. Click{" "}
             <strong>"Add Account / Drawer"</strong> to create your first treasury account.
           </div>
+        ) : filteredAccounts.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-xs text-slate-400">
+            No accounts match this search or filter.
+          </div>
         ) : (
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {accounts.map((acc) => (
-              <Card
-                key={acc.id}
-                className="group relative rounded-xl border border-slate-200 bg-white p-4 shadow-none transition-all hover:border-slate-300"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <Badge
-                      variant="outline"
-                      className={`text-[9px] font-bold ${
-                        acc.category === "CASH"
-                          ? "border-purple-200 bg-purple-50 text-purple-700"
-                          : "border-blue-200 bg-blue-50 text-blue-700"
-                      }`}
-                    >
-                      {acc.category === "CASH" ? "Cash Drawer / Safe" : "Bank Account"}
-                    </Badge>
-                    <strong
-                      className="mt-1.5 block max-w-[170px] truncate text-xs font-bold text-slate-900"
-                      title={acc.accountTitle}
-                    >
-                      {acc.accountTitle}
-                    </strong>
-                  </div>
+            {filteredAccounts.map((acc) => {
+              const blockedBy = linkedRecordSummary(acc)
+              const deleteBlocked = acc.canDelete === false
+              const linkedCount = Number(acc.transactionCount) || 0
+              const blockingCount = Number(acc.blockingTransactionCount) || 0
+              const openingOnly = linkedCount > 0 && blockingCount === 0
 
-                  <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                    <PermissionGate feature="Bank Accounts Ledger" action="edit">
-<Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleOpenEditAccount(acc)}
-                        className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
-                        title="Edit Account"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-</PermissionGate>
-                    <PermissionGate feature="Bank Accounts Ledger" action="delete">
-<Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleOpenDeleteAccount(acc)}
-                        className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
-                        title="Delete Account"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-</PermissionGate>
-                  </div>
-                </div>
-
-                <div
-                  className={`mt-3 font-mono text-xl font-black tracking-tight ${
-                    acc.balance < 0 ? "text-rose-600" : "text-slate-900"
-                  }`}
+              return (
+                <Card
+                  key={acc.id}
+                  className="relative flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-none transition-all hover:border-slate-300"
                 >
-                  ৳{acc.balance.toLocaleString("en-IN")}
-                </div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <Badge
+                        variant="outline"
+                        className={`text-[9px] font-bold ${
+                          acc.category === "CASH"
+                            ? "border-purple-200 bg-purple-50 text-purple-700"
+                            : "border-blue-200 bg-blue-50 text-blue-700"
+                        }`}
+                      >
+                        {acc.category === "CASH" ? "Cash Drawer / Safe" : "Bank Account"}
+                      </Badge>
+                      <Link
+                        href={`/finance/bank-ledger/${acc.id}`}
+                        className="mt-1.5 block max-w-[190px] truncate text-xs font-bold text-slate-900 hover:text-[#0090FF] hover:underline"
+                        title={`${acc.accountTitle} — open statement`}
+                      >
+                        {acc.accountTitle}
+                      </Link>
+                    </div>
 
-                <div className="mt-2 flex items-center justify-between truncate text-[10px] text-slate-400">
-                  <span className="truncate max-w-[120px]" title={acc.institution}>
-                    {acc.institution}
-                  </span>
-                  <span className="font-mono font-semibold text-slate-500">
-                    {acc.accountNumber}
-                  </span>
-                </div>
-              </Card>
-            ))}
+                    <div className="flex shrink-0 items-center gap-1">
+                      <PermissionGate feature="Bank Accounts Ledger" action="edit">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleOpenEditAccount(acc)}
+                          className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
+                          title="Edit account"
+                          aria-label={`Edit ${acc.accountTitle}`}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </PermissionGate>
+                      <PermissionGate feature="Bank Accounts Ledger" action="delete">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={deleteBlocked}
+                          onClick={() => handleOpenDeleteAccount(acc)}
+                          className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+                          title={
+                            deleteBlocked
+                              ? `Cannot delete: ${blockedBy}`
+                              : "Delete account"
+                          }
+                          aria-label={`Delete ${acc.accountTitle}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </PermissionGate>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`mt-3 font-mono text-xl font-black tracking-tight ${
+                      acc.balance < 0 ? "text-rose-600" : "text-slate-900"
+                    }`}
+                  >
+                    ৳{acc.balance.toLocaleString("en-IN")}
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between gap-2 truncate text-[10px] text-slate-400">
+                    <span
+                      className="truncate"
+                      title={`${acc.institution}${acc.branch ? ` • ${acc.branch}` : ""}`}
+                    >
+                      {acc.institution}
+                    </span>
+                    <span className="shrink-0 font-mono font-semibold text-slate-500">
+                      {acc.accountNumber}
+                    </span>
+                  </div>
+
+                  <div className="mt-1 text-[10px] text-slate-400">
+                    {acc.lastTransactionAt
+                      ? `Last activity: ${new Date(acc.lastTransactionAt).toLocaleDateString(
+                          "en-GB",
+                          { day: "2-digit", month: "short", year: "numeric" }
+                        )}`
+                      : "No transactions yet"}
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5">
+                    <span className="text-[10px] font-semibold text-slate-500">
+                      {openingOnly
+                        ? `${linkedCount} opening balance record${
+                            linkedCount === 1 ? "" : "s"
+                          }`
+                        : `${linkedCount} ledger entr${linkedCount === 1 ? "y" : "ies"}`}
+                    </span>
+                    <Link
+                      href={`/finance/bank-ledger/${acc.id}`}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0090FF] hover:underline"
+                    >
+                      View statement
+                      <ArrowRight className="h-3 w-3" />
+                    </Link>
+                  </div>
+
+                  {deleteBlocked && (
+                    <p
+                      className="mt-1 truncate text-[10px] font-medium text-amber-600"
+                      title={`Cannot delete: ${blockedBy}`}
+                    >
+                      Delete locked: {blockedBy}
+                    </p>
+                  )}
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
@@ -1059,21 +1083,43 @@ export default function AccountLedgerPage() {
                           <ArrowUpRight className="h-3 w-3" /> Outflow
                         </Badge>
                       )}
+                      {(row.method === "Opening Balance" ||
+                        row.method === "Balance Adjustment") && (
+                        <span
+                          className={`mt-1 block text-[10px] font-semibold ${
+                            row.method === "Opening Balance"
+                              ? "text-blue-600"
+                              : "text-amber-600"
+                          }`}
+                        >
+                          {row.method}
+                        </span>
+                      )}
                     </TableCell>
 
                     <TableCell className="py-3 text-slate-800">
                       {row.sourceAccount ? (
                         <div>
-                          <strong className="block font-semibold text-slate-900">
+                          <Link
+                            href={`/finance/bank-ledger/${row.sourceAccount.id}`}
+                            className="block font-semibold text-slate-900 hover:text-[#0090FF] hover:underline"
+                            title={`Open ${row.sourceAccount.accountTitle} statement`}
+                          >
                             {row.sourceAccount.accountTitle}
-                          </strong>
+                          </Link>
                           <span className="text-[10px] text-slate-400">
                             {row.sourceAccount.category === "CASH" ? "Cash Drawer" : "Bank Account"}
                           </span>
                         </div>
                       ) : (
                         <span className="text-slate-400 italic">
-                          {row.flowType === "LOAN" ? "Lender / Credit Line" : "External Depositor"}
+                          {row.flowType === "LOAN"
+                            ? "Lender / Credit Line"
+                            : row.method === "Opening Balance"
+                              ? "Account opening"
+                              : row.method === "Balance Adjustment"
+                                ? "Manual adjustment"
+                                : "External Depositor"}
                         </span>
                       )}
                     </TableCell>
@@ -1081,16 +1127,24 @@ export default function AccountLedgerPage() {
                     <TableCell className="py-3 text-slate-800">
                       {row.destinationAccount ? (
                         <div>
-                          <strong className="block font-semibold text-slate-900">
+                          <Link
+                            href={`/finance/bank-ledger/${row.destinationAccount.id}`}
+                            className="block font-semibold text-slate-900 hover:text-[#0090FF] hover:underline"
+                            title={`Open ${row.destinationAccount.accountTitle} statement`}
+                          >
                             {row.destinationAccount.accountTitle}
-                          </strong>
+                          </Link>
                           <span className="text-[10px] text-slate-400">
                             {row.destinationAccount.category === "CASH" ? "Cash Drawer" : "Bank Account"}
                           </span>
                         </div>
                       ) : (
                         <span className="text-slate-400 italic">
-                          External Payee / Vendor
+                          {row.method === "Opening Balance"
+                            ? "Account opening"
+                            : row.method === "Balance Adjustment"
+                              ? "Manual adjustment"
+                              : "External Payee / Vendor"}
                         </span>
                       )}
                     </TableCell>
@@ -1194,265 +1248,18 @@ export default function AccountLedgerPage() {
         />
       </Card>
 
-      {/* 7. Modal: Add Bank Account or Cash Drawer */}
-      <Dialog open={isAddAccountOpen} onOpenChange={setIsAddAccountOpen}>
-        <DialogContent className="rounded-xl bg-white sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              Add Account or Cash Drawer
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Create a new physical cash desk or connect an authorized bank account.
-            </DialogDescription>
-          </DialogHeader>
+      {/* 7. Modal: Add / Edit Bank Account or Cash Drawer */}
+      <AccountFormDialog
+        open={isAccountFormOpen}
+        onOpenChange={(open) => {
+          setIsAccountFormOpen(open)
+          if (!open) setEditingAccount(null)
+        }}
+        account={editingAccount}
+        onSaved={fetchBackendData}
+      />
 
-          <form onSubmit={handleSaveAccount} className="space-y-3.5 py-2 text-xs">
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-slate-700">Type of Account</Label>
-              <Select
-                value={accCategory}
-                onValueChange={(val: any) => {
-                  setAccCategory(val)
-                  setAccInstitution(
-                    val === "CASH"
-                      ? BANGLADESH_BANKS.cashCounters[0]
-                      : BANGLADESH_BANKS.conventional[0]
-                  )
-                }}
-              >
-                <SelectTrigger className="h-8 bg-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="text-xs">
-                  <SelectItem value="BANK">Corporate Bank Account</SelectItem>
-                  <SelectItem value="CASH">Physical Cash Drawer / Safe</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-slate-700">
-                Financial Institution / Drawer
-              </Label>
-              <Select value={accInstitution} onValueChange={setAccInstitution}>
-                <SelectTrigger className="h-8 bg-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="max-h-[260px] text-xs">
-                  {accCategory === "CASH" ? (
-                    <SelectGroup>
-                      <SelectLabel className="text-[10px] text-slate-400">
-                        Cash Registers & Safes
-                      </SelectLabel>
-                      {BANGLADESH_BANKS.cashCounters.map((safe) => (
-                        <SelectItem key={safe} value={safe}>
-                          {safe}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ) : (
-                    <>
-                      <SelectGroup>
-                        <SelectLabel className="text-[10px] text-slate-400">
-                          Conventional Banks
-                        </SelectLabel>
-                        {BANGLADESH_BANKS.conventional.map((b) => (
-                          <SelectItem key={b} value={b}>
-                            {b}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel className="text-[10px] text-slate-400">
-                          Islamic Shariah Banks
-                        </SelectLabel>
-                        {BANGLADESH_BANKS.islamic.map((b) => (
-                          <SelectItem key={b} value={b}>
-                            {b}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel className="text-[10px] text-slate-400">
-                          Foreign / Multinational Banks
-                        </SelectLabel>
-                        {BANGLADESH_BANKS.foreign.map((b) => (
-                          <SelectItem key={b} value={b}>
-                            {b}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-slate-700">Display Title *</Label>
-              <Input
-                placeholder="e.g. EBL Operations Clearing / HQ Main Cash Drawer"
-                value={accTitle}
-                onChange={(e) => setAccTitle(e.target.value)}
-                required
-                className="h-8"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">
-                  Account # / Vault Identifier
-                </Label>
-                <Input
-                  placeholder="e.g. 104-102-998 or SAFE-01"
-                  value={accNumber}
-                  onChange={(e) => setAccNumber(e.target.value)}
-                  className="h-8 font-mono"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">
-                  Branch / Physical Location
-                </Label>
-                <Input
-                  placeholder="e.g. Gulshan Corporate / Mirpur 10 HQ"
-                  value={accBranch}
-                  onChange={(e) => setAccBranch(e.target.value)}
-                  className="h-8"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Account Class</Label>
-                <Input
-                  placeholder="Current / Petty Cash / Cash Desk"
-                  value={accClass}
-                  onChange={(e) => setAccClass(e.target.value)}
-                  className="h-8"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Initial Balance (৳)</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={accBalance}
-                  onChange={(e) => setAccBalance(e.target.value)}
-                  className="h-8 font-mono font-bold"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsAddAccountOpen(false)}
-                className="h-8 text-xs"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSavingAccount}
-                className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
-              >
-                {isSavingAccount ? "Saving..." : "Save & Link Account"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* 8. Modal: Edit Bank Account / Cash Drawer */}
-      <Dialog open={isEditAccountOpen} onOpenChange={setIsEditAccountOpen}>
-        <DialogContent className="rounded-xl bg-white sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              Edit Treasury Account Details
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Update branch locations, account titles, or adjust nominal balance.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleSaveAccount} className="space-y-3.5 py-2 text-xs">
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-slate-700">Display Title *</Label>
-              <Input
-                value={accTitle}
-                onChange={(e) => setAccTitle(e.target.value)}
-                required
-                className="h-8"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">
-                  Account # / Vault Identifier
-                </Label>
-                <Input
-                  value={accNumber}
-                  onChange={(e) => setAccNumber(e.target.value)}
-                  className="h-8 font-mono"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Branch Location</Label>
-                <Input
-                  value={accBranch}
-                  onChange={(e) => setAccBranch(e.target.value)}
-                  className="h-8"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Account Class</Label>
-                <Input
-                  value={accClass}
-                  onChange={(e) => setAccClass(e.target.value)}
-                  className="h-8"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-slate-700">Adjusted Balance (৳)</Label>
-                <Input
-                  type="number"
-                  value={accBalance}
-                  onChange={(e) => setAccBalance(e.target.value)}
-                  className="h-8 font-mono font-bold"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsEditAccountOpen(false)}
-                className="h-8 text-xs"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSavingAccount}
-                className="h-8 bg-[#0090FF] text-xs text-white hover:bg-[#0080e5]"
-              >
-                {isSavingAccount ? "Saving..." : "Update Account"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* 9. Modal: Post Money / Transfer / Loan */}
+      {/* 8. Modal: Post Money / Transfer / Loan */}
       <Dialog open={isTxOpen} onOpenChange={setIsTxOpen}>
         <DialogContent className="rounded-xl bg-white sm:max-w-[520px]">
           <DialogHeader>
@@ -1693,7 +1500,7 @@ export default function AccountLedgerPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 10. Modal: Printable A4 Voucher Slip */}
+      {/* 9. Modal: Printable A4 Voucher Slip */}
       <Dialog open={isPrintOpen} onOpenChange={setIsPrintOpen}>
         <DialogContent className="rounded-2xl bg-white p-4 shadow-xl sm:max-w-[650px] sm:p-6">
           <DialogHeader>
@@ -1856,7 +1663,7 @@ export default function AccountLedgerPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 11. Global Delete Confirmation Modal */}
+      {/* 10. Global Delete Confirmation Modal */}
       <DeleteConfirmationModal
         open={isDeleteModalOpen}
         onOpenChange={setIsDeleteModalOpen}
@@ -1868,7 +1675,7 @@ export default function AccountLedgerPage() {
         }
         description={
           deleteItem?.type === "ACCOUNT"
-            ? "Are you sure you want to remove this account? This will unlink it from active central treasury accounts. Accounts with associated transactions cannot be deleted."
+            ? "Are you sure you want to remove this account? Accounts with business transactions, collections, expense vouchers, or settlements cannot be deleted. Opening balance records are removed with the account."
             : "Are you sure you want to reverse and delete this journal transaction? Account balances will be automatically adjusted to their prior state."
         }
         itemName={deleteItem?.title}

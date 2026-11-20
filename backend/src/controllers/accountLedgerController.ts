@@ -8,6 +8,11 @@ export const getAccounts = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, 200, "Financial accounts retrieved successfully", accounts);
 });
 
+export const getAccountDetails = catchAsync(async (req: Request, res: Response) => {
+  const details = await accountLedgerService.getAccountDetails(req.params.id);
+  sendResponse(res, 200, "Account details retrieved successfully", details);
+});
+
 export const getLedgerMetrics = catchAsync(async (req: Request, res: Response) => {
   const metrics = await accountLedgerService.getLedgerMetrics();
   sendResponse(res, 200, "Central treasury ledger metrics calculated", metrics);

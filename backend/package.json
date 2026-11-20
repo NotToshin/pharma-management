@@ -13,7 +13,9 @@
     "test:staff": "node --require tsx/cjs --test scripts/test-staff-onboarding.cjs",
     "territories:backfill": "tsx scripts/backfill-territories.ts",
     "test:territories": "tsc && node --test scripts/test-territory-relations.cjs scripts/test-territory-management.cjs",
-    "test:orders": "tsc && node --test scripts/test-order-edit.cjs"
+    "test:orders": "tsc && node --test scripts/test-order-edit.cjs",
+    "accounts:backfill-openings": "node scripts/backfill-account-openings.cjs",
+    "journal:renumber-refs": "node scripts/renumber-journal-refs.cjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

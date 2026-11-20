@@ -306,6 +306,7 @@ model DeliveryCollection {
   @@index([orderId])
   @@index([collectionDate])
   @@index([status, createdAt])
+  @@index([financialAccountId])
 }
 
 model ExpenseVoucher {
@@ -345,6 +346,7 @@ model ExpenseVoucher {
   @@index([category])
   @@index([payeeType])
   @@index([payeeName])
+  @@index([financialAccountId])
 }
 
 model FinancialAccount {
@@ -383,6 +385,9 @@ model JournalTransaction {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([sourceAccountId])
+  @@index([destinationAccountId])
 }
 
 // ─────────────────────────────────────────────
@@ -540,6 +545,7 @@ model PartySettlement {
   @@index([direction])
   @@index([partyName])
   @@index([status])
+  @@index([financialAccountId])
 }
 
 model Wholesaler {

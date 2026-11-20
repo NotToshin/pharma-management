@@ -120,6 +120,7 @@ Token helpers and `requireAuth` / `requirePermission` behavior are in [AUTHENTIC
 | `POST /api/territories` | `requireAuth()` plus create permission on `Territory Sales Breakdown` or `Target Vs Achievement` |
 | `PUT /api/territories/:id`, `DELETE /api/territories/:id` | `requireAuth()` plus `Territory Sales Breakdown` edit or delete permission |
 | `GET /api/collections/order-context/:orderId` | `requireAuth()` plus `requirePermission("Delivery Cash Collections", "read")` |
+| `GET /api/account-ledger/accounts/:id` | `requireAuth()` plus `requirePermission("Bank Accounts Ledger", "read")` |
 | `PATCH /api/orders/:id` | `requireAuth()` plus `requirePermission("Sales Orders", "edit")` |
 | Other business routes | No `requireAuth` |
 
@@ -202,6 +203,18 @@ Both `POST /api/orders` and `PATCH /api/orders/:id` require a trimmed, non-empty
 Order, stock, mirrored product-batch quantities, and customer receivable changes run in one transaction. Product quantity differences are aggregated by normalized description so price edits and splitting rows do not allocate stock again. Additional units use exact brand/SKU matches and FEFO order, excluding expired, invalid-expiry, or quarantined batches; insufficient stock rejects the entire edit. Historical orders have no per-batch allocation ledger: reductions can restore stock only when a single matching batch exists. Ambiguous returns and legacy orders without saved line items require reconciliation before order editing; invoice metadata remains editable separately.
 
 Cancelled orders are rejected. Non-rejected collections matched by order ID or invoice/order number, together with the saved paid amount, prevent reducing the new total below payments or transferring a paid order to another pharmacy. Unpaid pharmacy changes transfer receivables; duplicate pharmacy matches reject the transaction. A previously Settled order with a new outstanding balance becomes Delivered & Invoiced. Receipt records retain their historical values. Successful edits record a Sales Order Updated audit event after the transaction. `npm run test:orders` compiles and runs isolated service, validation, rollback, and route-guard regression tests without a database connection.
+
+## Bank accounts and statements
+
+`GET /api/account-ledger/accounts` returns each `FinancialAccount` plus `transactionCount`, `blockingTransactionCount`, `linkedCollections`, `linkedExpenses`, `linkedSettlements`, `canDelete`, and `lastTransactionAt`. `transactionCount` includes opening-balance entries; `blockingTransactionCount` excludes them and drives `canDelete`. The counts come from `groupBy` queries over the journal source/destination IDs and the three `financialAccountId` references.
+
+`GET /api/account-ledger/accounts/:id` requires authentication and read permission on `Bank Accounts Ledger`. It returns `{ account, summary, linked, canDelete, deleteBlockedReason }`. `summary` contains `balance`, `totalCredits`, `totalDebits`, `netMovement`, `transactionCount`, and `lastTransactionAt`. `linked` includes `journal`, `openingJournal`, `blockingJournal`, and the three source-document counts. Credits are journal rows whose `destinationAccountId` is the account (inflows, loans, incoming transfers, positive openings/adjustments); debits are rows whose `sourceAccountId` is the account (outflows, outgoing transfers, negative openings/adjustments). The paginated statement itself uses the existing `GET /api/account-ledger/transactions?accountId=...` query.
+
+`DELETE /api/account-ledger/accounts/:id` returns 409 when a business `JournalTransaction`, `DeliveryCollection`, `ExpenseVoucher`, or `PartySettlement` references the account. The message lists the linked counts by record type. Opening-balance entries do not block deletion; they are removed with the account. `financialAccountId` on the last three models is a plain string without a database foreign key, so the service guard is the only protection against dangling references. Indexes cover the journal account IDs and those three fields; regenerate Prisma and run `npx prisma db push --skip-generate` after schema changes.
+
+Account creation uses `initialBalance` to post an `INFLOW` or `OUTFLOW` journal entry with method `Opening Balance` and increments or decrements the new account's balance in the same transaction. Updating `balance` posts a `Balance Adjustment` entry for the difference instead of overwriting the balance. The entries have sequential `JRN-OPEN-001` and `JRN-ADJ-001` references and appear on the account statement. `node scripts/backfill-account-openings.cjs` previews missing opening entries; `--apply` posts them for accounts created before this behavior existed.
+
+Journal references use a readable prefix plus a zero-padded sequence (`JRN-SPAY-001`, `JRN-BPAY-001`, `JRN-REV-001`, `JRN-OPEN-001`, `JRN-ADJ-001`). `src/utils/journalRef.ts` reads existing numeric suffixes and returns the next number; legacy random suffixes are ignored. `node scripts/renumber-journal-refs.cjs` previews converting legacy random references, and `--apply` renumbers them oldest-first. Numeric references are kept. Historical audit entries retain the reference text they recorded at the time.
 
 ## Other constraints
 

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   getAccounts,
+  getAccountDetails,
   getLedgerMetrics,
   createAccount,
   updateAccount,
@@ -11,6 +12,7 @@ import {
   reconcileTransaction,
   deleteTransaction,
 } from "../controllers/accountLedgerController";
+import { requireAuth, requirePermission } from "../middlewares/requireAuth";
 import { validateBody, validateParams, validateQuery } from "../utils/validate";
 import {
   createAccountSchema,
@@ -30,6 +32,13 @@ router.get("/metrics", getLedgerMetrics);
 
 // Financial Accounts & Cash Drawers
 router.get("/accounts", getAccounts);
+router.get(
+  "/accounts/:id",
+  requireAuth(),
+  requirePermission("Bank Accounts Ledger", "read"),
+  validateParams(accountIdParamSchema),
+  getAccountDetails
+);
 router.post("/accounts", validateBody(createAccountSchema), createAccount);
 router.put("/accounts/:id", validateParams(updateAccountSchema), validateBody(updateAccountSchema), updateAccount);
 router.delete("/accounts/:id", validateParams(accountIdParamSchema), deleteAccount);

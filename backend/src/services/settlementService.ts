@@ -1,4 +1,5 @@
 import prisma from "../utils/prisma";
+import { nextJournalRef } from "../utils/journalRef";
 import { AppError } from "../errors";
 import { auditLogService } from "./auditLogService";
 
@@ -537,11 +538,11 @@ export const settlementService = {
           data: { balance: direction === "OUTGOING" ? { decrement: amount } : { increment: amount } },
         });
 
-        const stamp = Date.now().toString(36).toUpperCase();
+        const refCode = await nextJournalRef("JRN-SPAY-", tx);
         await tx.journalTransaction.create({
           data: {
             entryDate: paymentDate,
-            refCode: `JRN-SPAY-${stamp}`,
+            refCode,
             flowType: "OUTFLOW",
             particulars: `Supplier payment to ${partyName}${planned.length ? ` (${planned.map((p) => p.documentNumber).join(", ")})` : " (advance)"}`,
             fundingEntity: partyName,
@@ -649,11 +650,11 @@ export const settlementService = {
                 : { decrement: existing.amount },
           },
         });
-        const stamp = Date.now().toString(36).toUpperCase();
+        const refCode = await nextJournalRef("JRN-REV-", tx);
         await tx.journalTransaction.create({
           data: {
             entryDate: formatDate(),
-            refCode: `JRN-REV-${stamp}`,
+            refCode,
             flowType: existing.direction === "OUTGOING" ? "INFLOW" : "OUTFLOW",
             particulars: `Reversal of ${existing.paymentNumber} (${existing.partyName})`,
             fundingEntity: existing.partyName,

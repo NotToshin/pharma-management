@@ -425,7 +425,7 @@ export function AppSidebar({ onOpenAccount, onOpenPrivileges, ...props }: AppSid
                   const isSubActive =
                     hasSub && subItems.some((sub) => pathname === sub.href)
                   const isDirectActive = item.href
-                    ? pathname === item.href
+                    ? pathname === item.href || pathname.startsWith(`${item.href}/`)
                     : false
 
                   // When collapsed in icon mode on PC/Tablet: render floating Dropdown flyout
